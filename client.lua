@@ -1,10 +1,51 @@
-local role
-local bankVaults = {
-    { location = vector3(150.0, -1040.0, 29.0), name = "Pacific Standard Bank", id = 1 },
-    { location = vector3(-1212.0, -330.0, 37.8), name = "Fleeca Bank", id = 2 },
-}
+-- client.lua
+
+-- Variables and Data Structures
+local role = nil
 local playerCash = 0
-local playerStats = { heists = 0, arrests = 0, rewards = 0 }
+local playerStats = { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
+local currentObjective = nil
+local wantedLevel = 0
+
+-- Import Configurations
+local Config = Config
+
+-- Initialize player role on resource start
+AddEventHandler('onClientResourceStart', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        TriggerServerEvent('cops_and_robbers:requestRole')
+        displayRoleSelection()
+    end
+end)
+
+-- Function to display role selection menu
+function displayRoleSelection()
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'openRoleMenu' })
+end
+
+-- Receive role selection from NUI
+RegisterNUICallback('selectRole', function(data, cb)
+    role = data.role
+    TriggerServerEvent('cops_and_robbers:setPlayerRole', role)
+    SetNuiFocus(false, false)
+    spawnPlayer(role)
+    cb('ok')
+end)
+
+-- Spawn player based on role
+function spawnPlayer(role)
+    local spawnLocation = role == 'cop' and Config.CopSpawn or Config.RobberSpawn
+    SetEntityCoords(PlayerPedId(), spawnLocation.x, spawnLocation.y, spawnLocation.z, false, false, false, true)
+    -- Optionally, give initial weapons or items based on role
+end
+
+-- Receive and set player role from the server
+RegisterNetEvent('cops_and_robbers:setRole')
+AddEventHandler('cops_and_robbers:setRole', function(serverRole)
+    role = serverRole
+    spawnPlayer(role)
+end)
 
 -- Notify cops of a bank robbery with GPS update and sound
 RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
@@ -24,15 +65,11 @@ end)
 -- Start the heist timer and update HUD
 RegisterNetEvent('cops_and_robbers:startHeistTimer')
 AddEventHandler('cops_and_robbers:startHeistTimer', function(bankId, time)
-    local remainingTime = time
-    Citizen.CreateThread(function()
-        while remainingTime > 0 do
-            Citizen.Wait(1000)
-            remainingTime = remainingTime - 1
-            -- Display heist timer
-            DrawText(0.5, 0.5, string.format("Heist Time Remaining: %02d:%02d", math.floor(remainingTime / 60), remainingTime % 60))
-        end
-    end)
+    SendNUIMessage({
+        action = 'startHeistTimer',
+        duration = time,
+        bankName = Config.BankVaults[bankId].name
+    })
 end)
 
 -- Display heist cooldown notification
@@ -46,12 +83,15 @@ RegisterNetEvent('cops_and_robbers:receiveReward')
 AddEventHandler('cops_and_robbers:receiveReward', function(amount)
     DisplayNotification("~g~Heist successful! Reward: $" .. amount)
     playerStats.rewards = playerStats.rewards + amount
+    playerCash = playerCash + amount
+    addExperience(500) -- Award experience for successful heist
 end)
 
 -- Arrest notification
 RegisterNetEvent('cops_and_robbers:arrestNotification')
 AddEventHandler('cops_and_robbers:arrestNotification', function(copId)
-    DisplayNotification("~r~You have been arrested by " .. GetPlayerName(copId) .. "!")
+    DisplayNotification("~r~You have been arrested by " .. GetPlayerName(GetPlayerFromServerId(copId)) .. "!")
+    wantedLevel = 0 -- Reset wanted level upon arrest
 end)
 
 -- Helper function to display notifications on screen
@@ -61,113 +101,96 @@ function DisplayNotification(text)
     DrawNotification(false, true)
 end
 
--- Draw text on screen
-function DrawText(x, y, text)
-    SetTextFont(0)
+-- Draw custom text on screen
+function DrawCustomText(x, y, text)
+    SetTextFont(4)
     SetTextProportional(1)
-    SetTextScale(0.5, 0.5)
-    SetTextColour(255, 255, 255, 255)
-    SetTextDropShadow(0, 0, 0, 0, 255)
-    SetTextEdge(1, 0, 0, 0, 255)
+    SetTextScale(0.35, 0.35)
+    SetTextColour(255, 255, 255, 215)
     SetTextEntry("STRING")
+    SetTextCentre(true)
     AddTextComponentString(text)
     DrawText(x, y)
 end
 
--- ADMIN FUNCTIONS
-
--- Set cash for the player
-RegisterNetEvent('cops_and_robbers:setCash')
-AddEventHandler('cops_and_robbers:setCash', function(amount)
-    playerCash = amount
-    DisplayNotification("~g~Your cash has been set to: $" .. amount)
-end)
-
--- Add cash for the player
-RegisterNetEvent('cops_and_robbers:addCash')
-AddEventHandler('cops_and_robbers:addCash', function(amount)
-    playerCash = playerCash + amount
-    DisplayNotification("~g~You received: $" .. amount)
-end)
-
--- Remove cash for the player
-RegisterNetEvent('cops_and_robbers:removeCash')
-AddEventHandler('cops_and_robbers:removeCash', function(amount)
-    playerCash = playerCash - amount
-    DisplayNotification("~r~You lost: $" .. amount)
-end)
-
--- Give a weapon to the player
-RegisterNetEvent('cops_and_robbers:giveWeapon')
-AddEventHandler('cops_and_robbers:giveWeapon', function(weaponName)
-    GiveWeaponToPed(PlayerPedId(), GetHashKey(weaponName), 100, false, false)
-    DisplayNotification("~g~You received a " .. weaponName)
-end)
-
--- Remove a weapon from the player
-RegisterNetEvent('cops_and_robbers:removeWeapon')
-AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
-    RemoveWeaponFromPed(PlayerPedId(), GetHashKey(weaponName))
-    DisplayNotification("~r~Your " .. weaponName .. " has been removed")
-end)
-
--- Reassign the player's role
-RegisterNetEvent('cops_and_robbers:reassignRole')
-AddEventHandler('cops_and_robbers:reassignRole', function(newRole)
-    role = newRole
-    DisplayNotification("~b~Your role has been changed to " .. newRole)
-end)
-
--- Objective Display for Cop and Robber
-RegisterNetEvent('cops_and_robbers:setObjective')
-AddEventHandler('cops_and_robbers:setObjective', function(objectives)
-    if role == 'cop' then
-        currentObjective = objectives.cops
-    else
-        currentObjective = objectives.robbers
-    end
-    DisplayObjective(currentObjective)
-end)
-
--- Display objectives on player’s HUD
-function DisplayObjective(objective)
-    -- Function to display objectives on screen (implement with UI or DrawText)
-    DisplayNotification("Objective: " .. objective)
+-- Experience and Leveling System
+function addExperience(amount)
+    playerStats.experience = playerStats.experience + amount
+    checkLevelUp()
 end
 
--- Random Event: Police Checkpoint
-RegisterNetEvent('cops_and_robbers:eventPoliceCheckpoint')
-AddEventHandler('cops_and_robbers:eventPoliceCheckpoint', function()
-    if role == 'robber' then
-        DisplayNotification("Caution: Police checkpoint nearby. Evade!")
-        -- Add checkpoints on map and possible cop patrols
+function checkLevelUp()
+    local currentLevel = playerStats.level
+    local nextLevelExp = Config.Experience.Levels[currentLevel + 1] and Config.Experience.Levels[currentLevel + 1].exp or nil
+    if nextLevelExp and playerStats.experience >= nextLevelExp then
+        playerStats.level = playerStats.level + 1
+        DisplayNotification("~b~You leveled up to Level " .. playerStats.level .. "!")
+        giveLevelUpRewards()
     end
+end
+
+function giveLevelUpRewards()
+    local rewards = Config.Experience.Rewards[role][playerStats.level]
+    if rewards then
+        if rewards.cash then
+            playerCash = playerCash + rewards.cash
+            DisplayNotification("~g~You received $" .. rewards.cash .. " as a level-up reward!")
+        end
+        if rewards.item then
+            -- Give item to player (implementation depends on inventory system)
+            DisplayNotification("~g~You received a " .. rewards.item .. " as a level-up reward!")
+        end
+    end
+end
+
+-- Wanted Level System
+function increaseWantedLevel(amount)
+    wantedLevel = math.min(wantedLevel + amount, 5)
+    DisplayNotification("~r~Your wanted level increased to " .. wantedLevel .. "!")
+    -- Update HUD or minimap with wanted level
+end
+
+function decreaseWantedLevel(amount)
+    wantedLevel = math.max(wantedLevel - amount, 0)
+    DisplayNotification("~g~Your wanted level decreased to " .. wantedLevel .. ".")
+    -- Update HUD or minimap with wanted level
+end
+
+-- Jail System
+RegisterNetEvent('cops_and_robbers:sendToJail')
+AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
+    local jailLocation = vector3(1651.0, 2570.0, 45.5) -- Prison location
+    SetEntityCoords(PlayerPedId(), jailLocation.x, jailLocation.y, jailLocation.z, false, false, false, true)
+    DisplayNotification("~r~You have been sent to jail for " .. jailTime .. " seconds.")
+    -- Implement jail time countdown and restrictions
+    Citizen.CreateThread(function()
+        local remainingTime = jailTime
+        while remainingTime > 0 do
+            Citizen.Wait(1000)
+            remainingTime = remainingTime - 1
+            -- Restrict player actions while in jail
+            DisableControlAction(0, 24, true) -- Disable attack
+            DisableControlAction(0, 25, true) -- Disable aim
+            DisableControlAction(0, 47, true) -- Disable weapon
+            DisableControlAction(0, 58, true) -- Disable weapon
+        end
+        -- Release player from jail
+        spawnPlayer(role)
+        DisplayNotification("~g~You have been released from jail.")
+    end)
 end)
 
--- Random Event: Supply Drop for Robbers
-RegisterNetEvent('cops_and_robbers:eventSupplyDrop')
-AddEventHandler('cops_and_robbers:eventSupplyDrop', function(dropLocation)
-    if role == 'robber' then
-        DisplayNotification("Supply drop available at marked location!")
-        SetNewWaypoint(dropLocation.x, dropLocation.y)
-    end
+-- NUI Callbacks
+RegisterNUICallback('closeMenu', function(data, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
 end)
 
--- Random Event: Backup Request for Cops
-RegisterNetEvent('cops_and_robbers:eventBackupRequest')
-AddEventHandler('cops_and_robbers:eventBackupRequest', function(backupLocation)
-    if role == 'cop' then
-        DisplayNotification("Backup request! Head to the marked location.")
-        SetNewWaypoint(backupLocation.x, backupLocation.y)
-    end
-end)
-
--- Bounty System Notification
-RegisterNetEvent('cops_and_robbers:notifyBounty')
-AddEventHandler('cops_and_robbers:notifyBounty', function(targetRobber, reward)
-    if role == 'cop' then
-        DisplayNotification("Bounty placed on " .. GetPlayerName(targetRobber) .. "! Reward: $" .. reward)
-    elseif role == 'robber' and GetPlayerServerId(PlayerId()) == targetRobber then
-        DisplayNotification("You have a bounty on your head! Evade capture!")
+-- Periodically send player position and wanted level to the server
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(5000) -- Every 5 seconds
+        local playerPos = GetEntityCoords(PlayerPedId())
+        TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, wantedLevel)
     end
 end)
