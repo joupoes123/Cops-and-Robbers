@@ -6,6 +6,233 @@ local playerCash = 0
 local playerStats = { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
 local currentObjective = nil
 local wantedLevel = 0
+local playerWeapons = {}
+local playerAmmo = {}
+
+-- Request player data when the player spawns
+AddEventHandler('playerSpawned', function()
+    TriggerServerEvent('cops_and_robbers:requestPlayerData')
+end)
+
+-- Receive player data from the server
+RegisterNetEvent('cops_and_robbers:receivePlayerData')
+AddEventHandler('cops_and_robbers:receivePlayerData', function(data)
+    -- Give weapons back to the player
+    local playerPed = PlayerPedId()
+    for weaponName, _ in pairs(data.weapons) do
+        local weaponHash = GetHashKey(weaponName)
+        GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
+        playerWeapons[weaponName] = true
+    end
+    -- Restore inventory items if necessary
+    -- Restore player money if you have a HUD to display it
+end)
+
+-- Weapon management functions
+RegisterNetEvent('cops_and_robbers:addWeapon')
+AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
+    playerWeapons[weaponName] = true
+end)
+
+RegisterNetEvent('cops_and_robbers:removeWeapon')
+AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    RemoveWeaponFromPed(playerPed, weaponHash)
+    playerWeapons[weaponName] = nil
+end)
+
+RegisterNetEvent('cops_and_robbers:addAmmo')
+AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoCount)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    if HasPedGotWeapon(playerPed, weaponHash, false) then
+        AddAmmoToPed(playerPed, weaponHash, ammoCount)
+        playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoCount
+    else
+        ShowNotification("You don't have the weapon for this ammo.")
+    end
+end)
+
+-- Armor application
+RegisterNetEvent('cops_and_robbers:applyArmor')
+AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
+    local playerPed = PlayerPedId()
+    if armorType == "armor" then
+        SetPedArmour(playerPed, 50)
+    elseif armorType == "heavy_armor" then
+        SetPedArmour(playerPed, 100)
+    end
+end)
+
+-- Event handler for purchase confirmation
+RegisterNetEvent('cops_and_robbers:purchaseConfirmed')
+AddEventHandler('cops_and_robbers:purchaseConfirmed', function(itemId, quantity)
+    quantity = quantity or 1
+    -- Find item details
+    local itemName
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == itemId then
+            itemName = item.name
+            break
+        end
+    end
+
+    if itemName then
+        ShowNotification('You purchased: ' .. quantity .. ' x ' .. itemName)
+    else
+        ShowNotification('Purchase successful.')
+    end
+end)
+
+-- Event handler for purchase failure
+RegisterNetEvent('cops_and_robbers:purchaseFailed')
+AddEventHandler('cops_and_robbers:purchaseFailed', function(reason)
+    ShowNotification('Purchase failed: ' .. reason)
+end)
+
+-- Event handler for sell confirmation
+RegisterNetEvent('cops_and_robbers:sellConfirmed')
+AddEventHandler('cops_and_robbers:sellConfirmed', function(itemId, quantity)
+    quantity = quantity or 1
+    local itemName
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == itemId then
+            itemName = item.name
+            break
+        end
+    end
+
+    if itemName then
+        ShowNotification('You sold: ' .. quantity .. ' x ' .. itemName)
+    else
+        ShowNotification('Sale successful.')
+    end
+end)
+
+-- Event handler for sell failure
+RegisterNetEvent('cops_and_robbers:sellFailed')
+AddEventHandler('cops_and_robbers:sellFailed', function(reason)
+    ShowNotification('Sale failed: ' .. reason)
+end)
+
+-- Event handler to apply armor
+RegisterNetEvent('cops_and_robbers:applyArmor')
+AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
+    local playerPed = PlayerPedId()
+    if armorType == "armor" then
+        SetPedArmour(playerPed, 50)
+    elseif armorType == "heavy_armor" then
+        SetPedArmour(playerPed, 100)
+    end
+end)
+
+-- Function to show notification
+function ShowNotification(text)
+    SetNotificationTextEntry("STRING")
+    AddTextComponentSubstringPlayerName(text)
+    DrawNotification(false, false)
+end
+
+-- NUI Callbacks
+RegisterNUICallback('buyItem', function(data, cb)
+    local itemId = data.itemId
+    local quantity = data.quantity or 1
+    TriggerServerEvent('cops_and_robbers:purchaseItem', itemId, quantity)
+    cb('ok')
+end)
+
+RegisterNUICallback('sellItem', function(data, cb)
+    local itemId = data.itemId
+    local quantity = data.quantity or 1
+    TriggerServerEvent('cops_and_robbers:sellItem', itemId, quantity)
+    cb('ok')
+end)
+
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    TriggerServerEvent('cops_and_robbers:getPlayerInventory')
+    RegisterNetEvent('cops_and_robbers:sendPlayerInventory')
+    AddEventHandler('cops_and_robbers:sendPlayerInventory', function(items)
+        cb({ items = items })
+    end)
+end)
+
+RegisterNUICallback('closeStore', function(data, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
+end)
+
+-- Function to open the store
+function openStore(storeName, storeType, vendorItems)
+    -- Request item list from server
+    TriggerServerEvent('cops_and_robbers:getItemList', storeType, vendorItems)
+
+    -- Receive item list from server
+    RegisterNetEvent('cops_and_robbers:sendItemList')
+    AddEventHandler('cops_and_robbers:sendItemList', function(itemList)
+        SetNuiFocus(true, true)
+        SendNUIMessage({
+            action = 'openStore',
+            storeName = storeName,
+            items = itemList
+        })
+    end)
+end
+
+-- Detect player near a store
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        local playerCoords = GetEntityCoords(PlayerPedId())
+
+        for _, store in ipairs(Config.AmmuNationStores) do
+            local distance = #(playerCoords - vector3(store.x, store.y, store.z))
+            if distance < 2.0 then
+                DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
+                if IsControlJustPressed(0, 51) then  -- E key
+                    openStore('Ammu-Nation', 'AmmuNation')
+                end
+            end
+        end
+
+        -- Handle NPC interactions
+        for _, vendor in ipairs(Config.NPCVendors) do
+            local distance = #(playerCoords - vector3(vendor.location.x, vendor.location.y, vendor.location.z))
+            if distance < 2.0 then
+                DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
+                if IsControlJustPressed(0, 51) then
+                    openStore(vendor.name, 'Vendor', vendor.items)
+                end
+            end
+        end
+    end
+end)
+
+-- Function to display help text
+function DisplayHelpText(text)
+    BeginTextCommandDisplayHelp("STRING")
+    AddTextComponentSubstringPlayerName(text)
+    EndTextCommandDisplayHelp(0, false, true, -1)
+end
+
+-- Spawn NPC vendors
+Citizen.CreateThread(function()
+    for _, vendor in ipairs(Config.NPCVendors) do
+        local hash = GetHashKey(vendor.model)
+        RequestModel(hash)
+        while not HasModelLoaded(hash) do
+            Citizen.Wait(100)
+        end
+
+        local npc = CreatePed(4, hash, vendor.location.x, vendor.location.y, vendor.location.z - 1.0, vendor.heading, false, true)
+        SetEntityInvincible(npc, true)
+        SetBlockingOfNonTemporaryEvents(npc, true)
+        FreezeEntityPosition(npc, true)
+    end
+end)
 
 -- Import Configurations
 local Config = Config

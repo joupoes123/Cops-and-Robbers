@@ -39,3 +39,115 @@ body {
 #heist-timer {
     display: none;
 }
+
+body {
+    background-color: rgba(0, 0, 0, 0.7);
+    font-family: Arial, sans-serif;
+    color: #fff;
+}
+
+#store-menu {
+    width: 600px;
+    margin: 50px auto;
+    background-color: #222;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+#store-title {
+    text-align: center;
+}
+
+#tab-menu {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    margin: 0 5px;
+    padding: 10px;
+    background-color: #555;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    flex: 1;
+}
+
+.tab-btn.active {
+    background-color: #d9534f;
+}
+
+#category-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.category-btn {
+    margin: 5px;
+    padding: 10px;
+    background-color: #555;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    flex: 1 1 100px;
+}
+
+.category-btn.active {
+    background-color: #d9534f;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+#item-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.item {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+}
+
+.item-name {
+    flex: 1;
+}
+
+.item-price {
+    flex: 0 0 80px;
+    text-align: right;
+}
+
+.item-quantity {
+    flex: 0 0 50px;
+    text-align: right;
+}
+
+.quantity-input {
+    width: 50px;
+    margin-right: 10px;
+}
+
+.buy-btn, .sell-btn {
+    flex: 0 0 60px;
+}
+
+#close-btn {
+    width: 100%;
+    padding: 10px;
+    background-color: #d9534f;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+}

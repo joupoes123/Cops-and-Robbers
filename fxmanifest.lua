@@ -20,9 +20,13 @@ client_scripts {
 }
 
 ui_page 'html/index.html'
+ui_page 'html/store.html'
 
 files {
+    'html/store.html',
     'html/index.html',
     'html/styles.css',
-    'html/scripts.js'
+    'html/scripts.js',
+    'purchase_history.json',
+    'player_data/*'  -- Include the player_data directory
 }
