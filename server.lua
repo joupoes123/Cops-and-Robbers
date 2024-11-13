@@ -1,7 +1,7 @@
 -- server.lua
 
 -- Import Configurations
-local Config = Config
+-- Config is already available globally from 'config.lua' via 'shared_scripts' in 'fxmanifest.lua'
 
 -- Variables and Data Structures
 local playerData = {}
@@ -12,8 +12,9 @@ local playerStats = {}
 local playerRoles = {}
 local playerPositions = {}
 local bannedPlayers = {}
+local purchaseHistory = {}
 
--- Ensure player_data directory exists
+-- Ensure 'player_data' directory exists
 local function ensurePlayerDataDirectory()
     local resourcePath = GetResourcePath(GetCurrentResourceName())
     local dir = resourcePath .. "/player_data"
@@ -76,15 +77,41 @@ function savePlayerData(source)
     end
 end
 
-AddEventHandler('playerConnecting', function(name, setCallback, deferrals)
+-- Event handler for player connecting (load player data and check for bans)
+AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
+    local identifiers = GetPlayerIdentifiers(src)
+
+    deferrals.defer()
+    Wait(0)
+    deferrals.update("Checking your ban status...")
+
+    -- Check for bans
+    for _, identifier in ipairs(identifiers) do
+        if bannedPlayers[identifier] then
+            deferrals.done("You are banned from this server.")
+            CancelEvent()
+            return
+        end
+    end
+
+    deferrals.update("Loading your player data...")
+
+    -- Load player data
     loadPlayerData(src)
+
+    deferrals.done()
 end)
 
+-- Event handler for player disconnecting
 AddEventHandler('playerDropped', function(reason)
     local src = source
     savePlayerData(src)
     playerData[src] = nil
+    cops[src] = nil
+    robbers[src] = nil
+    playerRoles[src] = nil
+    playerPositions[src] = nil
 end)
 
 -- Get player data
@@ -175,8 +202,6 @@ function playerHasWeapon(source, weaponName)
     end
 end
 
--- Purchase and sell event handlers
-
 -- Function to get item details by itemId
 function getItemById(itemId)
     for _, item in ipairs(Config.Items) do
@@ -227,41 +252,12 @@ function getAmmoCountForItem(ammoId)
     return ammoCounts[ammoId] or 0
 end
 
--- Function to calculate dynamic price
-function getDynamicPrice(itemId)
-    local basePrice
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then
-            basePrice = item.basePrice
-            break
-        end
-    end
-
-    if not basePrice then
-        return nil  -- Item not found
-    end
-
-    local purchaseCount = #purchaseHistory[itemId]
-
-    if purchaseCount >= Config.PopularityThreshold.high then
-        -- Item is popular, increase price
-        return math.floor(basePrice * Config.PriceIncreaseFactor)
-    elseif purchaseCount <= Config.PopularityThreshold.low then
-        -- Item is less popular, decrease price
-        return math.floor(basePrice * Config.PriceDecreaseFactor)
-    else
-        -- Normal price
-        return basePrice
-    end
-end
-
 -- Purchase history management
-local purchaseHistory = {}
 
 -- Function to load purchase history from file
 function loadPurchaseHistory()
     local fileData = LoadResourceFile(GetCurrentResourceName(), "purchase_history.json")
-    if fileData then
+    if fileData and fileData ~= "" then
         purchaseHistory = json.decode(fileData)
     else
         purchaseHistory = {}
@@ -285,8 +281,42 @@ end
 AddEventHandler('onResourceStart', function(resourceName)
     if GetCurrentResourceName() == resourceName then
         loadPurchaseHistory()
+        LoadBans() -- Load bans from file
     end
 end)
+
+-- Function to calculate dynamic price
+function getDynamicPrice(itemId)
+    local basePrice
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == itemId then
+            basePrice = item.basePrice
+            break
+        end
+    end
+
+    if not basePrice then
+        return nil  -- Item not found
+    end
+
+    -- Ensure that purchaseHistory[itemId] exists
+    if not purchaseHistory[itemId] then
+        purchaseHistory[itemId] = {}
+    end
+
+    local purchaseCount = #purchaseHistory[itemId]
+
+    if purchaseCount >= Config.PopularityThreshold.high then
+        -- Item is popular, increase price
+        return math.floor(basePrice * Config.PriceIncreaseFactor)
+    elseif purchaseCount <= Config.PopularityThreshold.low then
+        -- Item is less popular, decrease price
+        return math.floor(basePrice * Config.PriceDecreaseFactor)
+    else
+        -- Normal price
+        return basePrice
+    end
+end
 
 -- Event handler for item purchase with quantity
 RegisterNetEvent('cops_and_robbers:purchaseItem')
@@ -478,17 +508,10 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     end
 end)
 
--- Load bans from file on resource start
-AddEventHandler('onResourceStart', function(resourceName)
-    if GetCurrentResourceName() == resourceName then
-        LoadBans()
-    end
-end)
-
--- Function to load bans from a file
+-- Load bans from file
 function LoadBans()
     local bans = LoadResourceFile(GetCurrentResourceName(), "bans.json")
-    if bans then
+    if bans and bans ~= "" then
         bannedPlayers = json.decode(bans)
     else
         bannedPlayers = {}
@@ -590,6 +613,25 @@ AddEventHandler('cops_and_robbers:startHeist', function(bankId)
     end
 end)
 
+-- Function to notify cops of a wanted robber
+function notifyCopsOfWantedRobber(robberId, robberPosition)
+    for copId, _ in pairs(cops) do
+        TriggerClientEvent('cops_and_robbers:notifyWantedRobber', copId, robberId, robberPosition)
+    end
+end
+
+-- Periodically check for wanted robbers and notify cops
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(10000) -- Every 10 seconds
+        for robberId, data in pairs(playerPositions) do
+            if robbers[robberId] and data.wantedLevel >= 3 then
+                notifyCopsOfWantedRobber(robberId, data.position)
+            end
+        end
+    end
+end)
+
 -- Register event to handle arrests and update stats
 RegisterNetEvent('cops_and_robbers:arrestRobber')
 AddEventHandler('cops_and_robbers:arrestRobber', function(robberId)
@@ -608,45 +650,4 @@ AddEventHandler('cops_and_robbers:arrestRobber', function(robberId)
     playerStats[source].experience = playerStats[source].experience + 500
     TriggerClientEvent('cops_and_robbers:arrestNotification', robberId, source)
     TriggerClientEvent('cops_and_robbers:sendToJail', robberId, 300) -- Send robber to jail for 5 minutes
-end)
-
--- Periodically check for wanted robbers and notify cops
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(10000) -- Every 10 seconds
-        for robberId, data in pairs(playerPositions) do
-            if robbers[robberId] and data.wantedLevel >= 3 then
-                notifyCopsOfWantedRobber(robberId, data.position)
-            end
-        end
-    end
-end)
-
--- Function to notify cops of a wanted robber
-function notifyCopsOfWantedRobber(robberId, robberPosition)
-    for copId, _ in pairs(cops) do
-        TriggerClientEvent('cops_and_robbers:notifyWantedRobber', copId, robberId, robberPosition)
-    end
-end
-
--- Player Connecting Ban Check
-AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
-    local playerId = source
-    local identifiers = GetPlayerIdentifiers(playerId)
-    for _, identifier in ipairs(identifiers) do
-        if bannedPlayers[identifier] then
-            setKickReason("You are banned from this server.")
-            CancelEvent()
-            return
-        end
-    end
-end)
-
--- Remove players from role tables when they leave
-AddEventHandler('playerDropped', function(reason)
-    local playerId = source
-    cops[playerId] = nil
-    robbers[playerId] = nil
-    playerRoles[playerId] = nil
-    playerPositions[playerId] = nil
 end)
