@@ -194,18 +194,63 @@ This project is licensed under the **GNU General Public License v3.0**. See the 
 
 ---
 
-## Changelog
+## **Changelog**
 
-**Version 2.0**
+### **Version 2.1.0**
 
-- **Role Selection Menu**: Players can now choose their role upon joining.
-- **Experience and Leveling System**: Introduced XP, leveling, and rewards.
-- **Wanted Level System**: Dynamic wanted levels affecting gameplay.
-- **Jail System**: Implemented arrest and jail mechanics for robbers.
-- **Enhanced UI**: Improved NUI-based interfaces for menus and HUD elements.
-- **Additional Bank Locations**: Expanded the number of heist locations.
-- **Admin Tools**: Added new admin commands for better server management.
-- **Bug Fixes and Optimizations**: Resolved known issues and improved performance.
+**Date:** *November 12th, 2024*
+
+**Updates:**
+
+1. **Implemented Persistent Player Data Storage:**
+   - Introduced server-side storage of player data using JSON files.
+   - Created `player_data` directory to store individual player data files.
+   - Player data includes money, inventory, and weapons.
+   - Data persists across sessions and server restarts.
+
+2. **Player Data Management System:**
+   - Developed custom Lua functions to manage player money, inventory, and weapons.
+   - Functions include adding/removing money, adding/removing items, and checking ownership.
+   - Data is stored in the `playerData` table on the server side.
+
+3. **Data Loading and Saving:**
+   - Implemented `loadPlayerData(source)` to load data when a player connects.
+   - Implemented `savePlayerData(source)` to save data when a player disconnects or after significant changes.
+   - Ensured data integrity by validating loaded data.
+
+4. **Client-Server Data Synchronization:**
+   - Clients request their data upon spawning using `cops_and_robbers:requestPlayerData`.
+   - Server sends player data back using `cops_and_robbers:receivePlayerData`.
+   - Clients restore weapons and inventory based on received data.
+
+5. **Purchase and Sell Event Handlers Updated:**
+   - Modified `purchaseItem` and `sellItem` event handlers to use the new data management system.
+   - Included data saving after transactions to ensure persistence.
+   - Added server-side validations for item existence, quantity, and player funds.
+
+6. **Directory and File Handling Enhancements:**
+   - Implemented `ensurePlayerDataDirectory()` to create `player_data` directory if it doesn't exist.
+   - Added cross-platform support for directory creation (Windows and Linux/macOS).
+   - Utilized `GetResourcePath` for accurate directory paths.
+
+7. **Security Improvements:**
+    - Enhanced server-side checks to prevent exploits.
+    - Validated item IDs, quantities, and player identifiers.
+    - Ensured that only legitimate transactions are processed.
+
+8. **Code Refactoring and Optimization:**
+    - Organized code into logical sections with clear comments.
+    - Improved readability and maintainability.
+    - Removed redundant code and optimized functions.
+
+9. **Updated `fxmanifest.lua`:**
+    - Removed unnecessary dependencies.
+    - Included `player_data/*` in the `files` section to ensure player data is packaged with the resource.
+
+10. **Documentation and Comments:**
+    - Added detailed comments explaining new functions and logic.
+    - Provided explanations for key sections of the code.
+    - Clarified the purpose of new features and changes.
 
 ---
 
