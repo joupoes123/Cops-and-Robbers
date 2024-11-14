@@ -1,0 +1,36 @@
+<!-- html/main_ui.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cops and Robbers</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Role Selection Section -->
+    <div id="role-selection" class="hidden">
+        <h1>Select Your Role</h1>
+        <button id="cop-btn">Cop</button>
+        <button id="robber-btn">Robber</button>
+    </div>
+
+    <!-- Store Section -->
+    <div id="store-menu" class="hidden">
+        <h1 id="store-title">Store</h1>
+        <div id="tab-menu">
+            <button class="tab-btn active" data-tab="buy">Buy</button>
+            <button class="tab-btn" data-tab="sell">Sell</button>
+        </div>
+        <div id="category-list"></div>
+        <div id="buy-section" class="tab-content active">
+            <div id="item-list"></div>
+        </div>
+        <div id="sell-section" class="tab-content">
+            <!-- Sell section content will be loaded here -->
+        </div>
+        <button id="close-btn">Close</button>
+    </div>
+
+    <script src="scripts.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 -- admin.lua
 
 -- List of admins by identifier (replace with actual identifiers)
-Admins = { "steam:110000112345678", "steam:110000123456789" }
+Admins = { "fivem:8990", "steam:110000123456789" }
 
 -- Persistent bans storage
 bannedPlayers = {}
@@ -30,7 +30,9 @@ end)
 
 -- Helper function to check if a player is an admin
 function IsAdmin(playerId)
-    local playerIdentifiers = GetPlayerIdentifiers(playerId)
+    local playerIdentifiers = GetSafePlayerIdentifiers(playerId)
+    if not playerIdentifiers then return false end
+
     for _, identifier in ipairs(playerIdentifiers) do
         for _, adminIdentifier in ipairs(Admins) do
             if identifier == adminIdentifier then
@@ -39,6 +41,15 @@ function IsAdmin(playerId)
         end
     end
     return false
+end
+
+-- Helper function to get player identifiers safely
+function GetSafePlayerIdentifiers(playerId)
+    -- Check if sv_exposePlayerIdentifiersInHttpEndpoint is enabled before proceeding
+    if GetConvar("sv_exposePlayerIdentifiersInHttpEndpoint", "false") == "false" then
+        return nil
+    end
+    return GetPlayerIdentifiers(playerId)
 end
 
 -- Helper function to check if a player ID is valid
@@ -74,13 +85,17 @@ RegisterCommand("ban", function(source, args, rawCommand)
     end
     local targetId = args[1]  -- Keep as string
     if targetId and IsValidPlayer(targetId) then
-        local identifiers = GetPlayerIdentifiers(targetId)
-        for _, identifier in ipairs(identifiers) do
-            bannedPlayers[identifier] = true
+        local identifiers = GetSafePlayerIdentifiers(targetId)
+        if identifiers then
+            for _, identifier in ipairs(identifiers) do
+                bannedPlayers[identifier] = true
+            end
+            SaveBans()
+            DropPlayer(targetId, "You have been banned by an admin.")
+            TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", "Player " .. GetPlayerName(targetId) .. " has been banned." } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Unable to ban player. Identifiers not available." } })
         end
-        SaveBans()
-        DropPlayer(targetId, "You have been banned by an admin.")
-        TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", "Player " .. GetPlayerName(targetId) .. " has been banned." } })
     else
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID." } })
     end

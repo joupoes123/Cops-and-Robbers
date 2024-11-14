@@ -1,16 +1,27 @@
 -- config.lua
 
--- General Settings
-
+-- Initialize Config table if not already initialized
 Config = Config or {}
 
+-- =========================
+--        General Settings
+-- =========================
+
 Config.MaxPlayers = 64
-Config.HeistCooldown = 600 -- seconds
-Config.HeistRadius = 1000.0
+Config.HeistCooldown = 600 -- seconds (10 minutes)
+Config.HeistRadius = 1000.0 -- meters
+
+-- Spawn locations based on roles
 Config.CopSpawn = vector3(452.6, -980.0, 30.7)
 Config.RobberSpawn = vector3(2126.7, 4794.1, 41.1)
 
--- Bank Vaults
+-- Jail Location
+Config.JailLocation = vector3(1651.0, 2570.0, 45.5) -- Coordinates where players are sent to jail
+
+-- =========================
+--       Bank Vaults
+-- =========================
+
 Config.BankVaults = {
     { location = vector3(150.0, -1040.0, 29.0), name = "Pacific Standard Bank", id = 1 },
     { location = vector3(-1212.0, -330.0, 37.8), name = "Fleeca Bank", id = 2 },
@@ -18,11 +29,17 @@ Config.BankVaults = {
     { location = vector3(1175.0, 2706.8, 38.1), name = "Route 68 Bank", id = 4 },
 }
 
+-- =========================
 -- Police and Civilian Vehicles
+-- =========================
+
 Config.PoliceVehicles = { 'police', 'police2', 'police3', 'fbi', 'fbi2' }
 Config.CivilianVehicles = { 'sultan', 'futo', 'blista', 'banshee', 'elegy2' }
 
+-- =========================
 -- Experience and Leveling System
+-- =========================
+
 Config.Experience = {
     Levels = {
         { level = 1, exp = 0 },
@@ -47,7 +64,10 @@ Config.Experience = {
     },
 }
 
--- Wanted Level System
+-- =========================
+--    Wanted Level System
+-- =========================
+
 Config.WantedLevels = {
     [1] = { stars = 1, description = "Minor Offenses" },
     [2] = { stars = 2, description = "Felony" },
@@ -56,7 +76,10 @@ Config.WantedLevels = {
     [5] = { stars = 5, description = "Most Wanted" },
 }
 
--- Define Ammu-Nation store locations
+-- =========================
+--   Ammu-Nation Store Locations
+-- =========================
+
 Config.AmmuNationStores = {
     { x = 1692.41, y = 3758.22, z = 34.70 },
     { x = 252.89, y = -49.25, z = 69.94 },
@@ -69,7 +92,10 @@ Config.AmmuNationStores = {
     { x = 811.19, y = -2157.67, z = 29.62 },
 }
 
--- Define NPC vendor locations
+-- =========================
+--     NPC Vendor Configurations
+-- =========================
+
 Config.NPCVendors = {
     {
         location = { x = -1107.17, y = 4949.54, z = 218.65 },
@@ -88,7 +114,10 @@ Config.NPCVendors = {
     -- Additional NPC vendors can be added here
 }
 
--- List of items available for purchase
+-- =========================
+--      Item Definitions
+-- =========================
+
 Config.Items = {
     -- Weapons
     { name = "Pistol", itemId = "weapon_pistol", basePrice = 500, category = "Weapons" },
@@ -131,6 +160,10 @@ Config.Items = {
     -- Add more items as needed
 }
 
+-- =========================
+--  Dynamic Economy Settings
+-- =========================
+
 -- Timeframe for popularity tracking (in seconds)
 Config.PopularityTimeframe = 3 * 60 * 60  -- 3 hours
 
@@ -146,3 +179,47 @@ Config.PopularityThreshold = {
 
 -- Sell price factor (percentage of the item's dynamic price)
 Config.SellPriceFactor = 0.5  -- Players get 50% of the item's price when selling
+
+-- =========================
+--   Additional Configurations
+-- =========================
+
+-- List of banned player identifiers (e.g., Steam IDs)
+Config.BannedPlayers = {
+    -- ["steam:110000112345678"] = { reason = "Cheating", timestamp = 1625078400 },
+    -- ["license:abcdefghijk"] = { reason = "Harassment", timestamp = 1625078400 },
+}
+
+-- Admin identifiers for privileged actions
+Config.Admins = {
+    -- ["steam:110000112345678"] = true,
+    -- ["license:abcdefghijk"] = true,
+}
+
+-- Define the prison location for the jail system
+Config.PrisonLocation = Config.JailLocation
+
+-- =========================
+--      Heist Settings
+-- =========================
+
+-- Heist timer durations
+Config.HeistTimers = {
+    heistDuration = 600, -- Duration of the heist in seconds (10 minutes)
+}
+
+-- =========================
+--    Vehicle Spawn Settings
+-- =========================
+
+-- Police vehicle spawn points
+Config.PoliceVehicleSpawns = {
+    { x = 452.6, y = -980.0, z = 30.7, heading = 90.0 },
+    -- Add more spawn points as needed
+}
+
+-- Civilian vehicle spawn points
+Config.CivilianVehicleSpawns = {
+    { x = 2126.7, y = 4794.1, z = 41.1, heading = 180.0 },
+    -- Add more spawn points as needed
+}

@@ -1,6 +1,59 @@
 -- client.lua
 
--- Variables and Data Structures
+-- =====================================
+--           CONFIGURATION
+-- =====================================
+
+Config = {}
+
+-- Define items available in the game
+Config.Items = {
+    { itemId = 1, name = "Health Kit" },
+    { itemId = 2, name = "Armor" },
+    { itemId = 3, name = "Bandage" },
+    -- Add more items as needed
+}
+
+-- Define Ammu-Nation store locations
+Config.AmmuNationStores = {
+    { x = 452.6, y = -980.0, z = 30.7 },
+    { x = 1693.4, y = 3760.2, z = 34.7 },
+    -- Add more Ammu-Nation store locations as needed
+}
+
+-- Define NPC vendors
+Config.NPCVendors = {
+    {
+        name = "Gun Dealer",
+        model = "s_m_m_gunsmith_01",
+        location = { x = 2126.7, y = 4794.1, z = 41.1 },
+        heading = 90.0,
+        items = { 1, 2, 3 } -- Item IDs from Config.Items
+    },
+    {
+        name = "Weapon Trader",
+        model = "s_m_m_gunsmith_02",
+        location = { x = 256.5, y = -50.0, z = 69.2 },
+        heading = 45.0,
+        items = { 2, 3 } -- Item IDs from Config.Items
+    },
+    -- Add more vendors as needed
+}
+
+-- Define spawn points for each role
+Config.SpawnPoints = {
+    cop = vector3(452.6, -980.0, 30.7),       -- Police station location
+    robber = vector3(2126.7, 4794.1, 41.1)    -- Countryside airport location
+}
+
+-- Define prison location
+Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5) -- Prison coordinates
+
+-- =====================================
+--           VARIABLES
+-- =====================================
+
+-- Player-related variables
 local role = nil
 local playerCash = 0
 local playerStats = { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
@@ -9,71 +62,129 @@ local wantedLevel = 0
 local playerWeapons = {}
 local playerAmmo = {}
 
+-- =====================================
+--           HELPER FUNCTIONS
+-- =====================================
+
+-- Function to display notifications on screen
+function ShowNotification(text)
+    SetNotificationTextEntry("STRING")
+    AddTextComponentSubstringPlayerName(text)
+    DrawNotification(false, true)
+end
+
+-- Function to display help text
+function DisplayHelpText(text)
+    BeginTextCommandDisplayHelp("STRING")
+    AddTextComponentSubstringPlayerName(text)
+    EndTextCommandDisplayHelp(0, false, true, -1)
+end
+
+-- Function to spawn player based on role
+local function spawnPlayer(role)
+    local spawnPoint = Config.SpawnPoints[role]
+    if spawnPoint then
+        SetEntityCoords(PlayerPedId(), spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
+        -- Additional spawn logic can be added here (e.g., setting heading, animations)
+    else
+        print("Error: Invalid role for spawning: " .. tostring(role))
+    end
+end
+
+-- =====================================
+--           NETWORK EVENTS
+-- =====================================
+
 -- Request player data when the player spawns
 AddEventHandler('playerSpawned', function()
+    -- Request player data
     TriggerServerEvent('cops_and_robbers:requestPlayerData')
+    
+    -- Show NUI role selection
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'showRoleSelection' })
 end)
 
 -- Receive player data from the server
 RegisterNetEvent('cops_and_robbers:receivePlayerData')
 AddEventHandler('cops_and_robbers:receivePlayerData', function(data)
-    -- Give weapons back to the player
-    local playerPed = PlayerPedId()
-    for weaponName, _ in pairs(data.weapons) do
-        local weaponHash = GetHashKey(weaponName)
-        GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
-        playerWeapons[weaponName] = true
+    if not data then
+        print("Error: Received nil data in 'receivePlayerData'")
+        return
     end
-    -- Restore inventory items if necessary
-    -- Restore player money if you have a HUD to display it
-end)
-
--- Weapon management functions
-RegisterNetEvent('cops_and_robbers:addWeapon')
-AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
+    
+    playerCash = data.cash or 0
+    playerStats = data.stats or { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
+    role = data.role
+    
+    spawnPlayer(role) -- Spawn player based on received role
+    
     local playerPed = PlayerPedId()
-    local weaponHash = GetHashKey(weaponName)
-    GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
-    playerWeapons[weaponName] = true
-end)
-
-RegisterNetEvent('cops_and_robbers:removeWeapon')
-AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
-    local playerPed = PlayerPedId()
-    local weaponHash = GetHashKey(weaponName)
-    RemoveWeaponFromPed(playerPed, weaponHash)
-    playerWeapons[weaponName] = nil
-end)
-
-RegisterNetEvent('cops_and_robbers:addAmmo')
-AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoCount)
-    local playerPed = PlayerPedId()
-    local weaponHash = GetHashKey(weaponName)
-    if HasPedGotWeapon(playerPed, weaponHash, false) then
-        AddAmmoToPed(playerPed, weaponHash, ammoCount)
-        playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoCount
-    else
-        ShowNotification("You don't have the weapon for this ammo.")
+    if data.weapons then
+        for weaponName, ammo in pairs(data.weapons) do
+            local weaponHash = GetHashKey(weaponName)
+            GiveWeaponToPed(playerPed, weaponHash, ammo or 0, false, false)
+            playerWeapons[weaponName] = true
+            playerAmmo[weaponName] = ammo or 0
+        end
     end
+    -- Restore inventory items and money display if applicable
 end)
 
--- Armor application
-RegisterNetEvent('cops_and_robbers:applyArmor')
-AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
-    local playerPed = PlayerPedId()
-    if armorType == "armor" then
-        SetPedArmour(playerPed, 50)
-    elseif armorType == "heavy_armor" then
-        SetPedArmour(playerPed, 100)
+-- Receive item list from the server (Registered once)
+RegisterNetEvent('cops_and_robbers:sendItemList')
+AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openStore',
+        storeName = storeName,
+        items = itemList
+    })
+end)
+
+-- Notify cops of a bank robbery with GPS update and sound
+RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
+AddEventHandler('cops_and_robbers:notifyBankRobbery', function(bankId, bankLocation, bankName)
+    if role == 'cop' then
+        ShowNotification("~r~Bank Robbery in Progress!~s~\nBank: " .. bankName)
+        SetNewWaypoint(bankLocation.x, bankLocation.y)
+        -- Optionally, play a sound or other alert here
     end
 end)
 
--- Event handler for purchase confirmation
+-- Jail System: Send player to jail
+RegisterNetEvent('cops_and_robbers:sendToJail')
+AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
+    SetEntityCoords(PlayerPedId(), Config.PrisonLocation.x, Config.PrisonLocation.y, Config.PrisonLocation.z, false, false, false, true)
+    ShowNotification("~r~You have been sent to jail for " .. jailTime .. " seconds.")
+    
+    -- Implement jail time countdown and restrictions
+    Citizen.CreateThread(function()
+        local remainingTime = jailTime
+        while remainingTime > 0 do
+            Citizen.Wait(1000) -- Wait 1 second
+            remainingTime = remainingTime - 1
+            
+            -- Restrict player actions while in jail
+            DisableControlAction(0, 24, true) -- Disable attack
+            DisableControlAction(0, 25, true) -- Disable aim
+            DisableControlAction(0, 47, true) -- Disable weapon (G key)
+            DisableControlAction(0, 58, true) -- Disable weapon (last argument, weapon wheel)
+            -- Add more restrictions as needed
+        end
+        
+        -- Release player from jail
+        spawnPlayer(role)
+        ShowNotification("~g~You have been released from jail.")
+    end)
+end)
+
+-- Purchase Confirmation
 RegisterNetEvent('cops_and_robbers:purchaseConfirmed')
 AddEventHandler('cops_and_robbers:purchaseConfirmed', function(itemId, quantity)
     quantity = quantity or 1
     -- Find item details
-    local itemName
+    local itemName = nil
     for _, item in ipairs(Config.Items) do
         if item.itemId == itemId then
             itemName = item.name
@@ -88,17 +199,18 @@ AddEventHandler('cops_and_robbers:purchaseConfirmed', function(itemId, quantity)
     end
 end)
 
--- Event handler for purchase failure
+-- Purchase Failure
 RegisterNetEvent('cops_and_robbers:purchaseFailed')
 AddEventHandler('cops_and_robbers:purchaseFailed', function(reason)
     ShowNotification('Purchase failed: ' .. reason)
 end)
 
--- Event handler for sell confirmation
+-- Sell Confirmation
 RegisterNetEvent('cops_and_robbers:sellConfirmed')
 AddEventHandler('cops_and_robbers:sellConfirmed', function(itemId, quantity)
     quantity = quantity or 1
-    local itemName
+    -- Find item details
+    local itemName = nil
     for _, item in ipairs(Config.Items) do
         if item.itemId == itemId then
             itemName = item.name
@@ -113,94 +225,113 @@ AddEventHandler('cops_and_robbers:sellConfirmed', function(itemId, quantity)
     end
 end)
 
--- Event handler for sell failure
+-- Sell Failure
 RegisterNetEvent('cops_and_robbers:sellFailed')
 AddEventHandler('cops_and_robbers:sellFailed', function(reason)
     ShowNotification('Sale failed: ' .. reason)
 end)
 
--- Event handler to apply armor
+-- Add Weapon
+RegisterNetEvent('cops_and_robbers:addWeapon')
+AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
+    playerWeapons[weaponName] = true
+    ShowNotification("Weapon added: " .. weaponName)
+end)
+
+-- Remove Weapon
+RegisterNetEvent('cops_and_robbers:removeWeapon')
+AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    RemoveWeaponFromPed(playerPed, weaponHash)
+    playerWeapons[weaponName] = nil
+    ShowNotification("Weapon removed: " .. weaponName)
+end)
+
+-- Add Ammo
+RegisterNetEvent('cops_and_robbers:addAmmo')
+AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoCount)
+    local playerPed = PlayerPedId()
+    local weaponHash = GetHashKey(weaponName)
+    if HasPedGotWeapon(playerPed, weaponHash, false) then
+        AddAmmoToPed(playerPed, weaponHash, ammoCount)
+        playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoCount
+        ShowNotification("Added " .. ammoCount .. " ammo to " .. weaponName)
+    else
+        ShowNotification("You don't have the weapon for this ammo.")
+    end
+end)
+
+-- Apply Armor
 RegisterNetEvent('cops_and_robbers:applyArmor')
 AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
     local playerPed = PlayerPedId()
     if armorType == "armor" then
         SetPedArmour(playerPed, 50)
+        ShowNotification("~g~Armor applied: Light Armor (~w~50 Armor)")
     elseif armorType == "heavy_armor" then
         SetPedArmour(playerPed, 100)
+        ShowNotification("~g~Armor applied: Heavy Armor (~w~100 Armor)")
+    else
+        ShowNotification("Invalid armor type.")
     end
 end)
 
--- Function to show notification
-function ShowNotification(text)
-    SetNotificationTextEntry("STRING")
-    AddTextComponentSubstringPlayerName(text)
-    DrawNotification(false, false)
-end
+-- =====================================
+--           NUI CALLBACKS
+-- =====================================
 
--- NUI Callbacks
-RegisterNUICallback('buyItem', function(data, cb)
-    local itemId = data.itemId
-    local quantity = data.quantity or 1
-    TriggerServerEvent('cops_and_robbers:purchaseItem', itemId, quantity)
-    cb('ok')
+-- NUI Callback for role selection
+RegisterNUICallback('selectRole', function(data, cb)
+    local selectedRole = data.role
+    if selectedRole == 'cop' or selectedRole == 'robber' then
+        TriggerServerEvent('cops_and_robbers:setPlayerRole', selectedRole)
+        SetNuiFocus(false, false)
+        cb('ok')
+    else
+        ShowNotification("Invalid role selected.")
+        cb('error')
+    end
 end)
 
-RegisterNUICallback('sellItem', function(data, cb)
-    local itemId = data.itemId
-    local quantity = data.quantity or 1
-    TriggerServerEvent('cops_and_robbers:sellItem', itemId, quantity)
-    cb('ok')
-end)
-
-RegisterNUICallback('getPlayerInventory', function(data, cb)
-    TriggerServerEvent('cops_and_robbers:getPlayerInventory')
-    RegisterNetEvent('cops_and_robbers:sendPlayerInventory')
-    AddEventHandler('cops_and_robbers:sendPlayerInventory', function(items)
-        cb({ items = items })
-    end)
-end)
-
-RegisterNUICallback('closeStore', function(data, cb)
-    SetNuiFocus(false, false)
-    cb('ok')
-end)
+-- =====================================
+--           STORE FUNCTIONS
+-- =====================================
 
 -- Function to open the store
 function openStore(storeName, storeType, vendorItems)
-    -- Request item list from server
-    TriggerServerEvent('cops_and_robbers:getItemList', storeType, vendorItems)
-
-    -- Receive item list from server
-    RegisterNetEvent('cops_and_robbers:sendItemList')
-    AddEventHandler('cops_and_robbers:sendItemList', function(itemList)
-        SetNuiFocus(true, true)
-        SendNUIMessage({
-            action = 'openStore',
-            storeName = storeName,
-            items = itemList
-        })
-    end)
+    TriggerServerEvent('cops_and_robbers:getItemList', storeType, vendorItems, storeName)
 end
 
--- Detect player near a store
+-- =====================================
+--           STORE AND VENDOR INTERACTION
+-- =====================================
+
+-- Detect player near a store or vendor
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
-        local playerCoords = GetEntityCoords(PlayerPedId())
+        Citizen.Wait(500) -- Check every 0.5 seconds to optimize performance
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
 
+        -- Check proximity to Ammu-Nation stores
         for _, store in ipairs(Config.AmmuNationStores) do
             local distance = #(playerCoords - vector3(store.x, store.y, store.z))
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
                 if IsControlJustPressed(0, 51) then  -- E key
-                    openStore('Ammu-Nation', 'AmmuNation')
+                    openStore('Ammu-Nation', 'AmmuNation', nil)
                 end
             end
         end
 
-        -- Handle NPC interactions
+        -- Check proximity to NPC vendors
         for _, vendor in ipairs(Config.NPCVendors) do
-            local distance = #(playerCoords - vector3(vendor.location.x, vendor.location.y, vendor.location.z))
+            local vendorCoords = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
+            local distance = #(playerCoords - vendorCoords)
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
                 if IsControlJustPressed(0, 51) then
@@ -211,14 +342,11 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Function to display help text
-function DisplayHelpText(text)
-    BeginTextCommandDisplayHelp("STRING")
-    AddTextComponentSubstringPlayerName(text)
-    EndTextCommandDisplayHelp(0, false, true, -1)
-end
+-- =====================================
+--           NPC VENDOR SPAWN
+-- =====================================
 
--- Spawn NPC vendors
+-- Spawn NPC vendors in the world
 Citizen.CreateThread(function()
     for _, vendor in ipairs(Config.NPCVendors) do
         local hash = GetHashKey(vendor.model)
@@ -231,193 +359,22 @@ Citizen.CreateThread(function()
         SetEntityInvincible(npc, true)
         SetBlockingOfNonTemporaryEvents(npc, true)
         FreezeEntityPosition(npc, true)
+        -- Optionally, add more NPC configurations here
     end
 end)
 
--- Import Configurations
-local Config = Config
-
--- Initialize player role on resource start
-AddEventHandler('onClientResourceStart', function(resourceName)
-    if GetCurrentResourceName() == resourceName then
-        TriggerServerEvent('cops_and_robbers:requestRole')
-        displayRoleSelection()
-    end
-end)
-
--- Function to display role selection menu
-function displayRoleSelection()
-    SetNuiFocus(true, true)
-    SendNUIMessage({ action = 'openRoleMenu' })
-end
-
--- Receive role selection from NUI
-RegisterNUICallback('selectRole', function(data, cb)
-    role = data.role
-    TriggerServerEvent('cops_and_robbers:setPlayerRole', role)
-    SetNuiFocus(false, false)
-    spawnPlayer(role)
-    cb('ok')
-end)
-
--- Spawn player based on role
-function spawnPlayer(role)
-    local spawnLocation = role == 'cop' and Config.CopSpawn or Config.RobberSpawn
-    SetEntityCoords(PlayerPedId(), spawnLocation.x, spawnLocation.y, spawnLocation.z, false, false, false, true)
-    -- Optionally, give initial weapons or items based on role
-end
-
--- Receive and set player role from the server
-RegisterNetEvent('cops_and_robbers:setRole')
-AddEventHandler('cops_and_robbers:setRole', function(serverRole)
-    role = serverRole
-    spawnPlayer(role)
-end)
-
--- Notify cops of a bank robbery with GPS update and sound
-RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
-AddEventHandler('cops_and_robbers:notifyBankRobbery', function(bankId, bankLocation, bankName)
-    if role == 'cop' then
-        DisplayNotification("~r~Bank Robbery in Progress!~s~\nBank: " .. bankName)
-        SetNewWaypoint(bankLocation.x, bankLocation.y)
-    end
-end)
-
--- Play sound notification for nearby cops
-RegisterNetEvent('cops_and_robbers:playSound')
-AddEventHandler('cops_and_robbers:playSound', function(sound)
-    PlaySoundFrontend(-1, sound, "DLC_HEIST_FLEECA_SOUNDSET", true)
-end)
-
--- Start the heist timer and update HUD
-RegisterNetEvent('cops_and_robbers:startHeistTimer')
-AddEventHandler('cops_and_robbers:startHeistTimer', function(bankId, time)
-    SendNUIMessage({
-        action = 'startHeistTimer',
-        duration = time,
-        bankName = Config.BankVaults[bankId].name
-    })
-end)
-
--- Display heist cooldown notification
-RegisterNetEvent('cops_and_robbers:heistOnCooldown')
-AddEventHandler('cops_and_robbers:heistOnCooldown', function()
-    DisplayNotification("~r~You are currently on cooldown for attempting a heist.")
-end)
-
--- Reward robbers with randomized amount and update stats
-RegisterNetEvent('cops_and_robbers:receiveReward')
-AddEventHandler('cops_and_robbers:receiveReward', function(amount)
-    DisplayNotification("~g~Heist successful! Reward: $" .. amount)
-    playerStats.rewards = playerStats.rewards + amount
-    playerCash = playerCash + amount
-    addExperience(500) -- Award experience for successful heist
-end)
-
--- Arrest notification
-RegisterNetEvent('cops_and_robbers:arrestNotification')
-AddEventHandler('cops_and_robbers:arrestNotification', function(copId)
-    DisplayNotification("~r~You have been arrested by " .. GetPlayerName(GetPlayerFromServerId(copId)) .. "!")
-    wantedLevel = 0 -- Reset wanted level upon arrest
-end)
-
--- Helper function to display notifications on screen
-function DisplayNotification(text)
-    SetNotificationTextEntry("STRING")
-    AddTextComponentString(text)
-    DrawNotification(false, true)
-end
-
--- Draw custom text on screen
-function DrawCustomText(x, y, text)
-    SetTextFont(4)
-    SetTextProportional(1)
-    SetTextScale(0.35, 0.35)
-    SetTextColour(255, 255, 255, 215)
-    SetTextEntry("STRING")
-    SetTextCentre(true)
-    AddTextComponentString(text)
-    DrawText(x, y)
-end
-
--- Experience and Leveling System
-function addExperience(amount)
-    playerStats.experience = playerStats.experience + amount
-    checkLevelUp()
-end
-
-function checkLevelUp()
-    local currentLevel = playerStats.level
-    local nextLevelExp = Config.Experience.Levels[currentLevel + 1] and Config.Experience.Levels[currentLevel + 1].exp or nil
-    if nextLevelExp and playerStats.experience >= nextLevelExp then
-        playerStats.level = playerStats.level + 1
-        DisplayNotification("~b~You leveled up to Level " .. playerStats.level .. "!")
-        giveLevelUpRewards()
-    end
-end
-
-function giveLevelUpRewards()
-    local rewards = Config.Experience.Rewards[role][playerStats.level]
-    if rewards then
-        if rewards.cash then
-            playerCash = playerCash + rewards.cash
-            DisplayNotification("~g~You received $" .. rewards.cash .. " as a level-up reward!")
-        end
-        if rewards.item then
-            -- Give item to player (implementation depends on inventory system)
-            DisplayNotification("~g~You received a " .. rewards.item .. " as a level-up reward!")
-        end
-    end
-end
-
--- Wanted Level System
-function increaseWantedLevel(amount)
-    wantedLevel = math.min(wantedLevel + amount, 5)
-    DisplayNotification("~r~Your wanted level increased to " .. wantedLevel .. "!")
-    -- Update HUD or minimap with wanted level
-end
-
-function decreaseWantedLevel(amount)
-    wantedLevel = math.max(wantedLevel - amount, 0)
-    DisplayNotification("~g~Your wanted level decreased to " .. wantedLevel .. ".")
-    -- Update HUD or minimap with wanted level
-end
-
--- Jail System
-RegisterNetEvent('cops_and_robbers:sendToJail')
-AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
-    local jailLocation = vector3(1651.0, 2570.0, 45.5) -- Prison location
-    SetEntityCoords(PlayerPedId(), jailLocation.x, jailLocation.y, jailLocation.z, false, false, false, true)
-    DisplayNotification("~r~You have been sent to jail for " .. jailTime .. " seconds.")
-    -- Implement jail time countdown and restrictions
-    Citizen.CreateThread(function()
-        local remainingTime = jailTime
-        while remainingTime > 0 do
-            Citizen.Wait(1000)
-            remainingTime = remainingTime - 1
-            -- Restrict player actions while in jail
-            DisableControlAction(0, 24, true) -- Disable attack
-            DisableControlAction(0, 25, true) -- Disable aim
-            DisableControlAction(0, 47, true) -- Disable weapon
-            DisableControlAction(0, 58, true) -- Disable weapon
-        end
-        -- Release player from jail
-        spawnPlayer(role)
-        DisplayNotification("~g~You have been released from jail.")
-    end)
-end)
-
--- NUI Callbacks
-RegisterNUICallback('closeMenu', function(data, cb)
-    SetNuiFocus(false, false)
-    cb('ok')
-end)
+-- =====================================
+--           PLAYER POSITION & WANTED LEVEL UPDATES
+-- =====================================
 
 -- Periodically send player position and wanted level to the server
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(5000) -- Every 5 seconds
-        local playerPos = GetEntityCoords(PlayerPedId())
-        TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, wantedLevel)
+        local playerPed = PlayerPedId()
+        if DoesEntityExist(playerPed) then
+            local playerPos = GetEntityCoords(playerPed)
+            TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, wantedLevel)
+        end
     end
 end)

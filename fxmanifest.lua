@@ -19,14 +19,15 @@ client_scripts {
     'client.lua'
 }
 
-ui_page 'html/index.html'
-ui_page 'html/store.html'
+ui_page 'html/main_ui.html'  -- Consolidated NUI page
 
 files {
     'html/store.html',
+    'html/role_selection.html',
     'html/index.html',
     'html/styles.css',
     'html/scripts.js',
     'purchase_history.json',
-    'player_data/*'  -- Include the player_data directory
+    'player_data/*',  -- Include the player_data directory
+    'bans.json'
 }
