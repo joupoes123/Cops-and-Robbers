@@ -1,0 +1,21 @@
+name: Documentation Issue 📖
+description: Report missing, outdated, or unclear documentation.
+title: "[Docs] <Brief Description>"
+labels: ["documentation"]
+assignees: []
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: "📖 Issue Summary"
+      placeholder: "Example: Missing explanation for economy system."
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: "✅ Suggested Fix"
+      placeholder: "Example: Add step-by-step guide for in-game transactions."
+    validations:
+      required: true

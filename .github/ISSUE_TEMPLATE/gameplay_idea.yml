@@ -1,0 +1,80 @@
+name: Roleplay / Gameplay Idea 🎭
+description: Suggest a new roleplay scenario, event, or gameplay enhancement.
+title: "[RP Idea] <Brief Description>"
+labels: ["roleplay", "gameplay", "suggestion"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: "🚨 **Before submitting, check existing ideas to avoid duplicates!** 🚨"
+
+  - type: input
+    id: summary
+    attributes:
+      label: "🎭 Roleplay / Gameplay Idea Name"
+      description: "Give a short, clear title for your idea."
+      placeholder: "Example: Undercover Informant System"
+    validations:
+      required: true
+
+  - type: textarea
+    id: concept
+    attributes:
+      label: "💡 Describe Your Idea"
+      description: "Explain your roleplay scenario or gameplay enhancement."
+      placeholder: "Example: A system where criminals can flip and work as informants for reduced sentences."
+    validations:
+      required: true
+
+  - type: textarea
+    id: how_it_works
+    attributes:
+      label: "🚀 How Would It Work?"
+      description: "Describe mechanics, rules, or how this idea integrates into the game."
+      placeholder: "Example: A new system where criminals can secretly provide intel to cops in exchange for immunity."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "📂 Roleplay / Gameplay Category"
+      description: "Which area of the game does this affect?"
+      multiple: true
+      options:
+        - "Heists & Criminal Activities"
+        - "Police Mechanics & Law Enforcement"
+        - "Legal System & Court RP"
+        - "Economy & Shops"
+        - "Vehicles & Chases"
+        - "Events & Community RP"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: "🎯 Why Would This Be Fun?"
+      description: "How does this idea improve immersion, strategy, or fun?"
+      placeholder: "Example: Encourages deeper RP between cops and criminals with risk and rewards."
+    validations:
+      required: true
+
+  - type: textarea
+    id: potential_issues
+    attributes:
+      label: "⚠️ Potential Downsides or Risks"
+      description: "Could this idea be abused or create balance issues?"
+      placeholder: "Example: Some players might exploit the system to avoid consequences."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_info
+    attributes:
+      label: "📸 Additional Information"
+      description: "Mockups, screenshots, references, or anything else helpful."
+      placeholder: "Example: Links to similar RP mechanics, UI concepts, or examples from other servers."
+    validations:
+      required: false

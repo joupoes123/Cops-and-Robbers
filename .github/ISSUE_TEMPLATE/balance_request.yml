@@ -1,0 +1,29 @@
+name: Balance Change ⚖️
+description: Suggest a balance adjustment for weapons, economy, or mechanics.
+title: "[Balance] <Brief Description>"
+labels: ["balance", "gameplay"]
+assignees: []
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: "⚖️ What Needs Balancing?"
+      placeholder: "Example: Shotguns are too powerful."
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_issue
+    attributes:
+      label: "❌ Current Issue"
+      placeholder: "Example: Shotguns one-shot at unrealistic distances."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_change
+    attributes:
+      label: "🚀 Proposed Adjustment"
+      placeholder: "Example: Reduce shotgun range and damage falloff."
+    validations:
+      required: true
