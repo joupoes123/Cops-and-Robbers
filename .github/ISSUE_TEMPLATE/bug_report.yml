@@ -1,0 +1,89 @@
+name: Bug Report
+description: Report an issue with Cops & Robbers
+title: "[Bug] <Brief Description>"
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: "🚨 **Before reporting, check for existing issues to avoid duplicates!** 🚨"
+  
+  - type: input
+    id: summary
+    attributes:
+      label: "Bug Summary"
+      description: "Briefly describe the issue."
+      placeholder: "Example: Players get stuck in the bank vault after a heist."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Provide a step-by-step guide to replicate the bug."
+      placeholder: |
+        1. Start a heist at [bank name].
+        2. Open the vault and take cash.
+        3. Try to exit, but door remains locked.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected Behavior"
+      description: "What should happen instead?"
+      placeholder: "The vault door should unlock after a successful heist."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: "Actual Behavior"
+      description: "What actually happens?"
+      placeholder: "Players remain trapped inside until a server restart."
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: "Game Version"
+      description: "Which version of *Cops & Robbers* are you running?"
+      placeholder: "Example: v1.2.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Relevant Logs or Errors (If Any)"
+      description: "Paste any related logs, errors, or crash reports."
+      placeholder: "Attach logs here..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: "Platform"
+      description: "Where did you experience this issue?"
+      multiple: true
+      options:
+        - "FiveM"
+        - "RedM"
+        - "Custom Server"
+        - "Other (Specify Below)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: "Additional Information"
+      description: "Any extra details, screenshots, or notes?"
+      placeholder: "Screenshots, extra notes, etc."
+    validations:
+      required: false
