@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Validate Pull Request Requirements
+        id: validate
         run: |
           echo "🔍 Checking branch protection rules..."
           
@@ -22,6 +23,7 @@ jobs:
           APPROVALS=$(gh pr view ${{ github.event.pull_request.number }} --json reviews --jq '[.reviews[].state] | map(select(. == "APPROVED")) | length')
           if [[ "$APPROVALS" -lt 1 ]]; then
             echo "❌ Pull request must have at least one approval."
+            echo "failure=PR requires at least one approval." >> $GITHUB_ENV
             exit 1
           fi
           echo "✅ Required approval check passed."
@@ -31,6 +33,7 @@ jobs:
           TOTAL_THREADS=$(gh pr view ${{ github.event.pull_request.number }} --json reviewThreads --jq '[.reviewThreads[]] | length')
           if [[ "$RESOLVED_THREADS" -lt "$TOTAL_THREADS" ]]; then
             echo "❌ All review threads must be resolved before merging."
+            echo "failure=All review threads must be resolved before merging." >> $GITHUB_ENV
             exit 1
           fi
           echo "✅ Required review thread resolution check passed."
@@ -39,9 +42,24 @@ jobs:
           MERGE_METHOD=$(gh pr view ${{ github.event.pull_request.number }} --json mergeStateStatus --jq '.mergeStateStatus')
           if [[ "$MERGE_METHOD" != "CLEAN" ]]; then
             echo "❌ Pull request must be merged using Squash or Rebase."
+            echo "failure=Pull request must be merged using Squash or Rebase." >> $GITHUB_ENV
             exit 1
           fi
           echo "✅ Merge method check passed."
 
       - name: Final Check Passed
+        if: success()
         run: echo "🎉 All branch protection rules are met. Ready for merge!"
+
+  notify-failure:
+    name: Notify Team on Failure
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" -X POST -d \
+          '{"username": "GitHub Actions", "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png", "embeds": [{"title": "🚨 Pull Request Check Failed!", "description": "A pull request to `main` has failed branch protection rules.", "color": 15158332, "fields": [{"name": "Repository", "value": "${{ github.repository }}", "inline": true}, {"name": "Pull Request", "value": "[View PR](${{ github.event.pull_request.html_url }})", "inline": true}, {"name": "Reason", "value": "${{ env.failure }}", "inline": false}]}]}' \
+          $DISCORD_WEBHOOK
