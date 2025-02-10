@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+.github/ISSUE_TEMPLATE linguist-generated
+.github/workflows linguist-generated
+.github/dependabot.yml linguist-generated
