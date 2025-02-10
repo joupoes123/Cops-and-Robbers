@@ -1,0 +1,47 @@
+name: Enforce Branch Protection Rules
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  enforce-rules:
+    name: Check Branch Protection Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Validate Pull Request Requirements
+        run: |
+          echo "🔍 Checking branch protection rules..."
+          
+          # Require a minimum of 1 approving review
+          APPROVALS=$(gh pr view ${{ github.event.pull_request.number }} --json reviews --jq '[.reviews[].state] | map(select(. == "APPROVED")) | length')
+          if [[ "$APPROVALS" -lt 1 ]]; then
+            echo "❌ Pull request must have at least one approval."
+            exit 1
+          fi
+          echo "✅ Required approval check passed."
+
+          # Ensure required review thread resolution
+          RESOLVED_THREADS=$(gh pr view ${{ github.event.pull_request.number }} --json reviewThreads --jq '[.reviewThreads[] | select(.isResolved)] | length')
+          TOTAL_THREADS=$(gh pr view ${{ github.event.pull_request.number }} --json reviewThreads --jq '[.reviewThreads[]] | length')
+          if [[ "$RESOLVED_THREADS" -lt "$TOTAL_THREADS" ]]; then
+            echo "❌ All review threads must be resolved before merging."
+            exit 1
+          fi
+          echo "✅ Required review thread resolution check passed."
+
+          # Ensure only squash and rebase merges are allowed
+          MERGE_METHOD=$(gh pr view ${{ github.event.pull_request.number }} --json mergeStateStatus --jq '.mergeStateStatus')
+          if [[ "$MERGE_METHOD" != "CLEAN" ]]; then
+            echo "❌ Pull request must be merged using Squash or Rebase."
+            exit 1
+          fi
+          echo "✅ Merge method check passed."
+
+      - name: Final Check Passed
+        run: echo "🎉 All branch protection rules are met. Ready for merge!"
