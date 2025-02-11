@@ -33,6 +33,20 @@ local playerPositions = {}
 local purchaseHistory = {}
 local bannedPlayers = {}
 
+-- Table for throttling updatePosition events (in ms)
+local playerUpdateTimestamps = {}
+
+-- =====================================
+--      CONFIG ITEMS INDEXING
+-- =====================================
+-- Build lookup table for Config.Items for faster access
+local ConfigItemsById = {}
+if Config and Config.Items then
+    for _, item in ipairs(Config.Items) do
+        ConfigItemsById[item.itemId] = item
+    end
+end
+
 -- =====================================
 --           HELPER FUNCTIONS
 -- =====================================
@@ -211,14 +225,9 @@ local function playerHasWeapon(source, weaponName)
     end
 end
 
--- Function to get item details by itemId
+-- Function to get item details by itemId using the lookup table
 local function getItemById(itemId)
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then
-            return item
-        end
-    end
-    return nil
+    return ConfigItemsById[itemId]
 end
 
 -- Function to give item(s) to player
@@ -300,9 +309,6 @@ local function savePurchaseHistory()
     end
 end
 
--- Initialize purchase data
--- (Already defined above)
-
 -- Function to calculate dynamic price
 local function getDynamicPrice(itemId)
     local item = getItemById(itemId)
@@ -371,9 +377,6 @@ local function LoadBans()
     saveBans()
 end
 
--- Function to save bans to a file
--- (Already defined above)
-
 -- =====================================
 --       ADMIN FUNCTIONS
 -- =====================================
@@ -391,10 +394,10 @@ local function IsAdmin(playerId)
     return false
 end
 
--- Helper function to check if a player ID is valid
+-- Helper function to check if a player ID is valid (i.e. connected)
 local function IsValidPlayer(targetId)
     for _, playerId in ipairs(GetPlayers()) do
-        if playerId == targetId then
+        if playerId == tostring(targetId) then
             return true
         end
     end
@@ -621,26 +624,31 @@ end)
 -- Receive player role from client
 RegisterNetEvent('cops_and_robbers:setPlayerRole')
 AddEventHandler('cops_and_robbers:setPlayerRole', function(role)
-    local playerId = source
-    playerRoles[playerId] = role
+    local src = source
+    playerRoles[src] = role
     if role == 'cop' then
-        cops[playerId] = true
-        robbers[playerId] = nil
+        cops[src] = true
+        robbers[src] = nil
     elseif role == 'robber' then
-        robbers[playerId] = true
-        cops[playerId] = nil
+        robbers[src] = true
+        cops[src] = nil
     else
         -- Invalid role
-        playerRoles[playerId] = nil
+        playerRoles[src] = nil
     end
-    TriggerClientEvent('cops_and_robbers:setRole', playerId, role)
+    TriggerClientEvent('cops_and_robbers:setRole', src, role)
 end)
 
--- Receive player positions and wanted levels from clients
+-- Receive player positions and wanted levels from clients (with throttling)
 RegisterNetEvent('cops_and_robbers:updatePosition')
 AddEventHandler('cops_and_robbers:updatePosition', function(position, wantedLvl)
-    local playerId = source
-    playerPositions[playerId] = { position = position, wantedLevel = wantedLvl }
+    local src = source
+    local now = GetGameTimer() -- Returns time in ms
+    if playerUpdateTimestamps[src] and (now - playerUpdateTimestamps[src]) < 100 then
+        return -- Throttle updates: ignore if less than 100ms since last update
+    end
+    playerUpdateTimestamps[src] = now
+    playerPositions[src] = { position = position, wantedLevel = wantedLvl }
 end)
 
 -- =====================================
@@ -736,17 +744,26 @@ AddEventHandler('cops_and_robbers:arrestRobber', function(robberId)
 end)
 
 -- =====================================
---           SERVER-SIDE EVENT HANDLERS
+--           SERVER-SIDE EVENT HANDLERS (ADMIN)
 -- =====================================
 
 -- Handler for banning a player (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:banPlayer')
 AddEventHandler('cops_and_robbers:banPlayer', function(targetId, reason)
-    local src = source
-    local identifiers = GetPlayerIdentifiers(targetId)
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
 
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
+    local identifiers = GetPlayerIdentifiers(targetId)
     if not identifiers or #identifiers == 0 then
-        TriggerClientEvent('chat:addMessage', src, {
+        TriggerClientEvent('chat:addMessage', adminSrc, {
             args = { "^1Server", "Unable to retrieve identifiers for player." }
         })
         return
@@ -763,67 +780,128 @@ end)
 -- Handler for setting a player's cash (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:setCash')
 AddEventHandler('cops_and_robbers:setCash', function(targetId, amount)
-    local src = targetId
-    local data = getPlayerData(src)
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
+    local data = getPlayerData(targetId)
     if data then
         data.money = amount
-        savePlayerData(src)
-        TriggerClientEvent('cops_and_robbers:showNotification', src, "Your cash has been set to $" .. amount)
+        savePlayerData(targetId)
+        TriggerClientEvent('cops_and_robbers:showNotification', targetId, "Your cash has been set to $" .. amount)
     else
-        TriggerClientEvent('cops_and_robbers:showNotification', source, "Failed to set cash. Player data not found.")
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Failed to set cash. Player data not found.")
     end
 end)
 
 -- Handler for adding cash to a player (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:addCash')
 AddEventHandler('cops_and_robbers:addCash', function(targetId, amount)
-    local src = targetId
-    addPlayerMoney(src, amount)
-    savePlayerData(src)
-    TriggerClientEvent('cops_and_robbers:showNotification', src, "You have received $" .. amount .. " from an admin.")
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
+    addPlayerMoney(targetId, amount)
+    savePlayerData(targetId)
+    TriggerClientEvent('cops_and_robbers:showNotification', targetId, "You have received $" .. amount .. " from an admin.")
 end)
 
 -- Handler for removing cash from a player (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:removeCash')
 AddEventHandler('cops_and_robbers:removeCash', function(targetId, amount)
-    local src = targetId
-    removePlayerMoney(src, amount)
-    savePlayerData(src)
-    TriggerClientEvent('cops_and_robbers:showNotification', src, "An admin has removed $" .. amount .. " from your account.")
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
+    removePlayerMoney(targetId, amount)
+    savePlayerData(targetId)
+    TriggerClientEvent('cops_and_robbers:showNotification', targetId, "An admin has removed $" .. amount .. " from your account.")
 end)
 
 -- Handler for giving a weapon to a player (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:giveWeapon')
 AddEventHandler('cops_and_robbers:giveWeapon', function(targetId, weaponName)
-    local src = targetId
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
     local weapon = getItemById(weaponName)
     if weapon and (weapon.category == "Weapons" or weapon.category == "Melee Weapons") then
-        addPlayerWeapon(src, weaponName)
-        savePlayerData(src)
-        TriggerClientEvent('cops_and_robbers:showNotification', src, "You have been given a " .. weapon.name .. " by an admin.")
+        addPlayerWeapon(targetId, weaponName)
+        savePlayerData(targetId)
+        TriggerClientEvent('cops_and_robbers:showNotification', targetId, "You have been given a " .. weapon.name .. " by an admin.")
     else
-        TriggerClientEvent('cops_and_robbers:showNotification', source, "Invalid weapon name.")
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Invalid weapon name.")
     end
 end)
 
 -- Handler for removing a weapon from a player (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:removeWeapon')
 AddEventHandler('cops_and_robbers:removeWeapon', function(targetId, weaponName)
-    local src = targetId
-    if playerHasWeapon(src, weaponName) then
-        removePlayerWeapon(src, weaponName)
-        savePlayerData(src)
-        TriggerClientEvent('cops_and_robbers:showNotification', src, "Your " .. weaponName .. " has been removed by an admin.")
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
+        return
+    end
+
+    if playerHasWeapon(targetId, weaponName) then
+        removePlayerWeapon(targetId, weaponName)
+        savePlayerData(targetId)
+        TriggerClientEvent('cops_and_robbers:showNotification', targetId, "Your " .. weaponName .. " has been removed by an admin.")
     else
-        TriggerClientEvent('cops_and_robbers:showNotification', source, "Player does not have this weapon.")
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Player does not have this weapon.")
     end
 end)
 
 -- Handler for reassigning a player's role (triggered by admin.lua)
 RegisterNetEvent('cops_and_robbers:reassignRoleServer')
 AddEventHandler('cops_and_robbers:reassignRoleServer', function(targetId, newRole)
+    local adminSrc = source
+    if not IsAdmin(adminSrc) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "You are not authorized to perform this action.")
+        return
+    end
+
     if newRole ~= "cop" and newRole ~= "robber" then
-        TriggerClientEvent('cops_and_robbers:showNotification', source, "Invalid role specified.")
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Invalid role specified.")
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('cops_and_robbers:showNotification', adminSrc, "Target player is not online.")
         return
     end
 
@@ -843,12 +921,6 @@ AddEventHandler('cops_and_robbers:reassignRoleServer', function(targetId, newRol
 end)
 
 -- =====================================
---           HEIST NOTIFICATIONS
--- =====================================
-
--- [Already handled above in Heist Management]
-
--- =====================================
 --           INITIALIZATION
 -- =====================================
 
@@ -859,9 +931,3 @@ AddEventHandler('onResourceStart', function(resourceName)
         LoadBans() -- Load bans from file and merge with Config.BannedPlayers
     end
 end)
-
--- =====================================
---           ADDITIONAL FEATURES
--- =====================================
-
--- You can add more event handlers and functions below as your resource expands
