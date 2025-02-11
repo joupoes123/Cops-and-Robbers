@@ -1,4 +1,8 @@
 -- config.lua
+-- Cops & Robbers FiveM Game Mode Configuration File
+-- Version: 1.1 | Date: 2025-02-11
+-- This file contains all the configuration settings for the game mode.
+-- Make sure this file is loaded before any scripts that depend on Config.
 
 -- Initialize Config table if not already initialized
 Config = Config or {}
@@ -15,8 +19,8 @@ Config.HeistRadius = 1000.0 -- meters
 Config.CopSpawn = vector3(452.6, -980.0, 30.7)
 Config.RobberSpawn = vector3(2126.7, 4794.1, 41.1)
 
--- Jail Location
-Config.JailLocation = vector3(1651.0, 2570.0, 45.5) -- Coordinates where players are sent to jail
+-- Jail Location (players are sent here when jailed)
+Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5)
 
 -- =========================
 --       Bank Vaults
@@ -81,15 +85,15 @@ Config.WantedLevels = {
 -- =========================
 
 Config.AmmuNationStores = {
-    { x = 1692.41, y = 3758.22, z = 34.70 },
-    { x = 252.89, y = -49.25, z = 69.94 },
-    { x = 844.35, y = -1033.42, z = 28.19 },
-    { x = -331.35, y = 6083.45, z = 31.45 },
-    { x = -662.1, y = -935.3, z = 21.8 },
-    { x = -1305.18, y = -393.48, z = 36.70 },
-    { x = 2567.69, y = 294.38, z = 108.73 },
-    { x = -1117.58, y = 2698.61, z = 18.55 },
-    { x = 811.19, y = -2157.67, z = 29.62 },
+    vector3(1692.41, 3758.22, 34.70),
+    vector3(252.89, -49.25, 69.94),
+    vector3(844.35, -1033.42, 28.19),
+    vector3(-331.35, 6083.45, 31.45),
+    vector3(-662.1, -935.3, 21.8),
+    vector3(-1305.18, -393.48, 36.70),
+    vector3(2567.69, 294.38, 108.73),
+    vector3(-1117.58, 2698.61, 18.55),
+    vector3(811.19, -2157.67, 29.62),
 }
 
 -- =========================
@@ -98,14 +102,14 @@ Config.AmmuNationStores = {
 
 Config.NPCVendors = {
     {
-        location = { x = -1107.17, y = 4949.54, z = 218.65 },
+        location = vector3(-1107.17, 4949.54, 218.65),
         heading = 140.0,
         model = "s_m_y_dealer_01",
         name = "Black Market Dealer",
         items = {"weapon_knife", "weapon_switchblade", "weapon_microsmg", "ammo_smg", "lockpick", "mask", "c4", "drill"}
     },
     {
-        location = { x = 1961.48, y = 3740.69, z = 32.34 },
+        location = vector3(1961.48, 3740.69, 32.34),
         heading = 300.0,
         model = "g_m_y_mexgang_01",
         name = "Gang Supplier",
@@ -196,9 +200,6 @@ Config.Admins = {
     -- ["license:abcdefghijk"] = true,
 }
 
--- Define the prison location for the jail system
-Config.PrisonLocation = Config.JailLocation
-
 -- =========================
 --      Heist Settings
 -- =========================
@@ -212,14 +213,14 @@ Config.HeistTimers = {
 --    Vehicle Spawn Settings
 -- =========================
 
--- Police vehicle spawn points
+-- Police vehicle spawn points (using vector3 for location)
 Config.PoliceVehicleSpawns = {
-    { x = 452.6, y = -980.0, z = 30.7, heading = 90.0 },
+    { location = vector3(452.6, -980.0, 30.7), heading = 90.0 },
     -- Add more spawn points as needed
 }
 
 -- Civilian vehicle spawn points
 Config.CivilianVehicleSpawns = {
-    { x = 2126.7, y = 4794.1, z = 41.1, heading = 180.0 },
+    { location = vector3(2126.7, 4794.1, 41.1), heading = 180.0 },
     -- Add more spawn points as needed
 }
