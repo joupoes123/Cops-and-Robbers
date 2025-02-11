@@ -3,15 +3,20 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Role Selection</title>
+    <!-- Ensures proper scaling on various devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Role Selection - Cops and Robbers</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
-    <div id="role-selection">
+    <!-- Role Selection Section -->
+    <section id="role-selection" aria-label="Role Selection">
         <h1>Select Your Role</h1>
-        <button id="cop-btn">Cop</button>
-        <button id="robber-btn">Robber</button>
-    </div>
+        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
+        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
+    </section>
+
     <script src="scripts.js"></script>
 </body>
 </html>
