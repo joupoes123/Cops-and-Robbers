@@ -307,18 +307,21 @@ function selectRole(role) {
 }
 
 // Event Listeners for Role Selection Buttons
-document.getElementById('cop-btn').addEventListener('click', function() {
-    selectRole('cop');
-});
-
-document.getElementById('robber-btn').addEventListener('click', function() {
-    selectRole('robber');
+// Instead of relying on specific IDs, bind events to all buttons inside the role-selection container.
+document.addEventListener('DOMContentLoaded', () => {
+    const roleButtons = document.querySelectorAll('#role-selection button');
+    roleButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const selectedRole = button.getAttribute('data-role');
+            selectRole(selectedRole);
+        });
+    });
 });
 
 // Function to start the heist timer
 function startHeistTimer(duration, bankName) {
     document.getElementById('heist-timer').style.display = 'block';
-    let timerText = document.getElementById('timer-text');
+    const timerText = document.getElementById('timer-text');
     let remainingTime = duration;
     timerText.innerText = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
 
@@ -336,7 +339,7 @@ function startHeistTimer(duration, bankName) {
 
 // Helper Function to Format Time (MM:SS)
 function formatTime(seconds) {
-    let mins = Math.floor(seconds / 60);
-    let secs = seconds % 60;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
