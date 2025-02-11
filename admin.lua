@@ -1,23 +1,49 @@
 -- admin.lua
+-- Cops & Robbers FiveM Game Mode - Admin Script
+-- Version: 1.1 | Date: 2025-02-11
+-- This file contains admin commands and ban management for the game mode.
 
--- List of admins by identifier (replace with actual identifiers)
-Admins = { "fivem:8990", "steam:110000123456789" }
+local json = require("json")
 
--- Persistent bans storage
-bannedPlayers = {}
+-- List of admin identifiers (replace with actual identifiers)
+local Admins = { "fivem:8990", "steam:110000123456789" }
+
+-- Persistent bans storage (local to this file)
+local bannedPlayers = {}
+
+-----------------------------------------------------------
+-- Ban File Handling
+-----------------------------------------------------------
 
 -- Function to load bans from a file
-function LoadBans()
-    local bans = LoadResourceFile(GetCurrentResourceName(), "bans.json")
-    if bans then
-        bannedPlayers = json.decode(bans)
+local function LoadBans()
+    local resourceName = GetCurrentResourceName()
+    if not resourceName then
+        print("Error: Unable to get current resource name.")
+        return
+    end
+
+    local bans = LoadResourceFile(resourceName, "bans.json")
+    if bans and bans ~= "" then
+        local decodedBans = json.decode(bans)
+        if decodedBans then
+            bannedPlayers = decodedBans
+        else
+            print("Error decoding bans.json. Initializing empty bans.")
+            bannedPlayers = {}
+        end
     else
+        print("Warning: bans.json file not found or empty.")
         bannedPlayers = {}
+        local success = SaveResourceFile(resourceName, "bans.json", json.encode(bannedPlayers), -1)
+        if not success then
+            print("Error: Failed to save bans.json")
+        end
     end
 end
 
 -- Function to save bans to a file
-function SaveBans()
+local function SaveBans()
     SaveResourceFile(GetCurrentResourceName(), "bans.json", json.encode(bannedPlayers), -1)
 end
 
@@ -27,6 +53,10 @@ AddEventHandler('onResourceStart', function(resourceName)
         LoadBans()
     end
 end)
+
+-----------------------------------------------------------
+-- Helper Functions
+-----------------------------------------------------------
 
 -- Helper function to check if a player is an admin
 function IsAdmin(playerId)
@@ -52,7 +82,7 @@ function GetSafePlayerIdentifiers(playerId)
     return GetPlayerIdentifiers(playerId)
 end
 
--- Helper function to check if a player ID is valid
+-- Helper function to check if a player ID is valid (i.e. currently connected)
 function IsValidPlayer(targetId)
     for _, playerId in ipairs(GetPlayers()) do
         if playerId == targetId then
@@ -62,13 +92,24 @@ function IsValidPlayer(targetId)
     return false
 end
 
+-- Stub for weapon validation (if not defined elsewhere)
+function IsWeaponValid(weaponHash)
+    -- Implement actual weapon validation logic if necessary.
+    -- For now, assume any non-zero weapon hash is valid.
+    return weaponHash and weaponHash ~= 0
+end
+
+-----------------------------------------------------------
+-- Admin Commands
+-----------------------------------------------------------
+
 -- Kick command
 RegisterCommand("kick", function(source, args, rawCommand)
     if not IsAdmin(source) then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     if targetId and IsValidPlayer(targetId) then
         DropPlayer(targetId, "You have been kicked by an admin.")
         TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", "Player " .. GetPlayerName(targetId) .. " has been kicked." } })
@@ -83,7 +124,7 @@ RegisterCommand("ban", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     if targetId and IsValidPlayer(targetId) then
         local identifiers = GetSafePlayerIdentifiers(targetId)
         if identifiers then
@@ -107,10 +148,9 @@ RegisterCommand("setcash", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     local amount = tonumber(args[2])
     if targetId and IsValidPlayer(targetId) and amount then
-        -- Update cash on the server side if applicable
         TriggerClientEvent('cops_and_robbers:setCash', targetId, amount)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Set cash for " .. GetPlayerName(targetId) .. " to $" .. amount } })
     else
@@ -124,10 +164,9 @@ RegisterCommand("addcash", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     local amount = tonumber(args[2])
     if targetId and IsValidPlayer(targetId) and amount then
-        -- Update cash on the server side if applicable
         TriggerClientEvent('cops_and_robbers:addCash', targetId, amount)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Added $" .. amount .. " to " .. GetPlayerName(targetId) } })
     else
@@ -141,10 +180,9 @@ RegisterCommand("removecash", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     local amount = tonumber(args[2])
     if targetId and IsValidPlayer(targetId) and amount then
-        -- Update cash on the server side if applicable
         TriggerClientEvent('cops_and_robbers:removeCash', targetId, amount)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Removed $" .. amount .. " from " .. GetPlayerName(targetId) } })
     else
@@ -158,10 +196,11 @@ RegisterCommand("giveweapon", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     local weaponName = args[2]
     if targetId and IsValidPlayer(targetId) and weaponName then
-        if IsWeaponValid(GetHashKey(weaponName)) then
+        local weaponHash = GetHashKey(weaponName)
+        if IsWeaponValid(weaponHash) then
             TriggerClientEvent('cops_and_robbers:giveWeapon', targetId, weaponName)
             TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Gave weapon " .. weaponName .. " to " .. GetPlayerName(targetId) } })
         else
@@ -178,7 +217,7 @@ RegisterCommand("removeweapon", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     local weaponName = args[2]
     if targetId and IsValidPlayer(targetId) and weaponName then
         TriggerClientEvent('cops_and_robbers:removeWeapon', targetId, weaponName)
@@ -194,10 +233,9 @@ RegisterCommand("reassign", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
-    local newRole = args[2]  -- Should be "cop" or "robber"
+    local targetId = args[1]  -- Expected to be a string
+    local newRole = args[2]   -- Should be "cop" or "robber"
     if targetId and IsValidPlayer(targetId) and (newRole == "cop" or newRole == "robber") then
-        -- Update role on the server side
         TriggerEvent('cops_and_robbers:reassignRoleServer', targetId, newRole)
         TriggerClientEvent('cops_and_robbers:reassignRole', targetId, newRole)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Reassigned " .. GetPlayerName(targetId) .. " to " .. newRole } })
@@ -212,7 +250,7 @@ RegisterCommand("spectate", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     if targetId and IsValidPlayer(targetId) then
         TriggerClientEvent('cops_and_robbers:spectatePlayer', source, targetId)
     else
@@ -226,7 +264,7 @@ RegisterCommand("freeze", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     if targetId and IsValidPlayer(targetId) then
         TriggerClientEvent('cops_and_robbers:toggleFreeze', targetId)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Toggled freeze for " .. GetPlayerName(targetId) } })
@@ -241,7 +279,7 @@ RegisterCommand("teleport", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
     end
-    local targetId = args[1]  -- Keep as string
+    local targetId = args[1]  -- Expected to be a string
     if targetId and IsValidPlayer(targetId) then
         TriggerClientEvent('cops_and_robbers:teleportToPlayer', source, targetId)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Teleported to " .. GetPlayerName(targetId) } })
