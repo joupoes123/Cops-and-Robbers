@@ -1,4 +1,8 @@
 -- client.lua
+-- Cops & Robbers FiveM Game Mode - Client Script
+-- Version: 1.1 | Date: 2025-02-11
+-- This file handles client-side functionality including UI notifications,
+-- role selection, vendor interactions, spawning, and other game-related events.
 
 -- =====================================
 --           CONFIGURATION
@@ -14,26 +18,26 @@ Config.Items = {
     -- Add more items as needed
 }
 
--- Define Ammu-Nation store locations
+-- Define Ammu-Nation store locations (using vector3 for consistency)
 Config.AmmuNationStores = {
-    { x = 452.6, y = -980.0, z = 30.7 },
-    { x = 1693.4, y = 3760.2, z = 34.7 },
+    vector3(452.6, -980.0, 30.7),
+    vector3(1693.4, 3760.2, 34.7),
     -- Add more Ammu-Nation store locations as needed
 }
 
--- Define NPC vendors
+-- Define NPC vendors with standardized vector3 locations
 Config.NPCVendors = {
     {
         name = "Gun Dealer",
         model = "s_m_m_gunsmith_01",
-        location = { x = 2126.7, y = 4794.1, z = 41.1 },
+        location = vector3(2126.7, 4794.1, 41.1),
         heading = 90.0,
         items = { 1, 2, 3 } -- Item IDs from Config.Items
     },
     {
         name = "Weapon Trader",
         model = "s_m_m_gunsmith_02",
-        location = { x = 256.5, y = -50.0, z = 69.2 },
+        location = vector3(256.5, -50.0, 69.2),
         heading = 45.0,
         items = { 2, 3 } -- Item IDs from Config.Items
     },
@@ -85,7 +89,7 @@ local function spawnPlayer(role)
     local spawnPoint = Config.SpawnPoints[role]
     if spawnPoint then
         SetEntityCoords(PlayerPedId(), spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
-        -- Additional spawn logic can be added here (e.g., setting heading, animations)
+        -- Consider setting the heading if a spawn heading is available
     else
         print("Error: Invalid role for spawning: " .. tostring(role))
     end
@@ -97,10 +101,10 @@ end
 
 -- Request player data when the player spawns
 AddEventHandler('playerSpawned', function()
-    -- Request player data
+    -- Request player data from the server
     TriggerServerEvent('cops_and_robbers:requestPlayerData')
     
-    -- Show NUI role selection
+    -- Show NUI role selection screen
     SetNuiFocus(true, true)
     SendNUIMessage({ action = 'showRoleSelection' })
 end)
@@ -128,7 +132,7 @@ AddEventHandler('cops_and_robbers:receivePlayerData', function(data)
             playerAmmo[weaponName] = ammo or 0
         end
     end
-    -- Restore inventory items and money display if applicable
+    -- Optionally restore inventory items and update money display
 end)
 
 -- Receive item list from the server (Registered once)
@@ -148,7 +152,7 @@ AddEventHandler('cops_and_robbers:notifyBankRobbery', function(bankId, bankLocat
     if role == 'cop' then
         ShowNotification("~r~Bank Robbery in Progress!~s~\nBank: " .. bankName)
         SetNewWaypoint(bankLocation.x, bankLocation.y)
-        -- Optionally, play a sound or other alert here
+        -- Optionally, play a sound or additional alert here
     end
 end)
 
@@ -169,7 +173,7 @@ AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
             DisableControlAction(0, 24, true) -- Disable attack
             DisableControlAction(0, 25, true) -- Disable aim
             DisableControlAction(0, 47, true) -- Disable weapon (G key)
-            DisableControlAction(0, 58, true) -- Disable weapon (last argument, weapon wheel)
+            DisableControlAction(0, 58, true) -- Disable weapon (weapon wheel)
             -- Add more restrictions as needed
         end
         
@@ -317,9 +321,9 @@ Citizen.CreateThread(function()
         local playerPed = PlayerPedId()
         local playerCoords = GetEntityCoords(playerPed)
 
-        -- Check proximity to Ammu-Nation stores
+        -- Check proximity to Ammu-Nation stores (now stored as vector3)
         for _, store in ipairs(Config.AmmuNationStores) do
-            local distance = #(playerCoords - vector3(store.x, store.y, store.z))
+            local distance = #(playerCoords - store)
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
                 if IsControlJustPressed(0, 51) then  -- E key
@@ -330,7 +334,7 @@ Citizen.CreateThread(function()
 
         -- Check proximity to NPC vendors
         for _, vendor in ipairs(Config.NPCVendors) do
-            local vendorCoords = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
+            local vendorCoords = vendor.location
             local distance = #(playerCoords - vendorCoords)
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
