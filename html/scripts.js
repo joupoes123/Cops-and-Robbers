@@ -1,15 +1,21 @@
 // html/scripts.js
 
-// Global Variables
-let heistTimerInterval;
-let items = [];
-let currentCategory = null;
-let currentTab = 'buy';
+// Allowed origins: include your resource's NUI origin and any other trusted domains
+const allowedOrigins = [
+  "nui://cops-and-robbers", // Your resource's NUI origin
+  "http://localhost:3000"   // For local development (if needed)
+];
 
-// Initialize NUI
+// Secure postMessage listener with origin validation
 window.addEventListener('message', function(event) {
+    // Validate the origin of the incoming message
+    if (!allowedOrigins.includes(event.origin)) {
+        console.warn(`Received message from untrusted origin: ${event.origin}`);
+        return;
+    }
+  
     const data = event.data;
-
+  
     switch (data.action) {
         case 'showRoleSelection':
             showRoleSelection();
@@ -28,24 +34,29 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// Function to display the role selection menu
+// -------------------------------------------------------------------
+// Role Selection Functions
+// -------------------------------------------------------------------
+
 function showRoleSelection() {
     document.getElementById('role-selection').style.display = 'block';
-    SetNuiFocus(true, true); // Focus on NUI
+    SetNuiFocus(true, true); // Set focus to the NUI
 }
 
-// Function to hide the role selection menu
 function hideRoleSelection() {
     document.getElementById('role-selection').style.display = 'none';
     SetNuiFocus(false, false); // Release NUI focus
 }
 
-// Function to open the store menu
+// -------------------------------------------------------------------
+// Store Functions
+// -------------------------------------------------------------------
+
 function openStoreMenu(storeName, storeItems) {
     document.getElementById('store-title').innerText = storeName || 'Store';
-    items = storeItems || [];
-    currentCategory = null;
-    currentTab = 'buy';
+    window.items = storeItems || [];
+    window.currentCategory = null;
+    window.currentTab = 'buy';
 
     loadCategories();
     loadItems();
@@ -54,13 +65,15 @@ function openStoreMenu(storeName, storeItems) {
     SetNuiFocus(true, true); // Focus on NUI
 }
 
-// Function to close the store menu
 function closeStoreMenu() {
     document.getElementById('store-menu').style.display = 'none';
     SetNuiFocus(false, false); // Release NUI focus
 }
 
-// Event Listeners for Tab Buttons (Buy/Sell)
+// -------------------------------------------------------------------
+// Tab and Category Management
+// -------------------------------------------------------------------
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         // Update active tab button
@@ -68,14 +81,14 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
 
         // Update current tab
-        currentTab = btn.dataset.tab;
+        window.currentTab = btn.dataset.tab;
 
         // Show active tab content
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.getElementById(`${currentTab}-section`).classList.add('active');
+        document.getElementById(`${window.currentTab}-section`).classList.add('active');
 
-        // Load appropriate items
-        if (currentTab === 'sell') {
+        // Load appropriate items based on the current tab
+        if (window.currentTab === 'sell') {
             loadSellItems();
         } else {
             loadItems();
@@ -83,9 +96,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     });
 });
 
-// Function to load item categories for the store
 function loadCategories() {
-    const categories = [...new Set(items.map(item => item.category))];
+    const categories = [...new Set(window.items.map(item => item.category))];
     const categoryList = document.getElementById('category-list');
     categoryList.innerHTML = '';
 
@@ -95,12 +107,12 @@ function loadCategories() {
         btn.className = 'category-btn';
         btn.innerText = category;
         btn.onclick = () => {
-            currentCategory = category;
+            window.currentCategory = category;
             // Highlight active category button
             document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            // Load items based on selected category
-            if (currentTab === 'buy') {
+            // Reload items based on selected category
+            if (window.currentTab === 'buy') {
                 loadItems();
             }
         };
@@ -108,32 +120,30 @@ function loadCategories() {
     });
 }
 
-// Function to load items for the "Buy" tab
 function loadItems() {
     const itemList = document.getElementById('item-list');
     itemList.innerHTML = '';
 
-    // Filter items based on selected category
-    const filteredItems = items.filter(item => !currentCategory || item.category === currentCategory);
+    // Filter items based on the selected category (if any)
+    const filteredItems = window.items.filter(item => !window.currentCategory || item.category === window.currentCategory);
 
-    // Populate item list
     filteredItems.forEach(item => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'item';
 
-        // Item Name
+        // Display item name
         const nameDiv = document.createElement('div');
         nameDiv.className = 'item-name';
         nameDiv.innerText = item.name;
         itemDiv.appendChild(nameDiv);
 
-        // Item Price
+        // Display item price
         const priceDiv = document.createElement('div');
         priceDiv.className = 'item-price';
         priceDiv.innerText = '$' + item.price;
         itemDiv.appendChild(priceDiv);
 
-        // Quantity Input
+        // Create quantity input
         const quantityInput = document.createElement('input');
         quantityInput.type = 'number';
         quantityInput.className = 'quantity-input';
@@ -142,7 +152,7 @@ function loadItems() {
         quantityInput.value = '1';
         itemDiv.appendChild(quantityInput);
 
-        // Buy Button
+        // Create Buy button
         const buyBtn = document.createElement('button');
         buyBtn.className = 'buy-btn';
         buyBtn.innerText = 'Buy';
@@ -152,7 +162,6 @@ function loadItems() {
                 alert('Invalid quantity.');
                 return;
             }
-            // Send NUI callback to buy item
             buyItem(item.itemId, quantity);
         };
         itemDiv.appendChild(buyBtn);
@@ -161,9 +170,7 @@ function loadItems() {
     });
 }
 
-// Function to load items for the "Sell" tab
 function loadSellItems() {
-    // Fetch player's inventory from the server
     fetch(`https://${GetParentResourceName()}/getPlayerInventory`, {
         method: 'POST'
     })
@@ -176,25 +183,25 @@ function loadSellItems() {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'item';
 
-            // Item Name
+            // Display item name
             const nameDiv = document.createElement('div');
             nameDiv.className = 'item-name';
             nameDiv.innerText = item.name;
             itemDiv.appendChild(nameDiv);
 
-            // Item Quantity
+            // Display item quantity
             const quantityDiv = document.createElement('div');
             quantityDiv.className = 'item-quantity';
             quantityDiv.innerText = 'x' + item.count;
             itemDiv.appendChild(quantityDiv);
 
-            // Sell Price
+            // Display sell price
             const priceDiv = document.createElement('div');
             priceDiv.className = 'item-price';
             priceDiv.innerText = '$' + item.sellPrice;
             itemDiv.appendChild(priceDiv);
 
-            // Quantity Input
+            // Create quantity input for selling
             const quantityInput = document.createElement('input');
             quantityInput.type = 'number';
             quantityInput.className = 'quantity-input';
@@ -203,7 +210,7 @@ function loadSellItems() {
             quantityInput.value = '1';
             itemDiv.appendChild(quantityInput);
 
-            // Sell Button
+            // Create Sell button
             const sellBtn = document.createElement('button');
             sellBtn.className = 'sell-btn';
             sellBtn.innerText = 'Sell';
@@ -213,7 +220,6 @@ function loadSellItems() {
                     alert('Invalid quantity.');
                     return;
                 }
-                // Send NUI callback to sell item
                 sellItem(item.itemId, quantity);
             };
             itemDiv.appendChild(sellBtn);
@@ -227,22 +233,21 @@ function loadSellItems() {
     });
 }
 
-// Function to handle buying an item
+// -------------------------------------------------------------------
+// Buy and Sell Functions
+// -------------------------------------------------------------------
+
 function buyItem(itemId, quantity) {
-    // Send NUI callback to the server to buy the item
     fetch(`https://${GetParentResourceName()}/buyItem`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: itemId, quantity: quantity })
     })
     .then(resp => resp.json())
     .then(response => {
         if (response.status === 'success') {
             alert(`Successfully purchased ${quantity} x ${response.itemName}`);
-            // Optionally, refresh the store or inventory
-            loadItems();
+            loadItems(); // Refresh the item list if needed
         } else {
             alert(`Purchase failed: ${response.message}`);
         }
@@ -253,22 +258,17 @@ function buyItem(itemId, quantity) {
     });
 }
 
-// Function to handle selling an item
 function sellItem(itemId, quantity) {
-    // Send NUI callback to the server to sell the item
     fetch(`https://${GetParentResourceName()}/sellItem`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: itemId, quantity: quantity })
     })
     .then(resp => resp.json())
     .then(response => {
         if (response.status === 'success') {
             alert(`Successfully sold ${quantity} x ${response.itemName}`);
-            // Optionally, refresh the store or inventory
-            loadSellItems();
+            loadSellItems(); // Refresh sell items
         } else {
             alert(`Sell failed: ${response.message}`);
         }
@@ -279,23 +279,29 @@ function sellItem(itemId, quantity) {
     });
 }
 
-// Function to handle role selection
-function selectRole(role) {
-    // Send NUI callback to the server to set the player's role
+// -------------------------------------------------------------------
+// Role Selection and Initialization
+// -------------------------------------------------------------------
+
+function selectRole(selectedRole) {
     fetch(`https://${GetParentResourceName()}/selectRole`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ role: role })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: selectedRole })
     })
     .then(resp => resp.json())
     .then(response => {
         if (response.status === 'success') {
             alert(`Role set to ${response.role}`);
             hideRoleSelection();
-            // Optionally, open the store menu after role selection
-            // openStoreMenu('Store', response.storeItems);
+            SpawnPlayer(response.role);
+            role = response.role;
+            // Notify about role-specific abilities
+            if (role == 'cop') {
+                ShowNotification("Cop abilities loaded: Advanced equipment, vehicles, and backup available.");
+            } else if (role == 'robber') {
+                ShowNotification("Robber abilities loaded: Heist tools, getaway vehicles, and stealth strategies enabled.");
+            }
         } else {
             alert(`Role selection failed: ${response.message}`);
         }
@@ -306,8 +312,7 @@ function selectRole(role) {
     });
 }
 
-// Event Listeners for Role Selection Buttons
-// Instead of relying on specific IDs, bind events to all buttons inside the role-selection container.
+// Bind event listeners to role selection buttons on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     const roleButtons = document.querySelectorAll('#role-selection button');
     roleButtons.forEach(button => {
@@ -318,26 +323,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Function to start the heist timer
+// -------------------------------------------------------------------
+// Heist Timer Functionality
+// -------------------------------------------------------------------
+
 function startHeistTimer(duration, bankName) {
-    document.getElementById('heist-timer').style.display = 'block';
+    const heistTimerEl = document.getElementById('heist-timer');
+    heistTimerEl.style.display = 'block';
     const timerText = document.getElementById('timer-text');
     let remainingTime = duration;
     timerText.innerText = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
-
     clearInterval(heistTimerInterval);
     heistTimerInterval = setInterval(function() {
         remainingTime--;
         if (remainingTime <= 0) {
             clearInterval(heistTimerInterval);
-            document.getElementById('heist-timer').style.display = 'none';
+            heistTimerEl.style.display = 'none';
             return;
         }
         timerText.innerText = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
     }, 1000);
 }
 
-// Helper Function to Format Time (MM:SS)
 function formatTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
