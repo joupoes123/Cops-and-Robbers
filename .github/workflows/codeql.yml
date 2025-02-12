@@ -24,24 +24,28 @@ jobs:
         include:
           - language: javascript-typescript
             build-mode: none
+          - language: html
+            build-mode: none
+          - language: css
+            build-mode: none
     steps:
       - name: Check Out Repository
         uses: actions/checkout@v4
 
-      # Add any necessary setup steps for your runtime here, e.g., Node.js if needed.
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v3
-      #   with:
-      #     node-version: '16'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          use-default-queries: false   # Disable default queries when using advanced configuration
-          # Optional: Specify custom queries here (this list will override default ones)
-          # queries: security-extended,security-and-quality
+          use-default-queries: false   # Disable default queries for advanced configuration
+          # Optional: Add custom queries if needed
+          # queries: custom-query-pack, security-extended
 
       - if: matrix.build-mode == 'manual'
         shell: bash
