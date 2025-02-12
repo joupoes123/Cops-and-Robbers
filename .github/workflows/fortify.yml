@@ -43,9 +43,9 @@ jobs:
           java-version: 17
           distribution: 'temurin'
 
-      # Run Fortify AST Scan using Fortify on Demand
+      # Run Fortify AST Scan using the updated Fortify GitHub Action
       - name: Run FoD SAST Scan
-        uses: fortify/github-action@a92347297e02391b857e7015792cd1926a4cd418
+        uses: fortify/github-action@latest
         with:
           sast-scan: true
         env:
