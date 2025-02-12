@@ -28,7 +28,7 @@ jobs:
       - name: Check Out Repository
         uses: actions/checkout@v4
 
-      # If additional runtimes (e.g., Node.js) are required, add setup steps here.
+      # Add any necessary setup steps for your runtime here, e.g., Node.js if needed.
       # - name: Setup Node.js
       #   uses: actions/setup-node@v3
       #   with:
@@ -39,7 +39,8 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          # Optional: Specify custom queries if needed.
+          use-default-queries: false   # Disable default queries when using advanced configuration
+          # Optional: Specify custom queries here (this list will override default ones)
           # queries: security-extended,security-and-quality
 
       - if: matrix.build-mode == 'manual'
