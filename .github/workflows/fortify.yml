@@ -5,10 +5,7 @@
 # This workflow packages the code and dependencies, runs a SAST scan using Fortify,
 # and can optionally export vulnerabilities to GitHub Security Code Scanning.
 #
-# Note: Customize the optional environment variables as needed. For instance,
-# the FOD_RELEASE variable is set to "CopsAndRobbers:Main" for this project.
-#
-# For further assistance, please refer to Fortify documentation.
+# For further customization, refer to the Fortify GitHub Action documentation.
 # --------------------------------------------------------------------------------
 
 name: Fortify AST Scan - Cops & Robbers
@@ -43,9 +40,9 @@ jobs:
           java-version: 17
           distribution: 'temurin'
 
-      # Run Fortify AST Scan using the updated Fortify GitHub Action
+      # Run Fortify AST Scan using Fortify on Demand
       - name: Run FoD SAST Scan
-        uses: fortify/github-action@latest
+        uses: fortify/github-action@v1
         with:
           sast-scan: true
         env:
@@ -55,7 +52,7 @@ jobs:
           FOD_USER: ${{ secrets.FOD_USER }}
           FOD_PASSWORD: ${{ secrets.FOD_PAT }}
           FOD_RELEASE: "CopsAndRobbers:Main"
-          # Optional configurations (uncomment and adjust as needed)
+          # Optional configuration (uncomment and adjust as needed)
           # EXTRA_PACKAGE_OPTS: -oss
           # EXTRA_FOD_LOGIN_OPTS: --socket-timeout=60s
           # DO_WAIT: true
