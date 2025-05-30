@@ -208,7 +208,7 @@ function loadSellItems() {
     // If structure is <div id="sell-section"><div class="item-list-content">...</div></div>, adjust querySelector.
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>'; // Loading indicator
 
-    fetch(`https://${GetParentResourceName()}/getPlayerInventory`, {
+    fetch(`https://cops-and-robbers/getPlayerInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}) // Empty body for GET-like behavior if required by server
@@ -305,7 +305,7 @@ function createItemElement(item, type = 'buy') {
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
     try {
-        const resp = await fetch(`https://${GetParentResourceName()}/${endpoint}`, {
+        const resp = await fetch(`https://cops-and-robbers/${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: itemId, quantity: quantity })
@@ -371,7 +371,7 @@ document.addEventListener('click', function(event) {
 // -------------------------------------------------------------------
 
 function selectRole(selectedRole) {
-    fetch(`https://${GetParentResourceName()}/selectRole`, {
+    fetch(`https://cops-and-robbers/selectRole`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: selectedRole })
@@ -470,7 +470,7 @@ function startHeistTimer(duration, bankName) {
             heistTimerInterval = null; // Reset interval variable
             heistTimerEl.style.display = 'none';
             // Optionally, send a message back to Lua that timer ended
-            // fetch(`https://${GetParentResourceName()}/heistTimerEnded`, { method: 'POST' });
+            // fetch(`https://cops-and-robbers/heistTimerEnded`, { method: 'POST' });
             return;
         }
         timerTextEl.textContent = `Heist at ${bankName}: ${formatTime(remainingTime)}`;

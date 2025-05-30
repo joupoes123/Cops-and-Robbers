@@ -36,5 +36,9 @@ files {
     'html/scripts.js',
     'purchase_history.json', -- For dynamic pricing persistence
     'player_data/*',         -- Include all files in the player_data directory
-    'bans.json'               -- For ban persistence
+    'bans.json',               -- For ban persistence
+
+    -- ox_lib stub files (if ox_lib is included directly in this resource)
+    'ox_lib/init.lua',
+    'ox_lib/modules/json/init.lua'
 }

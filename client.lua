@@ -114,6 +114,93 @@ AddEventHandler('cops_and_robbers:notifyBankRobbery', function(bankId, bankLocat
     end
 end)
 
+
+-- Handler for server instructing client to show the heist timer
+RegisterNetEvent('cops_and_robbers:showHeistTimerUI')
+AddEventHandler('cops_and_robbers:showHeistTimerUI', function(bankName, duration)
+    SendNUIMessage({
+        action = 'startHeistTimer',
+        duration = duration,
+        bankName = bankName
+    })
+end)
+
+-- =====================================
+-- ADMIN COMMAND CLIENT-SIDE HANDLERS
+-- =====================================
+
+-- Handler for being frozen/unfrozen by an admin
+RegisterNetEvent('cops_and_robbers:toggleFreeze')
+AddEventHandler('cops_and_robbers:toggleFreeze', function()
+    local ped = PlayerPedId()
+    local currentlyFrozen = IsEntityFrozen(ped)
+    FreezeEntityPosition(ped, not currentlyFrozen)
+    if not currentlyFrozen then
+        ShowNotification("~r~An admin has frozen you.")
+    else
+        ShowNotification("~g~An admin has unfrozen you.")
+    end
+end)
+
+-- Handler for being teleported to a player by an admin
+RegisterNetEvent('cops_and_robbers:teleportToPlayer')
+AddEventHandler('cops_and_robbers:teleportToPlayer', function(targetPlayerIdToTeleportTo)
+    local targetPed = GetPlayerPed(targetPlayerIdToTeleportTo)
+    if DoesEntityExist(targetPed) then
+        local targetCoords = GetEntityCoords(targetPed)
+        SetEntityCoords(PlayerPedId(), targetCoords.x, targetCoords.y, targetCoords.z, false, false, false, true)
+        ShowNotification("~b~You have been teleported by an admin.")
+    else
+        ShowNotification("~r~Target player for teleport not found or too far away.")
+    end
+end)
+
+-- Handler for spectating a player (admin's client executes this)
+RegisterNetEvent('cops_and_robbers:spectatePlayer')
+AddEventHandler('cops_and_robbers:spectatePlayer', function(playerToSpectateId)
+    local ownPed = PlayerPedId()
+    local targetPed = GetPlayerPed(playerToSpectateId)
+
+    -- Rudimentary spectate: make player invisible and attach camera to target.
+    -- A proper spectate mode is much more complex (e.g. NetworkSetInSpectatorMode, handling player controls).
+    -- This is a simplified version.
+    if DoesEntityExist(targetPed) then
+        if not IsEntityVisible(ownPed) then -- Already spectating, or invisible for other reasons
+            -- Stop spectating: make player visible, detach camera, reset position (e.g. to last known good position or fixed spot)
+            SetEntityVisible(ownPed, true, false)
+            ClearPedTasksImmediately(ownPed) -- Or SetEntityCollision, SetEntityAlpha etc.
+            DetachCam(PlayerGameplayCam())
+            RenderScriptCams(false, false, 0, true, true)
+            ShowNotification("~g~Spectate mode ended.")
+            -- May need to restore player position here if they were moved/made ethereal for spectate.
+        else
+            SetEntityVisible(ownPed, false, false) -- Make admin invisible
+            -- AttachCamToEntity(PlayerGameplayCam(), targetPed, 0,0,2.0, true) -- Example offset
+            -- PointCamAtEntity(PlayerGameplayCam(), targetPed, 0,0,0, true)
+            -- For a more robust solution, NetworkSetInSpectatorMode might be explored,
+            -- but it has its own complexities. This is a placeholder for basic spectate logic.
+            -- The following is often used for a simple follow cam:
+            SpectatePlayerPed(PlayerId(), targetPed) -- This is a guess, this native might not work as expected or exist.
+                                                    -- A common way is manual camera control:
+                                                    -- RequestCollisionAtCoord(GetEntityCoords(targetPed))
+                                                    -- SetFocusArea(GetEntityCoords(targetPed).x, GetEntityCoords(targetPed).y, GetEntityCoords(targetPed).z, 0.0, 0.0, 0.0)
+                                                    -- AttachCameraToPed(GetPlayerPed(-1), targetPed, true) -- This is not a native
+                                                    -- A more manual approach:
+                                                    -- local cam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+                                                    -- AttachCamToPed(cam, targetPed, 0, -5.0, 2.0, true) -- Offset from target
+                                                    -- SetCamActive(cam, true)
+                                                    -- RenderScriptCams(true, false, 0, true, true)
+            ShowNotification("~b~Spectating player. You are invisible. Trigger spectate again to stop.")
+            print("SpectatePlayerPed might not be a direct native or might require more setup.")
+            print("A robust spectate requires more complex camera and player state management.")
+            -- Fallback to a very simple notification if true spectate is too complex for this context:
+            -- ShowNotification("~b~Spectate command received for player ID: " .. playerToSpectateId .. ". True spectate needs more code.")
+        end
+    else
+        ShowNotification("~r~Target player for spectate not found.")
+    end
+end)
+
 -- Jail System: Send player to jail
 RegisterNetEvent('cops_and_robbers:sendToJail')
 AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)

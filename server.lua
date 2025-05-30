@@ -706,7 +706,8 @@ AddEventHandler('cops_and_robbers:startHeist', function(bankId)
     local bank = Config.BankVaults[bankId]
     if bank then
         notifyNearbyCops(bank.id, bank.location, bank.name)
-        TriggerClientEvent('cops_and_robbers:startHeistTimer', src, bank.id, Config.HeistTimers.heistDuration)  -- Heist timer duration from config
+        -- Send bank name and duration to the robber's client to show timer via NUI
+        TriggerClientEvent('cops_and_robbers:showHeistTimerUI', src, bank.name, Config.HeistTimers.heistDuration)
     else
         TriggerClientEvent('cops_and_robbers:heistFailed', src, "Invalid bank ID.")
     end
@@ -734,6 +735,160 @@ Citizen.CreateThread(function()
         end
     end
 end)
+
+-- =====================================
+--           NUI CALLBACKS (SERVER)
+-- =====================================
+
+RegisterNUICallback('buyItem', function(data, cb)
+    local src = source
+    local itemId = data.itemId
+    local quantity = tonumber(data.quantity) or 1
+
+    -- Validate item
+    local item = getItemById(itemId)
+    if not item then
+        cb({ status = 'failed', message = 'Invalid item.' })
+        return
+    end
+
+    -- Validate quantity
+    if quantity < 1 or quantity > 100 then -- Max quantity check
+        cb({ status = 'failed', message = 'Invalid quantity.' })
+        return
+    end
+
+    -- Handle player cash balance
+    local playerMoney = getPlayerMoney(src)
+    local dynamicPrice = getDynamicPrice(itemId) or item.basePrice
+    local totalPrice = dynamicPrice * quantity
+    if playerMoney < totalPrice then
+        cb({ status = 'failed', message = 'Insufficient funds.' })
+        return
+    end
+
+    -- Deduct money and give item(s) - This logic is similar to 'cops_and_robbers:purchaseItem'
+    removePlayerMoney(src, totalPrice)
+    givePlayerItem(src, item, quantity) -- This function already handles client notifications and saving player data
+
+    -- Record the purchase (as in 'cops_and_robbers:purchaseItem')
+    local timestamp = os.time()
+    if not purchaseHistory[itemId] then
+        purchaseHistory[itemId] = {}
+    end
+    for i = 1, quantity do
+        table.insert(purchaseHistory[itemId], timestamp)
+    end
+    local updatedHistory = {}
+    for _, purchaseTime in ipairs(purchaseHistory[itemId]) do
+        if purchaseTime >= (timestamp - Config.PopularityTimeframe) then
+            table.insert(updatedHistory, purchaseTime)
+        end
+    end
+    purchaseHistory[itemId] = updatedHistory
+    savePurchaseHistory()
+
+    cb({ status = 'success', itemName = item.name, quantity = quantity })
+end)
+
+RegisterNUICallback('sellItem', function(data, cb)
+    local src = source
+    local itemId = data.itemId
+    local quantity = tonumber(data.quantity) or 1
+
+    local item = getItemById(itemId)
+    if not item then
+        cb({ status = 'failed', message = 'Invalid item.' })
+        return
+    end
+
+    if quantity < 1 or quantity > 100 then -- Max quantity, could be item specific for selling
+        cb({ status = 'failed', message = 'Invalid quantity.' })
+        return
+    end
+
+    local dynamicPrice = getDynamicPrice(itemId) or item.basePrice
+    local sellPrice = math.floor(dynamicPrice * Config.SellPriceFactor)
+    local totalSellPrice = sellPrice * quantity
+
+    local successSell = false
+    if item.category == "Weapons" or item.category == "Melee Weapons" then
+        if playerHasWeapon(src, item.itemId) then
+            removePlayerWeapon(src, item.itemId) -- This triggers client event
+            addPlayerMoney(src, sellPrice)
+            savePlayerData(src)
+            successSell = true
+        else
+            cb({ status = 'failed', message = 'You do not own this weapon.' })
+            return
+        end
+    else
+        local itemCount = getPlayerInventoryItemCount(src, item.itemId)
+        if itemCount >= quantity then
+            removePlayerInventoryItem(src, item.itemId, quantity)
+            addPlayerMoney(src, totalSellPrice)
+            savePlayerData(src)
+            successSell = true
+        else
+            cb({ status = 'failed', message = 'Insufficient items.' })
+            return
+        end
+    end
+
+    if successSell then
+        cb({ status = 'success', itemName = item.name, quantity = quantity })
+    else
+        -- Should have been caught by specific checks, but as a fallback
+        cb({ status = 'failed', message = 'Could not sell item.' })
+    end
+end)
+
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    local src = source
+    local playerDataInstance = getPlayerData(src)
+    local inventoryForClient = {}
+
+    if playerDataInstance then
+        -- Inventory items
+        if playerDataInstance.inventory then
+            for itemId, count in pairs(playerDataInstance.inventory) do
+                local itemDetails = getItemById(itemId)
+                if itemDetails then
+                    local dynamicPrice = getDynamicPrice(itemId) or itemDetails.basePrice
+                    local sellPrice = math.floor(dynamicPrice * Config.SellPriceFactor)
+                    table.insert(inventoryForClient, {
+                        name = itemDetails.name,
+                        itemId = itemId,
+                        count = count,
+                        sellPrice = sellPrice,
+                        category = itemDetails.category -- Optional: useful for client-side filtering if needed
+                    })
+                end
+            end
+        end
+        -- Weapons
+        if playerDataInstance.weapons then
+            for weaponName, _ in pairs(playerDataInstance.weapons) do
+                local itemDetails = getItemById(weaponName)
+                if itemDetails then
+                    local dynamicPrice = getDynamicPrice(weaponName) or itemDetails.basePrice
+                    local sellPrice = math.floor(dynamicPrice * Config.SellPriceFactor)
+                    table.insert(inventoryForClient, {
+                        name = itemDetails.name,
+                        itemId = weaponName,
+                        count = 1, -- Weapons are typically count 1
+                        sellPrice = sellPrice,
+                        category = itemDetails.category
+                    })
+                end
+            end
+        end
+        cb({ items = inventoryForClient })
+    else
+        cb({ items = {} }) -- Send empty list if no player data
+    end
+end)
+
 
 -- =====================================
 --           ARREST HANDLING
