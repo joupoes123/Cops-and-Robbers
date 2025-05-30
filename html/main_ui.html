@@ -11,28 +11,28 @@
 </head>
 <body>
     <!-- Role Selection Section -->
-    <section id="role-selection" class="hidden" aria-label="Role Selection">
-        <h1>Select Your Role</h1>
+    <section id="role-selection" class="hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
+        <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
         <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
         <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
     </section>
 
     <!-- Store Section -->
-    <section id="store-menu" class="hidden" aria-label="Store Menu">
+    <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
         <h1 id="store-title">Store</h1>
         <!-- Tab Menu -->
         <div id="tab-menu" role="tablist">
-            <button class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
-            <button class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
+            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
+            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
         </div>
         <!-- Category List -->
         <div id="category-list" aria-label="Item Categories"></div>
         <!-- Buy Section -->
-        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab">
+        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
             <div id="item-list"></div>
         </div>
         <!-- Sell Section -->
-        <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab">
+        <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
             <!-- Sell section content will be loaded here -->
         </div>
         <!-- Close Store Button -->

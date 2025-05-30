@@ -8,50 +8,7 @@
 --           CONFIGURATION
 -- =====================================
 
-Config = {}
-
--- Define items available in the game
-Config.Items = {
-    { itemId = 1, name = "Health Kit" },
-    { itemId = 2, name = "Armor" },
-    { itemId = 3, name = "Bandage" },
-    -- Add more items as needed
-}
-
--- Define Ammu-Nation store locations (using vector3 for consistency)
-Config.AmmuNationStores = {
-    vector3(452.6, -980.0, 30.7),
-    vector3(1693.4, 3760.2, 34.7),
-    -- Add more Ammu-Nation store locations as needed
-}
-
--- Define NPC vendors with standardized vector3 locations
-Config.NPCVendors = {
-    {
-        name = "Gun Dealer",
-        model = "s_m_m_gunsmith_01",
-        location = vector3(2126.7, 4794.1, 41.1),
-        heading = 90.0,
-        items = { 1, 2, 3 } -- Item IDs from Config.Items
-    },
-    {
-        name = "Weapon Trader",
-        model = "s_m_m_gunsmith_02",
-        location = vector3(256.5, -50.0, 69.2),
-        heading = 45.0,
-        items = { 2, 3 } -- Item IDs from Config.Items
-    },
-    -- Add more vendors as needed
-}
-
--- Define spawn points for each role
-Config.SpawnPoints = {
-    cop = vector3(452.6, -980.0, 30.7),       -- Police station location
-    robber = vector3(2126.7, 4794.1, 41.1)    -- Countryside airport location
-}
-
--- Define prison location
-Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5) -- Prison coordinates
+-- Config is loaded from shared_scripts 'config.lua'
 
 -- =====================================
 --           VARIABLES
@@ -71,14 +28,14 @@ local playerAmmo = {}
 -- =====================================
 
 -- Function to display notifications on screen
-function ShowNotification(text)
+local function ShowNotification(text)
     SetNotificationTextEntry("STRING")
     AddTextComponentSubstringPlayerName(text)
     DrawNotification(false, true)
 end
 
 -- Function to display help text
-function DisplayHelpText(text)
+local function DisplayHelpText(text)
     BeginTextCommandDisplayHelp("STRING")
     AddTextComponentSubstringPlayerName(text)
     EndTextCommandDisplayHelp(0, false, true, -1)
@@ -146,6 +103,7 @@ AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
     })
 end)
 
+
 -- Notify cops of a bank robbery with GPS update and sound
 RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
 AddEventHandler('cops_and_robbers:notifyBankRobbery', function(bankId, bankLocation, bankName)
@@ -209,6 +167,7 @@ AddEventHandler('cops_and_robbers:purchaseFailed', function(reason)
     ShowNotification('Purchase failed: ' .. reason)
 end)
 
+
 -- Sell Confirmation
 RegisterNetEvent('cops_and_robbers:sellConfirmed')
 AddEventHandler('cops_and_robbers:sellConfirmed', function(itemId, quantity)
@@ -235,6 +194,7 @@ AddEventHandler('cops_and_robbers:sellFailed', function(reason)
     ShowNotification('Sale failed: ' .. reason)
 end)
 
+
 -- Add Weapon
 RegisterNetEvent('cops_and_robbers:addWeapon')
 AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
@@ -245,6 +205,7 @@ AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
     ShowNotification("Weapon added: " .. weaponName)
 end)
 
+
 -- Remove Weapon
 RegisterNetEvent('cops_and_robbers:removeWeapon')
 AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
@@ -254,6 +215,7 @@ AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
     playerWeapons[weaponName] = nil
     ShowNotification("Weapon removed: " .. weaponName)
 end)
+
 
 -- Add Ammo
 RegisterNetEvent('cops_and_robbers:addAmmo')
@@ -269,6 +231,7 @@ AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoCount)
     end
 end)
 
+
 -- Apply Armor
 RegisterNetEvent('cops_and_robbers:applyArmor')
 AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
@@ -283,6 +246,7 @@ AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
         ShowNotification("Invalid armor type.")
     end
 end)
+
 
 -- =====================================
 --           NUI CALLBACKS
@@ -306,7 +270,7 @@ end)
 -- =====================================
 
 -- Function to open the store
-function openStore(storeName, storeType, vendorItems)
+local function openStore(storeName, storeType, vendorItems)
     TriggerServerEvent('cops_and_robbers:getItemList', storeType, vendorItems, storeName)
 end
 
@@ -323,10 +287,10 @@ Citizen.CreateThread(function()
 
         -- Check proximity to Ammu-Nation stores (now stored as vector3)
         for _, store in ipairs(Config.AmmuNationStores) do
-            local distance = #(playerCoords - store)
+            local distance = #(playerCoords - store) -- Calculate distance using vector subtraction and magnitude
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
-                if IsControlJustPressed(0, 51) then  -- E key
+                if IsControlJustPressed(0, 51) then  -- E key (Default: Context)
                     openStore('Ammu-Nation', 'AmmuNation', nil)
                 end
             end
@@ -335,10 +299,10 @@ Citizen.CreateThread(function()
         -- Check proximity to NPC vendors
         for _, vendor in ipairs(Config.NPCVendors) do
             local vendorCoords = vendor.location
-            local distance = #(playerCoords - vendorCoords)
+            local distance = #(playerCoords - vendorCoords) -- Calculate distance
             if distance < 2.0 then
                 DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
-                if IsControlJustPressed(0, 51) then
+                if IsControlJustPressed(0, 51) then -- E key (Default: Context)
                     openStore(vendor.name, 'Vendor', vendor.items)
                 end
             end
@@ -363,7 +327,7 @@ Citizen.CreateThread(function()
         SetEntityInvincible(npc, true)
         SetBlockingOfNonTemporaryEvents(npc, true)
         FreezeEntityPosition(npc, true)
-        -- Optionally, add more NPC configurations here
+        -- Optionally, add more NPC configurations here (e.g., specific animations, relationships)
     end
 end)
 
@@ -374,10 +338,11 @@ end)
 -- Periodically send player position and wanted level to the server
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(5000) -- Every 5 seconds
+        Citizen.Wait(5000) -- Update interval: Every 5 seconds
         local playerPed = PlayerPedId()
         if DoesEntityExist(playerPed) then
             local playerPos = GetEntityCoords(playerPed)
+            -- wantedLevel should be updated based on game events (e.g., police interaction)
             TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, wantedLevel)
         end
     end

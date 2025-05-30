@@ -10,14 +10,14 @@
 </head>
 <body>
     <!-- Role Selection Menu -->
-    <div id="role-selection" class="menu">
-        <h1>Select Your Role</h1>
+    <div id="role-selection" class="menu" role="dialog" aria-labelledby="roleSelectionHeading" aria-modal="true">
+        <h1 id="roleSelectionHeading">Select Your Role</h1>
         <button data-role="cop" aria-label="Select Cop role">Cop</button>
         <button data-role="robber" aria-label="Select Robber role">Robber</button>
     </div>
 
     <!-- Heist Timer HUD -->
-    <div id="heist-timer" class="hud">
+    <div id="heist-timer" class="hud" role="status" aria-live="polite">
         <p id="timer-text"></p>
     </div>
 

@@ -381,10 +381,15 @@ end
 --       ADMIN FUNCTIONS
 -- =====================================
 
--- Helper function to check if a player is an admin
+-- Helper function to check if a player is an admin (should be identical to admin.lua's version)
 local function IsAdmin(playerId)
-    local playerIdentifiers = GetPlayerIdentifiers(playerId)
+    local playerIdentifiers = GetPlayerIdentifiers(playerId) -- Using GetPlayerIdentifiers directly for server-side
     if not playerIdentifiers then return false end
+
+    if not Config or type(Config.Admins) ~= "table" then
+        print("Error: Config.Admins is not loaded or not a table. Ensure config.lua defines it correctly.")
+        return false
+    end
 
     for _, identifier in ipairs(playerIdentifiers) do
         if Config.Admins[identifier] then
@@ -394,10 +399,21 @@ local function IsAdmin(playerId)
     return false
 end
 
--- Helper function to check if a player ID is valid (i.e. connected)
+-- Helper function to check if a player ID is valid (i.e. currently connected)
+-- Expects targetId to be a number (player ID as GetPlayers() returns numbers)
 local function IsValidPlayer(targetId)
+    -- Ensure targetId is a number, as it might come as a string from events triggered by commands.
+    -- Admin commands in admin.lua already convert it to a number.
+    if type(targetId) ~= "number" then
+        targetId = tonumber(targetId)
+        if not targetId then
+            print("IsValidPlayer: targetId is not a valid number: " .. tostring(targetId))
+            return false
+        end
+    end
+
     for _, playerId in ipairs(GetPlayers()) do
-        if playerId == tostring(targetId) then
+        if playerId == targetId then
             return true
         end
     end
@@ -775,6 +791,7 @@ AddEventHandler('cops_and_robbers:banPlayer', function(targetId, reason)
 
     saveBans()
     DropPlayer(targetId, "You have been banned from this server. Reason: " .. reason)
+    TriggerClientEvent('chat:addMessage', -1, { args = { "^1Server", "Player " .. GetPlayerName(targetId) .. " has been banned. Reason: " .. reason } })
 end)
 
 -- Handler for setting a player's cash (triggered by admin.lua)

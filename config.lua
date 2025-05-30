@@ -7,20 +7,24 @@
 -- Initialize Config table if not already initialized
 Config = Config or {}
 
+
 -- =========================
 --        General Settings
 -- =========================
 
 Config.MaxPlayers = 64
-Config.HeistCooldown = 600 -- seconds (10 minutes)
-Config.HeistRadius = 1000.0 -- meters
+Config.HeistCooldown = 600  -- seconds (10 minutes)
+Config.HeistRadius = 1000.0  -- meters
 
 -- Spawn locations based on roles
-Config.CopSpawn = vector3(452.6, -980.0, 30.7)
-Config.RobberSpawn = vector3(2126.7, 4794.1, 41.1)
+Config.SpawnPoints = {
+    cop = vector3(452.6, -980.0, 30.7),        -- Police station location (example)
+    robber = vector3(2126.7, 4794.1, 41.1)     -- Countryside airport location (example)
+}
 
 -- Jail Location (players are sent here when jailed)
-Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5)
+Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5)  -- Prison coordinates (example)
+
 
 -- =========================
 --       Bank Vaults
@@ -33,12 +37,14 @@ Config.BankVaults = {
     { location = vector3(1175.0, 2706.8, 38.1), name = "Route 68 Bank", id = 4 },
 }
 
+
 -- =========================
 -- Police and Civilian Vehicles
 -- =========================
 
 Config.PoliceVehicles = { 'police', 'police2', 'police3', 'fbi', 'fbi2' }
 Config.CivilianVehicles = { 'sultan', 'futo', 'blista', 'banshee', 'elegy2' }
+
 
 -- =========================
 -- Experience and Leveling System
@@ -68,6 +74,7 @@ Config.Experience = {
     },
 }
 
+
 -- =========================
 --    Wanted Level System
 -- =========================
@@ -79,6 +86,7 @@ Config.WantedLevels = {
     [4] = { stars = 4, description = "High Alert" },
     [5] = { stars = 5, description = "Most Wanted" },
 }
+
 
 -- =========================
 --   Ammu-Nation Store Locations
@@ -95,6 +103,7 @@ Config.AmmuNationStores = {
     vector3(-1117.58, 2698.61, 18.55),
     vector3(811.19, -2157.67, 29.62),
 }
+
 
 -- =========================
 --     NPC Vendor Configurations
@@ -117,6 +126,7 @@ Config.NPCVendors = {
     },
     -- Additional NPC vendors can be added here
 }
+
 
 -- =========================
 --      Item Definitions
@@ -164,6 +174,7 @@ Config.Items = {
     -- Add more items as needed
 }
 
+
 -- =========================
 --  Dynamic Economy Settings
 -- =========================
@@ -172,33 +183,39 @@ Config.Items = {
 Config.PopularityTimeframe = 3 * 60 * 60  -- 3 hours
 
 -- Price adjustment factors
-Config.PriceIncreaseFactor = 1.2  -- Increase price by 20% for popular items
-Config.PriceDecreaseFactor = 0.8  -- Decrease price by 20% for less popular items
+Config.PriceIncreaseFactor = 1.2          -- Increase price by 20% for popular items
+Config.PriceDecreaseFactor = 0.8          -- Decrease price by 20% for less popular items
 
 -- Thresholds for popularity
 Config.PopularityThreshold = {
-    high = 10,  -- Items purchased more than 10 times are considered popular
-    low = 2,    -- Items purchased less than 2 times are considered less popular
+    high = 10,                            -- Items purchased more than 10 times are considered popular
+    low = 2,                             -- Items purchased less than 2 times are considered less popular
 }
 
 -- Sell price factor (percentage of the item's dynamic price)
-Config.SellPriceFactor = 0.5  -- Players get 50% of the item's price when selling
+Config.SellPriceFactor = 0.5              -- Players get 50% of the item's price when selling
+
 
 -- =========================
 --   Additional Configurations
 -- =========================
 
 -- List of banned player identifiers (e.g., Steam IDs)
+-- These are loaded by server.lua and merged with bans from bans.json
 Config.BannedPlayers = {
+    -- Example:
     -- ["steam:110000112345678"] = { reason = "Cheating", timestamp = 1625078400 },
     -- ["license:abcdefghijk"] = { reason = "Harassment", timestamp = 1625078400 },
 }
 
 -- Admin identifiers for privileged actions
+-- Used by IsAdmin functions in server.lua and admin.lua
 Config.Admins = {
+    -- Example:
     -- ["steam:110000112345678"] = true,
     -- ["license:abcdefghijk"] = true,
 }
+
 
 -- =========================
 --      Heist Settings
@@ -206,8 +223,9 @@ Config.Admins = {
 
 -- Heist timer durations
 Config.HeistTimers = {
-    heistDuration = 600, -- Duration of the heist in seconds (10 minutes)
+    heistDuration = 600,                   -- Duration of the heist in seconds (10 minutes)
 }
+
 
 -- =========================
 --    Vehicle Spawn Settings

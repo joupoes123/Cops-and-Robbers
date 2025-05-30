@@ -1,7 +1,13 @@
 /* style.css - Cops & Robbers FiveM Game Mode UI Styles */
 /* Updated: 2025-02-11 */
 
-/* Global Styles */
+/* style.css - Cops & Robbers FiveM Game Mode UI Styles */
+/* Updated: 2025-02-11 */
+
+/* ==========================================================================
+   Global Styles
+   ========================================================================== */
+
 body {
     margin: 0;
     padding: 0;
@@ -10,16 +16,21 @@ body {
     color: #fff;
 }
 
+/* ==========================================================================
+   Generic Component Styles
+   ========================================================================== */
+
 /* Generic Button Styles */
 button {
     transition: opacity 0.2s ease-in-out;
+    cursor: pointer; /* Added for better UX */
 }
 
 button:hover {
     opacity: 0.9;
 }
 
-/* Menu Styles (e.g., role selection menus) */
+/* Generic Menu Styles (used by role selection in index.html) */
 .menu {
     position: absolute;
     top: 50%;
@@ -33,15 +44,18 @@ button:hover {
 
 .menu h1 {
     color: #fff;
+    margin-top: 0; /* Added for consistency */
 }
 
 .menu button {
     padding: 10px 20px;
     margin: 10px;
     font-size: 18px;
+    border: none; /* Assuming default button styles might need override */
+    border-radius: 5px; /* Added for softer edges */
 }
 
-/* HUD Styles */
+/* Generic HUD Styles (used by heist timer in index.html) */
 .hud {
     position: absolute;
     top: 10%;
@@ -52,11 +66,16 @@ button:hover {
     text-shadow: 1px 1px 2px #000;
 }
 
+/* Specific Heist Timer Style */
 #heist-timer {
-    display: none;
+    display: none; /* Initially hidden */
 }
 
-/* Store Menu Styles */
+/* ==========================================================================
+   Store UI Styles (main_ui.html, store.html)
+   ========================================================================== */
+
+/* Store Container */
 #store-menu {
     width: 600px;
     max-width: 90%;
@@ -68,9 +87,11 @@ button:hover {
 
 #store-title {
     text-align: center;
+    margin-top: 0; /* Added for consistency */
+    margin-bottom: 20px; /* Added spacing */
 }
 
-/* Tab Menu Styles */
+/* Store Tab Menu */
 #tab-menu {
     display: flex;
     justify-content: center;
@@ -85,13 +106,14 @@ button:hover {
     color: #fff;
     cursor: pointer;
     flex: 1;
+    border-radius: 3px; /* Added for softer edges */
 }
 
 .tab-btn.active {
-    background-color: #d9534f;
+    background-color: #d9534f; /* Highlight active tab */
 }
 
-/* Category List Styles */
+/* Store Category List */
 #category-list {
     display: flex;
     flex-wrap: wrap;
@@ -106,87 +128,124 @@ button:hover {
     border: none;
     color: #fff;
     cursor: pointer;
-    flex: 1 1 100px;
+    flex: 1 1 100px; /* Allow wrapping and flexible sizing */
+    border-radius: 3px; /* Added for softer edges */
 }
 
 .category-btn.active {
-    background-color: #d9534f;
+    background-color: #d9534f; /* Highlight active category */
 }
 
-/* Tab Content Styles */
+/* Store Tab Content Area */
 .tab-content {
-    display: none;
+    display: none; /* Hidden by default */
 }
 
 .tab-content.active {
-    display: block;
+    display: block; /* Shown when active */
 }
 
-/* Item List Styles */
-#item-list {
+/* Store Item List */
+#item-list { /* This ID is used in both buy and potentially sell sections if structured similarly */
     max-height: 400px;
     overflow-y: auto;
     margin-bottom: 20px;
+    padding-right: 10px; /* Added padding for scrollbar */
 }
 
+/* Individual Item Styling */
 .item {
     display: flex;
     justify-content: space-between;
+    align-items: center; /* Vertically align items */
     margin: 10px 0;
+    padding: 10px; /* Added padding */
+    background-color: rgba(255, 255, 255, 0.05); /* Slight background for items */
+    border-radius: 5px; /* Added for softer edges */
 }
 
 .item-name {
-    flex: 1;
+    flex: 1; /* Takes available space */
 }
 
 .item-price {
-    flex: 0 0 80px;
+    flex: 0 0 80px; /* Fixed width */
     text-align: right;
 }
 
-.item-quantity {
-    flex: 0 0 50px;
+.item-quantity { /* Used in sell section, likely */
+    flex: 0 0 50px; /* Fixed width */
     text-align: right;
 }
 
-.quantity-input {
+.quantity-input { /* Used with buy/sell actions */
     width: 50px;
     margin-right: 10px;
+    padding: 5px; /* Added padding */
+    border-radius: 3px; /* Added for softer edges */
+    border: 1px solid #444; /* Added border */
+    background-color: #333; /* Darker background */
+    color: #fff; /* White text */
 }
 
-/* Buy and Sell Button Styles */
+/* Item Action Buttons (Buy/Sell) */
 .buy-btn, .sell-btn {
-    flex: 0 0 60px;
+    flex: 0 0 60px; /* Fixed width */
+    padding: 8px 10px; /* Adjusted padding */
+    font-size: 14px; /* Standardized font size */
+    border-radius: 3px; /* Added for softer edges */
 }
 
-/* Close Button Styles */
+/* Store Close Button */
 #close-btn {
     width: 100%;
-    padding: 10px;
-    background-color: #d9534f;
+    padding: 12px; /* Increased padding */
+    background-color: #d9534f; /* Red color for close/action */
     border: none;
     color: #fff;
     font-size: 16px;
     cursor: pointer;
+    border-radius: 5px; /* Added for softer edges */
+    margin-top: 20px; /* Added margin for spacing */
 }
 
-/* Media Queries for Responsiveness */
+/* ==========================================================================
+   Media Queries for Responsiveness
+   ========================================================================== */
+
 @media (max-width: 600px) {
     #store-menu {
         padding: 15px;
+        margin: 20px auto; /* Adjusted margin for smaller screens */
     }
 
-    .menu button {
+    .menu button { /* Styles for buttons within .menu (role selection) */
         font-size: 16px;
         padding: 8px 16px;
     }
 
-    .tab-btn {
+    .tab-btn { /* Store tab buttons */
         padding: 8px;
         font-size: 14px;
     }
 
+    .category-btn { /* Store category buttons */
+        font-size: 14px; /* Ensure category buttons are also responsive */
+    }
+
+    .item { /* Store items */
+        flex-direction: column; /* Stack item details vertically */
+        align-items: flex-start; /* Align to start */
+    }
+
+    .item-price, .item-quantity, .buy-btn, .sell-btn {
+        text-align: left; /* Align text left in vertical layout */
+        margin-top: 5px; /* Add some space between stacked elements */
+    }
+
     .quantity-input {
-        width: 40px;
+        width: 100%; /* Full width for input on small screens */
+        margin-right: 0;
+        margin-bottom: 5px; /* Space below input */
     }
 }
