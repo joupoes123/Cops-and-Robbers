@@ -25,6 +25,7 @@ client_scripts {
 
 -- Define the NUI page.
 ui_page 'html/main_ui.html' -- Consolidated NUI page for role selection, store, admin panel, etc.
+ui_page 'html/bounties.html' -- NUI page for the Bounty Board.
 
 -- Define files to be included with the resource.
 -- These files are accessible by the client and NUI.
@@ -32,6 +33,9 @@ files {
     'html/main_ui.html',     -- Main HTML file for the NUI.
     'html/styles.css',       -- CSS styles for the NUI.
     'html/scripts.js',       -- JavaScript for NUI interactions.
+    'html/bounties.html',
+    'html/bounties.css',
+    'html/bounties.js',
     'purchase_history.json', -- For dynamic pricing persistence (ensure write access for server).
     'player_data/*',         -- Wildcard for player save files (ensure server has write access to this conceptual path).
     'bans.json'              -- For ban persistence (ensure write access for server).

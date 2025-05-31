@@ -15,6 +15,7 @@ Config = Config or {}
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
+Config.DefaultStartMoney = 2500 -- Starting cash for new players.
 
 -- Spawn locations based on roles
 Config.SpawnPoints = {
@@ -146,12 +147,12 @@ Config.Items = {
     -- Weapons
     { name = "Pistol",            itemId = "weapon_pistol",         basePrice = 500,  category = "Weapons" },
     { name = "Combat Pistol",     itemId = "weapon_combatpistol",   basePrice = 750,  category = "Weapons" },
-    { name = "Heavy Pistol",      itemId = "weapon_heavypistol",    basePrice = 1000, category = "Weapons" },
+    { name = "Heavy Pistol",      itemId = "weapon_heavypistol",    basePrice = 1000, category = "Weapons", minLevelCop = 5, minLevelRobber = 7 },
     { name = "SMG",               itemId = "weapon_smg",            basePrice = 1500, category = "Weapons" },
     { name = "Micro SMG",         itemId = "weapon_microsmg",       basePrice = 1250, category = "Weapons" },
-    { name = "Assault Rifle",     itemId = "weapon_assaultrifle",   basePrice = 2500, category = "Weapons" },
-    { name = "Carbine Rifle",     itemId = "weapon_carbinerifle",   basePrice = 3000, category = "Weapons" },
-    { name = "Sniper Rifle",      itemId = "weapon_sniperrifle",    basePrice = 5000, category = "Weapons" },
+    { name = "Assault Rifle",     itemId = "weapon_assaultrifle",   basePrice = 2500, category = "Weapons", minLevelCop = 8, minLevelRobber = 10 },
+    { name = "Carbine Rifle",     itemId = "weapon_carbinerifle",   basePrice = 3000, category = "Weapons", forCop = true, minLevelCop = 4 },
+    { name = "Sniper Rifle",      itemId = "weapon_sniperrifle",    basePrice = 5000, category = "Weapons", minLevelCop = 10, minLevelRobber = 10 },
     { name = "Pump Shotgun",      itemId = "weapon_pumpshotgun",    basePrice = 1200, category = "Weapons" },
     { name = "Sawed-Off Shotgun", itemId = "weapon_sawnoffshotgun", basePrice = 1000, category = "Weapons" },
 
@@ -171,14 +172,14 @@ Config.Items = {
 
     -- Armor and Utility
     { name = "Body Armor",        itemId = "armor",                 basePrice = 500,  category = "Armor" },
-    { name = "Heavy Armor",       itemId = "heavy_armor",           basePrice = 1000, category = "Armor" },
+    { name = "Heavy Armor",       itemId = "heavy_armor",           basePrice = 1000, category = "Armor", minLevelCop = 6, minLevelRobber = 8 },
     { name = "Medkit",            itemId = "medkit",                basePrice = 250,  category = "Utility" }, -- Custom item, server logic for effect
     { name = "First Aid Kit",     itemId = "firstaidkit",           basePrice = 100,  category = "Utility" }, -- Custom item, server logic for effect
     { name = "Lockpick",          itemId = "lockpick",              basePrice = 150,  category = "Utility" }, -- Custom item
-    { name = "Advanced Lockpick", itemId = "adv_lockpick",          basePrice = 300,  category = "Utility" }, -- Custom item
+    { name = "Advanced Lockpick", itemId = "adv_lockpick",          basePrice = 300,  category = "Utility", minLevelRobber = 4 },
     { name = "Parachute",         itemId = "gadget_parachute",      basePrice = 300,  category = "Utility" }, -- Built-in gadget
-    { name = "Drill",             itemId = "drill",                 basePrice = 500,  category = "Utility" }, -- Custom item for heists
-    { name = "C4 Explosive",      itemId = "c4",                    basePrice = 2000, category = "Utility" }, -- Custom item, implies weapon_stickybomb or similar logic
+    { name = "Drill",             itemId = "drill",                 basePrice = 500,  category = "Utility", minLevelRobber = 3 },
+    { name = "C4 Explosive",      itemId = "c4",                    basePrice = 2000, category = "Utility", minLevelRobber = 9 },
 
     -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
     { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories" },
@@ -186,15 +187,14 @@ Config.Items = {
     { name = "Hat",               itemId = "hat",                   basePrice = 150,  category = "Accessories" },
     { name = "Bandana",           itemId = "bandana",               basePrice = 80,   category = "Accessories" },
     { name = "Sunglasses",        itemId = "sunglasses",            basePrice = 120,  category = "Accessories" },
-    -- Add more items as needed
 
     -- Cop Gear (Restricted items for Cops)
-    { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true }, -- Changed itemId to avoid conflict if 'spikestrip' is a command/event
-    { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true }, -- Changed itemId
-    { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3 }, -- Added minLevelCop from LevelUnlocks
+    { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true },
+    { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2 },
+    { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3 },
 
     -- Robber Gear (Restricted items for Robbers)
-    { name = "EMP Device",        itemId = "emp_device",            basePrice = 2500, category = "Robber Gear", minLevelRobber = 5 } -- Changed itemId, minLevelRobber already here
+    { name = "EMP Device",        itemId = "emp_device",            basePrice = 2500, category = "Robber Gear", minLevelRobber = 5 }
 }
 
 -- =========================
@@ -212,6 +212,7 @@ Config.SubdueTimeMs           = 3000   -- milliseconds, time it takes to complet
 Config.K9FollowDistance       = 3.0    -- meters, how far K9 will stay behind cop when following. (Adjusted from 5.0 for closer follow)
 Config.K9AttackSearchRadius   = 50.0   -- meters, radius cop can command K9 to search for a target.
 Config.K9AttackDistance       = 2.0    -- meters, how close K9 needs to be to initiate an attack (visual/gameplay feel).
+Config.K9AssistWindowSeconds  = 30     -- seconds, time window after K9 engagement for an arrest to be considered K9 assisted.
 
 
 -- =========================
@@ -287,7 +288,7 @@ Config.WantedSettings = {
         resisting_arrest           = 5,    -- Fleeing from police after being told to stop.
         jailbreak_attempt          = 30,   -- Attempting to break someone out of jail.
         emp_used_on_police         = 8,    -- Using EMP that affects police vehicles.
-        power_grid_sabotaged_crime = 10    -- Sabotaging power grid (distinct from XP action).
+        power_grid_sabotaged_crime = 8     -- Sabotaging power grid (distinct from XP action).
     },
     decayRatePoints      = 1,    -- Amount of wanted points to decay per interval. (Renamed from decayRate)
     decayIntervalMs      = 30000,-- Milliseconds (30 seconds) - how often the decay check runs. (Renamed from decayInterval)
@@ -482,6 +483,26 @@ Config.RobberVehicleSpawns = { -- Example, might not be used if robbers acquire 
     -- Add more spawn points as needed
 }
 
+-- =========================
+-- Keybind Configuration (Client-Side Usage Primarily)
+-- =========================
+-- Define default control inputs for various actions.
+-- These can be used by client-side RegisterKeyMapping if players are allowed to change them.
+-- Otherwise, client scripts will use IsControlJustPressed with these defaults.
+-- See FiveM native docs for control list: https://docs.fivem.net/docs/game-references/controls/
+Config.Keybinds = {
+    toggleSpeedRadar    = 17,  -- INPUT_CELLPHONE_SCROLL_BACKWARD (PageUp)
+    fineSpeeder         = 74,  -- INPUT_VEH_HEADLIGHT (H)
+    fineSpeederKeyName  = "H", -- Display name for the fine key
+    deploySpikeStrip    = 19,  -- INPUT_PREV_WEAPON (Home) - Placeholder, consider a less common key
+    tackleSubdue        = 47,  -- INPUT_WEAPON_SPECIAL_TWO (G) - Placeholder
+    toggleK9            = 311, -- INPUT_VEH_CIN_CAM (K) - Placeholder, may conflict
+    commandK9Attack     = 38,  -- INPUT_CONTEXT (E) - Placeholder, often used for general interaction
+    activateEMP         = 121, -- INPUT_SELECT_WEAPON_UNARMED (Numpad 0) - Placeholder
+    toggleAdminPanel    = 289  -- INPUT_REPLAY_STOPRECORDING (F10) - Placeholder
+    -- Add other keybinds as needed
+}
+
 
 -- =========================
 -- Player Leveling System (New & Detailed)
@@ -510,16 +531,16 @@ Config.XPActionsRobber = {
     successful_bank_heist_major   = 75, -- Placeholder XP for future major bank heists.
     contraband_collected          = 15, -- XP for collecting a contraband drop.
     emp_used_effectively          = 10, -- XP if EMP disables >0 cop cars (server logic determines "effectively").
-    power_grid_sabotaged          = 15  -- XP for successfully sabotaging a power grid.
+    power_grid_sabotage_success   = 75  -- XP for successfully sabotaging a power grid. (Aligned with server.lua)
 }
 Config.XPActionsCop = {
-    successful_arrest_low_wanted    = 15, -- Arresting a 1-star suspect.
-    successful_arrest_medium_wanted = 25, -- Arresting a 2 or 3-star suspect.
-    successful_arrest_high_wanted   = 40, -- Arresting a 4 or 5-star suspect.
-    subdue_arrest                   = 20, -- Successful arrest after a manual subdue/tackle action.
-    k9_assist_arrest                = 10, -- K9 played a significant role in an arrest (server logic).
+    successful_arrest_low_wanted    = 15, -- Arresting a 1-star suspect
+    successful_arrest_medium_wanted = 25, -- Arresting a 2 or 3-star suspect
+    successful_arrest_high_wanted   = 40, -- Arresting a 4 or 5-star suspect
+    subdue_arrest_bonus             = 10, -- Bonus XP for an arrest made after a successful manual subdue/tackle.
+    k9_assist_arrest                = 10, -- K9 played a significant role in an arrest (server logic to determine).
     speeding_fine_issued            = 5,  -- Successfully issuing a speeding ticket.
-    spike_strip_hit_assists_arrest  = 15  -- Spike strip deployed by this cop leads to arrest of target.
+    spike_strip_hit_assists_arrest  = 15  -- Spike strip deployed by this cop leads to arrest of target (server logic).
 }
 
 -- Defines what unlocks at each level for each role.
@@ -551,4 +572,30 @@ Config.LevelUnlocks = {
             -- Example: value = 1 means one additional strip. Server needs to manage this.
         }
     }
+}
+
+-- Weapon names mapping for display purposes (e.g., notifications, UI)
+Config.WeaponNames = {
+    ["weapon_pistol"] = "Pistol",
+    ["weapon_combatpistol"] = "Combat Pistol",
+    ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_smg"] = "SMG",
+    ["weapon_microsmg"] = "Micro SMG",
+    ["weapon_assaultrifle"] = "Assault Rifle",
+    ["weapon_carbinerifle"] = "Carbine Rifle",
+    -- Add more as needed
+}
+
+-- =========================
+--      Bounty Settings
+-- =========================
+Config.BountySettings = {
+    enabled = true,
+    wantedLevelThreshold = 4,  -- Min wanted stars to get a bounty.
+    baseAmount = 5000,
+    increasePerMinute = 100,   -- How much bounty increases per minute.
+    maxBounty = 50000,
+    claimMethod = "arrest",    -- Current options: "arrest". Could be "kill" if PvP is different.
+    durationMinutes = 60,      -- How long a bounty stays active if player maintains wanted level (or is offline). Refreshed if wanted level drops then re-triggers.
+    cooldownMinutes = 30       -- Cooldown on a player before a *new* bounty can be placed on them after one is claimed or expires.
 }

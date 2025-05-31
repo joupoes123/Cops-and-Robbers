@@ -19,27 +19,35 @@ local role = nil                        -- Current player role ('cop', 'robber',
 local playerCash = 0                    -- Current player cash
 local currentSpikeStrips = {}           -- Table to store client-side spike strip entities: { [stripId] = { entity = prop_entity, location = vector3, obj = objHandle } }
 local spikeStripModelHash = GetHashKey("p_ld_stinger_s") -- Model hash for spike strips
-local playerStats = {                   -- Basic player statistics
+local playerStats = {                   -- Basic player statistics (legacy, new data in playerData)
     heists = 0,
     arrests = 0,
-    rewards = 0,
-    experience = 0,
-    level = 1
+    rewards = 0
+    -- experience and level are now part of playerData
 }
 local currentObjective = nil            -- Current objective for the player (not heavily used in provided code)
--- local wantedLevel = 0                -- DEPRECATED: Original wanted level, replaced by currentWantedStarsClient. Retained for reference during transition.
 local playerWeapons = {}                -- Tracks weapons the player currently possesses (client-side perception) e.g. { ["WEAPON_PISTOL"] = true }
 local playerAmmo = {}                   -- Tracks ammo counts for weapons (client-side perception) e.g. { ["WEAPON_PISTOL"] = 50 }
+
+-- Player Data (Synced from Server)
+local playerData = {
+    xp = 0,
+    level = 1,
+    role = "citizen",
+    perks = {},
+    armorModifier = 1.0,
+    money = 0 -- Can be part of playerData or separate like playerCash
+}
 
 -- Wanted System Client State
 local currentWantedStarsClient = 0      -- Current number of wanted stars for the player (0-5)
 local currentWantedPointsClient = 0     -- Current wanted points (numerical value, used for decay/increase)
 local wantedUiLabel = ""                -- Text label for UI display of wanted status (e.g., "Wanted: ***")
 
--- Player Leveling System Client State
-local currentXP = 0                     -- Current experience points of the player
-local currentLevel = 1                  -- Current level of the player
-local xpForNextLevelDisplay = 0         -- XP needed to reach the next level (used for UI progress bar)
+-- Player Leveling System Client State (now mostly derived from playerData)
+-- local currentXP = 0                  -- DEPRECATED: Use playerData.xp
+-- local currentLevel = 1               -- DEPRECATED: Use playerData.level
+local xpForNextLevelDisplay = 0         -- XP needed to reach the next level (used for UI progress bar) - This can still be useful
 
 -- Contraband Drop Client State
 local activeDropBlips = {}              -- Stores blip handles for active contraband drops, keyed by dropId: { [dropId] = blipHandle }
@@ -119,80 +127,105 @@ AddEventHandler('playerSpawned', function()
     SetNuiFocus(true, true) -- Give focus to NUI for role selection
 end)
 
--- Event: 'cops_and_robbers:receivePlayerData' - Receives core player data from the server.
--- Action: Updates client-side variables with received data, spawns player, and equips weapons.
-RegisterNetEvent('cops_and_robbers:receivePlayerData')
-AddEventHandler('cops_and_robbers:receivePlayerData', function(data)
-    if not data then
-        print("Error: 'cops_and_robbers:receivePlayerData' received nil data.")
+-- Event: 'cnr:updatePlayerData' - Receives comprehensive player data from the server.
+-- Action: Updates client-side variables with received data, spawns player if role changes, and equips weapons if needed.
+RegisterNetEvent('cnr:updatePlayerData')
+AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    if not newPlayerData then
+        print("Error: 'cnr:updatePlayerData' received nil data.")
         ShowNotification("~r~Error: Failed to load player data.")
         return
     end
-    
-    playerCash = data.cash or 0
-    playerStats = data.stats or { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 } -- Default if not provided
-    role = data.role -- This might be nil if new player, server should handle this
-    
-    -- Initialize Leveling System UI variables from received data if available
-    currentLevel = data.level or 1
-    currentXP = data.xp or 0
-    -- xpForNextLevelDisplay will be set by 'updateXPDisplay' event later
 
-    if role then -- Only spawn if role is determined
+    local oldRole = playerData.role
+    playerData = newPlayerData -- Overwrite local playerData with the new comprehensive data from server
+
+    -- Update legacy variables for compatibility or if still used by some UI parts
+    playerCash = newPlayerData.money or (QBCore and QBCore.Functions.GetPlayerData().money.cash) or 0 -- Fallback if money not in playerData
+    role = playerData.role -- Update global 'role' variable
+
+    if role and oldRole ~= role then -- Spawn if role changed significantly
         spawnPlayer(role)
-    else
-        -- If no role, role selection UI should still be active.
-        -- Player might pick a role, then server sends 'receivePlayerData' again or a specific 'roleAssigned' event.
-        ShowNotification("Please select a role to continue.")
+    elseif not oldRole and role then -- First time role is set
+        spawnPlayer(role)
     end
-    
-    local playerPed = PlayerPedId()
-    if data.weapons and type(data.weapons) == "table" then
+
+    -- Update UI elements
+    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) -- Calculate or get from server
+    })
+    ShowNotification(string.format("Data Synced: Lvl %d, XP %d, Role %s", playerData.level, playerData.xp, playerData.role), "info", 2000)
+
+    -- Weapon handling can be complex; server should be source of truth.
+    -- This basic version just ensures weapons listed in playerData are given.
+    -- A more robust system would diff current weapons against playerData.weapons.
+    -- For now, let's assume server sends this event AFTER giving weapons if they change.
+    -- Or, if playerData contains a 'weapons' table:
+    if newPlayerData.weapons and type(newPlayerData.weapons) == "table" then
+        local playerPed = PlayerPedId()
         playerWeapons = {} -- Clear existing client-side weapon list
         playerAmmo = {}    -- Clear existing client-side ammo list
-        for weaponName, ammoCount in pairs(data.weapons) do
+        for weaponName, ammoCount in pairs(newPlayerData.weapons) do
             local weaponHash = GetHashKey(weaponName)
-            if weaponHash ~= 0 and weaponHash ~= -1 then -- Check if weaponName is valid (GetHashKey returns 0 or -1 for invalid)
-                GiveWeaponToPed(playerPed, weaponHash, ammoCount or 0, false, false) -- Give weapon with specified ammo
+            if weaponHash ~= 0 and weaponHash ~= -1 then
+                GiveWeaponToPed(playerPed, weaponHash, ammoCount or 0, false, false)
                 playerWeapons[weaponName] = true
                 playerAmmo[weaponName] = ammoCount or 0
             else
-                print("Warning: Invalid weaponName received in playerData: " .. tostring(weaponName))
+                print("Warning: Invalid weaponName received in newPlayerData: " .. tostring(weaponName))
             end
         end
     end
-
-    -- Update other UI elements if necessary, e.g., cash display
-    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
-    -- Assuming 'updateXPDisplay' will be called separately by server after role set / data load
 end)
 
+-- Helper function to calculate XP needed for next level (client-side display approximation)
+-- Server's CalculateLevel is the source of truth. This is for UI.
+function CalculateXpForNextLevelClient(currentLevel, playerRole)
+    local roleLevels = Config.Levels[playerRole] or Config.Levels.default
+    if not roleLevels or #roleLevels == 0 then return 999999 end -- No levels configured
+
+    if currentLevel < #roleLevels then
+        return roleLevels[currentLevel + 1].xpRequired
+    else
+        return roleLevels[#roleLevels].xpRequired -- Already at max level or beyond, show current level's XP
+    end
+end
+
 
 -- =====================================
---        PLAYER LEVELING SYSTEM (CLIENT)
+--        PLAYER LEVELING SYSTEM (CLIENT) - Mostly Handled by cnr:updatePlayerData
 -- =====================================
 
-RegisterNetEvent('cops_and_robbers:updateXPDisplay')
-AddEventHandler('cops_and_robbers:updateXPDisplay', function(level, xp, xpNextSegment)
-    currentLevel = level
-    currentXP = xp
-    xpForNextLevelDisplay = xpNextSegment
-
-    -- Ensure NUI is ready before sending message or queue if necessary
+-- This event is kept for direct XP gain notifications if server sends them separately.
+RegisterNetEvent('cnr:xpGained')
+AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
+    playerData.xp = newTotalXp
+    ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp), "info", 3000)
     SendNUIMessage({
         action = "updateXPBar",
-        currentXP = currentXP,
-        currentLevel = currentLevel,
-        xpForNextLevel = xpForNextLevelDisplay
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role)
     })
-    -- ShowNotification(string.format("Lvl: %d, XP: %d / %s", currentLevel, currentXP, xpForNextLevelDisplay)) -- Debug
 end)
 
-RegisterNetEvent('cops_and_robbers:playerLeveledUp')
-AddEventHandler('cops_and_robbers:playerLeveledUp', function(newLevel, pName) -- playerName is passed but might not be needed if notification is generic
-    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!")
-    -- Client's currentLevel and XP will be updated by the subsequent 'updateXPDisplay' call
-    -- that is triggered from server-side AddXP after CheckForLevelUp.
+-- This event is kept for direct Level Up notifications if server sends them separately.
+RegisterNetEvent('cnr:levelUp')
+AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    playerData.level = newLevel
+    playerData.xp = newTotalXp -- XP might reset or be adjusted on level up by server
+    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!", "success", 10000)
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role)
+    })
+    -- Server's cnr:updatePlayerData will follow with full perk updates etc.
 end)
 
 
@@ -729,7 +762,12 @@ AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
     SendNUIMessage({
         action = 'openStore',
         storeName = storeName,
-        items = itemList
+        items = itemList,
+        -- Pass player data to NUI for client-side checks before purchase attempt
+        playerLevel = playerData.level,
+        playerRole = playerData.role,
+        playerPerks = playerData.perks,
+        playerMoney = playerCash -- or playerData.money if fully integrated
     })
 end)
 
@@ -1042,17 +1080,29 @@ end)
 
 -- Apply Armor
 RegisterNetEvent('cops_and_robbers:applyArmor')
-AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
+AddEventHandler('cops_and_robbers:applyArmor', function(armorType) -- armorType could be "item_vest" or similar
     local playerPed = PlayerPedId()
-    if armorType == "armor" then
-        SetPedArmour(playerPed, 50)
-        ShowNotification("~g~Armor applied: Light Armor (~w~50 Armor)")
-    elseif armorType == "heavy_armor" then
-        SetPedArmour(playerPed, 100)
-        ShowNotification("~g~Armor applied: Heavy Armor (~w~100 Armor)")
-    else
-        ShowNotification("Invalid armor type.")
+    local armorValue = 0
+    local armorConfig = Config.Items[armorType] -- Assuming armorType is an item key like "light_armor_vest"
+
+    if armorConfig and armorConfig.armorValue then
+        armorValue = armorConfig.armorValue
+    else -- Fallback for older system or direct values
+        if armorType == "armor" then armorValue = 50
+        elseif armorType == "heavy_armor" then armorValue = 100
+        else ShowNotification("Invalid armor type: " .. tostring(armorType)); return
+        end
     end
+
+    local finalArmor = armorValue
+    -- Apply perk if player has it
+    if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then
+        finalArmor = math.floor(armorValue * playerData.armorModifier)
+        ShowNotification(string.format("~g~Perk Active: Increased Armor Durability! (%.0f -> %.0f)", armorValue, finalArmor))
+    end
+
+    SetPedArmour(playerPed, finalArmor)
+    ShowNotification(string.format("~g~Armor Applied: %s (~w~%d Armor)", (armorConfig and armorConfig.label or armorType), finalArmor))
 end)
 
 
@@ -1502,7 +1552,7 @@ Citizen.CreateThread(function()
 
     while true do
         Citizen.Wait(k9KeybindWait)
-        if role == 'cop' then
+        if playerData.role == 'cop' then -- Use playerData.role
             -- K9 Spawn/Dismiss Keybind
             local toggleK9Key = (Config.Keybinds and Config.Keybinds.toggleK9) or 31 -- 31: INPUT_VEH_CIN_CAM (K)
             if IsControlJustPressed(0, toggleK9Key) then
@@ -1510,14 +1560,15 @@ Citizen.CreateThread(function()
                     ShowNotification("~y~Dismissing K9 unit...")
                     TriggerServerEvent('cops_and_robbers:dismissK9')
                 else
-                    -- TODO: Implement client-side inventory check for 'k9whistle' if desired for immediate feedback.
-                    -- local hasWhistle = CheckForItemClient('k9whistle') -- Example placeholder
-                    -- if hasWhistle then
-                    ShowNotification("~b~Using K9 Whistle...")
-                    TriggerServerEvent('cops_and_robbers:spawnK9')
-                    -- else
-                    --   ShowNotification("~r~You don't have a K9 Whistle.")
-                    -- end
+                    -- Client-side check for item (improved UX, server still validates)
+                    local k9WhistleConfig = Config.Items["k9_whistle"]
+                    if k9WhistleConfig and playerData.level >= (k9WhistleConfig.minLevelCop or 1) then
+                        -- Basic check if player *could* have the item based on level. Actual inventory check is better.
+                        ShowNotification("~b~Using K9 Whistle...")
+                        TriggerServerEvent('cops_and_robbers:spawnK9') -- Server will check inventory and level again
+                    else
+                        ShowNotification(string.format("~r~K9 Whistle requires Level %d Cop.", (k9WhistleConfig and k9WhistleConfig.minLevelCop or 1)))
+                    end
                 end
             end
 
@@ -1526,14 +1577,14 @@ Citizen.CreateThread(function()
             if k9Ped and DoesEntityExist(k9Ped) and IsControlJustPressed(0, commandK9AttackKey) then
                 local playerPed = PlayerPedId()
                 local searchRadius = (Config.K9AttackSearchRadius or 50.0)
-                -- GetClosestPlayerPed finds the nearest player; server MUST validate if this player is a valid target (e.g., a robber).
-                local closestTargetPed, dist = GetClosestPlayerPed(GetEntityCoords(playerPed), searchRadius, true) -- true = ignore self
+                local closestTargetPed, dist = GetClosestPlayerPed(GetEntityCoords(playerPed), searchRadius, true)
 
                 if closestTargetPed then
                     local targetServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(closestTargetPed))
-                    if targetServerId and targetServerId ~= -1 then -- Ensure valid server ID
+                    if targetServerId and targetServerId ~= -1 then
                         ShowNotification("~y~K9: Commanding attack on " .. GetPlayerName(NetworkGetPlayerIndexFromPed(closestTargetPed)) .. "!")
                         TriggerServerEvent('cops_and_robbers:commandK9', targetServerId, "attack")
+                        TriggerServerEvent('cnr:k9EngagedTarget', targetServerId) -- Notify server K9 is engaging this target
                     else
                         ShowNotification("~y~K9: Could not identify target for attack.")
                     end
@@ -1818,18 +1869,18 @@ end)
 Citizen.CreateThread(function()
     while true do
         local frameWait = 500 -- Default wait
-        if role == 'robber' then
-            frameWait = 0 -- Check input every frame if robber
+        if playerData.role == 'robber' then -- Use playerData.role
+            frameWait = 100 -- Check input more frequently if robber
             local activateEMPKey = (Config.Keybinds and Config.Keybinds.activateEMP) or 121 -- 121: INPUT_SELECT_WEAPON_UNARMED (NumPad 0)
             if IsControlJustPressed(0, activateEMPKey) then
-                -- TODO: Client-side check if player has 'empdevice' from their local inventory representation
-                -- local hasEMP = CheckForItemClient('emp_device') -- Example placeholder
-                -- if hasEMP then
-                ShowNotification("~b~Activating EMP device...")
-                TriggerServerEvent('cops_and_robbers:activateEMP')
-                -- else
-                --   ShowNotification("~r~You don't have an EMP device.")
-                -- end
+                -- Client-side check for item (improved UX, server still validates)
+                local empDeviceConfig = Config.Items["emp_device_vehicle"] -- Assuming this is the key for vehicle EMP
+                if empDeviceConfig and playerData.level >= (empDeviceConfig.minLevelRobber or 1) then
+                    ShowNotification("~b~Activating EMP device...")
+                    TriggerServerEvent('cops_and_robbers:activateEMP') -- Server checks inventory and level again
+                else
+                    ShowNotification(string.format("~r~Vehicle EMP Device requires Level %d Robber.", (empDeviceConfig and empDeviceConfig.minLevelRobber or 1)))
+                end
             end
         end
         Citizen.Wait(frameWait)
@@ -1880,7 +1931,7 @@ local activePowerOutages = {} -- { [gridIndex] = true/false }
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(1000) -- Check every second
-        if role == 'robber' then
+        if playerData.role == 'robber' then -- Use playerData.role
             local playerPed = PlayerPedId()
             local playerCoords = GetEntityCoords(playerPed)
 
@@ -1888,7 +1939,14 @@ Citizen.CreateThread(function()
                 if #(playerCoords - grid.location) < 10.0 then -- Interaction radius (e.g., 10m)
                     DisplayHelpText(string.format("Press ~INPUT_CONTEXT~ to sabotage %s.", grid.name))
                     if IsControlJustPressed(0, 51) then -- E key (Context)
-                        TriggerServerEvent('cops_and_robbers:sabotagePowerGrid', i) -- Pass grid index (1-based)
+                        local sabotageToolConfig = Config.Items["emp_device_grid"] -- Assuming a specific item for grid sabotage
+                        if sabotageToolConfig and playerData.level >= (sabotageToolConfig.minLevelRobber or 1) then
+                             ShowNotification("~b~Attempting power grid sabotage...")
+                             TriggerServerEvent('cops_and_robbers:sabotagePowerGrid', i) -- Pass grid index (1-based)
+                             TriggerServerEvent('cops_and_robbers:reportCrime', 'power_grid_sabotaged_crime') -- Report the crime
+                        else
+                            ShowNotification(string.format("~r~Sabotaging power grid requires Level %d Robber and appropriate gear.", (sabotageToolConfig and sabotageToolConfig.minLevelRobber or 1)))
+                        end
                     end
                     break
                 end
@@ -1935,28 +1993,67 @@ end)
 --        ADMIN PANEL CLIENT LOGIC
 -- =====================================
 local isAdminPanelOpen = false
+local currentBounties = {}
+local isBountyBoardOpen = false
 
 -- Keybind for Admin Panel (e.g., F10 - Keycode 57 for INPUT_REPLAY_STOPRECORDING)
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0) -- Check every frame for this input
-        local toggleAdminPanelKey = (Config.Keybinds and Config.Keybinds.toggleAdminPanel) or 57 -- 57: INPUT_REPLAY_STOPRECORDING (F10)
+        Citizen.Wait(0) -- Check every frame for these inputs
+
+        -- Admin Panel Toggle
+        local toggleAdminPanelKey = (Config.Keybinds and Config.Keybinds.toggleAdminPanel) or 289 -- F10 (INPUT_REPLAY_STOPRECORDING is actually 289, 57 is F6)
         if IsControlJustPressed(0, toggleAdminPanelKey) then
             if not isAdminPanelOpen then
-                -- Client attempts to open, server will verify admin status via 'cops_and_robbers:requestAdminDataForUI'
-                -- and respond with 'cops_and_robbers:showAdminUI' including an isAdminFlag.
                 ShowNotification("~b~Requesting Admin Panel data...")
                 TriggerServerEvent('cops_and_robbers:requestAdminDataForUI')
             else
-                -- If panel is already open, this key press closes it.
                 SendNUIMessage({ action = 'hideAdminPanel' })
                 SetNuiFocus(false, false)
                 isAdminPanelOpen = false
                 ShowNotification("~y~Admin Panel closed.")
             end
         end
+
+        -- Bounty Board Toggle (Example: F7 - INPUT_VEH_SELECT_NEXT_WEAPON is often 168)
+        -- Ensure Config.Keybinds.toggleBountyBoard is defined in config.lua if used
+        local toggleBountyBoardKey = (Config.Keybinds and Config.Keybinds.toggleBountyBoard) or 168
+        if IsControlJustPressed(0, toggleBountyBoardKey) then
+            if playerData.role == 'cop' then
+                isBountyBoardOpen = not isBountyBoardOpen
+                if isBountyBoardOpen then
+                    SendNUIMessage({action = "showBountyBoard", bounties = currentBounties})
+                    ShowNotification("~g~Bounty Board opened.")
+                else
+                    SendNUIMessage({action = "hideBountyBoard"})
+                    ShowNotification("~y~Bounty Board closed.")
+                end
+                SetNuiFocus(isBountyBoardOpen, isBountyBoardOpen)
+            else
+                ShowNotification("~r~Only Cops can access the Bounty Board.")
+            end
+        end
     end
 end)
+
+RegisterNetEvent('cops_and_robbers:bountyListUpdate')
+AddEventHandler('cops_and_robbers:bountyListUpdate', function(bountiesFromServer)
+    currentBounties = bountiesFromServer
+    if isBountyBoardOpen and playerData.role == 'cop' then
+        SendNUIMessage({action="updateBountyList", bounties=currentBounties})
+    end
+    -- Log for debugging:
+    -- local count = 0; for _ in pairs(currentBounties) do count = count + 1 end
+    -- print("Client received bounty list update. Count: " .. count)
+end)
+
+RegisterNUICallback('closeBountyNUI', function(data, cb)
+    isBountyBoardOpen = false
+    SetNuiFocus(false, false)
+    ShowNotification("~y~Bounty Board closed by NUI button.")
+    cb('ok')
+end)
+
 
 RegisterNetEvent('cops_and_robbers:showAdminUI')
 AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
@@ -2002,9 +2099,9 @@ Citizen.CreateThread(function()
         Citizen.Wait(Config.ClientPositionUpdateInterval or 5000) -- Update interval from config or default to 5 seconds
 
         local playerPed = PlayerPedId()
-        if DoesEntityExist(playerPed) and role then -- Only send updates if player ped exists and role is assigned
+        if DoesEntityExist(playerPed) and playerData.role and playerData.role ~= "citizen" then -- Only send updates if player ped exists and has a meaningful role
             local playerPos = GetEntityCoords(playerPed)
-            -- Send currentWantedStarsClient instead of the deprecated 'wantedLevel'
+            -- Send currentWantedStarsClient which is updated by cops_and_robbers:updateWantedDisplay
             TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, currentWantedStarsClient)
         end
     end
