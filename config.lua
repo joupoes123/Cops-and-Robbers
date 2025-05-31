@@ -243,11 +243,11 @@ Config.WantedSettings = {
         store_robbery_small = 5,    -- Example: For smaller, less risky store robberies
         store_robbery_medium = 10,  -- For general store robberies
         bank_heist_major = 20,      -- For successful major bank heists
+        armored_car_heist = 15,     -- For successful armored car heists
         assault_cop = 15,           -- For assaulting a police officer
         murder_cop = 25,            -- For killing a police officer
         murder_civilian = 10,       -- For killing a civilian
         armed_robbery = 10          -- Generic armed robbery (e.g., player hold-ups if implemented)
-        -- Note: 'armored_car_heist' points can be added here if desired, currently uses 'bank_heist_major' as placeholder.
     },
     decayRate = 1,                 -- Amount of wanted points to decay per interval
     decayInterval = 30000,         -- Milliseconds (e.g., 30 seconds) - how often decay check runs

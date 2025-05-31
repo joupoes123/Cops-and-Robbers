@@ -990,7 +990,7 @@ end)
 -- =====================================
 --           K9 UNIT (Simplified)
 -- =====================================
-local k9NetId = nil -- Stores the network ID of the cop's K9
+-- local k9NetId = nil -- No longer needed as server doesn't send a usable NetID for client-spawned ped
 local k9Ped = nil   -- Stores the local entity of the K9
 
 -- Use K9 Whistle (placeholder - should be tied to inventory item usage)
@@ -1009,13 +1009,15 @@ Citizen.CreateThread(function()
         end
 
         -- Example: Press 'L' to command K9 to attack nearest robber (if K9 active)
-        if role == 'cop' and k9Ped and DoesEntityExist(k9Ped) and IsControlJustPressed(0, 38) then -- INPUT_CONTEXT (L key placeholder)
+        if role == 'cop' and k9Ped and DoesEntityExist(k9Ped) and IsControlJustPressed(0, 38) then -- INPUT_CONTEXT (L key placeholder for attack command)
             local closestRobberPed, dist = GetClosestRobberPed(GetEntityCoords(PlayerPedId()), 50.0) -- 50m search radius
             if closestRobberPed then
                 local targetRobberServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(closestRobberPed))
-                if targetRobberServerId then
-                    ShowNotification("~y~K9: Attacking target!")
-                    TriggerServerEvent('cops_and_robbers:commandK9', NetworkGetNetworkIdFromEntity(k9Ped), targetRobberServerId, "attack")
+                if targetRobberServerId and targetRobberServerId ~= -1 then -- Ensure valid server ID
+                    ShowNotification("~y~K9: Commanding attack!")
+                    TriggerServerEvent('cops_and_robbers:commandK9', targetRobberServerId, "attack") -- k9NetId removed
+                else
+                    ShowNotification("~y~K9: Could not identify target for attack.")
                 end
             else
                 ShowNotification("~y~K9: No robbers found nearby to attack.")
@@ -1036,40 +1038,61 @@ Citizen.CreateThread(function()
     end
 end)
 
-RegisterNetEvent('cops_and_robbers:k9Spawned')
-AddEventHandler('cops_and_robbers:k9Spawned', function(netId)
-    k9NetId = netId
-    if NetworkDoesNetworkIdExist(k9NetId) then
-        k9Ped = NetToPed(k9NetId)
-        SetEntityAsMissionEntity(k9Ped, true, true) -- So it doesn't despawn easily
-        SetPedRelationshipGroupHash(k9Ped, GetHashKey("COP")) -- Make it friendly to cops
-        SetPedAsCop(k9Ped, true) -- So it might behave like a cop ped
-        ShowNotification("~g~Your K9 unit has arrived!")
-    else
-        ShowNotification("~r~Failed to receive K9 unit.")
+RegisterNetEvent('cops_and_robbers:clientSpawnK9Authorized')
+AddEventHandler('cops_and_robbers:clientSpawnK9Authorized', function()
+    if k9Ped and DoesEntityExist(k9Ped) then
+        ShowNotification("~y~Your K9 unit is already active.")
+        return
     end
+
+    local modelHash = GetHashKey('a_c_shepherd') -- K9 model
+    RequestModel(modelHash)
+    CreateThread(function()
+        local attempts = 0
+        while not HasModelLoaded(modelHash) and attempts < 100 do
+            Citizen.Wait(100)
+            attempts = attempts + 1
+        end
+
+        if HasModelLoaded(modelHash) then
+            local playerPed = PlayerPedId()
+            local coords = GetOffsetFromEntityInWorldCoords(playerPed, 0.0, Config.K9FollowDistance * -1.0, 0.0) -- Spawn behind player
+
+            k9Ped = CreatePed(4, modelHash, coords.x, coords.y, coords.z, GetEntityHeading(playerPed), false, true) -- Not networked, but make it mission
+            SetModelAsNoLongerNeeded(modelHash)
+
+            SetEntityAsMissionEntity(k9Ped, true, true) -- Prevent despawn by game engine
+            SetPedAsCop(k9Ped, true) -- Makes K9 behave somewhat like a police ped (e.g. might react to crimes) - optional
+            SetPedRelationshipGroupHash(k9Ped, GetPedRelationshipGroupHash(playerPed)) -- Friendly to player and player's group
+            TaskFollowToOffsetOfEntity(k9Ped, playerPed, vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true)
+
+            ShowNotification("~g~Your K9 unit has arrived!")
+        else
+            ShowNotification("~r~Failed to spawn K9 unit: Model not found.")
+            SetModelAsNoLongerNeeded(modelHash)
+        end
+    end)
 end)
 
-RegisterNetEvent('cops_and_robbers:k9Dismissed')
-AddEventHandler('cops_and_robbers:k9Dismissed', function()
+RegisterNetEvent('cops_and_robbers:clientDismissK9')
+AddEventHandler('cops_and_robbers:clientDismissK9', function()
     ShowNotification("~y~Your K9 unit has been dismissed.")
     if k9Ped and DoesEntityExist(k9Ped) then
         DeleteEntity(k9Ped)
     end
     k9Ped = nil
-    k9NetId = nil
 end)
 
 RegisterNetEvent('cops_and_robbers:k9ProcessCommand')
-AddEventHandler('cops_and_robbers:k9ProcessCommand', function(k9NetworkId, targetRobberServerId, commandType)
-    if k9NetId == k9NetworkId and k9Ped and DoesEntityExist(k9Ped) then
+AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServerId, commandType) -- k9NetId removed
+    if k9Ped and DoesEntityExist(k9Ped) then
         local targetRobberPed = GetPlayerPed(GetPlayerFromServerId(targetRobberServerId))
         if targetRobberPed and DoesEntityExist(targetRobberPed) then
             if commandType == "attack" then
                 ClearPedTasks(k9Ped)
-                TaskCombatPed(k9Ped, targetRobberPed, 0, 16) -- 0 = default duration, 16 = normal combat behavior
-            elseif commandType == "follow" then -- Example of another command
-                TaskFollowToOffsetOfEntity(k9Ped, PlayerPedId(), 0.0, -2.0, 1.0, 1.5, -1, Config.K9FollowDistance - 1.0, true)
+                TaskCombatPed(k9Ped, targetRobberPed, 0, 16)
+            elseif commandType == "follow" then
+                TaskFollowToOffsetOfEntity(k9Ped, PlayerPedId(), vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true)
             end
         end
     end
@@ -1186,6 +1209,7 @@ end)
 -- =====================================
 local armoredCarBlip = nil
 local armoredCarNetIdClient = nil
+local armoredCarClientData = { lastHealth = 0 } -- Store last known health client-side
 
 RegisterNetEvent('cops_and_robbers:armoredCarSpawned')
 AddEventHandler('cops_and_robbers:armoredCarSpawned', function(vehicleNetId, initialCoords)
@@ -1202,10 +1226,8 @@ AddEventHandler('cops_and_robbers:armoredCarSpawned', function(vehicleNetId, ini
         BeginTextCommandSetBlipName("STRING")
         AddTextComponentSubstringPlayerName("Armored Car")
         EndTextCommandSetBlipName(armoredCarBlip)
+        armoredCarClientData.lastHealth = GetEntityHealth(vehicle) -- Initialize health tracking
     else
-        -- Request server to resend if entity not found client-side initially
-        -- This can happen due to network sync delays.
-        -- For simplicity, not implementing resend request now.
         print("Armored car entity not found client-side yet for NetID: " .. vehicleNetId)
     end
 end)
@@ -1218,41 +1240,35 @@ AddEventHandler('cops_and_robbers:armoredCarDestroyed', function(vehicleNetId)
         armoredCarBlip = nil
     end
     armoredCarNetIdClient = nil
-    -- Client doesn't delete the entity, server does. Client just cleans up blip.
+    armoredCarClientData.lastHealth = 0 -- Reset health tracking
 end)
 
--- Robber damaging armored car
+-- Robber damaging armored car - Client-side damage detection and reporting
 Citizen.CreateThread(function()
+    local damageCheckInterval = 1000 -- Check health every 1 second
     while true do
-        Citizen.Wait(0) -- Every frame for attack checks
+        Citizen.Wait(damageCheckInterval)
         if role == 'robber' and armoredCarNetIdClient and NetworkDoesNetworkIdExist(armoredCarNetIdClient) then
-            local playerPed = PlayerPedId()
-            if IsPedShooting(playerPed) then
-                local targetEntity = GetEntityPlayerIsFreeAimingAt(PlayerId())
-                local armoredCarVehicle = NetToVeh(armoredCarNetIdClient)
-                if DoesEntityExist(targetEntity) and targetEntity == armoredCarVehicle then
-                    -- This is a very simplified damage calculation.
-                    -- Real damage should be based on weapon type, hit component etc.
-                    -- Get vehículo health before applying damage
-                    local healthBefore = GetEntityHealth(armoredCarVehicle)
-                    -- Simulate that a shot does some damage if it hits.
-                    -- The actual damage application should be more nuanced (e.g. on weapon impact event)
-                    -- For now, if player is shooting AT the car, we send a generic damage event.
-                    -- This could be spammed. A better way is to use game events like CEventGunShot, CEventExplosion.
-
-                    -- Placeholder: Let's assume player deals 25 damage per "successful shot aimed at car".
-                    -- This should be triggered by actual weapon damage events for accuracy.
-                    -- For this example, if player is aiming and shooting, and crosshair is on car, send damage.
-                    -- This is a conceptual trigger, not a robust damage detection.
-                    -- TriggerServerEvent('cops_and_robbers:damageArmoredCar', armoredCarNetIdClient, 25) -- Example damage value
-                    -- To avoid spam, add a cooldown or use a more precise damage event.
+            local carEntity = NetToVeh(armoredCarNetIdClient)
+            if DoesEntityExist(carEntity) then
+                local currentHealth = GetEntityHealth(carEntity)
+                if armoredCarClientData.lastHealth == 0 then -- Handle case where it wasn't initialized properly
+                    armoredCarClientData.lastHealth = GetMaxHealth(carEntity) -- Assume full health if not set
                 end
+
+                if currentHealth < armoredCarClientData.lastHealth then
+                    local damageDone = armoredCarClientData.lastHealth - currentHealth
+                    if damageDone > 0 then -- Only report actual damage
+                        -- print("Armored Car: Detected damage: " .. damageDone .. ", Current Health: " .. currentHealth .. ", Last Health: " .. armoredCarClientData.lastHealth)
+                        TriggerServerEvent('cops_and_robbers:damageArmoredCar', armoredCarNetIdClient, damageDone)
+                    end
+                end
+                armoredCarClientData.lastHealth = currentHealth
+            else
+                -- Car entity no longer exists, maybe destroyed by other means or despawned
+                armoredCarNetIdClient = nil
+                armoredCarClientData.lastHealth = 0
             end
-             -- More robust: Use an event like `weaponDamageEvent` if available or check for explosions near car.
-             -- For this task, we will assume the server receives damage reports from game events (not explicitly implemented here)
-             -- or via a more sophisticated client-side damage detection than just `IsPedShooting`.
-             -- The server event `cops_and_robbers:damageArmoredCar` is ready to receive damageAmount.
-             -- Client would need logic to calculate that damageAmount.
         end
     end
 end)

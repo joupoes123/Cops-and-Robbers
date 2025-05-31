@@ -1560,10 +1560,8 @@ AddEventHandler('cops_and_robbers:damageArmoredCar', function(vehicleNetId, dama
         TriggerClientEvent('cops_and_robbers:armoredCarDestroyed', -1, vehicleNetId)
 
         -- Increase wanted points for armored car heist
-        -- IncreaseWantedPoints(robberId, 'armored_car_heist') -- This key needs to be in Config.WantedSettings.crimes
-        -- For now, using a generic key if 'armored_car_heist' is not defined in provided config.
-        -- The provided config does not have 'armored_car_heist'. Using 'bank_heist_major' as a placeholder.
-        IncreaseWantedPoints(robberId, 'bank_heist_major') -- Placeholder, ideally 'armored_car_heist'
+        -- Increase wanted points for armored car heist
+        IncreaseWantedPoints(robberId, 'armored_car_heist')
 
         local driver = GetPedInVehicleSeat(armoredCarEntity, -1)
         if driver and DoesEntityExist(driver) then DeleteEntity(driver) end
@@ -1704,43 +1702,39 @@ AddEventHandler('cops_and_robbers:spawnK9', function()
     -- The current client-side logic implies the K9's owner client will largely control its detailed behavior.
 
     -- Placeholder: In a real scenario, you'd create a ped here.
-    -- For this conceptual implementation, we'll simulate that a K9 was spawned
-    -- and we just need to tell the client about it. The client will handle the visual.
-    -- We'll generate a dummy netId for now. This part needs a proper ped spawning system.
-    local k9DummyNetId = math.random(10000, 20000) -- Placeholder NetID
-    activeK9s[copId] = k9DummyNetId
+    -- For this conceptual implementation, we authorize client to spawn its own K9.
+    activeK9s[copId] = true -- Mark that this cop has an active K9
 
-    print(string.format("Player %s (ID: %d) spawned K9 (Placeholder NetID: %d). Implement actual ped spawning.", GetPlayerName(copId), copId, k9DummyNetId))
-    TriggerClientEvent('cops_and_robbers:k9Spawned', copId, k9DummyNetId) -- Send "network ID" to client
+    LogAdminAction(string.format("K9 Authorized: Cop %s (ID: %d) authorized to spawn K9.", GetPlayerName(copId), copId))
+    TriggerClientEvent('cops_and_robbers:clientSpawnK9Authorized', copId)
 end)
 
 RegisterNetEvent('cops_and_robbers:dismissK9')
 AddEventHandler('cops_and_robbers:dismissK9', function()
     local copId = source
     if activeK9s[copId] then
-        local k9NetId = activeK9s[copId]
-        -- Notify client to remove the K9 ped
-        TriggerClientEvent('cops_and_robbers:k9Dismissed', copId, k9NetId)
-        activeK9s[copId] = nil
-        print(string.format("Player %s (ID: %d) dismissed K9 (Placeholder NetID: %d).", GetPlayerName(copId), copId, k9NetId))
+        activeK9s[copId] = nil -- Mark K9 as no longer active for this cop
+        LogAdminAction(string.format("K9 Dismissed: Cop %s (ID: %d) dismissed K9.", GetPlayerName(copId), copId))
+        TriggerClientEvent('cops_and_robbers:clientDismissK9', copId) -- Tell client to remove its K9
     end
 end)
 
 RegisterNetEvent('cops_and_robbers:commandK9')
-AddEventHandler('cops_and_robbers:commandK9', function(k9NetId, targetRobberServerId, commandType)
+AddEventHandler('cops_and_robbers:commandK9', function(targetRobberServerId, commandType) -- k9NetId removed
     local copId = source
-    if not activeK9s[copId] or activeK9s[copId] ~= k9NetId then
-        TriggerClientEvent('cops_and_robbers:showNotification', copId, "~r~This is not your K9 unit or it's not active.")
+    if not activeK9s[copId] then -- Check if cop is authorized to have/command a K9
+        TriggerClientEvent('cops_and_robbers:showNotification', copId, "~r~You do not have an active K9 unit.")
         return
     end
 
-    if not IsValidPlayer(targetRobberServerId) or playerRoles[targetRobberServerId] ~= 'robber' then
+    if not IsValidPlayer(targetRobberServerId) or not playerRoles[targetRobberServerId] or playerRoles[targetRobberServerId] ~= 'robber' then
         TriggerClientEvent('cops_and_robbers:showNotification', copId, "~r~Invalid target for K9 command.")
         return
     end
 
     -- Relay command to the cop's client who owns/manages the K9's detailed AI
-    TriggerClientEvent('cops_and_robbers:k9ProcessCommand', copId, k9NetId, targetRobberServerId, commandType)
+    LogAdminAction(string.format("K9 Command Relayed: Cop %s (ID: %d) commanded K9 to %s Player %s (ID: %d).", GetPlayerName(copId), copId, commandType, GetPlayerName(targetRobberServerId), targetRobberServerId))
+    TriggerClientEvent('cops_and_robbers:k9ProcessCommand', copId, targetRobberServerId, commandType) -- k9NetId removed
     TriggerClientEvent('cops_and_robbers:showNotification', copId, "~b~K9 command issued.")
 end)
 
