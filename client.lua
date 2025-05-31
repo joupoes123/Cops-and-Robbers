@@ -15,58 +15,91 @@
 -- =====================================
 
 -- Player-related variables
-local role = nil
-local playerCash = 0
-local currentSpikeStrips = {} -- { [stripId] = { entity = prop_entity, location = vector3, obj = objHandle } }
-local spikeStripModelHash = GetHashKey("p_ld_stinger_s") -- Example model for spike strip
-local playerStats = { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
-local currentObjective = nil
-local wantedLevel = 0 -- This seems to be a legacy or separate wanted level system.
-                      -- The new system will use currentWantedStarsClient.
-local playerWeapons = {}
-local playerAmmo = {}
+local role = nil                        -- Current player role ('cop', 'robber', or nil)
+local playerCash = 0                    -- Current player cash
+local currentSpikeStrips = {}           -- Table to store client-side spike strip entities: { [stripId] = { entity = prop_entity, location = vector3, obj = objHandle } }
+local spikeStripModelHash = GetHashKey("p_ld_stinger_s") -- Model hash for spike strips
+local playerStats = {                   -- Basic player statistics
+    heists = 0,
+    arrests = 0,
+    rewards = 0,
+    experience = 0,
+    level = 1
+}
+local currentObjective = nil            -- Current objective for the player (not heavily used in provided code)
+-- local wantedLevel = 0                -- DEPRECATED: Original wanted level, replaced by currentWantedStarsClient. Retained for reference during transition.
+local playerWeapons = {}                -- Tracks weapons the player currently possesses (client-side perception) e.g. { ["WEAPON_PISTOL"] = true }
+local playerAmmo = {}                   -- Tracks ammo counts for weapons (client-side perception) e.g. { ["WEAPON_PISTOL"] = 50 }
 
 -- Wanted System Client State
-local currentWantedStarsClient = 0
-local currentWantedPointsClient = 0
-local wantedUiLabel = ""
+local currentWantedStarsClient = 0      -- Current number of wanted stars for the player (0-5)
+local currentWantedPointsClient = 0     -- Current wanted points (numerical value, used for decay/increase)
+local wantedUiLabel = ""                -- Text label for UI display of wanted status (e.g., "Wanted: ***")
+
+-- Player Leveling System Client State
+local currentXP = 0                     -- Current experience points of the player
+local currentLevel = 1                  -- Current level of the player
+local xpForNextLevelDisplay = 0         -- XP needed to reach the next level (used for UI progress bar)
 
 -- Contraband Drop Client State
-local activeDropBlips = {} -- Stores blip handles for active contraband drops, keyed by dropId.
-local clientActiveContrabandDrops = {} -- Stores detailed info about client-side contraband drops (location, name, modelHash, propEntity), keyed by dropId.
-local isCollectingFromDrop = nil -- Holds the dropId if the player is currently in the process of collecting, otherwise nil.
-local collectionTimerEnd = 0 -- Timestamp for when the current contraband collection process will end.
+local activeDropBlips = {}              -- Stores blip handles for active contraband drops, keyed by dropId: { [dropId] = blipHandle }
+local clientActiveContrabandDrops = {}  -- Stores detailed info about client-side contraband drops, keyed by dropId: { [dropId] = { id, location, name, modelHash, propEntity } }
+local isCollectingFromDrop = nil        -- Holds the dropId if the player is currently collecting from a drop, otherwise nil
+local collectionTimerEnd = 0            -- Timestamp (GetGameTimer()) for when the current contraband collection process will end
 
 -- Safe Zone Client State
-local isCurrentlyInSafeZone = false -- Boolean flag indicating if the player is currently inside any safe zone.
-local currentSafeZoneName = ""
+local isCurrentlyInSafeZone = false     -- Boolean flag indicating if the player is currently inside any safe zone
+local currentSafeZoneName = ""          -- Name of the safe zone the player is currently in
+
+-- Wanted System Expansion Client State
+local currentPlayerNPCResponseEntities = {} -- Stores peds and vehicles for current player's NPC response: { pedOrVehHandle, ... }
+local corruptOfficialNPCs = {}          -- Stores spawned peds for corrupt officials, keyed by officialIndex from config: { [officialIndex] = pedHandle }
 
 -- =====================================
 --           HELPER FUNCTIONS
 -- =====================================
 
 -- Function to display notifications on screen
+-- @param text string: The message to display.
 local function ShowNotification(text)
+    if not text or text == "" then
+        print("ShowNotification: Received nil or empty text.")
+        return
+    end
     SetNotificationTextEntry("STRING")
     AddTextComponentSubstringPlayerName(text)
     DrawNotification(false, true)
 end
 
--- Function to display help text
+-- Function to display help text (on-screen prompt)
+-- @param text string: The help message to display.
 local function DisplayHelpText(text)
+    if not text or text == "" then
+        print("DisplayHelpText: Received nil or empty text.")
+        return
+    end
     BeginTextCommandDisplayHelp("STRING")
     AddTextComponentSubstringPlayerName(text)
     EndTextCommandDisplayHelp(0, false, true, -1)
 end
 
--- Function to spawn player based on role
-local function spawnPlayer(role)
-    local spawnPoint = Config.SpawnPoints[role]
-    if spawnPoint then
-        SetEntityCoords(PlayerPedId(), spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
-        -- Consider setting the heading if a spawn heading is available
+-- Function to spawn player at a predefined point based on their role
+-- @param playerRole string: The role of the player ('cop' or 'robber').
+local function spawnPlayer(playerRole)
+    if not playerRole then
+        print("Error: spawnPlayer called with nil role.")
+        ShowNotification("~r~Error: Could not determine spawn point. Role not set.")
+        return
+    end
+    local spawnPoint = Config.SpawnPoints[playerRole]
+    if spawnPoint and spawnPoint.x and spawnPoint.y and spawnPoint.z then
+        local playerPed = PlayerPedId()
+        SetEntityCoords(playerPed, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
+        -- SetEntityHeading(playerPed, spawnPoint.h or 0.0) -- Consider adding heading to config if desired
+        ShowNotification("Spawned as " .. playerRole)
     else
-        print("Error: Invalid role for spawning: " .. tostring(role))
+        print("Error: Invalid or missing spawn point for role: " .. tostring(playerRole))
+        ShowNotification("~r~Error: Spawn point not found for your role.")
     end
 end
 
@@ -74,42 +107,98 @@ end
 --           NETWORK EVENTS
 -- =====================================
 
--- Request player data when the player spawns
+-- Event: 'playerSpawned' - Triggered when the player initially spawns into the server.
+-- Action: Requests player data from the server and shows the role selection UI.
 AddEventHandler('playerSpawned', function()
-    -- Request player data from the server
+    -- Request player data from the server. This might include role, cash, stats etc. if previously saved.
     TriggerServerEvent('cops_and_robbers:requestPlayerData')
     
     -- Show NUI role selection screen
-    SetNuiFocus(true, true)
+    -- Ensure NUI is ready before sending messages, or have a queue system in NUI's JS.
     SendNUIMessage({ action = 'showRoleSelection' })
+    SetNuiFocus(true, true) -- Give focus to NUI for role selection
 end)
 
--- Receive player data from the server
+-- Event: 'cops_and_robbers:receivePlayerData' - Receives core player data from the server.
+-- Action: Updates client-side variables with received data, spawns player, and equips weapons.
 RegisterNetEvent('cops_and_robbers:receivePlayerData')
 AddEventHandler('cops_and_robbers:receivePlayerData', function(data)
     if not data then
-        print("Error: Received nil data in 'receivePlayerData'")
+        print("Error: 'cops_and_robbers:receivePlayerData' received nil data.")
+        ShowNotification("~r~Error: Failed to load player data.")
         return
     end
     
     playerCash = data.cash or 0
-    playerStats = data.stats or { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 }
-    role = data.role
+    playerStats = data.stats or { heists = 0, arrests = 0, rewards = 0, experience = 0, level = 1 } -- Default if not provided
+    role = data.role -- This might be nil if new player, server should handle this
     
-    spawnPlayer(role) -- Spawn player based on received role
+    -- Initialize Leveling System UI variables from received data if available
+    currentLevel = data.level or 1
+    currentXP = data.xp or 0
+    -- xpForNextLevelDisplay will be set by 'updateXPDisplay' event later
+
+    if role then -- Only spawn if role is determined
+        spawnPlayer(role)
+    else
+        -- If no role, role selection UI should still be active.
+        -- Player might pick a role, then server sends 'receivePlayerData' again or a specific 'roleAssigned' event.
+        ShowNotification("Please select a role to continue.")
+    end
     
     local playerPed = PlayerPedId()
-    if data.weapons then
-        for weaponName, ammo in pairs(data.weapons) do
+    if data.weapons and type(data.weapons) == "table" then
+        playerWeapons = {} -- Clear existing client-side weapon list
+        playerAmmo = {}    -- Clear existing client-side ammo list
+        for weaponName, ammoCount in pairs(data.weapons) do
             local weaponHash = GetHashKey(weaponName)
-            GiveWeaponToPed(playerPed, weaponHash, ammo or 0, false, false)
-            playerWeapons[weaponName] = true
-            playerAmmo[weaponName] = ammo or 0
+            if weaponHash ~= 0 and weaponHash ~= -1 then -- Check if weaponName is valid (GetHashKey returns 0 or -1 for invalid)
+                GiveWeaponToPed(playerPed, weaponHash, ammoCount or 0, false, false) -- Give weapon with specified ammo
+                playerWeapons[weaponName] = true
+                playerAmmo[weaponName] = ammoCount or 0
+            else
+                print("Warning: Invalid weaponName received in playerData: " .. tostring(weaponName))
+            end
         end
     end
-    -- Optionally restore inventory items and update money display
+
+    -- Update other UI elements if necessary, e.g., cash display
+    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    -- Assuming 'updateXPDisplay' will be called separately by server after role set / data load
 end)
 
+
+-- =====================================
+--        PLAYER LEVELING SYSTEM (CLIENT)
+-- =====================================
+
+RegisterNetEvent('cops_and_robbers:updateXPDisplay')
+AddEventHandler('cops_and_robbers:updateXPDisplay', function(level, xp, xpNextSegment)
+    currentLevel = level
+    currentXP = xp
+    xpForNextLevelDisplay = xpNextSegment
+
+    -- Ensure NUI is ready before sending message or queue if necessary
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = currentXP,
+        currentLevel = currentLevel,
+        xpForNextLevel = xpForNextLevelDisplay
+    })
+    -- ShowNotification(string.format("Lvl: %d, XP: %d / %s", currentLevel, currentXP, xpForNextLevelDisplay)) -- Debug
+end)
+
+RegisterNetEvent('cops_and_robbers:playerLeveledUp')
+AddEventHandler('cops_and_robbers:playerLeveledUp', function(newLevel, pName) -- playerName is passed but might not be needed if notification is generic
+    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!")
+    -- Client's currentLevel and XP will be updated by the subsequent 'updateXPDisplay' call
+    -- that is triggered from server-side AddXP after CheckForLevelUp.
+end)
+
+
+-- =====================================
+--        WANTED SYSTEM (CLIENT)
+-- =====================================
 -- Wanted System: Update wanted level display
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
 AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
@@ -139,6 +228,142 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     -- If you had a custom UI element for wanted level, you'd update it here.
     -- Example: SendNUIMessage({ action = 'updateWantedUI', label = wantedUiLabel, points = currentWantedPointsClient })
     -- ShowNotification("Wanted Level: " .. wantedUiLabel .. " (" .. currentWantedPointsClient .. " pts)") -- For debugging
+end)
+
+-- Handles server-triggered updates to NPC police response based on wanted level.
+RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
+AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
+    if targetPlayerId ~= PlayerId() then return end -- Only process for this client if they are the target.
+
+    -- 1. Clear previously spawned NPC response groups for this player
+    for _, entity in ipairs(currentPlayerNPCResponseEntities) do
+        if DoesEntityExist(entity) then
+            local model = GetEntityModel(entity)
+            DeleteEntity(entity)
+            SetModelAsNoLongerNeeded(model) -- Release model
+        end
+    end
+    currentPlayerNPCResponseEntities = {}
+
+    if stars == 0 then -- No wanted level, no response needed beyond clearing old ones.
+        ShowNotification("~g~Police response stood down.")
+        return
+    end
+
+    ShowNotification(string.format("~r~Police response intensifying! Wanted Level: %d star(s).", stars))
+
+    local presetStarLevel = math.min(stars, #Config.WantedNPCPresets)
+    if not Config.WantedNPCPresets[presetStarLevel] then
+        print("No NPC response preset found for effective wanted level: " .. presetStarLevel)
+        return
+    end
+
+    local responseGroupsConfig = Config.WantedNPCPresets[presetStarLevel]
+    local playerPed = PlayerPedId()
+    local activeSpawnedGroupsCount = 0 -- Track how many groups successfully spawn from this response wave
+
+    for _, groupInfo in ipairs(responseGroupsConfig) do
+        if activeSpawnedGroupsCount >= Config.MaxActiveNPCResponseGroups then
+            print("Max active NPC response groups reached for this wave.")
+            break
+        end
+
+        CreateThread(function() -- Spawn each group in its own thread for model loading
+            local groupEntitiesThisSpawn = {} -- Track entities for this specific group for timed removal
+            local vehicle = nil
+            local actualSpawnPos = vector3(lastKnownCoords.x, lastKnownCoords.y, lastKnownCoords.z) -- Use last known coords as base
+
+            -- Determine spawn position (further away, try for roadside)
+            local spawnOffsetAttempt = vector3(math.random(70,120) * (math.random(0,1)*2-1) + 0.01, math.random(70,120) * (math.random(0,1)*2-1) + 0.01, 2.0)
+            local foundSpawn, safeSpawnPos = GetSafeCoordForPed(actualSpawnPos + spawnOffsetAttempt, true, 0)
+            if not foundSpawn then
+                foundSpawn, safeSpawnPos = GetSafeRoadsideCoords(actualSpawnPos + spawnOffsetAttempt, 15.0)
+            end
+            if foundSpawn then actualSpawnPos = safeSpawnPos else actualSpawnPos = actualSpawnPos + vector3(0,0,1.0) end
+
+
+            -- Handle helicopter chance
+            if groupInfo.helicopterChance and groupInfo.helicopter and math.random() < groupInfo.helicopterChance then
+                local heliModel = (type(groupInfo.helicopter) == "number" and groupInfo.helicopter) or GetHashKey(groupInfo.helicopter)
+                RequestModel(heliModel)
+                local attempts = 0; while not HasModelLoaded(heliModel) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
+                if HasModelLoaded(heliModel) then
+                    vehicle = CreateVehicle(heliModel, actualSpawnPos.x, actualSpawnPos.y, actualSpawnPos.z + 50.0, GetEntityHeading(playerPed), true, false)
+                    SetModelAsNoLongerNeeded(heliModel)
+                    table.insert(groupEntitiesThisSpawn, vehicle)
+                    table.insert(currentPlayerNPCResponseEntities, vehicle)
+                else SetModelAsNoLongerNeeded(heliModel); print("Failed to load helicopter model: " .. groupInfo.helicopter) end
+            elseif groupInfo.vehicle then
+                local vehicleModel = (type(groupInfo.vehicle) == "number" and groupInfo.vehicle) or GetHashKey(groupInfo.vehicle)
+                RequestModel(vehicleModel)
+                local attempts = 0; while not HasModelLoaded(vehicleModel) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
+                if HasModelLoaded(vehicleModel) then
+                    vehicle = CreateVehicle(vehicleModel, actualSpawnPos.x, actualSpawnPos.y, actualSpawnPos.z, GetEntityHeading(playerPed) + 180.0, true, false)
+                    SetModelAsNoLongerNeeded(vehicleModel)
+                    table.insert(groupEntitiesThisSpawn, vehicle)
+                    table.insert(currentPlayerNPCResponseEntities, vehicle)
+                else SetModelAsNoLongerNeeded(vehicleModel); print("Failed to load vehicle model: " .. groupInfo.vehicle) end
+            end
+
+            local weaponHash = (type(groupInfo.weapon) == "number" and groupInfo.weapon) or GetHashKey(groupInfo.weapon)
+            local pedModelHash = (type(groupInfo.pedModel) == "number" and groupInfo.pedModel) or GetHashKey(groupInfo.pedModel or "s_m_y_cop_01") -- Default to cop if not specified
+
+            RequestModel(pedModelHash)
+            local attempts = 0; while not HasModelLoaded(pedModelHash) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
+
+            if HasModelLoaded(pedModelHash) then
+                for i = 1, groupInfo.count do
+                    local ped
+                    if vehicle and i <= GetVehicleMaxNumberOfPassengers(vehicle) then
+                        local seat = -1 + (i-1) -- Driver first, then passengers
+                        if GetPedInVehicleSeat(vehicle, seat) == 0 then -- Check if seat is free
+                           ped = CreatePedInsideVehicle(vehicle, 26, pedModelHash, seat, true, false)
+                        end
+                    else
+                        ped = CreatePed(26, pedModelHash, actualSpawnPos.x + math.random(-5,5), actualSpawnPos.y + math.random(-5,5), actualSpawnPos.z, GetEntityHeading(playerPed), true, false)
+                    end
+
+                    if ped then
+                        GiveWeaponToPed(ped, weaponHash, 250, false, true)
+                        SetPedArmour(ped, groupInfo.armour or 25)
+                        SetPedAccuracy(ped, groupInfo.accuracy or 15)
+                        SetPedCombatAttributes(ped, 46, true) -- BF_CanFightArmedPedsWhenNotArmed
+                        if groupInfo.combatAttributes then
+                           for attrId, valBool in pairs(groupInfo.combatAttributes) do SetPedCombatAttributes(ped, attrId, valBool) end
+                        end
+                        SetPedSeeingRange(ped, groupInfo.sightDistance or 80.0)
+                        SetEntityIsTargetPriority(ped, true, 0)
+                        SetPedRelationshipGroupHash(ped, GetHashKey("COP")) -- Make them part of cop group
+
+                        if vehicle and GetPedInVehicleSeat(vehicle, -1) == ped then -- If this ped is the driver
+                            TaskVehicleDriveToCoord(ped, vehicle, GetEntityCoords(playerPed).x, GetEntityCoords(playerPed).y, GetEntityCoords(playerPed).z, 25.0, 1, GetHashKey(Config.PoliceVehicles[1] or "police"), 786603, 10.0, -1)
+                            SetPedKeepTask(ped, true)
+                        else -- Passenger or on foot
+                            TaskCombatPed(ped, playerPed, 0, 16)
+                        end
+                        table.insert(groupEntitiesThisSpawn, ped)
+                        table.insert(currentPlayerNPCResponseEntities, ped)
+                    end
+                end
+            end
+            SetModelAsNoLongerNeeded(pedModelHash)
+            activeSpawnedGroupsCount = activeSpawnedGroupsCount + 1
+
+            -- Simple despawn timer for this specific group's entities
+            Citizen.Wait(180000) -- Despawn after 3 minutes
+            for _, entityToClean in pairs(groupEntitiesThisSpawn) do
+                if DoesEntityExist(entityToClean) then
+                    for k, trackedEntity in pairs(currentPlayerNPCResponseEntities) do
+                        if trackedEntity == entityToClean then table.remove(currentPlayerNPCResponseEntities, k); break end
+                    end
+                    local model = GetEntityModel(entityToClean)
+                    DeleteEntity(entityToClean)
+                    SetModelAsNoLongerNeeded(model)
+                end
+            end
+            -- print("NPC Response group (part) despawned after timeout: " .. groupInfo.spawnGroup)
+        end)
+    end
 end)
 
 -----------------------------------------------------------
@@ -303,77 +528,200 @@ Citizen.CreateThread(function()
 end)
 
 -- =====================================
---        SAFE ZONE CLIENT LOGIC
+--        SAFE ZONE / RESTRICTED AREA / WANTED REDUCTION INTERACTION CLIENT LOGIC
 -- =====================================
--- This thread periodically checks if the player is inside any defined safe zone.
+-- This thread periodically checks for Safe Zones, Restricted Areas, and nearby locations for Wanted Level Reduction.
 Citizen.CreateThread(function()
+    local checkInterval = 1000 -- Check every 1 second
+
     while true do
-        Citizen.Wait(1000) -- Check every 1 second
+        Citizen.Wait(checkInterval)
 
         local playerPed = PlayerPedId()
         if not DoesEntityExist(playerPed) then
             Citizen.Wait(5000) -- Wait longer if player ped doesn't exist yet
-            goto continue_safe_zone_loop
+            goto continue_main_interaction_loop
         end
-
-        if not Config.SafeZones or #Config.SafeZones == 0 then
-            -- If no safe zones are configured, or table is empty, ensure player is not stuck in safe zone state
-            if isCurrentlyInSafeZone then
-                isCurrentlyInSafeZone = false
-                currentSafeZoneName = ""
-                SetEntityInvincible(playerPed, false)
-                DisablePlayerFiring(PlayerId(), false)
-                SetPlayerCanDoDriveBy(PlayerId(), true)
-                ShowNotification("~g~Safe zone status reset (zones removed or empty).")
-            end
-            Citizen.Wait(5000) -- Wait longer if no zones configured
-            goto continue_safe_zone_loop -- Skip further processing
-        end
-
         local playerCoords = GetEntityCoords(playerPed)
-        local foundSafeZoneThisCheck = false
-        local enteredZoneName = ""
-        local enteredZoneMessage = ""
 
-        for _, zone in ipairs(Config.SafeZones) do
-            local distance = #(playerCoords - zone.location)
-            if distance < zone.radius then
-                foundSafeZoneThisCheck = true
-                enteredZoneName = zone.name
-                enteredZoneMessage = zone.message or "You have entered a Safe Zone."
-                break -- Player can only be in one safe zone as per this logic
+        -- Safe Zone Logic
+        if Config.SafeZones and #Config.SafeZones > 0 then
+            local foundSafeZoneThisCheck = false
+            local enteredZoneName = ""
+            local enteredZoneMessage = ""
+
+            for _, zone in ipairs(Config.SafeZones) do
+                if #(playerCoords - zone.location) < zone.radius then
+                    foundSafeZoneThisCheck = true
+                    enteredZoneName = zone.name
+                    enteredZoneMessage = zone.message or "You have entered a Safe Zone."
+                    break
+                end
             end
-        end
 
-        if foundSafeZoneThisCheck then
-            if not isCurrentlyInSafeZone then
-                -- Player just entered a safe zone
-                isCurrentlyInSafeZone = true
-                currentSafeZoneName = enteredZoneName
-                ShowNotification(enteredZoneMessage)
-
-                SetEntityInvincible(playerPed, true)
-                DisablePlayerFiring(PlayerId(), true)
-                SetPlayerCanDoDriveBy(PlayerId(), false)
-                -- Note: NetworkSetFriendlyFireOption is server-wide, not suitable here.
+            if foundSafeZoneThisCheck then
+                if not isCurrentlyInSafeZone then
+                    isCurrentlyInSafeZone = true
+                    currentSafeZoneName = enteredZoneName
+                    ShowNotification(enteredZoneMessage)
+                    SetEntityInvincible(playerPed, true)
+                    DisablePlayerFiring(PlayerId(), true)
+                    SetPlayerCanDoDriveBy(PlayerId(), false)
+                end
+            else
+                if isCurrentlyInSafeZone then
+                    ShowNotification("~g~You have left " .. currentSafeZoneName .. ".")
+                    isCurrentlyInSafeZone = false
+                    currentSafeZoneName = ""
+                    SetEntityInvincible(playerPed, false)
+                    DisablePlayerFiring(PlayerId(), false)
+                    SetPlayerCanDoDriveBy(PlayerId(), true)
+                end
             end
-        else
+        else -- No safe zones configured, ensure player is not stuck in safe zone state
             if isCurrentlyInSafeZone then
-                -- Player just exited a safe zone
-                ShowNotification("~g~You have left " .. currentSafeZoneName .. ".")
-                isCurrentlyInSafeZone = false
-                currentSafeZoneName = ""
-
-                SetEntityInvincible(playerPed, false)
-                DisablePlayerFiring(PlayerId(), false)
-                SetPlayerCanDoDriveBy(PlayerId(), true)
+                isCurrentlyInSafeZone = false; currentSafeZoneName = ""; SetEntityInvincible(playerPed, false); DisablePlayerFiring(PlayerId(), false); SetPlayerCanDoDriveBy(PlayerId(), true); ShowNotification("~g~Safe zone status reset (zones removed).")
             end
         end
-        ::continue_safe_zone_loop::
+
+        -- Restricted Area Logic
+        if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
+            for _, area in ipairs(Config.RestrictedAreas) do
+                if #(playerCoords - area.center) < area.radius then
+                    if currentWantedStarsClient >= area.wantedThreshold then -- Check if player's wanted level meets threshold
+                        ShowNotification(area.message)
+                        -- Note: Actual NPC spawning for restricted areas is complex and would be server-driven based on this client potentially entering.
+                        -- For now, client just gets a message. A TriggerServerEvent could be added here.
+                    end
+                    break
+                end
+            end
+        end
+
+        -- Active Wanted Level Reduction Interactions (only for Robbers or if player is wanted)
+        if role == 'robber' or currentWantedStarsClient > 0 then -- Allow for any role if wanted, but typically Robbers might use this more.
+            -- Corrupt Officials
+            if Config.CorruptOfficials then
+                for i, official in ipairs(Config.CorruptOfficials) do
+                    if #(playerCoords - official.location) < 10.0 then -- Proximity to interact
+                        if not corruptOfficialNPCs[i] or not DoesEntityExist(corruptOfficialNPCs[i]) then
+                            local modelHash = GetHashKey(official.model)
+                            RequestModel(modelHash)
+                            local attempts = 0
+                            while not HasModelLoaded(modelHash) and attempts < 50 do Citizen.Wait(50); attempts=attempts+1; end
+                            if HasModelLoaded(modelHash) then
+                                corruptOfficialNPCs[i] = CreatePed(4, modelHash, official.location.x, official.location.y, official.location.z - 1.0, GetRandomFloatInRange(0.0,360.0), false, true)
+                                FreezeEntityPosition(corruptOfficialNPCs[i], true)
+                                SetEntityInvincible(corruptOfficialNPCs[i], true)
+                                SetBlockingOfNonTemporaryEvents(corruptOfficialNPCs[i], true)
+                                SetModelAsNoLongerNeeded(modelHash)
+                            end
+                        end
+                        if corruptOfficialNPCs[i] and DoesEntityExist(corruptOfficialNPCs[i]) then
+                             DisplayHelpText(official.dialogue .. "\nPress ~INPUT_CONTEXT~ to bribe (" .. official.name .. ")")
+                            if IsControlJustReleased(0, 51) then -- E key
+                                TriggerServerEvent('cops_and_robbers:payOffOfficial', i)
+                            end
+                        end
+                        break -- Process one official at a time
+                    elseif corruptOfficialNPCs[i] and DoesEntityExist(corruptOfficialNPCs[i]) then
+                        -- If player moved away from an official NPC that was spawned, delete them to save resources
+                        DeleteEntity(corruptOfficialNPCs[i])
+                        corruptOfficialNPCs[i] = nil
+                    end
+                end
+            end
+
+            -- Appearance Change Stores
+            if Config.AppearanceChangeStores then
+                for i, store in ipairs(Config.AppearanceChangeStores) do
+                    if #(playerCoords - store.location) < 3.0 then -- Proximity to interact
+                        DisplayHelpText("Press ~INPUT_CONTEXT~ to change appearance at " .. store.name .. " ($" .. store.cost .. ")")
+                        if IsControlJustReleased(0, 51) then -- E key
+                            TriggerServerEvent('cops_and_robbers:changeAppearance', i)
+                        end
+                        break -- Process one store at a time
+                    end
+                end
+            end
+        end
+        ::continue_main_interaction_loop::
     end
 end)
------------------------------------------------------------
 
+-----------------------------------------------------------
+-- New Crime Type Detection (Client-Side)
+-- This thread attempts to detect certain crimes locally and report them to the server.
+-- Note: Client-side detection can be spoofed. Server should validate and apply consequences.
+-----------------------------------------------------------
+Citizen.CreateThread(function()
+    local lastPlayerVehicle = 0 -- Store the entity handle of the last vehicle the player was in
+    local lastVehicleDriver = 0 -- Store the entity handle of the driver of the last vehicle
+    local lastAssaultReportTime = 0
+    local assaultReportCooldown = 5000 -- ms, cooldown for reporting civilian assault to prevent spam
+
+    while true do
+        Citizen.Wait(1000) -- Check periodically
+
+        local playerPed = PlayerPedId()
+        -- Only run crime detection if player is present and has a role (e.g. not during role selection)
+        -- Also, this example excludes cops from triggering these crimes for themselves. Adjust 'role' check as needed.
+        if not DoesEntityExist(playerPed) or not role or role == 'cop' then
+            Citizen.Wait(5000)
+            goto continue_crime_detection_loop -- Using goto here for simplicity given the loop structure
+        end
+
+        -- Grand Theft Auto Detection (Simplified)
+        -- Detects if player enters a vehicle last driven by a non-player human ped.
+        local currentVehicle = GetVehiclePedIsIn(playerPed, false)
+        if currentVehicle ~= 0 and currentVehicle ~= lastPlayerVehicle then
+            local driver = GetPedInVehicleSeat(currentVehicle, -1) -- Get current driver of the vehicle
+            if driver == playerPed then -- Player is now the driver of this new vehicle
+                -- Check if the last known driver of this *specific vehicle* (if tracked) or *any previous vehicle the player was in* was an NPC.
+                -- This logic primarily checks if the player just entered a vehicle that was previously occupied by an NPC.
+                if DoesEntityExist(lastVehicleDriver) and lastVehicleDriver ~= playerPed and not IsPedAPlayer(lastVehicleDriver) and IsPedHuman(lastVehicleDriver) then
+                    -- Additional check: Ensure player is actually trying to enter a seat, or has just entered.
+                    -- GetSeatPedIsTryingToEnter(playerPed) is useful but might be too transient.
+                    -- Check if the vehicle was locked might be an option too, but not all NPC cars are locked.
+                    ShowNotification("~r~Grand Theft Auto!")
+                    TriggerServerEvent('cops_and_robbers:reportCrime', 'grand_theft_auto', GetVehicleNumberPlateText(currentVehicle))
+                end
+            end
+        end
+
+        if currentVehicle ~= 0 then
+            lastVehicleDriver = GetPedInVehicleSeat(currentVehicle, -1)
+        else
+            lastVehicleDriver = 0 -- Reset if player is not in a vehicle
+        end
+        lastPlayerVehicle = currentVehicle
+
+        -- Assault Civilian Detection (Very Simplified)
+        -- Detects if player is in melee combat with a non-player, non-cop ped.
+        -- A robust system would use game damage events (requires server-side handling for accuracy) and proper faction/relationship checks.
+        if IsPedInMeleeCombat(playerPed) then
+            if (GetGameTimer() - lastAssaultReportTime) > assaultReportCooldown then
+                local _, targetPed = GetPedMeleeTargetForPed(playerPed)
+                if DoesEntityExist(targetPed) and not IsPedAPlayer(targetPed) and IsPedHuman(targetPed) then
+                    local targetModel = GetEntityModel(targetPed)
+                    -- Basic check to avoid counting cops/swat as civilians. More robust checks (e.g., relationship groups) might be needed.
+                    -- Consider adding a list of "civilian" models or relationship groups if more precision is required.
+                    if targetModel ~= GetHashKey("s_m_y_cop_01") and
+                       targetModel ~= GetHashKey("s_f_y_cop_01") and
+                       targetModel ~= GetHashKey("s_m_y_swat_01") and
+                       GetPedRelationshipGroupHash(targetPed) ~= GetHashKey("COP") then
+                        ShowNotification("~r~Civilian Assaulted!")
+                        TriggerServerEvent('cops_and_robbers:reportCrime', 'assault_civilian')
+                        lastAssaultReportTime = GetGameTimer()
+                    end
+                end
+            end
+        end
+        ::continue_crime_detection_loop::
+    end
+end)
+
+-----------------------------------------------------------
 -- Receive item list from the server (Registered once)
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
@@ -498,48 +846,63 @@ AddEventHandler('cops_and_robbers:teleportToPlayer', function(targetPlayerIdToTe
 end)
 
 -- Handler for spectating a player (admin's client executes this)
+-- IMPORTANT: The current spectate logic is extremely rudimentary and likely NON-FUNCTIONAL or buggy.
+-- `SpectatePlayerPed` is not a standard FiveM native.
+-- Proper spectate mode (NetworkSetInSpectatorMode or manual camera control) is complex and requires:
+--   - Robust camera creation, manipulation, and destruction.
+--   - Handling player controls (disabling own player's input, enabling spectator controls).
+--   - Managing player visibility and collision states correctly.
+--   - Ensuring smooth transitions and handling edge cases (target disconnects, etc.).
+-- This section should be completely rewritten with a proper spectate implementation.
 RegisterNetEvent('cops_and_robbers:spectatePlayer')
 AddEventHandler('cops_and_robbers:spectatePlayer', function(playerToSpectateId)
     local ownPed = PlayerPedId()
-    local targetPed = GetPlayerPed(playerToSpectateId)
+    local targetPed = GetPlayerPed(playerToSpectateId) -- Get ped handle of the player to spectate
 
-    -- Rudimentary spectate: make player invisible and attach camera to target.
-    -- A proper spectate mode is much more complex (e.g. NetworkSetInSpectatorMode, handling player controls).
-    -- This is a simplified version.
+    ShowNotification("~o~Spectate command received. Current implementation is placeholder.")
+    print("[WARNING] SpectatePlayer function is a basic placeholder and needs a full implementation.")
+
     if DoesEntityExist(targetPed) then
-        if not IsEntityVisible(ownPed) then -- Already spectating, or invisible for other reasons
-            -- Stop spectating: make player visible, detach camera, reset position (e.g. to last known good position or fixed spot)
+        -- Attempting a very basic spectate toggle using visibility and camera attachment (highly likely to be insufficient)
+        if IsPlayerSpectating(PlayerId()) or (IsEntityVisible(ownPed) == false and GetCamViewModeForContext(0) ~= 0) then -- Crude check if already "spectating"
+            -- Stop spectating
+            NetworkSetInSpectatorMode(false, PlayerPedId()) -- Try to exit FiveM's spectator mode if it was somehow activated
             SetEntityVisible(ownPed, true, false)
-            ClearPedTasksImmediately(ownPed) -- Or SetEntityCollision, SetEntityAlpha etc.
-            DetachCam(PlayerGameplayCam())
+            DetachEntity(ownPed, true, false) -- Detach if attached to something
+            FreezeEntityPosition(ownPed, false)
+            ClearPedTasksImmediately(ownPed)
+
+            local cam = GetCamViewModeForContext(0) -- Get the active cam
+            if DoesCamExist(cam) and cam ~= PlayerGameplayCam() then
+                 DestroyCam(cam, false)
+            end
             RenderScriptCams(false, false, 0, true, true)
-            ShowNotification("~g~Spectate mode ended.")
-            -- May need to restore player position here if they were moved/made ethereal for spectate.
+            SetFocusEntity(PlayerPedId()) -- Restore focus to self
+
+            ShowNotification("~g~Attempting to stop spectating.")
+            -- It's crucial to restore player's original state (coords, visibility, control) here.
+            -- This basic version likely fails to do so correctly.
         else
-            SetEntityVisible(ownPed, false, false) -- Make admin invisible
-            -- AttachCamToEntity(PlayerGameplayCam(), targetPed, 0,0,2.0, true) -- Example offset
-            -- PointCamAtEntity(PlayerGameplayCam(), targetPed, 0,0,0, true)
-            -- For a more robust solution, NetworkSetInSpectatorMode might be explored,
-            -- but it has its own complexities. This is a placeholder for basic spectate logic.
-            -- The following is often used for a simple follow cam:
-            SpectatePlayerPed(PlayerId(), targetPed) -- This is a guess, this native might not work as expected or exist.
-                                                    -- A common way is manual camera control:
-                                                    -- RequestCollisionAtCoord(GetEntityCoords(targetPed))
-                                                    -- SetFocusArea(GetEntityCoords(targetPed).x, GetEntityCoords(targetPed).y, GetEntityCoords(targetPed).z, 0.0, 0.0, 0.0)
-                                                    -- AttachCameraToPed(GetPlayerPed(-1), targetPed, true) -- This is not a native
-                                                    -- A more manual approach:
-                                                    -- local cam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-                                                    -- AttachCamToPed(cam, targetPed, 0, -5.0, 2.0, true) -- Offset from target
-                                                    -- SetCamActive(cam, true)
-                                                    -- RenderScriptCams(true, false, 0, true, true)
-            ShowNotification("~b~Spectating player. You are invisible. Trigger spectate again to stop.")
-            print("SpectatePlayerPed might not be a direct native or might require more setup.")
-            print("A robust spectate requires more complex camera and player state management.")
-            -- Fallback to a very simple notification if true spectate is too complex for this context:
-            -- ShowNotification("~b~Spectate command received for player ID: " .. playerToSpectateId .. ". True spectate needs more code.")
+            -- Start spectating (very basic attempt)
+            ShowNotification("~b~Attempting to spectate player ID: " .. playerToSpectateId .. ". This is NOT a full spectate mode.")
+            -- A common, but still simplified, approach:
+            -- 1. Make self invisible and non-collidable
+            SetEntityVisible(ownPed, false, false)
+            SetEntityCollision(ownPed, false, false)
+            FreezeEntityPosition(ownPed, true) -- Keep admin ped frozen
+
+            -- 2. Use FiveM's built-in (but sometimes finicky) spectator mode
+            NetworkSetInSpectatorMode(true, targetPed)
+            -- Or, a more manual camera approach (more control, more complexity):
+            -- local spectateCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+            -- AttachCamToEntity(spectateCam, targetPed, 0, -3.0, 1.0, true) -- Example offset
+            -- SetCamActive(spectateCam, true)
+            -- RenderScriptCams(true, false, 0, true, true)
+            -- SetFocusEntity(targetPed) -- Focus on the target
+            print("Note: A robust spectate mode needs careful handling of camera, player states, and controls.")
         end
     else
-        ShowNotification("~r~Target player for spectate not found.")
+        ShowNotification("~r~Target player for spectate not found or no longer exists.")
     end
 end)
 
@@ -625,13 +988,20 @@ end)
 
 
 -- Add Weapon
+-- Note: playerWeapons and playerAmmo are client-side caches. Server is the source of truth.
+-- These events are for immediate feedback. A full sync (like in receivePlayerData) handles definitive state.
 RegisterNetEvent('cops_and_robbers:addWeapon')
-AddEventHandler('cops_and_robbers:addWeapon', function(weaponName)
+AddEventHandler('cops_and_robbers:addWeapon', function(weaponName, ammoCount)
     local playerPed = PlayerPedId()
     local weaponHash = GetHashKey(weaponName)
-    GiveWeaponToPed(playerPed, weaponHash, 0, false, false)
-    playerWeapons[weaponName] = true
-    ShowNotification("Weapon added: " .. weaponName)
+    if weaponHash ~= 0 and weaponHash ~= -1 then
+        GiveWeaponToPed(playerPed, weaponHash, ammoCount or 0, false, false) -- Give with initial ammo
+        playerWeapons[weaponName] = true
+        playerAmmo[weaponName] = ammoCount or 0
+        ShowNotification("~g~Weapon equipped: " .. (Config.WeaponNames[weaponName] or weaponName))
+    else
+        ShowNotification("~r~Invalid weapon specified: " .. tostring(weaponName))
+    end
 end)
 
 
@@ -640,23 +1010,32 @@ RegisterNetEvent('cops_and_robbers:removeWeapon')
 AddEventHandler('cops_and_robbers:removeWeapon', function(weaponName)
     local playerPed = PlayerPedId()
     local weaponHash = GetHashKey(weaponName)
-    RemoveWeaponFromPed(playerPed, weaponHash)
-    playerWeapons[weaponName] = nil
-    ShowNotification("Weapon removed: " .. weaponName)
+    if weaponHash ~= 0 and weaponHash ~= -1 then
+        RemoveWeaponFromPed(playerPed, weaponHash)
+        playerWeapons[weaponName] = nil
+        playerAmmo[weaponName] = nil -- Clear ammo for this weapon
+        ShowNotification("~y~Weapon removed: " .. (Config.WeaponNames[weaponName] or weaponName))
+    else
+        ShowNotification("~r~Invalid weapon specified for removal: " .. tostring(weaponName))
+    end
 end)
 
 
 -- Add Ammo
 RegisterNetEvent('cops_and_robbers:addAmmo')
-AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoCount)
+AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoToAdd)
     local playerPed = PlayerPedId()
     local weaponHash = GetHashKey(weaponName)
-    if HasPedGotWeapon(playerPed, weaponHash, false) then
-        AddAmmoToPed(playerPed, weaponHash, ammoCount)
-        playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoCount
-        ShowNotification("Added " .. ammoCount .. " ammo to " .. weaponName)
+    if weaponHash ~= 0 and weaponHash ~= -1 then
+        if HasPedGotWeapon(playerPed, weaponHash, false) then
+            AddAmmoToPed(playerPed, weaponHash, ammoToAdd)
+            playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoToAdd
+            ShowNotification(string.format("~g~Added %d ammo to %s.", ammoToAdd, (Config.WeaponNames[weaponName] or weaponName)))
+        else
+            ShowNotification("~y~You don't have the weapon (" .. (Config.WeaponNames[weaponName] or weaponName) .. ") for this ammo.")
+        end
     else
-        ShowNotification("You don't have the weapon for this ammo.")
+        ShowNotification("~r~Invalid weapon specified for ammo: " .. tostring(weaponName))
     end
 end)
 
@@ -699,56 +1078,69 @@ end)
 -- =====================================
 
 Citizen.CreateThread(function()
+    local deployStripKey = (Config.Keybinds and Config.Keybinds.deploySpikeStrip) or 19 -- 19: INPUT_PREV_WEAPON (Home key)
+    local collisionCheckInterval = 250 -- ms, how often to check for spike strip collisions. 0 is too frequent.
+    local lastCollisionCheck = 0
+
     while true do
-        Citizen.Wait(0) -- Run every frame for input check, can be optimized for collision
+        local frameWait = 500 -- Default wait time for the loop if not actively checking collisions or inputs.
 
-        -- Deployment Keybind (Example: Home key, Keycode 19)
-        -- Consider using RegisterKeyMapping for configurable keys
-        if role == 'cop' and IsControlJustPressed(0, 19) then -- INPUT_PREV_WEAPON (Home key on some layouts, placeholder)
-                                                                -- Or use a command: RegisterCommand('deployspike', function() ... end, false)
-            local playerPed = PlayerPedId()
-            local forwardVector = GetEntityForwardVector(playerPed)
-            local deployCoords = GetOffsetFromEntityInWorldCoords(playerPed, forwardVector.x * 2.0, forwardVector.y * 2.0, -0.9) -- 2m in front, slightly below ped level
+        if role == 'cop' then
+            frameWait = 100 -- Check input more frequently if cop
+            if IsControlJustPressed(0, deployStripKey) then
+                local playerPed = PlayerPedId()
+                -- Basic client-side inventory check placeholder (server must verify)
+                -- if HasItemInClientInventory('spikestrip_item') then
+                local forwardVector = GetEntityForwardVector(playerPed)
+                -- Deploy slightly in front and attempt to place on ground using GetGroundZFor_3dCoord in the render event.
+                local deployCoords = GetOffsetFromEntityInWorldCoords(playerPed, forwardVector.x * 2.5, forwardVector.y * 2.5, -0.95)
 
-            -- Basic inventory check placeholder - proper inventory management needed
-            -- For now, assume server handles if player *can* deploy (e.g. has item)
-            -- Client might optimistically remove an item if one is shown in UI, server confirms.
-            -- This example focuses on triggering the deployment.
-            ShowNotification("Attempting to deploy spike strip...")
-            TriggerServerEvent('cops_and_robbers:deploySpikeStrip', deployCoords)
-            -- Here, you'd typically remove 'spikestrip' from client's perceived inventory.
-            -- The server should be the source of truth for inventory counts.
+                ShowNotification("~b~Attempting to deploy spike strip...")
+                TriggerServerEvent('cops_and_robbers:deploySpikeStrip', vector3(deployCoords.x, deployCoords.y, deployCoords.z))
+                -- Optimistically remove item from client UI if applicable. Server is source of truth.
+                -- RemoveItemFromClientInventory('spikestrip_item', 1)
+                -- else
+                --  ShowNotification("~r~You don't have any spike strips.")
+                -- end
+            end
         end
 
-        -- Spike Strip Collision Check (simplified)
-        -- This should ideally run less frequently if not using IsEntityTouchingEntity, or use more optimized methods.
-        if #(currentSpikeStrips) > 0 then -- Only run if there are strips to check
-            local playerVeh = GetVehiclePedIsIn(PlayerPedId(), false)
-            if playerVeh ~= 0 then -- Player is in a vehicle
+        -- Spike Strip Collision Check
+        -- This simplified check runs periodically. Server should be the ultimate authority on collisions.
+        -- More performant methods might involve server-side checks or custom collision events if available.
+        if #(currentSpikeStrips) > 0 and (GetGameTimer() - lastCollisionCheck > collisionCheckInterval) then
+            frameWait = math.min(frameWait, collisionCheckInterval) -- Ensure loop runs at collision check interval if strips exist
+            lastCollisionCheck = GetGameTimer()
+
+            local playerPed = PlayerPedId() -- Ensure playerPed is defined in this scope
+            local playerVeh = GetVehiclePedIsIn(playerPed, false)
+
+            if playerVeh ~= 0 and DoesEntityExist(playerVeh) then -- Player is in a vehicle
                 local vehCoords = GetEntityCoords(playerVeh)
                 for stripId, stripData in pairs(currentSpikeStrips) do
-                    if DoesEntityExist(stripData.obj) then
+                    if stripData and stripData.obj and DoesEntityExist(stripData.obj) and stripData.location then
                         local distance = #(vehCoords - stripData.location)
-                        if distance < 2.5 then -- Simple distance check, approx length of a car + strip
-                            -- More robust: check if vehicle's bounding box overlaps strip's model/coords
-                            -- Or use natives like IS_ENTITY_TOUCHING_ENTITY(playerVeh, stripData.obj) - careful with performance
-
-                            -- Check if any tire is near the strip center (more detailed than simple distance to strip center)
-                            -- For simplicity, we'll use the distance check above.
-                            -- A more accurate check might involve GetWorldPositionOfEntityBone for each wheel.
-
+                        -- Rough check based on distance. A more accurate check would involve bounding boxes or specific tire positions.
+                        -- The value '2.5' is an approximation for interaction.
+                        if distance < 3.0 then -- Increased slightly for better detection with simple distance
+                            -- Consider adding a short client-side cooldown per strip to prevent spamming server for same strip
+                            -- if not stripData.recentlyHit then
                             ShowNotification("~r~You ran over spikes!") -- Notify self
                             TriggerServerEvent('cops_and_robbers:vehicleHitSpikeStrip', stripId, VehToNet(playerVeh))
-
-                            -- To prevent immediate re-triggering on same strip, either server removes it,
-                            -- or client could add a short cooldown for this specific strip & vehicle.
-                            -- For now, server might remove it or it expires.
-                            break -- Stop checking other strips for this vehicle this frame
+                            -- stripData.recentlyHit = true
+                            -- SetTimeout(2000, function() if stripData then stripData.recentlyHit = false end end)
+                            break -- Process one strip hit per check cycle for this vehicle
+                            -- end
                         end
+                    else
+                        -- Clean up nil or invalid strip data if it somehow occurs
+                        -- print("DEBUG: Invalid spike strip data for ID " .. tostring(stripId))
+                        -- currentSpikeStrips[stripId] = nil -- Risky if server hasn't confirmed removal
                     end
                 end
             end
         end
+        Citizen.Wait(frameWait)
     end
 end)
 
@@ -761,98 +1153,140 @@ Citizen.CreateThread(function()
     local isRadarActive = false
     local radarPosition = nil
     local radarHeading = nil
-    local detectedSpeeders = {} -- Store recently detected speeders to avoid spam
+    local detectedSpeeders = {} -- Stores recently detected speeders to avoid spam: { [targetPlayerServerId .. vehiclePlate] = { data } }
 
-    while true do
-        Citizen.Wait(0) -- Check every frame for input
+    -- Helper function to calculate relative angle between radar's forward vector and a target position
+    local function CalculateRelativeAngle(radarPos, radarHead, targetPos)
+        if not radarPos or not targetPos then return 999 end -- Ensure positions are valid
+        local angle = math.atan2(targetPos.y - radarPos.y, targetPos.x - radarPos.x) * (180 / math.pi)
+        local relativeAngle = angle - (radarHead or 0)
+        if relativeAngle < -180 then relativeAngle = relativeAngle + 360 end
+        if relativeAngle > 180 then relativeAngle = relativeAngle - 360 end
+        return relativeAngle
+    end
 
-        -- Deployment Keybind (Example: PageUp key, Keycode 17)
-        -- Or use item 'speedradar' from inventory.
-        if role == 'cop' and IsControlJustPressed(0, 17) then -- INPUT_CELLPHONE_SCROLL_BACKWARD (PageUp, placeholder)
-            isRadarActive = not isRadarActive
-            if isRadarActive then
-                local playerPed = PlayerPedId()
-                radarPosition = GetEntityCoords(playerPed)
-                radarHeading = GetEntityHeading(playerPed)
-                ShowNotification("~g~Speed radar activated. Point towards road.")
-                detectedSpeeders = {} -- Clear previous detections
-            else
-                ShowNotification("~r~Speed radar deactivated.")
+    -- Helper function to clean up old entries from detectedSpeeders table
+    local function CleanOldDetections(timeoutMs)
+        local currentTime = GetGameTimer()
+        for key, data in pairs(detectedSpeeders) do
+            if currentTime - (data.timestamp or 0) > timeoutMs then
+                detectedSpeeders[key] = nil
             end
         end
+    end
 
-        if isRadarActive and role == 'cop' then
-            Citizen.Wait(500) -- Scan for speeders less frequently than every frame
-            local playerPed = PlayerPedId()
+    while true do
+        local frameWait = 500 -- Default wait time
+        if role == 'cop' then
+            -- Use Config.Keybinds if available, otherwise fallback to hardcoded values
+            local toggleRadarKey = (Config.Keybinds and Config.Keybinds.toggleSpeedRadar) or 17 -- 17: INPUT_CELLPHONE_SCROLL_BACKWARD (PageUp)
+            local fineSpeederKey = (Config.Keybinds and Config.Keybinds.fineSpeeder) or 74       -- 74: INPUT_VEH_HEADLIGHT (H)
+            local fineSpeederKeyName = (Config.Keybinds and Config.Keybinds.fineSpeederKeyName) or "H"
 
-            -- Define detection area (e.g., a box in front of the radar)
-            -- For simplicity, checking vehicles in a certain radius and general direction.
-            local vehicles = GetGamePool('CVehicle')
-            for _, veh in ipairs(vehicles) do
-                if DoesEntityExist(veh) and IsEntityAVehicle(veh) and NetworkGetEntityIsNetworked(veh) then
-                    local driver = GetPedInVehicleSeat(veh, -1)
-                    if DoesEntityExist(driver) and IsPedAPlayer(driver) and driver ~= playerPed then
-                        local targetPlayerServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(driver))
+            if IsControlJustPressed(0, toggleRadarKey) then
+                isRadarActive = not isRadarActive
+                if isRadarActive then
+                    local playerPed = PlayerPedId()
+                    radarPosition = GetEntityCoords(playerPed)
+                    radarHeading = GetEntityHeading(playerPed)
+                    ShowNotification("~g~Speed radar activated. Point towards road.")
+                    detectedSpeeders = {} -- Clear previous detections
+                else
+                    ShowNotification("~r~Speed radar deactivated.")
+                end
+            end
 
-                        -- Avoid re-flagging same player for same vehicle immediately
-                        if detectedSpeeders[targetPlayerServerId .. GetVehicleNumberPlateText(veh)] then goto continue_vehicles end
+            if isRadarActive then
+                frameWait = 250 -- Scan more frequently when active
+                local playerPed = PlayerPedId() -- Own ped, for exclusion
 
-                        local vehCoords = GetEntityCoords(veh)
-                        local distanceToRadar = #(vehCoords - radarPosition)
+                local vehicles = GetGamePool('CVehicle') -- Potentially performance intensive, consider alternative ways to get relevant vehicles
+                for _, veh in ipairs(vehicles) do
+                    if DoesEntityExist(veh) and IsEntityAVehicle(veh) and NetworkGetEntityIsNetworked(veh) then
+                        local driver = GetPedInVehicleSeat(veh, -1)
+                        if DoesEntityExist(driver) and IsPedAPlayer(driver) and driver ~= playerPed then
+                            local targetPlayerNetId = NetworkGetPlayerIndexFromPed(driver)
+                            local targetPlayerServerId = GetPlayerServerId(targetPlayerNetId)
 
-                        if distanceToRadar < 50.0 then -- Max detection range 50m
-                            local angleToRadar = CalculateRelativeAngle(radarPosition, radarHeading, vehCoords)
-                            if math.abs(angleToRadar) < 45.0 then -- Check if vehicle is roughly in front of radar (90 degree cone)
-                                local speedKmh = GetEntitySpeed(veh) * 3.6 -- m/s to km/h
-                                if speedKmh > Config.SpeedLimit then
-                                    local vehicleName = GetDisplayNameFromVehicleModel(GetEntityModel(veh))
-                                    ShowNotification(string.format("~y~Speeding: %s (%s) at %.0f km/h. Press H to fine.", GetPlayerName(NetworkGetPlayerIndexFromPed(driver)), vehicleName, speedKmh))
+                            local detectionKey = tostring(targetPlayerServerId) .. GetVehicleNumberPlateText(veh)
+                            local cooldownTime = (Config.SpeedRadarCooldownPerVehicle or 30000)
+                            if detectedSpeeders[detectionKey] and (GetGameTimer() - (detectedSpeeders[detectionKey].timestamp or 0) < cooldownTime) then
+                                goto continue_vehicles_radar_loop -- Already detected this vehicle/player recently
+                            end
 
-                                    detectedSpeeders[targetPlayerServerId .. GetVehicleNumberPlateText(veh)] = {
-                                        playerId = targetPlayerServerId,
-                                        vehicleName = vehicleName,
-                                        speed = speedKmh,
-                                        timestamp = GetGameTimer()
-                                    }
-                                    -- Clean up old detected speeders to allow re-detection after a while
-                                    CleanOldDetections(30000) -- e.g., 30 seconds cooldown per vehicle/player combo
+                            local vehCoords = GetEntityCoords(veh)
+                            if radarPosition then
+                                local distanceToRadar = #(vehCoords - radarPosition)
+                                local radarRange = (Config.SpeedRadarRange or 50.0)
+                                local radarAngle = (Config.SpeedRadarAngle or 45.0)
+                                local speedLimit = (Config.SpeedLimitKmh or 80.0)
+
+                                if distanceToRadar < radarRange then
+                                    local angleToRadar = CalculateRelativeAngle(radarPosition, radarHeading, vehCoords)
+                                    if math.abs(angleToRadar) < radarAngle then
+                                        local speedKmh = GetEntitySpeed(veh) * 3.6 -- m/s to km/h
+                                        if speedKmh > speedLimit then
+                                            local vehicleModel = GetEntityModel(veh)
+                                            local vehicleName = GetLabelText(GetDisplayNameFromVehicleModel(vehicleModel)) -- Use GetLabelText for localization
+                                            if vehicleName == "NULL" or vehicleName == "" then vehicleName = GetDisplayNameFromVehicleModel(vehicleModel) end -- Fallback if no label
+                                            local targetPlayerName = GetPlayerName(targetPlayerNetId)
+                                            ShowNotification(string.format("~y~Speeding: %s (%s) at %.0f km/h. Press %s to fine.", targetPlayerName, vehicleName, speedKmh, fineSpeederKeyName))
+
+                                            detectedSpeeders[detectionKey] = {
+                                                playerId = targetPlayerServerId,
+                                                playerName = targetPlayerName,
+                                                vehicleName = vehicleName,
+                                                speed = speedKmh,
+                                                timestamp = GetGameTimer()
+                                            }
+                                        end
+                                    end
                                 end
                             end
                         end
                     end
+                    ::continue_vehicles_radar_loop::
                 end
-                ::continue_vehicles::
-            end
 
-            -- Check for "Fine" key press (Example: H key, Keycode 74)
-            if IsControlJustPressed(0, 74) then -- INPUT_VEH_HEADLIGHT (H)
-                local closestSpeeder = nil
-                local minDistance = -1
+                if IsControlJustPressed(0, fineSpeederKey) then
+                    local bestTargetKey = nil
+                    local mostRecentTime = 0
+                    for key, data in pairs(detectedSpeeders) do
+                        if data.timestamp and data.timestamp > mostRecentTime then
+                            local fineTargetPed = GetPlayerPed(GetPlayerFromServerId(data.playerId)) -- Check if target player ped still exists
+                            if DoesEntityExist(fineTargetPed) then
+                                mostRecentTime = data.timestamp
+                                bestTargetKey = key
+                            else
+                                detectedSpeeders[key] = nil -- Clean up if player ped no longer exists
+                            end
+                        end
+                    end
 
-                -- Find the closest detected speeder the cop is looking at / is in front
-                -- This logic can be complex; for now, just take the most recent one or let admin choose from a list (not implemented)
-                -- Simplified: find a recently detected speeder.
-                local recentSpeederKey = nil
-                for key, data in pairs(detectedSpeeders) do
-                    if data.playerId then -- valid entry
-                       recentSpeederKey = key -- take last one for simplicity
-                       break
+                    if bestTargetKey and detectedSpeeders[bestTargetKey] then
+                        local speederData = detectedSpeeders[bestTargetKey]
+                        TriggerServerEvent('cops_and_robbers:vehicleSpeeding', speederData.playerId, speederData.vehicleName, speederData.speed)
+                        ShowNotification(string.format("~b~Fine issued to %s for speeding at %.0f km/h.", speederData.playerName, speederData.speed))
+                        -- Mark as fined by making it seem older, but not too old to allow re-detection if they speed again soon.
+                        detectedSpeeders[bestTargetKey].timestamp = GetGameTimer() - (cooldownTime - (Config.SpeedRadarFineGracePeriodMs or 5000))
+                    else
+                        ShowNotification("~y~No recent speeder targeted, or target no longer valid.")
                     end
                 end
-
-                if recentSpeederKey and detectedSpeeders[recentSpeederKey] then
-                    local speederData = detectedSpeeders[recentSpeederKey]
-                    TriggerServerEvent('cops_and_robbers:vehicleSpeeding', speederData.playerId, speederData.vehicleName, speederData.speed)
-                    ShowNotification(string.format("~b~Fine command sent for player %s.", GetPlayerName(GetPlayerPed(GetPlayerFromServerId(speederData.playerId)))))
-                    detectedSpeeders[recentSpeederKey] = nil -- Clear after fining to prevent immediate re-fine
-                else
-                    ShowNotification("~y~No recent speeder targeted to fine.")
-                end
+                CleanOldDetections(Config.SpeedRadarCleanupTime or 60000) -- Clean up very old entries
             end
+        else
+            if isRadarActive then -- If player changes role while radar is active
+                isRadarActive = false
+                ShowNotification("~r~Speed radar deactivated due to role change.")
+            end
+            frameWait = 2000 -- Check less often if not a cop
         end
+        Citizen.Wait(frameWait)
     end
 end)
 
+--[[ -- Helper functions moved into the radar thread to keep them local.
 function CalculateRelativeAngle(pos1, heading1, pos2)
     local angle = math.atan2(pos2.y - pos1.y, pos2.x - pos1.x) * (180 / math.pi)
     local relativeAngle = angle - heading1
@@ -864,11 +1298,12 @@ end
 function CleanOldDetections(timeoutMs)
     local currentTime = GetGameTimer()
     for key, data in pairs(detectedSpeeders) do
-        if currentTime - data.timestamp > timeoutMs then
+        if currentTime - (data.timestamp or 0) > timeoutMs then -- Ensure data.timestamp exists
             detectedSpeeders[key] = nil
         end
     end
 end
+--]]
 
 -- =====================================
 --           STORE FUNCTIONS
@@ -945,37 +1380,57 @@ local isBeingSubdued = false
 -- Cop initiates subdue
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
-        if role == 'cop' and not isSubduing and IsControlJustPressed(0, 47) then -- INPUT_WEAPON_SPECIAL_TWO (G key placeholder)
-            local playerPed = PlayerPedId()
-            -- Simplistic: find nearest player, check if robber. A proper target selection is needed.
-            local closestPlayer, closestDistance = -1, -1
-            for _, pId in ipairs(GetActivePlayers()) do
-                if pId ~= PlayerId() then -- Don't target self
-                    local targetPed = GetPlayerPed(pId)
-                    if DoesEntityExist(targetPed) and playerRoles[GetPlayerServerId(pId)] == 'robber' then -- Check role via server data (if available client-side) or need server check
-                        local distance = #(GetEntityCoords(playerPed) - GetEntityCoords(targetPed))
-                        if closestDistance == -1 or distance < closestDistance then
-                            closestDistance = distance
-                            closestPlayer = pId
+        local frameWait = 500 -- Default wait, check less often if not a cop or already subduing
+        if role == 'cop' and not isSubduing then
+            frameWait = 0 -- Check every frame for input if cop and not subduing
+            if IsControlJustPressed(0, (Config.Keybinds and Config.Keybinds.tackleSubdue) or 47) then -- INPUT_WEAPON_SPECIAL_TWO (G key placeholder) or from config
+                local playerPed = PlayerPedId()
+                local playerCoords = GetEntityCoords(playerPed)
+                local closestPlayerId = -1
+                local closestDistance = -1
+
+                -- Find nearest player. Server must validate if the target is actually a robber and can be tackled.
+                for _, pId in ipairs(GetActivePlayers()) do
+                    if pId ~= PlayerId() then -- Don't target self
+                        local targetPed = GetPlayerPed(pId)
+                        if DoesEntityExist(targetPed) then
+                            local distance = #(playerCoords - GetEntityCoords(targetPed))
+                            if closestDistance == -1 or distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayerId = pId
+                            end
                         end
                     end
                 end
-            end
 
-            if closestPlayer ~= -1 and closestDistance <= Config.TackleDistance then
-                local targetServerId = GetPlayerServerId(closestPlayer)
-                ShowNotification("~b~Attempting to tackle...")
-                TriggerServerEvent('cops_and_robbers:startSubdue', targetServerId)
-                isSubduing = true -- Prevent spamming tackle
-                -- TODO: Play tackle animation for cop: TaskPlayAnim(playerPed, "melee@unarmed@streamed_variations", "plyr_takedown_front", 8.0, -8.0, -1, 0, 0, false, false, false)
-                SetTimeout(Config.SubdueTime + 500, function() isSubduing = false end) -- Reset ability to tackle
-            elseif closestPlayer ~= -1 then
-                 ShowNotification(string.format("~r~Too far to tackle (%.1fm).", closestDistance))
-            else
-                ShowNotification("~y~No robber found to tackle.")
+                local tackleDistance = (Config.TackleDistance or 2.0)
+                if closestPlayerId ~= -1 and closestDistance <= tackleDistance then
+                    local targetServerId = GetPlayerServerId(closestPlayerId)
+                    if targetServerId ~= -1 then
+                        ShowNotification("~b~Attempting to tackle...")
+                        -- Example Animation (ensure anim dict is loaded):
+                        -- RequestAnimDict("melee@unarmed@streamed_variations")
+                        -- while not HasAnimDictLoaded("melee@unarmed@streamed_variations") do Citizen.Wait(50) end
+                        -- TaskPlayAnim(playerPed, "melee@unarmed@streamed_variations", "plyr_takedown_front", 8.0, -8.0, -1, 0, 0, false, false, false)
+
+                        TriggerServerEvent('cops_and_robbers:startSubdue', targetServerId)
+                        isSubduing = true -- Prevent spamming tackle
+
+                        SetTimeout((Config.SubdueTimeMs or 3000) + 500, function()
+                            isSubduing = false
+                            -- ClearPedTasks(playerPed) -- Optional: Stop animation if still playing and it's looping
+                        end)
+                    else
+                        ShowNotification("~r~Could not get target server ID for tackle.")
+                    end
+                elseif closestPlayerId ~= -1 then
+                    ShowNotification(string.format("~r~Target is too far to tackle (%.1fm). Required: %.1fm", closestDistance, tackleDistance))
+                else
+                    ShowNotification("~y~No player found nearby to tackle.")
+                end
             end
         end
+        Citizen.Wait(frameWait)
     end
 end)
 
@@ -984,23 +1439,45 @@ RegisterNetEvent('cops_and_robbers:beginSubdueSequence')
 AddEventHandler('cops_and_robbers:beginSubdueSequence', function(copServerId)
     isBeingSubdued = true
     local playerPed = PlayerPedId()
-    ShowNotification("~r~You are being tackled by a Cop!")
-    FreezeEntityPosition(playerPed, true)
-    -- TODO: Play tackled animation for robber: TaskPlayAnim(playerPed, "combat@damage@writheid", "writhe_loop", 8.0, -8.0, -1, 1, 0, false, false, false)
+    local copName = GetPlayerName(GetPlayerFromServerId(copServerId)) or "a Cop"
+    ShowNotification("~r~You are being tackled by " .. copName .. "!")
 
-    -- Simplified: No minigame, just wait. Robber can't escape in this version.
-    SetTimeout(Config.SubdueTime, function()
-        if isBeingSubdued then -- Still subdued (not escaped, though escape not implemented here)
-            FreezeEntityPosition(playerPed, false)
+    -- Example Animation (ensure anim dict is loaded):
+    -- RequestAnimDict("combat@damage@writheid")
+    -- while not HasAnimDictLoaded("combat@damage@writheid") do Citizen.Wait(50) end
+    -- TaskPlayAnim(playerPed, "combat@damage@writheid", "writhe_loop", 8.0, -8.0, Config.SubdueTimeMs or 3000, 1, 0, false, false, false) -- Play animation for duration
+
+    FreezeEntityPosition(playerPed, true) -- Freeze player
+    -- Consider more granular control disabling if needed, e.g., DisableControlAction
+
+    -- Server ultimately controls the arrest after SubdueTimeMs.
+    -- This timeout is for client-side state reset.
+    SetTimeout(Config.SubdueTimeMs or 3000, function()
+        if isBeingSubdued then
+            -- Unfreezing and task clearing should ideally be synced with server action (e.g., arrest, escape, cancel)
+            -- For now, client resets its state. Server might send an explicit unfreeze event.
             isBeingSubdued = false
-            ShowNotification("~g~Subdue finished.") -- Server will handle actual arrest.
+            ShowNotification("~g~Subdue period ended. Awaiting server action.")
+            -- ClearPedTasks(playerPed) -- Stop animation if it was looping
+            -- FreezeEntityPosition(playerPed, false) -- Avoid doing this unless server confirms release/failed arrest
         end
     end)
-    -- Placeholder for escape mechanic:
-    -- Start a minigame. If success: TriggerServerEvent('cops_and_robbers:escapeSubdue') isBeingSubdued = false; FreezeEntityPosition(playerPed, false)
+
+    -- Placeholder for an Escape Minigame:
+    -- if Config.EnableTackleEscapeMinigame then
+    --   StartTackleEscapeMinigame(function(success)
+    --     if success and isBeingSubdued then
+    --       TriggerServerEvent('cops_and_robbers:escapeSubdue', copServerId)
+    --       isBeingSubdued = false
+    --       FreezeEntityPosition(playerPed, false)
+    --       ClearPedTasks(playerPed)
+    --       ShowNotification("~g~You escaped!")
+    --     end
+    --   end)
+    -- end
 end)
 
-RegisterNetEvent('cops_and_robbers:subdueCancelled') -- If cop moves too far or cancels
+RegisterNetEvent('cops_and_robbers:subdueCancelled') -- If cop moves too far, dies, or cancels subdue
 AddEventHandler('cops_and_robbers:subdueCancelled', function()
     if isBeingSubdued then
         isBeingSubdued = false
@@ -1025,35 +1502,49 @@ Citizen.CreateThread(function()
 
     while true do
         Citizen.Wait(k9KeybindWait)
-        -- Example: Press 'K' to call/dismiss K9 (if has k9whistle item)
-        if role == 'cop' and IsControlJustPressed(0, 31) then -- INPUT_VEH_CIN_CAM (K key placeholder)
-            if k9Ped and DoesEntityExist(k9Ped) then
-                TriggerServerEvent('cops_and_robbers:dismissK9') -- Ask server to despawn K9
-            else
-                -- TODO: Check if player has 'k9whistle' in inventory
-                ShowNotification("~b~Using K9 Whistle...")
-                TriggerServerEvent('cops_and_robbers:spawnK9')
-            end
-        end
-
-        -- Example: Press 'L' to command K9 to attack nearest robber (if K9 active)
-        if role == 'cop' and k9Ped and DoesEntityExist(k9Ped) and IsControlJustPressed(0, 38) then -- INPUT_CONTEXT (L key placeholder for attack command)
-            local closestRobberPed, dist = GetClosestRobberPed(GetEntityCoords(PlayerPedId()), 50.0) -- 50m search radius
-            if closestRobberPed then
-                local targetRobberServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(closestRobberPed))
-                if targetRobberServerId and targetRobberServerId ~= -1 then -- Ensure valid server ID
-                    ShowNotification("~y~K9: Commanding attack!")
-                    TriggerServerEvent('cops_and_robbers:commandK9', targetRobberServerId, "attack") -- k9NetId removed
+        if role == 'cop' then
+            -- K9 Spawn/Dismiss Keybind
+            local toggleK9Key = (Config.Keybinds and Config.Keybinds.toggleK9) or 31 -- 31: INPUT_VEH_CIN_CAM (K)
+            if IsControlJustPressed(0, toggleK9Key) then
+                if k9Ped and DoesEntityExist(k9Ped) then
+                    ShowNotification("~y~Dismissing K9 unit...")
+                    TriggerServerEvent('cops_and_robbers:dismissK9')
                 else
-                    ShowNotification("~y~K9: Could not identify target for attack.")
+                    -- TODO: Implement client-side inventory check for 'k9whistle' if desired for immediate feedback.
+                    -- local hasWhistle = CheckForItemClient('k9whistle') -- Example placeholder
+                    -- if hasWhistle then
+                    ShowNotification("~b~Using K9 Whistle...")
+                    TriggerServerEvent('cops_and_robbers:spawnK9')
+                    -- else
+                    --   ShowNotification("~r~You don't have a K9 Whistle.")
+                    -- end
                 end
-            else
-                ShowNotification("~y~K9: No robbers found nearby to attack.")
+            end
+
+            -- K9 Attack Command Keybind
+            local commandK9AttackKey = (Config.Keybinds and Config.Keybinds.commandK9Attack) or 38 -- 38: INPUT_CONTEXT (L)
+            if k9Ped and DoesEntityExist(k9Ped) and IsControlJustPressed(0, commandK9AttackKey) then
+                local playerPed = PlayerPedId()
+                local searchRadius = (Config.K9AttackSearchRadius or 50.0)
+                -- GetClosestPlayerPed finds the nearest player; server MUST validate if this player is a valid target (e.g., a robber).
+                local closestTargetPed, dist = GetClosestPlayerPed(GetEntityCoords(playerPed), searchRadius, true) -- true = ignore self
+
+                if closestTargetPed then
+                    local targetServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(closestTargetPed))
+                    if targetServerId and targetServerId ~= -1 then -- Ensure valid server ID
+                        ShowNotification("~y~K9: Commanding attack on " .. GetPlayerName(NetworkGetPlayerIndexFromPed(closestTargetPed)) .. "!")
+                        TriggerServerEvent('cops_and_robbers:commandK9', targetServerId, "attack")
+                    else
+                        ShowNotification("~y~K9: Could not identify target for attack.")
+                    end
+                else
+                    ShowNotification("~y~K9: No target found nearby to command attack.")
+                end
             end
         end
 
         -- Keep K9 following if it exists and no other urgent task (this part can be in a slightly longer interval loop)
-        -- This is a simplified follow logic. A more advanced K9 would have better pathing and state handling.
+        -- This is a simplified follow logic. A more advanced K9 would have better pathing, state handling, and obstacle avoidance.
         if k9Ped and DoesEntityExist(k9Ped) and IsPedOnFoot(PlayerPedId()) then
             if (GetGameTimer() - lastFollowTaskTime) > k9FollowTaskWait then
                 local currentTaskStatus = GetActivityLevel(k9Ped) -- 0=idle/none, 1=alert/moving, 2=action/combat/fleeing
@@ -1133,29 +1624,39 @@ AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServer
     end
 end)
 
-function GetClosestRobberPed(coords, radius)
+-- Helper function to get the closest player ped (excluding self if specified)
+-- Note: This does NOT check for role. Role validation should be server-side.
+-- @param coords vector3: The center point to search from.
+-- @param radius float: The search radius.
+-- @param excludeSelf boolean: Whether to exclude the current player from results.
+-- @return ped, distance: The closest ped entity and distance, or nil, -1 if none found.
+function GetClosestPlayerPed(coords, radius, excludeSelf)
     local closestPed, closestDist = nil, -1
-    local players = GetActivePlayers()
-    for _, pId in ipairs(players) do
-        local targetPed = GetPlayerPed(pId)
-        if DoesEntityExist(targetPed) and targetPed ~= PlayerPedId() then
-            -- Assuming playerRoles table is populated on client for other players or we add specific 'isRobber' state
-            -- This is a simplification; server should ideally confirm target is a robber.
-            -- For this example, we'll just find closest player who isn't self.
-            -- In a full system, you'd check their role.
-            -- if playerRoles[GetPlayerServerId(pId)] == 'robber' then
-                local dist = #(coords - GetEntityCoords(targetPed))
-                if dist < radius then
-                    if not closestPed or dist < closestDist then
-                        closestPed = targetPed
-                        closestDist = dist
-                    end
-                end
-            -- end
+    local selfPlayerId = PlayerId() -- Get current player's client ID
+
+    for _, pId in ipairs(GetActivePlayers()) do -- Iterate over all active players
+        if excludeSelf and pId == selfPlayerId then
+            goto continue_k9_player_loop -- Skip self if excludeSelf is true
         end
+
+        local targetPed = GetPlayerPed(pId) -- Get ped handle for the player
+        if DoesEntityExist(targetPed) then
+            local dist = #(coords - GetEntityCoords(targetPed)) -- Calculate distance
+            if dist < radius then
+                if not closestPed or dist < closestDist then -- If this is the first found or closer than previous
+                    closestPed = targetPed
+                    closestDist = dist
+                end
+            end
+        end
+        ::continue_k9_player_loop:: -- Label for goto statement
     end
     return closestPed, closestDist
 end
+
+-- Deprecated GetClosestRobberPed, as role checking should be server-side.
+-- Players can use GetClosestPlayerPed and server validates if that player is a robber.
+-- function GetClosestRobberPed(coords, radius) ... end
 
 
 -- =====================================
@@ -1316,16 +1817,26 @@ end)
 -- Robber: Activate EMP (Placeholder key: NumPad 0, or tie to item usage)
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
-        if role == 'robber' and IsControlJustPressed(0, 121) then -- INPUT_SELECT_WEAPON_UNARMED (NumPad 0 placeholder)
-            -- TODO: Check if player has 'empdevice' from their local inventory representation
-            ShowNotification("~b~Activating EMP device...")
-            TriggerServerEvent('cops_and_robbers:activateEMP')
+        local frameWait = 500 -- Default wait
+        if role == 'robber' then
+            frameWait = 0 -- Check input every frame if robber
+            local activateEMPKey = (Config.Keybinds and Config.Keybinds.activateEMP) or 121 -- 121: INPUT_SELECT_WEAPON_UNARMED (NumPad 0)
+            if IsControlJustPressed(0, activateEMPKey) then
+                -- TODO: Client-side check if player has 'empdevice' from their local inventory representation
+                -- local hasEMP = CheckForItemClient('emp_device') -- Example placeholder
+                -- if hasEMP then
+                ShowNotification("~b~Activating EMP device...")
+                TriggerServerEvent('cops_and_robbers:activateEMP')
+                -- else
+                --   ShowNotification("~r~You don't have an EMP device.")
+                -- end
+            end
         end
+        Citizen.Wait(frameWait)
     end
 end)
 
--- Cop: Handle being EMPed
+-- Cop: Handle being EMPed by a robber
 RegisterNetEvent('cops_and_robbers:vehicleEMPed')
 AddEventHandler('cops_and_robbers:vehicleEMPed', function(vehicleNetIdToEMP, durationMs)
     local playerPed = PlayerPedId()
@@ -1340,15 +1851,20 @@ AddEventHandler('cops_and_robbers:vehicleEMPed', function(vehicleNetIdToEMP, dur
         SetVehicleUndriveable(targetVehicle, true) -- Make it undriveable
 
         -- Visual/Audio effects (placeholder)
-        -- TriggerScreenblurFadeIn(durationMs / 2)
-        -- PlaySoundFrontend(-1, "EMP_Blast", "DLC_AW_Weapon_Sounds", true)
+        -- Consider using custom screen effects or sounds if available
+        -- Example: TriggerScreenblurFadeIn(durationMs / 2) -- Ensure this is a defined function or use alternatives
+        -- PlaySoundFrontend(-1, "EMP_Blast", "DLC_AW_Weapon_Sounds", true) -- Ensure sound pack is loaded
 
         SetTimeout(durationMs, function()
             if DoesEntityExist(targetVehicle) then
                 SetVehicleUndriveable(targetVehicle, false)
-                -- Engine might need to be manually started by player if they didn't leave vehicle
+                -- Engine might need to be manually started by player if they didn't leave vehicle.
+                -- Attempt to restart if player is still in the driver seat.
+                if GetPedInVehicleSeat(targetVehicle, -1) == playerPed then
+                    SetVehicleEngineOn(targetVehicle, true, true, false)
+                end
                 ShowNotification("~g~Vehicle systems recovering from EMP.")
-                -- TriggerScreenblurFadeOut(durationMs / 2)
+                -- Example: TriggerScreenblurFadeOut(durationMs / 2) -- Ensure this is a defined function
             end
         end)
     end
@@ -1423,26 +1939,49 @@ local isAdminPanelOpen = false
 -- Keybind for Admin Panel (e.g., F10 - Keycode 57 for INPUT_REPLAY_STOPRECORDING)
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
-        if IsControlJustPressed(0, 57) then -- F10 key, placeholder
-            isAdminPanelOpen = not isAdminPanelOpen
-            if isAdminPanelOpen then
+        Citizen.Wait(0) -- Check every frame for this input
+        local toggleAdminPanelKey = (Config.Keybinds and Config.Keybinds.toggleAdminPanel) or 57 -- 57: INPUT_REPLAY_STOPRECORDING (F10)
+        if IsControlJustPressed(0, toggleAdminPanelKey) then
+            if not isAdminPanelOpen then
+                -- Client attempts to open, server will verify admin status via 'cops_and_robbers:requestAdminDataForUI'
+                -- and respond with 'cops_and_robbers:showAdminUI' including an isAdminFlag.
+                ShowNotification("~b~Requesting Admin Panel data...")
                 TriggerServerEvent('cops_and_robbers:requestAdminDataForUI')
             else
-                SendNUIMessage({ action = 'hideAdminPanel' }) -- Tell JS to hide it
+                -- If panel is already open, this key press closes it.
+                SendNUIMessage({ action = 'hideAdminPanel' })
                 SetNuiFocus(false, false)
+                isAdminPanelOpen = false
+                ShowNotification("~y~Admin Panel closed.")
             end
         end
     end
 end)
 
 RegisterNetEvent('cops_and_robbers:showAdminUI')
-AddEventHandler('cops_and_robbers:showAdminUI', function(playerList)
-    SendNUIMessage({
-        action = 'showAdminPanel',
-        players = playerList
-    })
-    -- NUI focus is set by showAdminPanel in JS
+AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
+    if not isAdminFlag then
+        ShowNotification("~r~Admin Panel access denied by server.")
+        isAdminPanelOpen = false -- Ensure state is consistent
+        SetNuiFocus(false, false) -- Ensure NUI focus is released
+        return
+    end
+
+    if not isAdminPanelOpen then -- If it was previously closed and now server confirms admin and sends data
+        isAdminPanelOpen = true
+        SendNUIMessage({
+            action = 'showAdminPanel',
+            players = playerList
+        })
+        SetNuiFocus(true, true) -- Set NUI focus only when panel is actually shown with admin rights
+        ShowNotification("~g~Admin Panel opened.")
+    elseif isAdminPanelOpen and playerList then -- If panel is already open, just refresh player list
+         SendNUIMessage({
+            action = 'refreshAdminPanelPlayers', -- Assuming JS handles this action to update list
+            players = playerList
+        })
+        ShowNotification("~b~Admin Panel player list refreshed.")
+    end
 end)
 
 RegisterNetEvent('cops_and_robbers:teleportToPlayerAdminUI')
@@ -1457,15 +1996,16 @@ end)
 --           PLAYER POSITION & WANTED LEVEL UPDATES
 -- =====================================
 
--- Periodically send player position and wanted level to the server
+-- Periodically send player position and current wanted level to the server
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(5000) -- Update interval: Every 5 seconds
+        Citizen.Wait(Config.ClientPositionUpdateInterval or 5000) -- Update interval from config or default to 5 seconds
+
         local playerPed = PlayerPedId()
-        if DoesEntityExist(playerPed) then
+        if DoesEntityExist(playerPed) and role then -- Only send updates if player ped exists and role is assigned
             local playerPos = GetEntityCoords(playerPed)
-            -- wantedLevel should be updated based on game events (e.g., police interaction)
-            TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, wantedLevel)
+            -- Send currentWantedStarsClient instead of the deprecated 'wantedLevel'
+            TriggerServerEvent('cops_and_robbers:updatePosition', playerPos, currentWantedStarsClient)
         end
     end
 end)

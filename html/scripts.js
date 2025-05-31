@@ -36,10 +36,50 @@ window.addEventListener('message', function(event) {
         case 'startHeistTimer':
             startHeistTimer(data.duration, data.bankName);
             break;
+        case 'updateXPBar': // New case for XP Bar
+            updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
 });
+
+// =================================================================---
+// XP Level Display Functions
+// =================================================================---
+/**
+ * Updates the XP bar and level display elements in the NUI.
+ * @param {number} xp - Current XP of the player.
+ * @param {number} level - Current level of the player.
+ * @param {number|string} nextLvlXp - XP needed for the next level segment, or a string like "Max" or current XP if max level.
+ */
+function updateXPDisplayElements(xp, level, nextLvlXp) {
+    const levelTextElement = document.getElementById('level-text');
+    const xpTextElement = document.getElementById('xp-text');
+    const xpBarFillElement = document.getElementById('xp-bar-fill');
+    const xpLevelContainer = document.getElementById('xp-level-container');
+
+    if (xpLevelContainer) {
+        xpLevelContainer.style.display = 'flex'; // Make sure it's visible
+    }
+
+    if (levelTextElement) {
+        levelTextElement.textContent = "LVL " + level;
+    }
+    if (xpTextElement) {
+        xpTextElement.textContent = xp + " / " + nextLvlXp + " XP";
+    }
+    if (xpBarFillElement) {
+        let percentage = 0;
+        if (typeof nextLvlXp === 'number' && nextLvlXp > 0) {
+            percentage = (xp / nextLvlXp) * 100;
+        } else if (xp >= nextLvlXp) { // Handles "Max" or if current XP is passed as nextLvlXp for max level
+            percentage = 100;
+        }
+        percentage = Math.max(0, Math.min(100, percentage)); // Clamp between 0 and 100
+        xpBarFillElement.style.width = percentage + '%';
+    }
+}
 
 // =================================================================---
 // UI Visibility Functions (Role Selection & Store)
@@ -432,6 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // if (document.getElementById('store-menu') && document.getElementById('item-list') && window.currentTab === 'buy') {
     //     loadItems(); // This might require window.items to be populated by an earlier NUI message.
     // }
+
+    // Initial state for XP bar - assuming it might be hidden by default via CSS or needs an initial call
+    // updateXPDisplayElements(0, 1, Config.XPTable[2] || 100); // Example initial call, needs Config access or default
+    // Better to have client.lua send initial state upon player load.
 });
 
 // -------------------------------------------------------------------
@@ -622,5 +666,45 @@ window.addEventListener('message', function(event) {
         case 'showAdminPanel': // New action from client.lua
             showAdminPanel(data.players);
             break;
+        case 'updateXPBar': // New case for XP Bar from client.lua
+            updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
+            break;
     }
 });
+
+/**
+ * Updates the XP bar and level display elements in the NUI.
+ * @param {number} xp - Current XP of the player.
+ * @param {number} level - Current level of the player.
+ * @param {number|string} nextLvlXp - XP needed for the next level segment, or a string like "Max" or current XP if max level.
+ */
+function updateXPDisplayElements(xp, level, nextLvlXp) {
+    const levelTextEl = document.getElementById('level-text');
+    const xpTextEl = document.getElementById('xp-text');
+    const xpBarFillEl = document.getElementById('xp-bar-fill');
+    const xpLevelContainerEl = document.getElementById('xp-level-container');
+
+    if (levelTextEl && xpTextEl && xpBarFillEl && xpLevelContainerEl) {
+        levelTextEl.textContent = "LVL " + level;
+        xpTextEl.textContent = xp + " / " + nextLvlXp + " XP";
+
+        let xpPercentage = 0;
+        // If nextLvlXp is "Max" (or similar string) or if current XP is already the "next level" value (at max level)
+        if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
+            if (level >= (window.ConfigMaxLevel || 10) ) { // Assuming ConfigMaxLevel might be exposed or use a default
+                 percentage = 100; // At max level, bar is full
+            } else if (typeof nextLvlXp === 'number' && nextLvlXp > 0) { // If nextLvlXp is a number (e.g. current XP when maxed)
+                 percentage = (xp / nextLvlXp) * 100;
+            } else { // Fallback if nextLvlXp is not a number and not max level (e.g. "Error" string)
+                percentage = 0;
+            }
+        } else if (nextLvlXp > 0) {
+            percentage = (xp / nextLvlXp) * 100;
+        }
+
+        xpBarFillEl.style.width = Math.max(0, Math.min(100, percentage)) + '%'; // Clamp between 0-100
+        xpLevelContainerEl.style.display = 'flex'; // Make it visible
+    } else {
+        console.error("One or more XP display elements not found in HTML.");
+    }
+}

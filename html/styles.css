@@ -363,3 +363,52 @@ button:hover {
 .hidden {
     display: none !important; /* Ensure hidden class works */
 }
+
+/* ==========================================================================
+   XP Level Display Styles
+   ========================================================================== */
+#xp-level-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex; /* Use flexbox for alignment */
+    align-items: center; /* Vertically align items in the container */
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 8px 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    z-index: 90; /* Below admin panel but above general game */
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+#level-text {
+    font-size: 16px;
+    font-weight: bold;
+    margin-right: 10px;
+    color: #FFD700; /* Gold color for level */
+}
+
+#xp-bar-background {
+    width: 200px; /* Fixed width for the XP bar */
+    height: 18px;
+    background-color: #555; /* Dark grey background */
+    border: 1px solid #333;
+    border-radius: 5px;
+    overflow: hidden; /* Ensure fill doesn't spill out */
+    margin-right: 10px;
+}
+
+#xp-bar-fill {
+    width: 0%; /* Initial width, will be updated by JS */
+    height: 100%;
+    background-color: #4CAF50; /* Green for XP progress */
+    border-radius: 4px; /* Slightly smaller to fit inside background */
+    transition: width 0.3s ease-in-out; /* Smooth transition for width changes */
+}
+
+#xp-text {
+    font-size: 14px;
+    color: #eee; /* Light grey for XP text */
+}
