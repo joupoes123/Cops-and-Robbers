@@ -35,10 +35,6 @@ end
 
 -- Helper function to get player identifiers safely
 local function GetSafePlayerIdentifiers(playerId)
-    -- Check if sv_exposePlayerIdentifiersInHttpEndpoint is enabled before proceeding
-    if GetConvar("sv_exposePlayerIdentifiersInHttpEndpoint", "false") == "false" then
-        return nil
-    end
     return GetPlayerIdentifiers(playerId)
 end
 
@@ -53,13 +49,6 @@ local function IsValidPlayer(targetId)
         end
     end
     return false
-end
-
--- Stub for weapon validation (if not defined elsewhere)
-local function IsWeaponValid(weaponHash)
-    -- Implement actual weapon validation logic if necessary.
-    -- For now, assume any non-zero weapon hash is valid.
-    return weaponHash and weaponHash ~= 0
 end
 
 -----------------------------------------------------------
@@ -184,8 +173,8 @@ RegisterCommand("giveweapon", function(source, args, rawCommand)
     local weaponName = args[2]
 
     if targetId and IsValidPlayer(targetId) and weaponName then
-        local weaponHash = GetHashKey(weaponName)
-        if IsWeaponValid(weaponHash) then
+        -- local weaponHash = GetHashKey(weaponName) -- Line removed by subtask
+        if weaponName and string.len(weaponName) > 0 then -- Modified by subtask: Basic check for non-empty weaponName
             TriggerServerEvent('cops_and_robbers:logAdminCommand', GetPlayerName(source), source, rawCommand) -- Log before action
             TriggerServerEvent('cops_and_robbers:giveWeapon', targetId, weaponName) -- Changed to server event
             TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Gave weapon " .. weaponName .. " to " .. GetPlayerName(targetId) } })

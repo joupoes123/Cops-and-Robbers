@@ -54,29 +54,7 @@ Config.CivilianVehicles = { "sultan", "futo", "blista", "banshee", "elegy2", "st
 -- This 'Config.Experience' table seems to be a legacy or alternative leveling system.
 -- The newer, more detailed system is defined under 'Player Leveling System (New)' further down.
 -- Consider removing or integrating this if it's redundant.
-Config.Experience = {
-    Levels = {
-        { level = 1, exp = 0 },
-        { level = 2, exp = 1000 },
-        { level = 3, exp = 3000 },
-        { level = 4, exp = 6000 },
-        { level = 5, exp = 10000 },
-    },
-    Rewards = {
-        ['robber'] = {
-            [2] = { cash = 500,  item = 'lockpick' },
-            [3] = { cash = 1000, item = 'drill' },
-            [4] = { cash = 2000, item = 'thermal_charge' }, -- Note: 'thermal_charge' not in Config.Items
-            [5] = { cash = 5000, item = 'gold_bar' },       -- Note: 'gold_bar' not in Config.Items as a purchasable item
-        },
-        ['cop'] = {
-            [2] = { cash = 500,  item = 'taser' },           -- Note: 'taser' not in Config.Items
-            [3] = { cash = 1000, item = 'stun_gun' },        -- Note: 'stun_gun' not in Config.Items
-            [4] = { cash = 2000, item = 'carbine_rifle' },   -- Refers to weapon_carbinerifle
-            [5] = { cash = 5000, item = 'swat_gear' },       -- Note: 'swat_gear' not in Config.Items
-        },
-    },
-}
+-- Config.Experience table (lines 40-61) removed by subtask
 
 
 -- =========================
@@ -84,13 +62,7 @@ Config.Experience = {
 -- =========================
 -- Note: This simple wanted level system is mostly superseded by the advanced Config.WantedSettings below.
 -- It might still be used for basic NPC police response or simple UI elements if not fully removed or integrated.
-Config.WantedLevels = {
-    [1] = { stars = 1, description = "Minor Offenses" },
-    [2] = { stars = 2, description = "Felony" },
-    [3] = { stars = 3, description = "Serious Crime" },
-    [4] = { stars = 4, description = "High Alert" },
-    [5] = { stars = 5, description = "Most Wanted" },
-}
+-- Config.WantedLevels table (lines 66-74) removed by subtask
 
 
 -- =========================
@@ -223,7 +195,7 @@ Config.RobbableStores = { -- List of stores that can be robbed
     { name = "24/7 Strawberry",       location = vector3(25.0, -1340.0, 29.0),  rewardMin = 5000, rewardMax = 9000, cooldown = 400, copsNeeded = 2, radius = 10.0, duration = 60000 },
     -- Add more stores here: { name, location (vector3), rewardMin, rewardMax (cash), cooldown (seconds), copsNeeded (integer), radius (meters for interaction), duration (ms for robbing) }
 }
-Config.StoreRobberyDuration   = 60000  -- DEPRECATED by per-store duration. Default milliseconds a robber must stay in store if not set per store.
+-- Config.StoreRobberyDuration line removed by subtask
 
 Config.ArmoredCar = {
     model          = "stockade",                       -- Vehicle model for the armored car.
