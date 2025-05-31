@@ -249,3 +249,117 @@ button:hover {
         margin-bottom: 5px; /* Space below input */
     }
 }
+
+/* ==========================================================================
+   Admin Panel Styles
+   ========================================================================== */
+#admin-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px;
+    max-width: 95%;
+    max-height: 80vh;
+    background-color: #2c3e50; /* Dark blue-grey */
+    color: #ecf0f1; /* Light grey text */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    z-index: 100; /* Ensure it's above other UI */
+}
+
+#admin-panel h1, #admin-panel h2 {
+    color: #e74c3c; /* Reddish titles */
+    text-align: center;
+    margin-top: 0;
+}
+
+.admin-controls {
+    margin-bottom: 15px;
+    text-align: right;
+}
+
+.admin-player-list-container {
+    overflow-y: auto; /* Scrollable player list */
+    flex-grow: 1;
+    background-color: rgba(0,0,0,0.2);
+    padding: 5px;
+    border-radius: 4px;
+}
+
+#admin-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+#admin-panel th, #admin-panel td {
+    border: 1px solid #34495e; /* Slightly lighter blue-grey border */
+    padding: 8px;
+    text-align: left;
+}
+
+#admin-panel th {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+#admin-panel tr:nth-child(even) {
+    background-color: #34495e;
+}
+
+#admin-panel .admin-action-btn {
+    padding: 5px 8px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.admin-kick-btn { background-color: #f39c12; color: #fff; } /* Orange */
+.admin-ban-btn { background-color: #c0392b; color: #fff; }  /* Darker Red */
+.admin-teleport-btn { background-color: #2980b9; color: #fff; } /* Blue */
+
+#admin-ban-reason-container {
+    padding: 10px;
+    background-color: #34495e;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+#admin-ban-reason {
+    width: calc(100% - 22px); /* Adjust for padding/border */
+    padding: 8px;
+    margin-bottom: 10px;
+    border-radius: 3px;
+    border: 1px solid #2c3e50;
+}
+
+#admin-panel button { /* General button styling within admin panel */
+    background-color: #555;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 3px;
+}
+#admin-panel button:hover {
+    opacity: 0.8;
+}
+
+#admin-close-btn {
+    background-color: #7f8c8d; /* Grey */
+}
+
+#admin-ban-reason-container button {
+    margin-right: 10px;
+}
+#admin-confirm-ban-btn { background-color: #c0392b; }
+#admin-cancel-ban-btn { background-color: #7f8c8d; }
+
+.hidden {
+    display: none !important; /* Ensure hidden class works */
+}

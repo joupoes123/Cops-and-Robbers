@@ -40,5 +40,36 @@
     </section>
 
     <script src="scripts.js"></script>
+
+    <!-- Admin Panel Section -->
+    <section id="admin-panel" class="hidden" role="dialog" aria-labelledby="adminPanelTitle" aria-modal="true">
+        <h1 id="adminPanelTitle">Admin Panel</h1>
+        <div class="admin-controls">
+            <button id="admin-close-btn" aria-label="Close Admin Panel">Close Panel</button>
+        </div>
+        <h2>Player List</h2>
+        <div class="admin-player-list-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Role</th>
+                        <th>Cash</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-player-list-body">
+                    <!-- Player rows will be injected here by scripts.js -->
+                </tbody>
+            </table>
+        </div>
+        <div id="admin-ban-reason-container" class="hidden" style="margin-top: 10px;">
+            <label for="admin-ban-reason">Ban Reason:</label>
+            <input type="text" id="admin-ban-reason" placeholder="Enter reason for ban">
+            <button id="admin-confirm-ban-btn">Confirm Ban</button>
+            <button id="admin-cancel-ban-btn">Cancel</button>
+        </div>
+    </section>
 </body>
 </html>
