@@ -129,9 +129,11 @@ Config.NPCVendors = {
 
 
 -- =========================
---      Item Definitions
+--      Item Definitions (for Stores & NPC Vendors)
 -- =========================
-
+-- Defines items available for purchase, their prices, and categories.
+-- 'forCop = true' restricts item visibility/purchase to players with the 'cop' role in stores.
+-- 'category' is used for NUI store filtering.
 Config.Items = {
     -- Weapons
     { name = "Pistol", itemId = "weapon_pistol", basePrice = 500, category = "Weapons" },
@@ -184,75 +186,75 @@ Config.Items = {
 -- =========================
 -- Cop Feature Settings
 -- =========================
-Config.SpikeStripDuration = 60000 -- milliseconds (60 seconds) until a spike strip automatically despawns
-Config.MaxDeployedSpikeStrips = 3 -- Max spike strips a cop can have deployed simultaneously
+Config.SpikeStripDuration = 60000           -- milliseconds (e.g., 60 seconds) until a spike strip automatically despawns.
+Config.MaxDeployedSpikeStrips = 3            -- Max spike strips a cop can have deployed simultaneously.
 
-Config.SpeedLimit = 80.0 -- km/h (or mph if units are handled consistently on client) for speed radar
-Config.SpeedingFine = 250 -- Amount of fine for speeding
+Config.SpeedLimit = 80.0                     -- km/h (or mph if units are handled consistently on client) for speed radar.
+Config.SpeedingFine = 250                    -- Amount of fine for speeding.
 
-Config.TackleDistance = 2.0 -- meters, max distance for a cop to initiate a tackle/subdue
-Config.SubdueTime = 3000 -- milliseconds, time it takes to complete a subdue action
+Config.TackleDistance = 2.0                  -- meters, max distance for a cop to initiate a tackle/subdue.
+Config.SubdueTime = 3000                     -- milliseconds, time it takes to complete a subdue action (before arrest is processed).
 
-Config.K9FollowDistance = 5.0 -- meters, how far K9 will stay behind cop when following
-Config.K9AttackDistance = 2.0 -- meters, how close K9 needs to be to initiate an attack (visual/gameplay feel)
+Config.K9FollowDistance = 5.0                -- meters, how far K9 will stay behind cop when following.
+Config.K9AttackDistance = 2.0                -- meters, how close K9 needs to be to initiate an attack (visual/gameplay feel).
 
 -- =========================
 -- Robber Feature Settings
 -- =========================
-Config.RobbableStores = {
+Config.RobbableStores = { -- List of stores that can be robbed
     { name = "LTD Gasoline Grove St", location = vector3(100.0, -1700.0, 29.0), reward = 5000, cooldown = 300, copsNeeded = 1, radius = 10.0 },
     { name = "24/7 Strawberry", location = vector3(25.0, -1340.0, 29.0), reward = 7000, cooldown = 400, copsNeeded = 2, radius = 10.0 },
-    -- Add more stores here
+    -- Add more stores here: { name, location (vector3), reward (cash), cooldown (seconds), copsNeeded (integer), radius (meters for interaction) }
 }
-Config.StoreRobberyDuration = 60000 -- milliseconds (60 seconds) a robber must stay in store
+Config.StoreRobberyDuration = 60000          -- milliseconds (e.g., 60 seconds) a robber must stay in store to complete robbery.
 
 Config.ArmoredCar = {
-    model = "stockade",
-    spawnPoint = vector3(450.0, -1000.0, 28.0),
-    route = {vector3(400.0, -1100.0, 28.0), vector3(300.0,-1200.0,28.0)}, -- Example route points
-    reward = 20000,
-    health = 2000
+    model = "stockade",                      -- Vehicle model for the armored car.
+    spawnPoint = vector3(450.0, -1000.0, 28.0), -- Example spawn point.
+    route = {vector3(400.0, -1100.0, 28.0), vector3(300.0,-1200.0,28.0)}, -- Example route points for NPC driver.
+    reward = 20000,                          -- Cash reward for successfully destroying/looting the armored car.
+    health = 2000                            -- Health of the armored car.
 }
-Config.ArmoredCarHeistCooldown = 1800 -- seconds, cooldown before another armored car can spawn
-Config.ArmoredCarHeistCopsNeeded = 3 -- Minimum cops online for armored car to spawn
+Config.ArmoredCarHeistCooldown = 1800        -- seconds (e.g., 30 minutes) cooldown before another armored car can spawn.
+Config.ArmoredCarHeistCopsNeeded = 3         -- Minimum number of cops online for the armored car event to start.
 
-Config.EMPRadius = 15.0 -- meters, radius of effect for EMP device
-Config.EMPDisableDuration = 5000 -- milliseconds, how long vehicles are disabled by EMP
+Config.EMPRadius = 15.0                        -- meters, radius of effect for the EMP device.
+Config.EMPDisableDuration = 5000               -- milliseconds (e.g., 5 seconds), how long vehicles are disabled by EMP.
 
-Config.PowerGrids = {
-    { name = "Downtown Power Box", location = vector3(-500.0, -500.0, 30.0), radius = 150.0 }, -- Radius for client-side visual effects if any
-    -- Add more power grids
+Config.PowerGrids = { -- Locations of power grids that can be sabotaged
+    { name = "Downtown Power Box", location = vector3(-500.0, -500.0, 30.0), radius = 150.0 }, -- Radius is for client-side visual effects if any, not interaction.
+    -- Add more power grids here: { name, location (vector3), radius (optional for effects) }
 }
-Config.PowerOutageDuration = 120000 -- milliseconds, e.g., 2 minutes (how long a specific grid stays down)
-Config.PowerGridSabotageCooldown = 600 -- seconds (cooldown before the same grid can be sabotaged again)
+Config.PowerOutageDuration = 120000          -- milliseconds (e.g., 2 minutes) how long a specific grid's power stays out.
+Config.PowerGridSabotageCooldown = 600       -- seconds (e.g., 10 minutes) cooldown before the same grid can be sabotaged again.
 
 -- =========================
 -- Advanced Wanted System Settings
 -- =========================
 Config.WantedSettings = {
-    baseIncrease = 1, -- Default points for minor infractions if not specified in crimes (currently not used by specific crimes)
-    levels = {
+    baseIncrease = 1, -- Default points for minor infractions if not specified in crimes (currently not used by specific crimes).
+    levels = { -- Defines star levels and UI labels based on accumulated wanted points.
         {stars=1, threshold=10, uiLabel="Wanted: ★☆☆☆☆"},
         {stars=2, threshold=30, uiLabel="Wanted: ★★☆☆☆"},
         {stars=3, threshold=60, uiLabel="Wanted: ★★★☆☆"},
         {stars=4, threshold=100, uiLabel="Wanted: ★★★★☆"},
         {stars=5, threshold=150, uiLabel="Wanted: ★★★★★"}
     },
-    crimes = { -- Points assigned for specific crimes
-        speeding = 1,               -- For receiving a speeding ticket
-        store_robbery_small = 5,    -- Example: For smaller, less risky store robberies
-        store_robbery_medium = 10,  -- For general store robberies
-        bank_heist_major = 20,      -- For successful major bank heists
-        armored_car_heist = 15,     -- For successful armored car heists
-        assault_cop = 15,           -- For assaulting a police officer
-        murder_cop = 25,            -- For killing a police officer
-        murder_civilian = 10,       -- For killing a civilian
-        armed_robbery = 10          -- Generic armed robbery (e.g., player hold-ups if implemented)
+    crimes = { -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
+        speeding = 1,               -- For receiving a speeding ticket.
+        store_robbery_small = 5,    -- Example: For smaller, less risky store robberies.
+        store_robbery_medium = 10,  -- For general store robberies.
+        bank_heist_major = 20,      -- For successful major bank heists.
+        armored_car_heist = 15,     -- For successful armored car heists.
+        assault_cop = 15,           -- For assaulting a police officer.
+        murder_cop = 25,            -- For killing a police officer.
+        murder_civilian = 10,       -- For killing a civilian.
+        armed_robbery = 10          -- Generic armed robbery (e.g., player hold-ups if implemented).
     },
-    decayRate = 1,                 -- Amount of wanted points to decay per interval
-    decayInterval = 30000,         -- Milliseconds (e.g., 30 seconds) - how often decay check runs
-    decayCooldown = 60000,         -- Milliseconds (e.g., 60 seconds) - time player must be "clean" (no new crimes) before decay starts
-    sightCooldown = 30000          -- Milliseconds (e.g., 30 seconds) - time player must be out of cop sight for decay to resume if recently seen
+    decayRate = 1,                 -- Amount of wanted points to decay per interval.
+    decayInterval = 30000,         -- Milliseconds (e.g., 30 seconds) - how often the decay check runs.
+    decayCooldown = 60000,         -- Milliseconds (e.g., 60 seconds) - time player must be "clean" (no new crimes committed) before decay starts.
+    sightCooldown = 30000          -- Milliseconds (e.g., 30 seconds) - time player must be out of cop sight for decay to resume (if decay was paused due to cop sight).
 }
 
 -- =========================
@@ -289,10 +291,10 @@ Config.SafeZones = {
 -- Team Balancing Settings
 -- =========================
 Config.TeamBalanceSettings = {
-    enabled = true,
-    threshold = 2, -- Minimum difference in team counts to trigger the incentive
-    incentiveCash = 1000,
-    notificationMessage = "You received a bonus of $%s for joining the %s team to help with team balance!"
+    enabled = true,                             -- true to enable team balancing incentives, false to disable.
+    threshold = 2,                              -- Minimum difference in online team member counts to trigger the incentive.
+    incentiveCash = 1000,                         -- Amount of bonus cash given to a player for joining the underdog team.
+    notificationMessage = "You received a bonus of $%s for joining the %s team to help with team balance!" -- Message sent to player. %s are for amount and team name.
 }
 
 -- =========================

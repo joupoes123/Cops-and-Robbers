@@ -32,13 +32,13 @@ local currentWantedPointsClient = 0
 local wantedUiLabel = ""
 
 -- Contraband Drop Client State
-local activeDropBlips = {}
-local clientActiveContrabandDrops = {} -- Stores { dropId = { location=vec3, name=string, modelHash=hash, propEntity=entity } }
-local isCollectingFromDrop = nil -- dropId if currently collecting, else nil
-local collectionTimerEnd = 0
+local activeDropBlips = {} -- Stores blip handles for active contraband drops, keyed by dropId.
+local clientActiveContrabandDrops = {} -- Stores detailed info about client-side contraband drops (location, name, modelHash, propEntity), keyed by dropId.
+local isCollectingFromDrop = nil -- Holds the dropId if the player is currently in the process of collecting, otherwise nil.
+local collectionTimerEnd = 0 -- Timestamp for when the current contraband collection process will end.
 
 -- Safe Zone Client State
-local isCurrentlyInSafeZone = false
+local isCurrentlyInSafeZone = false -- Boolean flag indicating if the player is currently inside any safe zone.
 local currentSafeZoneName = ""
 
 -- =====================================
@@ -144,9 +144,11 @@ end)
 -----------------------------------------------------------
 -- Contraband Drop Client Events and Logic
 -----------------------------------------------------------
+-- Event handler for when a new contraband drop is spawned by the server.
+-- Creates a blip, potentially a prop, and stores drop info.
 RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
 AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, location, itemName, itemModelHash)
-    if activeDropBlips[dropId] then -- Should not happen if server manages IDs correctly
+    if activeDropBlips[dropId] then -- Defensively remove old blip if ID somehow reused before cleanup
         RemoveBlip(activeDropBlips[dropId])
     end
 
@@ -199,6 +201,8 @@ AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, locat
     ShowNotification("~y~A new contraband drop has appeared: " .. itemName)
 end)
 
+-- Event handler for when a contraband drop is collected by any player.
+-- Cleans up the local blip and prop.
 RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
 AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
     if activeDropBlips[dropId] then
@@ -216,62 +220,76 @@ AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, col
     if isCollectingFromDrop == dropId then
         isCollectingFromDrop = nil -- Reset collection state if this client was collecting this drop
         collectionTimerEnd = 0
-        -- TODO: Hide UI progress bar if it was shown
+        -- TODO: Hide UI progress bar if it was shown (e.g., SendNUIMessage({action = 'hideContrabandProgress'}))
     end
     ShowNotification("~g~Contraband '" .. itemName .. "' was collected by " .. collectorName .. ".")
 end)
 
+-- Event handler for when the current client is authorized to start collecting a contraband drop.
 RegisterNetEvent('cops_and_robbers:collectingContrabandStarted')
 AddEventHandler('cops_and_robbers:collectingContrabandStarted', function(dropId, collectionTime)
     isCollectingFromDrop = dropId
     collectionTimerEnd = GetGameTimer() + collectionTime
     ShowNotification("~b~Collecting contraband... Hold position.")
-    -- TODO: Show UI progress bar
+    -- TODO: Show UI progress bar (e.g., SendNUIMessage({action = 'showContrabandProgress', duration = collectionTime}))
 end)
 
+-- Thread for handling contraband drop interaction (proximity checks, collection progress).
 Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(0) -- Run every frame for interaction checks and progress monitoring
-        local playerPed = PlayerPedId()
-        local playerCoords = GetEntityCoords(playerPed)
+    local lastInteractionCheck = 0
+    local interactionCheckInterval = 250 -- ms, for proximity checks when not collecting
+    local activeCollectionWait = 50     -- ms, for faster updates when actively collecting
 
-        if role == 'robber' then
+    while true do
+        local loopWait = interactionCheckInterval -- Default wait time for the loop when not collecting
+        local playerPed = PlayerPedId()
+
+        if DoesEntityExist(playerPed) and role == 'robber' then
+            local playerCoords = GetEntityCoords(playerPed)
+
             if not isCollectingFromDrop then
-                for dropId, dropData in pairs(clientActiveContrabandDrops) do
-                    if dropData.location then
-                        local distance = #(playerCoords - dropData.location)
-                        if distance < 3.0 then
-                            DisplayHelpText("Press ~INPUT_CONTEXT~ to collect contraband (" .. dropData.name .. ")")
-                            if IsControlJustReleased(0, 51) then -- E key (Context)
-                                TriggerServerEvent('cops_and_robbers:startCollectingContraband', dropId)
-                                -- isCollectingFromDrop will be set by the server event `collectingContrabandStarted`
+                -- Only check for nearby drops periodically if not already collecting
+                if (GetGameTimer() - lastInteractionCheck) > interactionCheckInterval then
+                    local foundNearbyDrop = false
+                    for dropId, dropData in pairs(clientActiveContrabandDrops) do
+                        if dropData.location then
+                            local distance = #(playerCoords - dropData.location)
+                            if distance < 3.0 then -- Interaction radius
+                                DisplayHelpText("Press ~INPUT_CONTEXT~ to collect contraband (" .. dropData.name .. ")")
+                                if IsControlJustReleased(0, 51) then -- E key (Context)
+                                    TriggerServerEvent('cops_and_robbers:startCollectingContraband', dropId)
+                                end
+                                foundNearbyDrop = true
+                                loopWait = activeCollectionWait -- Check more frequently once a prompt is shown or interaction starts
+                                break
                             end
-                            break -- Show help text for one drop at a time
                         end
                     end
+                    lastInteractionCheck = GetGameTimer()
                 end
             else -- Player is currently collecting from a drop (isCollectingFromDrop is not nil)
+                loopWait = activeCollectionWait -- Check more frequently when collecting for responsiveness
                 local currentDropData = clientActiveContrabandDrops[isCollectingFromDrop]
                 if currentDropData and currentDropData.location then
                     local distance = #(playerCoords - currentDropData.location)
                     if distance > 5.0 then -- Player moved too far
                         ShowNotification("~r~Contraband collection cancelled: Moved too far.")
-                        -- TODO: Hide UI progress bar
+                        -- TODO: Hide UI progress bar (e.g., SendNUIMessage({action = 'hideContrabandProgress'}))
                         -- Optional: Notify server about cancellation
                         -- TriggerServerEvent('cops_and_robbers:cancelCollectingContraband', isCollectingFromDrop)
                         isCollectingFromDrop = nil
                         collectionTimerEnd = 0
                     elseif GetGameTimer() >= collectionTimerEnd then
                         ShowNotification("~g~Collection complete! Verifying with server...")
-                        -- TODO: Hide UI progress bar
+                        -- TODO: Hide UI progress bar (e.g., SendNUIMessage({action = 'hideContrabandProgress'}))
                         TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop)
                         isCollectingFromDrop = nil -- Reset state, server will confirm success/failure
                         collectionTimerEnd = 0
                     else
-                        -- Still collecting, update UI progress (e.g., progress bar)
-                        local progress = (GetGameTimer() - (collectionTimerEnd - Config.ContrabandCollectionTime)) / Config.ContrabandCollectionTime
-                        -- Example: DisplayHelpText(string.format("Collecting... %d%%", math.floor(progress * 100)))
-                        -- A proper progress bar via NUI would be better.
+                        -- Still collecting, update UI progress
+                        -- local progress = (GetGameTimer() - (collectionTimerEnd - Config.ContrabandCollectionTime)) / Config.ContrabandCollectionTime
+                        -- Example for simple text display: DisplayHelpText(string.format("Collecting... %d%%", math.floor(progress * 100)))
+                        -- TODO: A proper progress bar via NUI would be better: SendNUIMessage({action = 'updateContrabandProgress', progress = progress})
                     end
                 else
                     -- Drop data somehow became nil while collecting, reset state
@@ -280,32 +298,37 @@ Citizen.CreateThread(function()
                 end
             end
         end
+        Citizen.Wait(loopWait)
     end
 end)
 
 -- =====================================
 --        SAFE ZONE CLIENT LOGIC
 -- =====================================
+-- This thread periodically checks if the player is inside any defined safe zone.
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(1000) -- Check every 1 second
+
+        local playerPed = PlayerPedId()
+        if not DoesEntityExist(playerPed) then
+            Citizen.Wait(5000) -- Wait longer if player ped doesn't exist yet
+            goto continue_safe_zone_loop
+        end
 
         if not Config.SafeZones or #Config.SafeZones == 0 then
             -- If no safe zones are configured, or table is empty, ensure player is not stuck in safe zone state
             if isCurrentlyInSafeZone then
                 isCurrentlyInSafeZone = false
                 currentSafeZoneName = ""
-                SetEntityInvincible(PlayerPedId(), false)
+                SetEntityInvincible(playerPed, false)
                 DisablePlayerFiring(PlayerId(), false)
                 SetPlayerCanDoDriveBy(PlayerId(), true)
-                ShowNotification("~g~Safe zone status reset due to configuration change.")
+                ShowNotification("~g~Safe zone status reset (zones removed or empty).")
             end
             Citizen.Wait(5000) -- Wait longer if no zones configured
             goto continue_safe_zone_loop -- Skip further processing
         end
-
-        local playerPed = PlayerPedId()
-        if not DoesEntityExist(playerPed) then goto continue_safe_zone_loop end
 
         local playerCoords = GetEntityCoords(playerPed)
         local foundSafeZoneThisCheck = false
@@ -990,13 +1013,18 @@ end)
 -- =====================================
 --           K9 UNIT (Simplified)
 -- =====================================
--- local k9NetId = nil -- No longer needed as server doesn't send a usable NetID for client-spawned ped
-local k9Ped = nil   -- Stores the local entity of the K9
+-- local k9NetId = nil -- This was part of an older, flawed K9 sync logic. Kept for historical reference if needed.
+local k9Ped = nil   -- Stores the local entity (ped handle) of the K9, spawned and managed by this client.
 
--- Use K9 Whistle (placeholder - should be tied to inventory item usage)
+-- This thread handles K9 whistle input (spawn/dismiss) and attack command input.
+-- It also contains basic follow logic for an active K9.
 Citizen.CreateThread(function()
+    local k9KeybindWait = 200 -- Check keybinds less frequently to avoid perf impact from IsControlJustPressed in tight loop.
+    local k9FollowTaskWait = 1000 -- How often to re-evaluate follow task if K9 is idle.
+    local lastFollowTaskTime = 0
+
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(k9KeybindWait)
         -- Example: Press 'K' to call/dismiss K9 (if has k9whistle item)
         if role == 'cop' and IsControlJustPressed(0, 31) then -- INPUT_VEH_CIN_CAM (K key placeholder)
             if k9Ped and DoesEntityExist(k9Ped) then
@@ -1024,20 +1052,24 @@ Citizen.CreateThread(function()
             end
         end
 
-        -- Keep K9 following if it exists and no other urgent task
+        -- Keep K9 following if it exists and no other urgent task (this part can be in a slightly longer interval loop)
+        -- This is a simplified follow logic. A more advanced K9 would have better pathing and state handling.
         if k9Ped and DoesEntityExist(k9Ped) and IsPedOnFoot(PlayerPedId()) then
-            local currentTask = GetPedScriptTaskCommand(k9Ped)
-            -- Only re-task if not already in combat or a specific scripted task we want to preserve
-            -- This is a very basic follow, a real K9 would need more sophisticated state management.
-            if currentTask ~= 0x8415D88C then -- SCRIPT_TASK_COMBAT_PED
-                 if #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(k9Ped)) > Config.K9FollowDistance then
-                    TaskFollowToOffsetOfEntity(k9Ped, PlayerPedId(), 0.0, -2.0, 1.0, 1.5, -1, Config.K9FollowDistance - 1.0, true)
+            if (GetGameTimer() - lastFollowTaskTime) > k9FollowTaskWait then
+                local currentTaskStatus = GetActivityLevel(k9Ped) -- 0=idle/none, 1=alert/moving, 2=action/combat/fleeing
+                -- Only re-issue follow task if K9 is not in combat/serious action and is too far.
+                if currentTaskStatus < 2 then
+                    if #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(k9Ped)) > Config.K9FollowDistance + 2.0 then -- Add buffer to prevent constant re-tasking
+                        TaskFollowToOffsetOfEntity(k9Ped, PlayerPedId(), vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true)
+                    end
                 end
+                lastFollowTaskTime = GetGameTimer()
             end
         end
     end
 end)
 
+-- Handles authorization from server to spawn K9 locally.
 RegisterNetEvent('cops_and_robbers:clientSpawnK9Authorized')
 AddEventHandler('cops_and_robbers:clientSpawnK9Authorized', function()
     if k9Ped and DoesEntityExist(k9Ped) then
@@ -1047,33 +1079,35 @@ AddEventHandler('cops_and_robbers:clientSpawnK9Authorized', function()
 
     local modelHash = GetHashKey('a_c_shepherd') -- K9 model
     RequestModel(modelHash)
-    CreateThread(function()
+    CreateThread(function() -- New thread for model loading to avoid blocking
         local attempts = 0
-        while not HasModelLoaded(modelHash) and attempts < 100 do
+        while not HasModelLoaded(modelHash) and attempts < 100 do -- Max 10s wait
             Citizen.Wait(100)
             attempts = attempts + 1
         end
 
         if HasModelLoaded(modelHash) then
             local playerPed = PlayerPedId()
-            local coords = GetOffsetFromEntityInWorldCoords(playerPed, 0.0, Config.K9FollowDistance * -1.0, 0.0) -- Spawn behind player
+            local coords = GetOffsetFromEntityInWorldCoords(playerPed, 0.0, Config.K9FollowDistance * -1.0, 0.5) -- Spawn behind player, slightly up
 
-            k9Ped = CreatePed(4, modelHash, coords.x, coords.y, coords.z, GetEntityHeading(playerPed), false, true) -- Not networked, but make it mission
+            k9Ped = CreatePed(4, modelHash, coords.x, coords.y, coords.z, GetEntityHeading(playerPed), false, true) -- Not networked for server, but make it mission
             SetModelAsNoLongerNeeded(modelHash)
 
             SetEntityAsMissionEntity(k9Ped, true, true) -- Prevent despawn by game engine
-            SetPedAsCop(k9Ped, true) -- Makes K9 behave somewhat like a police ped (e.g. might react to crimes) - optional
+            SetPedAsCop(k9Ped, true) -- Optional: Makes K9 behave somewhat like a police ped (e.g., might react to crimes)
             SetPedRelationshipGroupHash(k9Ped, GetPedRelationshipGroupHash(playerPed)) -- Friendly to player and player's group
+            SetBlockingOfNonTemporaryEvents(k9Ped, true)
             TaskFollowToOffsetOfEntity(k9Ped, playerPed, vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true)
 
             ShowNotification("~g~Your K9 unit has arrived!")
         else
             ShowNotification("~r~Failed to spawn K9 unit: Model not found.")
-            SetModelAsNoLongerNeeded(modelHash)
+            SetModelAsNoLongerNeeded(modelHash) -- Still call this if model failed to load after attempts
         end
     end)
 end)
 
+-- Handles server instruction to dismiss the client's K9.
 RegisterNetEvent('cops_and_robbers:clientDismissK9')
 AddEventHandler('cops_and_robbers:clientDismissK9', function()
     ShowNotification("~y~Your K9 unit has been dismissed.")
@@ -1083,15 +1117,16 @@ AddEventHandler('cops_and_robbers:clientDismissK9', function()
     k9Ped = nil
 end)
 
+-- Handles server relaying a command for the K9 (e.g., to attack a target).
 RegisterNetEvent('cops_and_robbers:k9ProcessCommand')
-AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServerId, commandType) -- k9NetId removed
+AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServerId, commandType)
     if k9Ped and DoesEntityExist(k9Ped) then
         local targetRobberPed = GetPlayerPed(GetPlayerFromServerId(targetRobberServerId))
         if targetRobberPed and DoesEntityExist(targetRobberPed) then
             if commandType == "attack" then
-                ClearPedTasks(k9Ped)
-                TaskCombatPed(k9Ped, targetRobberPed, 0, 16)
-            elseif commandType == "follow" then
+                ClearPedTasks(k9Ped) -- Clear previous tasks before issuing combat
+                TaskCombatPed(k9Ped, targetRobberPed, 0, 16) -- 0 = fight until target dead or task cleared, 16 = default behavior
+            elseif commandType == "follow" then -- Example: command K9 to explicitly follow owner
                 TaskFollowToOffsetOfEntity(k9Ped, PlayerPedId(), vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true)
             end
         end

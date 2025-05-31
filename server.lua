@@ -21,6 +21,8 @@
 -- =====================================
 --           LOGGING FUNCTION
 -- =====================================
+-- Logs a given text string to actions.log and the server console with a timestamp.
+-- @param text string The text to log.
 function LogAdminAction(text)
     local timestamp = os.date("[%Y-%m-%d %H:%M:%S] ")
     local logLine = timestamp .. text
@@ -77,7 +79,10 @@ end
 --           HELPER FUNCTIONS
 -- =====================================
 
--- Helper function to check if a value exists in a table
+-- Checks if a table contains a specific value.
+-- @param tbl table The table to check.
+-- @param value any The value to search for.
+-- @return boolean True if the value is found, false otherwise.
 local function hasValue(tbl, value)
     for _, v in ipairs(tbl) do
         if v == value then
@@ -100,21 +105,24 @@ local function getAmmoCountForItem(ammoId)
     return ammoCounts[ammoId] or 0
 end
 
--- Helper function to get the number of key-value pairs in a table
+-- Calculates the number of key-value pairs in a table (useful for non-indexed tables).
+-- @param T table The table to count.
+-- @return number The number of key-value pairs.
 local function tablelength(T)
   local count = 0
   for _ in pairs(T) do count = count + 1 end
   return count
 end
 
--- Function to initialize purchase data
+-- Initializes the purchase history table for all items defined in Config.Items.
+-- This is typically called on resource start if loading from file fails or file doesn't exist.
 local function initializePurchaseData()
     for _, item in ipairs(Config.Items) do
         purchaseHistory[item.itemId] = {}
     end
 end
 
--- Function to save bans to a file
+-- Saves the current state of bannedPlayers table to bans.json.
 local function saveBans()
     local jsonData = json.encode(bannedPlayers, { indent = true })
     if jsonData then
@@ -500,10 +508,10 @@ local function IsValidPlayer(targetId)
 end
 
 -- =====================================
---           EVENT HANDLERS
+--           CORE EVENT HANDLERS
 -- =====================================
 
--- Event handler for player connecting (load player data and check for bans)
+-- Handles player connection: checks bans, loads player data.
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
     local identifiers = GetPlayerIdentifiers(src)
@@ -537,6 +545,50 @@ end)
 AddEventHandler('playerDropped', function(reason)
     local src = source
     LogAdminAction(string.format("Player Disconnected: %s (ID: %d). Reason: %s", GetPlayerName(src), src, reason))
+
+    local disconnectedPlayerRole = playerRoles[src]
+
+    -- Clean up states if the disconnected player was involved in specific activities
+    if disconnectedPlayerRole == 'cop' then
+        -- If cop was subduing someone, cancel it
+        for robberId, subdueData in pairs(activeSubdues) do
+            if subdueData.copId == src then
+                ClearTimeout(subdueData.timer)
+                activeSubdues[robberId] = nil
+                if IsValidPlayer(robberId) then -- Check if robber is still online
+                    TriggerClientEvent('cops_and_robbers:subdueCancelled', robberId)
+                    LogAdminAction(string.format("Subdue auto-cancelled: Cop %s (ID: %d) disconnected while subduing Robber %s (ID: %d).", GetPlayerName(src), src, GetPlayerName(robberId), robberId))
+                end
+                break
+            end
+        end
+        -- If cop had an active K9
+        if activeK9s[src] then
+            activeK9s[src] = nil
+            LogAdminAction(string.format("K9 status cleared for disconnected Cop %s (ID: %d).", GetPlayerName(src), src))
+            -- Client-side K9 ped is handled by client on their own if K9 owner disconnects (no specific server trigger needed here for that part)
+        end
+    elseif disconnectedPlayerRole == 'robber' then
+        -- If robber was being subdued, clear it
+        if activeSubdues[src] then
+            ClearTimeout(activeSubdues[src].timer)
+            local subduingCopId = activeSubdues[src].copId
+            activeSubdues[src] = nil
+            if IsValidPlayer(subduingCopId) then -- Check if cop is still online
+                 TriggerClientEvent('cops_and_robbers:showNotification', subduingCopId, "~y~The suspect you were subduing has disconnected.")
+            end
+            LogAdminAction(string.format("Subdue auto-cancelled: Robber %s (ID: %d) disconnected while being subdued by Cop %s (ID: %d).", GetPlayerName(src), src, GetPlayerName(subduingCopId), subduingCopId))
+        end
+        -- If robber was in activeStoreRobberies, clear their specific robbery attempt
+        if activeStoreRobberies[src] then
+            ClearTimeout(activeStoreRobberies[src].successTimer)
+            LogAdminAction(string.format("Store Robbery auto-cancelled: Robber %s (ID: %d) disconnected during robbery at %s.", GetPlayerName(src), src, activeStoreRobberies[src].store.name))
+            activeStoreRobberies[src] = nil
+        end
+        -- If robber was collecting contraband, their entry in playersCollecting becomes stale but doesn't break the system.
+        -- The drop remains available. No specific cleanup needed here for that.
+    end
+
     savePlayerData(src)
     playerData[src] = nil
     cops[src] = nil
@@ -831,7 +883,7 @@ Citizen.CreateThread(function()
                     pData.wantedPoints = math.max(0, pData.wantedPoints - Config.WantedSettings.decayRate)
 
                     if pData.wantedPoints ~= oldPoints then
-                        -- LogAdminAction(string.format("Wanted Decay: Player %s (ID: %d) points %d -> %d", GetPlayerName(pId), pId, oldPoints, pData.wantedPoints))
+                        LogAdminAction(string.format("Wanted Decay: Player %s (ID: %d) points %d -> %d.", GetPlayerName(pId), pId, oldPoints, pData.wantedPoints))
                         UpdatePlayerWantedLevel(pId)
                         savePlayerData(pId) -- Save player data after decay
                     end
@@ -959,19 +1011,32 @@ end)
 -----------------------------------------------------------
 
 -- =====================================
---           HEIST MANAGEMENT
+--           CRIME NOTIFICATION & HEIST MANAGEMENT
 -- =====================================
 
--- Function to notify nearby cops with GPS update and sound
-local function notifyNearbyCops(bankId, bankLocation, bankName)
+-- Notifies nearby cops about a crime event.
+-- Used for bank heists, store robberies, etc.
+-- @param crimeKey string A unique key for the crime instance (e.g., "bank_1", "store_LTDGas").
+-- @param crimeLocation vector3 The coordinates of the crime.
+-- @param crimeDisplayName string The user-friendly name of the location/event (e.g., "Pacific Standard Bank").
+-- @param messageFormat string The notification message format (e.g., "~r~Crime Alert! %s is being robbed!").
+-- @param soundName string (Optional) Name of a sound to play for the notified cops.
+local function NotifyNearbyCopsGeneric(crimeKey, crimeLocation, crimeDisplayName, messageFormat, soundName)
     for copId, _ in pairs(cops) do
-        local copData = playerPositions[copId]
-        if copData then
-            local copPos = vector3(copData.position.x, copData.position.y, copData.position.z)
-            local distance = #(copPos - bankLocation)
-            if distance <= Config.HeistRadius then
-                TriggerClientEvent('cops_and_robbers:notifyBankRobbery', copId, bankId, bankLocation, bankName)
-                TriggerClientEvent('cops_and_robbers:playSound', copId, "Bank_Alarm")
+        if playerPositions[copId] then -- Ensure cop position data exists
+            local copPos = vector3(playerPositions[copId].position.x, playerPositions[copId].position.y, playerPositions[copId].position.z)
+            local distance = #(copPos - crimeLocation)
+
+            -- Using a generic notification radius, or could be made crime-specific if needed
+            if distance <= Config.HeistRadius then -- Config.HeistRadius is a large general radius
+                local notificationMessage = string.format(messageFormat, crimeName)
+                -- Client event 'cops_and_robbers:notifyGenericCrime' could be used to show blip and message.
+                -- For now, reusing 'notifyBankRobbery' for blip, but text is customized.
+                -- A better approach would be a new client event: cops_and_robbers:notifyCrimeLocation(crimeId, crimeLocation, notificationMessage)
+                TriggerClientEvent('cops_and_robbers:notifyBankRobbery', copId, crimeId, crimeLocation, notificationMessage) -- crimeName here is actually the full message
+                if soundName then
+                    TriggerClientEvent('cops_and_robbers:playSound', copId, soundName)
+                end
             end
         end
     end
@@ -996,7 +1061,7 @@ AddEventHandler('cops_and_robbers:startHeist', function(bankId)
 
     local bank = Config.BankVaults[bankId]
     if bank then
-        notifyNearbyCops(bank.id, bank.location, bank.name)
+        NotifyNearbyCopsGeneric("bank_"..bank.id, bank.location, bank.name, "~r~Bank Heist in Progress!~s~Bank: %s", "Bank_Alarm")
         LogAdminAction(string.format("Bank Heist Started: Robber %s (ID: %d) started heist at Bank %s (%s).", GetPlayerName(src), src, bankId, bank.name))
         -- Send bank name and duration to the robber's client to show timer via NUI
         TriggerClientEvent('cops_and_robbers:showHeistTimerUI', src, bank.name, Config.HeistTimers.heistDuration)
@@ -1017,10 +1082,10 @@ local function notifyCopsOfWantedRobber(robberId, robberPosition)
     end
 end
 
--- Periodically check for wanted robbers and notify cops
+-- Periodically check for wanted robbers and notify cops (simple version, could be expanded)
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(10000) -- Every 10 seconds
+        Citizen.Wait(10000) -- Check every 10 seconds
         for robberId, data in pairs(playerPositions) do
             if robbers[robberId] and data.wantedLevel and data.wantedLevel >= Config.WantedLevels[3].stars then
                 notifyCopsOfWantedRobber(robberId, data.position)
@@ -1425,7 +1490,7 @@ AddEventHandler('cops_and_robbers:startStoreRobbery', function(storeIndex)
     robberyCooldownsStore[storeIndex] = os.time() + store.cooldown
 
     -- Notify nearby Cops
-    notifyNearbyCops("storeRobbery_"..storeIndex, store.location, store.name)
+    NotifyNearbyCopsGeneric("storeRobbery_"..storeIndex, store.location, store.name, "~r~Store Robbery in Progress!~s~Store: %s", "Generic_Alarm") -- Using a generic alarm sound
     LogAdminAction(string.format("Store Robbery Started: Robber %s (ID: %d) at %s (%s). Cops online: %d", GetPlayerName(robberId), robberId, storeIndex, store.name, copsOnline))
 
     TriggerClientEvent('cops_and_robbers:beginStoreRobberySequence', robberId, store, Config.StoreRobberyDuration)
@@ -1517,10 +1582,10 @@ function SpawnArmoredCar(forcedByAdmin)
         SetEntityAsMissionEntity(armoredCarEntity, true, true) -- Prevent despawn
 
         -- Create NPC driver
-        local driverPed = CreatePedInVehicle(armoredCarEntity, 4, GetHashKey("s_m_m_armoured_01"), -1, true, true) -- Vehicle type, ped model, seat index
-        SetPedAsCop(driverPed, true) -- Make driver behave like a cop/guard
-        SetEntityInvincible(driverPed, true) -- Make driver invincible
-        TaskVehicleDriveAlongRoute(driverPed, armoredCarEntity, Config.ArmoredCar.route, 10.0, 0, 0, "DRIVING_STYLE_AVOID_EMPTY") -- Simplified route logic
+        local driverPed = CreatePedInVehicle(armoredCarEntity, 4, GetHashKey("s_m_m_armoured_01"), -1, true, true)
+        SetPedAsCop(driverPed, true)
+        SetEntityInvincible(driverPed, true) -- Ensure driver is invincible
+        TaskVehicleDriveAlongRoute(driverPed, armoredCarEntity, Config.ArmoredCar.route, 10.0, 0, 0, "DRIVING_STYLE_AVOID_EMPTY")
 
         armoredCarActive = true
         armoredCarHeistCooldownTimer = os.time() + Config.ArmoredCarHeistCooldown
@@ -1649,6 +1714,7 @@ AddEventHandler('cops_and_robbers:sabotagePowerGrid', function(gridIndex)
     powerGridStatus[gridIndex].isDown = true
     powerGridStatus[gridIndex].onCooldownUntil = os.time() + Config.PowerGridSabotageCooldown
 
+    LogAdminAction(string.format("Power Sabotage Success: Robber %s (ID: %d) initiated sabotage on grid %s (%s). Duration: %ds.", GetPlayerName(robberId), robberId, gridIndex, grid.name, Config.PowerOutageDuration / 1000))
     TriggerClientEvent('cops_and_robbers:powerGridStateChanged', -1, gridIndex, true, Config.PowerOutageDuration)
     TriggerClientEvent('cops_and_robbers:showNotification', robberId, "~y~Successfully sabotaged " .. grid.name .. "! Lights out for " .. (Config.PowerOutageDuration/1000) .. "s.")
     -- Notify cops as well
@@ -2108,7 +2174,7 @@ AddEventHandler('cops_and_robbers:adminTriggerBankHeist', function(bankId)
         local bank = Config.BankVaults[bankId]
         if bank then
             LogAdminAction(string.format("Admin Scenario: %s (ID: %d) triggered Bank Heist at %s (%s).", GetPlayerName(src), src, bankId, bank.name))
-            notifyNearbyCops(bank.id, bank.location, bank.name)
+            NotifyNearbyCopsGeneric(bank.id, bank.location, bank.name, "~r~ADMIN TRIGGERED Bank Heist!~s~Location: %s", "Bank_Alarm")
             -- Could also trigger timer for a random robber or just announce globally
             TriggerClientEvent('cops_and_robbers:showNotification', -1, string.format("~r~ADMIN EVENT: A heist at %s has been initiated!", bank.name))
         else
@@ -2126,7 +2192,7 @@ AddEventHandler('cops_and_robbers:adminTriggerStoreRobbery', function(storeIndex
         local store = Config.RobbableStores[storeIndex]
         if store then
             LogAdminAction(string.format("Admin Scenario: %s (ID: %d) triggered Store Robbery at %s (%s).", GetPlayerName(src), src, storeIndex, store.name))
-            notifyNearbyCops("storeRobbery_"..storeIndex, store.location, store.name)
+            NotifyNearbyCopsGeneric("storeRobbery_"..storeIndex, store.location, store.name, "~r~ADMIN TRIGGERED Store Robbery!~s~Location: %s", "Generic_Alarm")
             robberyCooldownsStore[storeIndex] = 0 -- Reset cooldown for admin trigger
             TriggerClientEvent('cops_and_robbers:showNotification', -1, string.format("~r~ADMIN EVENT: A robbery at %s has been initiated!", store.name))
         else
