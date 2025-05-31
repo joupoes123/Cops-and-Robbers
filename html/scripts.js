@@ -7,7 +7,7 @@
 
 // Allowed origins: include your resource's NUI origin and any other trusted domains.
 const allowedOrigins = [
-    "nui://cops-and-robbers", // Replace 'cops-and-robbers' with your actual resource name if different.
+    `nui://${typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'cops-and-robbers'}`, // Dynamically set resource name
     "http://localhost:3000"   // Example for local development, remove if not used.
 ];
 
@@ -421,10 +421,10 @@ function selectRole(selectedRole) {
         if (response.status === 'success') {
             alert(`Role set to ${response.role}`);
             hideRoleSelection();
-            SpawnPlayer(response.role);
-            role = response.role;
+            // SpawnPlayer(response.role); -- Removed by subtask, client.lua handles this
+            // role = response.role; -- Removed by subtask, client.lua handles this
             // Notify about role-specific abilities
-            if (role == 'cop') {
+            if (response.role == 'cop') {
                 ShowNotification("Cop abilities loaded: Advanced equipment, vehicles, and backup available.");
             } else if (role == 'robber') {
                 ShowNotification("Robber abilities loaded: Heist tools, getaway vehicles, and stealth strategies enabled.");
@@ -617,7 +617,7 @@ document.getElementById('admin-player-list-body').addEventListener('click', func
             document.getElementById('admin-ban-reason').focus();
         } else if (target.classList.contains('admin-teleport-btn')) {
             if (confirm(`Teleport to player ID ${targetId}?`)) {
-                 fetch(`https://cops-and-robbers/adminTeleportToPlayer`, {
+                 fetch(`https://cops-and-robbers/teleportToPlayerAdminUI`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ targetId: targetId })

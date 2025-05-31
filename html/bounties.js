@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
         closeButton.addEventListener('click', function () {
             if (bountyBoard) bountyBoard.style.display = 'none';
             // Send message back to client.lua to release NUI focus
-            fetch(`https://cnr_gamemode/closeBountyNUI`, { // Ensure 'cnr_gamemode' is your resource name
+            fetch(`https://${resourceName}/closeBountyNUI`, { // Use dynamic resourceName
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json; charset=UTF-8' },
                 body: JSON.stringify({})
