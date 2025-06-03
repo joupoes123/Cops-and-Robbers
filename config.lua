@@ -433,7 +433,7 @@ Config.RobberVehicleSpawns = { -- Example, might not be used if robbers acquire 
 }
 
 -- Added by integrity check subtask - Default/Fallback values
-Config.AdminPermission = "admin" -- Example QBCore permission for admin commands if Config.Admins is not used for a check
+-- Config.AdminPermission = "admin" -- Example QBCore permission for admin commands if Config.Admins is not used for a check. This is confirmed unused after IsAdmin refactor.
 Config.MaxCops = 10 -- Example max cops
 Config.PlayerCountSyncInterval = 30 -- Seconds, example
 Config.PerkEffects = {
