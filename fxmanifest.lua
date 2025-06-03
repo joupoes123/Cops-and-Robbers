@@ -25,7 +25,6 @@ client_scripts {
 
 -- Define the NUI page.
 ui_page 'html/main_ui.html' -- Consolidated NUI page for role selection, store, admin panel, etc.
-ui_page 'html/bounties.html' -- NUI page for the Bounty Board.
 
 -- Define files to be included with the resource.
 -- These files are accessible by the client and NUI.

@@ -138,7 +138,7 @@ local function AddPlayerMoney(playerId, amount, type)
         if type == 'cash' then
             pData.money = (pData.money or 0) + amount
             Log(string.format("Added %d to player %s's %s account. New balance: %d", amount, playerId, type, pData.money))
-            -- Replace QBCore:Notify with a client event for notification
+            -- Send a notification to the client
             TriggerClientEvent('chat:addMessage', pId, { args = {"^2Money", string.format("You received $%d.", amount)} })
             TriggerClientEvent('cnr:updatePlayerData', pId, pData) -- Ensure client UI updates if money is displayed
             return true
@@ -164,7 +164,7 @@ local function RemovePlayerMoney(playerId, amount, type)
                 TriggerClientEvent('cnr:updatePlayerData', pId, pData) -- Ensure client UI updates
                 return true
             else
-                -- Replace QBCore:Notify with a client event for notification
+                -- Notify the client about insufficient funds
                 TriggerClientEvent('chat:addMessage', pId, { args = {"^1Error", "You don't have enough money."} })
                 return false
             end
@@ -469,7 +469,7 @@ RegisterNetEvent('cnr:requestVehicleSpawn', function(vehicleModelName)
         Log(string.format("Player %s (Lvl %d) GRANTED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
         -- TODO: Actual vehicle spawning logic would go here, e.g.,
         -- CreateVehicle(vehicleModelName, coords, heading, true, true)
-        -- Note: Spawning vehicles without QBCore needs direct FiveM natives and potentially a garage system.
+        -- Note: Spawning vehicles requires using FiveM natives and potentially a garage system.
     else
         TriggerClientEvent('chat:addMessage', src, { args = {"^1Access", string.format("Access DENIED for %s. Required Level: %d.", vehicleModelName, requiredLevel)} })
         Log(string.format("Player %s (Lvl %d) DENIED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
@@ -482,7 +482,7 @@ end)
 
 LoadPlayerData = function(playerId)
     local pIdNum = tonumber(playerId)
-    -- local player = GetPlayerFromServerId(pIdNum) -- QBCore specific, remove
+    -- local player = GetPlayerFromServerId(pIdNum) -- Example of framework-specific code removed
     -- if not player then Log("LoadPlayerData: Player " .. pIdNum .. " not found on server.", "error"); return end
 
     local license = GetPlayerLicense(pIdNum) -- Use helper to get license
@@ -506,7 +506,6 @@ LoadPlayerData = function(playerId)
             playersData[pIdNum] = data
             loadedMoney = data.money or 0 -- Load money from file if exists
             Log("Loaded player data for " .. pIdNum .. " from " .. filename .. ". Level: " .. (data.level or 0) .. ", Role: " .. (data.role or "citizen") .. ", Money: " .. loadedMoney)
-            -- playersData[pIdNum].money = player.Functions.GetMoney('cash') -- Remove QBCore money refresh
         else
             Log("Failed to decode player data for " .. pIdNum .. " from " .. filename .. ". Using defaults. Error: " .. tostring(data), "error")
             playersData[pIdNum] = nil -- Force default initialization
@@ -566,7 +565,7 @@ end
 
 SetPlayerRole = function(playerId, role, skipNotify)
     local pIdNum = tonumber(playerId)
-    -- local player = GetPlayerFromServerId(pIdNum) -- Remove QBCore specific
+    -- local player = GetPlayerFromServerId(pIdNum) -- Example placeholder for framework code
     -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
     local playerName = GetPlayerName(pIdNum) or "Unknown"
 
@@ -576,24 +575,24 @@ SetPlayerRole = function(playerId, role, skipNotify)
 
 
     playersData[pIdNum].role = role
-    -- player.Functions.SetMetaData("role", role) -- Remove QBCore specific
+    -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
         copsOnDuty[pIdNum] = true; robbersActive[pIdNum] = nil
-        -- player.Functions.SetJob("leo", 0) -- Remove QBCore specific (job can be role-play, not system critical for standalone)
+        -- player.Functions.SetJob("leo", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "cop")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Cop."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Cop role.")
         TriggerClientEvent('cops_and_robbers:bountyListUpdate', pIdNum, activeBounties)
     elseif role == "robber" then
         robbersActive[pIdNum] = true; copsOnDuty[pIdNum] = nil
-        -- player.Functions.SetJob("unemployed", 0) -- Remove QBCore specific
+        -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "robber")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Robber."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Robber role.")
     else
         copsOnDuty[pIdNum] = nil; robbersActive[pIdNum] = nil
-        -- player.Functions.SetJob("unemployed", 0) -- Remove QBCore specific
+        -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "citizen")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Citizen."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.")
@@ -1014,7 +1013,7 @@ end)
 -- =================================================================================================
 -- EVENT HANDLERS (SERVER-SIDE)
 -- =================================================================================================
--- Replace QBCore:PlayerLoaded with FiveM's playerJoining or a custom event triggered after spawn
+-- Use FiveM's playerJoining or a custom event triggered after spawn
 AddEventHandler('playerJoining', function()
     local src = tonumber(source)
     -- Deferrals can be used here if needed, but LoadPlayerData is called with SetTimeout
@@ -1055,7 +1054,7 @@ AddEventHandler('playerDropped', function(reason)
     if copsOnDuty[src] then copsOnDuty[src] = nil end
     if robbersActive[src] then robbersActive[src] = nil end
     if jail[src] then Log("Player " .. src .. " was in jail. Jail time will be paused/persisted.", "info") end
-    -- activeHeists not defined in provided snippet, assuming it's handled elsewhere or needs similar QBCore notification replacement
+    -- activeHeists not defined in provided snippet; assumes any notifications are handled elsewhere
     -- Example if activeHeists were present:
     -- for storeId, heistData in pairs(activeHeists or {}) do
     --     if heistData.robberId == src then
@@ -1124,7 +1123,7 @@ end)
 RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)
     local sourceAdmin = tonumber(source) -- In server events, source is the player who triggered it, or server if from server console
     -- This event should ideally be triggered by an admin command that verifies IsAdmin(sourceAdmin).
-    -- The IsAdmin function itself needs to be fully QBCore-independent first.
+    -- The IsAdmin function should be entirely framework independent.
     -- For now, we assume IsAdmin(sourceAdmin) is called before this event is triggered.
 
     local targetPlayerId = tonumber(targetId)
@@ -1184,10 +1183,24 @@ end)
 -- MISC AND UTILITY FUNCTIONS
 -- =================================================================================================
 function tablelength(T) local count = 0; for _ in pairs(T) do count = count + 1 end; return count end
+
+local function EnsurePlayerDataDirectory()
+    local placeholder = "player_data/.gitkeep"
+    if not LoadResourceFile(GetCurrentResourceName(), placeholder) then
+        local success = SaveResourceFile(GetCurrentResourceName(), placeholder, "", -1)
+        if success then
+            Log("Initialized player_data directory.")
+        else
+            Log("Failed to create player_data directory. Check permissions.", "error")
+        end
+    end
+end
+
 Log("-------------------------------------------------", "info")
 Log("Cops 'n' Robbers Gamemode Server Script Loaded", "info")
-    LoadBans() -- Load bans from file
-    LoadPurchaseHistory() -- Load purchase history
+EnsurePlayerDataDirectory()
+LoadBans() -- Load bans from file
+LoadPurchaseHistory() -- Load purchase history
 Log("Debug Logging: " .. (Config.DebugLogging and "Enabled" or "Disabled"), "info")
 Log("-------------------------------------------------", "info")
 
