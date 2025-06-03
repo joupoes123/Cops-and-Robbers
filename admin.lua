@@ -3,8 +3,6 @@
 -- Version: 1.1 | Date: 2025-02-11
 -- This file contains admin commands and ban management for the game mode.
 
-local json = require("json")
-
 -- Admin identifiers are now managed in config.lua (Config.Admins)
 
 -- Ban management is handled by server.lua via events.
