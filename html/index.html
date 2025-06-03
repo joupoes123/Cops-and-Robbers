@@ -2,20 +2,26 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <!-- Ensures proper scaling on different devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cops and Robbers UI</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
-    <div id="role-selection" class="menu">
-        <h1>Select Your Role</h1>
-        <button onclick="selectRole('cop')">Cop</button>
-        <button onclick="selectRole('robber')">Robber</button>
+    <!-- Role Selection Menu -->
+    <div id="role-selection" class="menu" role="dialog" aria-labelledby="roleSelectionHeading" aria-modal="true">
+        <h1 id="roleSelectionHeading">Select Your Role</h1>
+        <button data-role="cop" aria-label="Select Cop role">Cop</button>
+        <button data-role="robber" aria-label="Select Robber role">Robber</button>
     </div>
 
-    <div id="heist-timer" class="hud">
+    <!-- Heist Timer HUD -->
+    <div id="heist-timer" class="hud" role="status" aria-live="polite">
         <p id="timer-text"></p>
     </div>
 
+    <!-- External JavaScript file for event handling -->
     <script src="scripts.js"></script>
 </body>
 </html>

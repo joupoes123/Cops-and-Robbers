@@ -3,34 +3,82 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <!-- Ensures proper scaling on different devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cops and Robbers</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
     <!-- Role Selection Section -->
-    <div id="role-selection" class="hidden">
-        <h1>Select Your Role</h1>
-        <button id="cop-btn">Cop</button>
-        <button id="robber-btn">Robber</button>
-    </div>
+    <section id="role-selection" class="hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
+        <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
+        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
+        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
+    </section>
 
     <!-- Store Section -->
-    <div id="store-menu" class="hidden">
+    <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
         <h1 id="store-title">Store</h1>
-        <div id="tab-menu">
-            <button class="tab-btn active" data-tab="buy">Buy</button>
-            <button class="tab-btn" data-tab="sell">Sell</button>
+        <!-- Tab Menu -->
+        <div id="tab-menu" role="tablist">
+            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
+            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
         </div>
-        <div id="category-list"></div>
-        <div id="buy-section" class="tab-content active">
+        <!-- Category List -->
+        <div id="category-list" aria-label="Item Categories"></div>
+        <!-- Buy Section -->
+        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
             <div id="item-list"></div>
         </div>
-        <div id="sell-section" class="tab-content">
+        <!-- Sell Section -->
+        <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
             <!-- Sell section content will be loaded here -->
         </div>
-        <button id="close-btn">Close</button>
+        <!-- Close Store Button -->
+        <button id="close-btn" aria-label="Close Store Menu">Close</button>
+    </section>
+
+    <!-- XP and Level Display HUD -->
+    <div id="xp-level-container" class="hud-element" style="display: none;"> <!-- Initially hidden -->
+        <span id="level-text">LVL 1</span>
+        <div id="xp-bar-background">
+            <div id="xp-bar-fill"></div>
+        </div>
+        <span id="xp-text">0 / 100 XP</span>
     </div>
 
     <script src="scripts.js"></script>
+
+    <!-- Admin Panel Section -->
+    <section id="admin-panel" class="hidden" role="dialog" aria-labelledby="adminPanelTitle" aria-modal="true">
+        <h1 id="adminPanelTitle">Admin Panel</h1>
+        <div class="admin-controls">
+            <button id="admin-close-btn" aria-label="Close Admin Panel">Close Panel</button>
+        </div>
+        <h2>Player List</h2>
+        <div class="admin-player-list-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>ID</th>
+                        <th>Role</th>
+                        <th>Cash</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-player-list-body">
+                    <!-- Player rows will be injected here by scripts.js -->
+                </tbody>
+            </table>
+        </div>
+        <div id="admin-ban-reason-container" class="hidden" style="margin-top: 10px;">
+            <label for="admin-ban-reason">Ban Reason:</label>
+            <input type="text" id="admin-ban-reason" placeholder="Enter reason for ban">
+            <button id="admin-confirm-ban-btn">Confirm Ban</button>
+            <button id="admin-cancel-ban-btn">Cancel</button>
+        </div>
+    </section>
 </body>
 </html>

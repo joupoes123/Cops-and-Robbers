@@ -2,7 +2,7 @@ version: 2
 updates:
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
-    directory: "/"  
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:
@@ -12,7 +12,7 @@ updates:
 
   # Node.js / JavaScript dependencies
   - package-ecosystem: "npm"
-    directory: "/"  
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:
@@ -25,7 +25,7 @@ updates:
 
   # Python dependencies
   - package-ecosystem: "pip"
-    directory: "/"  
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:
@@ -35,7 +35,7 @@ updates:
 
   # Lua dependencies (for FiveM / RedM if applicable)
   - package-ecosystem: "lua"
-    directory: "/"  
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:
@@ -45,7 +45,7 @@ updates:
 
   # Docker dependencies
   - package-ecosystem: "docker"
-    directory: "/"  
+    directory: "/"
     schedule:
       interval: "weekly"
     labels:
