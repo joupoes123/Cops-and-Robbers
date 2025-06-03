@@ -524,12 +524,12 @@ LoadPlayerData = function(playerId)
             xp = 0, level = 1, role = "citizen",
             lastKnownPosition = initialCoords, -- Use current coords or a default spawn
             perks = {}, armorModifier = 1.0, bountyCooldownUntil = 0,
-            money = Config.DefaultStartingMoney or 5000 -- Use a config value for starting money
+            money = Config.DefaultStartMoney or 5000 -- Use a config value for starting money
         }
         Log("Initialized default data for player " .. pIdNum .. ". Money: " .. playersData[pIdNum].money)
     else
         -- Ensure money is set if loaded from file, otherwise use default (already handled by loadedMoney init)
-        playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartingMoney or 5000
+        playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartMoney or 5000
     end
 
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
