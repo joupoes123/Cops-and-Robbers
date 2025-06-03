@@ -140,8 +140,8 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     local oldRole = playerData.role
     playerData = newPlayerData -- Overwrite local playerData with the new comprehensive data from server
 
-    -- Update legacy variables for compatibility or if still used by some UI parts
-    playerCash = newPlayerData.money or (QBCore and QBCore.Functions.GetPlayerData().money.cash) or 0 -- Fallback if money not in playerData
+    -- Update money from the authoritative server data
+    playerCash = newPlayerData.money or 0 -- Ensure playerCash reflects the server's view
     role = playerData.role -- Update global 'role' variable
 
     if role and oldRole ~= role then -- Spawn if role changed significantly
