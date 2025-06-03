@@ -185,13 +185,18 @@ end)
 -- Helper function to calculate XP needed for next level (client-side display approximation)
 -- Server's CalculateLevel is the source of truth. This is for UI.
 function CalculateXpForNextLevelClient(currentLevel, playerRole)
-    local roleLevels = Config.Levels[playerRole] or Config.Levels.default
-    if not roleLevels or #roleLevels == 0 then return 999999 end -- No levels configured
+    if not Config.LevelingSystemEnabled then return 999999 end
 
-    if currentLevel < #roleLevels then
-        return roleLevels[currentLevel + 1].xpRequired
+    local maxLvl = Config.MaxLevel or 10
+    if currentLevel >= maxLvl then
+        return playerData.xp -- Or a specific value/string indicating max level achieved
+    end
+
+    if Config.XPTable and Config.XPTable[currentLevel] then
+        return Config.XPTable[currentLevel]
     else
-        return roleLevels[#roleLevels].xpRequired -- Already at max level or beyond, show current level's XP
+        print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found in Config.XPTable. Returning high value.", "warn") -- Changed Log to print
+        return 999999 -- Fallback if XP for next level is not defined
     end
 end
 
@@ -283,7 +288,7 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
         return
     end
 
-    ShowNotification(string.format("~r~Police response intensifying! Wanted Level: %d star(s).", stars))
+    ShowNotification(string.format("~y~Wanted Level: %d star(s). (NPC response disabled)", stars)) -- Modified by subtask
 
     local presetStarLevel = math.min(stars, #Config.WantedNPCPresets)
     if not Config.WantedNPCPresets[presetStarLevel] then
@@ -301,7 +306,10 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
             break
         end
 
-        CreateThread(function() -- Spawn each group in its own thread for model loading
+        --vvv-- NPC Spawning Loop Disabled by Subtask --vvv--
+        -- The following loop responsible for spawning NPC response units has been commented out.
+        -- if Config.MaxActiveNPCResponseGroups == 0 then print("NPC responses globally disabled via MaxActiveNPCResponseGroups=0 in config.") end
+        --[[ CreateThread(function() -- Spawn each group in its own thread for model loading
             local groupEntitiesThisSpawn = {} -- Track entities for this specific group for timed removal
             local vehicle = nil
             local actualSpawnPos = vector3(lastKnownCoords.x, lastKnownCoords.y, lastKnownCoords.z) -- Use last known coords as base
@@ -395,7 +403,8 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
                 end
             end
             -- print("NPC Response group (part) despawned after timeout: " .. groupInfo.spawnGroup)
-        end)
+        end) --]]
+        --^^^-- NPC Spawning Loop Disabled by Subtask --^^^--
     end
 end)
 
@@ -895,52 +904,35 @@ end)
 RegisterNetEvent('cops_and_robbers:spectatePlayer')
 AddEventHandler('cops_and_robbers:spectatePlayer', function(playerToSpectateId)
     local ownPed = PlayerPedId()
-    local targetPed = GetPlayerPed(playerToSpectateId) -- Get ped handle of the player to spectate
+    local targetPed = GetPlayerPed(playerToSpectateId)
 
-    ShowNotification("~o~Spectate command received. Current implementation is placeholder.")
-    print("[WARNING] SpectatePlayer function is a basic placeholder and needs a full implementation.")
-
-    if DoesEntityExist(targetPed) then
-        -- Attempting a very basic spectate toggle using visibility and camera attachment (highly likely to be insufficient)
-        if IsPlayerSpectating(PlayerId()) or (IsEntityVisible(ownPed) == false and GetCamViewModeForContext(0) ~= 0) then -- Crude check if already "spectating"
-            -- Stop spectating
-            NetworkSetInSpectatorMode(false, PlayerPedId()) -- Try to exit FiveM's spectator mode if it was somehow activated
-            SetEntityVisible(ownPed, true, false)
-            DetachEntity(ownPed, true, false) -- Detach if attached to something
-            FreezeEntityPosition(ownPed, false)
-            ClearPedTasksImmediately(ownPed)
-
-            local cam = GetCamViewModeForContext(0) -- Get the active cam
-            if DoesCamExist(cam) and cam ~= PlayerGameplayCam() then
-                 DestroyCam(cam, false)
-            end
-            RenderScriptCams(false, false, 0, true, true)
-            SetFocusEntity(PlayerPedId()) -- Restore focus to self
-
-            ShowNotification("~g~Attempting to stop spectating.")
-            -- It's crucial to restore player's original state (coords, visibility, control) here.
-            -- This basic version likely fails to do so correctly.
-        else
-            -- Start spectating (very basic attempt)
-            ShowNotification("~b~Attempting to spectate player ID: " .. playerToSpectateId .. ". This is NOT a full spectate mode.")
-            -- A common, but still simplified, approach:
-            -- 1. Make self invisible and non-collidable
-            SetEntityVisible(ownPed, false, false)
-            SetEntityCollision(ownPed, false, false)
-            FreezeEntityPosition(ownPed, true) -- Keep admin ped frozen
-
-            -- 2. Use FiveM's built-in (but sometimes finicky) spectator mode
-            NetworkSetInSpectatorMode(true, targetPed)
-            -- Or, a more manual camera approach (more control, more complexity):
-            -- local spectateCam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-            -- AttachCamToEntity(spectateCam, targetPed, 0, -3.0, 1.0, true) -- Example offset
-            -- SetCamActive(spectateCam, true)
-            -- RenderScriptCams(true, false, 0, true, true)
-            -- SetFocusEntity(targetPed) -- Focus on the target
-            print("Note: A robust spectate mode needs careful handling of camera, player states, and controls.")
-        end
-    else
+    if not DoesEntityExist(targetPed) then
         ShowNotification("~r~Target player for spectate not found or no longer exists.")
+        return
+    end
+
+    if NetworkIsInSpectatorMode() then
+        -- Stop spectating
+        ShowNotification("~g~Stopping spectate.")
+        NetworkSetInSpectatorMode(false, ownPed) -- Return to own ped
+        -- Restore player state (visibility, collision, freeze)
+        SetEntityVisible(ownPed, true, false)
+        SetEntityCollision(ownPed, true, true)
+        FreezeEntityPosition(ownPed, false)
+        -- Optional: Restore to a saved position if implemented
+        ClearPedTasksImmediately(ownPed)
+        RenderScriptCams(false, false, 0, true, true) -- Ensure scripted cams are off
+    else
+        -- Start spectating
+        ShowNotification("~b~Spectating player ID: " .. playerToSpectateId .. ". Use command again to stop.")
+        -- Save player state (optional, for more robust restore)
+        -- local originalPosition = GetEntityCoords(ownPed)
+
+        SetEntityVisible(ownPed, false, false)
+        SetEntityCollision(ownPed, false, false)
+        FreezeEntityPosition(ownPed, true)
+
+        NetworkSetInSpectatorMode(true, targetPed)
     end
 end)
 
@@ -966,8 +958,9 @@ AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
         end
         
         -- Release player from jail
-        spawnPlayer(role)
         ShowNotification("~g~You have been released from jail.")
+        local pData = playerData -- Use the global playerData
+        if pData and pData.role then spawnPlayer(pData.role) else spawnPlayer("robber") end -- Fallback to robber spawn
     end)
 end)
 
@@ -1121,6 +1114,36 @@ RegisterNUICallback('selectRole', function(data, cb)
         ShowNotification("Invalid role selected.")
         cb('error')
     end
+end)
+
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    -- cb is the callback function to send data back to NUI.
+    -- We need to store this cb or associate it with this request if multiple inventory requests can happen.
+    -- For simplicity, assuming one outstanding request or that the server event response will be quick.
+    -- A more robust system might use a request ID.
+
+    local promise = exports.ox_lib:initiatePromise() -- Using ox_lib promise
+
+    -- Listen for the server's response ONCE for this specific request
+    local function handleInventoryResponse(inventoryData)
+        RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse) -- Clean up listener
+        cb(inventoryData) -- Send data back to NUI
+        promise:resolve()
+    end
+    AddEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
+
+    -- Request inventory from the server
+    TriggerServerEvent('cops_and_robbers:requestPlayerInventory')
+
+    -- Optional: Timeout for the promise if server doesn't respond
+    SetTimeout(5000, function()
+        if promise:getStatus() == 'pending' then
+            RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
+            cb({ error = "Failed to get inventory: Timeout" })
+            promise:reject("timeout")
+            Log("getPlayerInventory NUI callback timed out waiting for server.", "warn")
+        end
+    end)
 end)
 
 -- =====================================
@@ -1874,7 +1897,7 @@ Citizen.CreateThread(function()
             local activateEMPKey = (Config.Keybinds and Config.Keybinds.activateEMP) or 121 -- 121: INPUT_SELECT_WEAPON_UNARMED (NumPad 0)
             if IsControlJustPressed(0, activateEMPKey) then
                 -- Client-side check for item (improved UX, server still validates)
-                local empDeviceConfig = Config.Items["emp_device_vehicle"] -- Assuming this is the key for vehicle EMP
+                local empDeviceConfig = Config.Items["emp_device"] -- Corrected itemId
                 if empDeviceConfig and playerData.level >= (empDeviceConfig.minLevelRobber or 1) then
                     ShowNotification("~b~Activating EMP device...")
                     TriggerServerEvent('cops_and_robbers:activateEMP') -- Server checks inventory and level again
@@ -1903,7 +1926,7 @@ AddEventHandler('cops_and_robbers:vehicleEMPed', function(vehicleNetIdToEMP, dur
 
         -- Visual/Audio effects (placeholder)
         -- Consider using custom screen effects or sounds if available
-        -- Example: TriggerScreenblurFadeIn(durationMs / 2) -- Ensure this is a defined function or use alternatives
+        -- For custom visual EMP effects, consider using NUI messages to trigger them on screen.
         -- PlaySoundFrontend(-1, "EMP_Blast", "DLC_AW_Weapon_Sounds", true) -- Ensure sound pack is loaded
 
         SetTimeout(durationMs, function()
@@ -1915,7 +1938,6 @@ AddEventHandler('cops_and_robbers:vehicleEMPed', function(vehicleNetIdToEMP, dur
                     SetVehicleEngineOn(targetVehicle, true, true, false)
                 end
                 ShowNotification("~g~Vehicle systems recovering from EMP.")
-                -- Example: TriggerScreenblurFadeOut(durationMs / 2) -- Ensure this is a defined function
             end
         end)
     end
@@ -1939,7 +1961,7 @@ Citizen.CreateThread(function()
                 if #(playerCoords - grid.location) < 10.0 then -- Interaction radius (e.g., 10m)
                     DisplayHelpText(string.format("Press ~INPUT_CONTEXT~ to sabotage %s.", grid.name))
                     if IsControlJustPressed(0, 51) then -- E key (Context)
-                        local sabotageToolConfig = Config.Items["emp_device_grid"] -- Assuming a specific item for grid sabotage
+                        local sabotageToolConfig = Config.Items["emp_device"] -- Corrected itemId
                         if sabotageToolConfig and playerData.level >= (sabotageToolConfig.minLevelRobber or 1) then
                              ShowNotification("~b~Attempting power grid sabotage...")
                              TriggerServerEvent('cops_and_robbers:sabotagePowerGrid', i) -- Pass grid index (1-based)
@@ -1968,6 +1990,7 @@ AddEventHandler('cops_and_robbers:powerGridStateChanged', function(gridIndex, is
         -- True regional blackouts are very complex and often require custom shaders or timecycle mods.
         -- This will just affect game's generic "artificial lights" state, may not be area-specific enough.
         -- For area-specific, one might try to manage street light entities within grid.radius.
+        -- Note: SetArtificialLightsState(true) has a global effect. True localized blackouts are complex.
         SetArtificialLightsState(true) -- This native might turn off many lights globally.
                                       -- A better approach for localized effect is needed for full implementation.
         print("Simplified power outage effect activated for grid: " .. grid.name)

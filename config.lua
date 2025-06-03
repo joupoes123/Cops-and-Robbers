@@ -54,29 +54,7 @@ Config.CivilianVehicles = { "sultan", "futo", "blista", "banshee", "elegy2", "st
 -- This 'Config.Experience' table seems to be a legacy or alternative leveling system.
 -- The newer, more detailed system is defined under 'Player Leveling System (New)' further down.
 -- Consider removing or integrating this if it's redundant.
-Config.Experience = {
-    Levels = {
-        { level = 1, exp = 0 },
-        { level = 2, exp = 1000 },
-        { level = 3, exp = 3000 },
-        { level = 4, exp = 6000 },
-        { level = 5, exp = 10000 },
-    },
-    Rewards = {
-        ['robber'] = {
-            [2] = { cash = 500,  item = 'lockpick' },
-            [3] = { cash = 1000, item = 'drill' },
-            [4] = { cash = 2000, item = 'thermal_charge' }, -- Note: 'thermal_charge' not in Config.Items
-            [5] = { cash = 5000, item = 'gold_bar' },       -- Note: 'gold_bar' not in Config.Items as a purchasable item
-        },
-        ['cop'] = {
-            [2] = { cash = 500,  item = 'taser' },           -- Note: 'taser' not in Config.Items
-            [3] = { cash = 1000, item = 'stun_gun' },        -- Note: 'stun_gun' not in Config.Items
-            [4] = { cash = 2000, item = 'carbine_rifle' },   -- Refers to weapon_carbinerifle
-            [5] = { cash = 5000, item = 'swat_gear' },       -- Note: 'swat_gear' not in Config.Items
-        },
-    },
-}
+-- Config.Experience table (lines 40-61) removed by subtask
 
 
 -- =========================
@@ -84,13 +62,7 @@ Config.Experience = {
 -- =========================
 -- Note: This simple wanted level system is mostly superseded by the advanced Config.WantedSettings below.
 -- It might still be used for basic NPC police response or simple UI elements if not fully removed or integrated.
-Config.WantedLevels = {
-    [1] = { stars = 1, description = "Minor Offenses" },
-    [2] = { stars = 2, description = "Felony" },
-    [3] = { stars = 3, description = "Serious Crime" },
-    [4] = { stars = 4, description = "High Alert" },
-    [5] = { stars = 5, description = "Most Wanted" },
-}
+-- Config.WantedLevels table (lines 66-74) removed by subtask
 
 
 -- =========================
@@ -223,7 +195,7 @@ Config.RobbableStores = { -- List of stores that can be robbed
     { name = "24/7 Strawberry",       location = vector3(25.0, -1340.0, 29.0),  rewardMin = 5000, rewardMax = 9000, cooldown = 400, copsNeeded = 2, radius = 10.0, duration = 60000 },
     -- Add more stores here: { name, location (vector3), rewardMin, rewardMax (cash), cooldown (seconds), copsNeeded (integer), radius (meters for interaction), duration (ms for robbing) }
 }
-Config.StoreRobberyDuration   = 60000  -- DEPRECATED by per-store duration. Default milliseconds a robber must stay in store if not set per store.
+-- Config.StoreRobberyDuration line removed by subtask
 
 Config.ArmoredCar = {
     model          = "stockade",                       -- Vehicle model for the armored car.
@@ -304,37 +276,14 @@ Config.WantedSettings = {
 -- Defines NPC police response groups based on wanted level.
 -- Each preset (e.g., [1] for 1-star) is an array of groups to spawn.
 Config.WantedNPCPresets = {
-    [1] = { -- Preset for 1-star wanted level
-        { spawnGroup = "COP_PATROL_LIGHT", count = 1, vehicle = "police",  weapon = "WEAPON_PISTOL",       accuracy = 10, armour = 10, sightDistance = 60.0 }
-    },
-    [2] = { -- Preset for 2-star wanted level
-        { spawnGroup = "COP_PATROL_MEDIUM", count = 2, vehicle = "police",  weapon = "WEAPON_PISTOL",       accuracy = 15, armour = 25, sightDistance = 70.0 },
-    },
-    [3] = { -- Preset for 3-star wanted level
-        { spawnGroup = "SWAT_PATROL_SMG",   count = 2, vehicle = "policet", weapon = "WEAPON_SMG",          accuracy = 25, armour = 50, sightDistance = 75.0, combatAttributes = {0, true, 5, true} }, -- Use cover, flank
-        { spawnGroup = "COP_PATROL_SHOTGUN",count = 1, vehicle = "police2", weapon = "WEAPON_PUMPSHOTGUN",  accuracy = 20, armour = 25, sightDistance = 70.0, helicopterChance = 0.1, helicopter = "polmav", pedModel = "s_m_y_cop_01" },
-    },
-    [4] = { -- Preset for 4-star wanted level
-        { spawnGroup = "SWAT_HEAVY_RIFLE",  count = 3, vehicle = "fbi",     weapon = "WEAPON_CARBINERIFLE", accuracy = 35, armour = 75, sightDistance = 100.0, combatAttributes = {0, true, 2, true, 5, true, 46, true} }, -- Aggressive, use cover, flank, fight armed
-        { spawnGroup = "SWAT_PATROL_SMG_HELI", count = 2, vehicle = "policet", weapon = "WEAPON_SMG",       accuracy = 30, armour = 50, sightDistance = 80.0, helicopterChance = 0.3, helicopter = "polmav", pedModel = "s_m_y_swat_01" },
-    },
-    [5] = { -- Preset for 5-star wanted level
-        { spawnGroup = "SWAT_MAX_ASSAULT",  count = 4, vehicle = "fbi2",    weapon = "WEAPON_ASSAULTRIFLE", accuracy = 45, armour = 100, sightDistance = 120.0, combatAttributes = {0, true, 1, true, 2, true, 5, true, 46, true} }, -- Very aggressive
-        { spawnGroup = "SWAT_HEAVY_HELI",   count = 2, vehicle = "fbi",     weapon = "WEAPON_CARBINERIFLE", accuracy = 40, armour = 75,  sightDistance = 100.0, helicopterChance = 0.5, helicopter = "savage", pedModel = "s_m_y_swat_01" }, -- Example: use 'savage' (if available)
-    }
-    -- spawnGroup: Logical name for this group of peds (for logging/debugging).
-    -- count: Number of peds in this specific part of the response wave.
-    -- vehicle: Vehicle model hash (string) for this group (can be nil for foot patrol, though not shown in examples).
-    -- weapon: Weapon hash (string) for peds in this group.
-    -- accuracy: Ped shooting accuracy (0-100).
-    -- armour: Ped armour points (0-100).
-    -- sightDistance: How far this group can "see" the player (meters).
-    -- combatAttributes: Table of {attributeId (integer), value (boolean)}. E.g., {0, true} for CA_CAN_USE_COVER, {2, true} for CA_AGGRESSIVE_PUSH.
-    -- helicopterChance: 0.0 to 1.0 chance of this group being a helicopter instead (if `helicopter` model is specified).
-    -- helicopter: Helicopter model hash (string) to use if helicopterChance is met.
-    -- pedModel: Specific ped model hash (string) for this group, defaults to s_m_y_cop_01 if not set.
+    [1] = {}, -- NPC groups removed by subtask
+    [2] = {}, -- NPC groups removed by subtask
+    [3] = {}, -- NPC groups removed by subtask
+    [4] = {}, -- NPC groups removed by subtask
+    [5] = {}  -- NPC groups removed by subtask
+    -- All original NPC group definitions removed.
 }
-Config.MaxActiveNPCResponseGroups = 5 -- Maximum number of concurrent NPC response groups (cars/helis) active for a single player at any time.
+Config.MaxActiveNPCResponseGroups = 0 -- Disabled by subtask
 
 Config.RestrictedAreas = {
     { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 750.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 20 },
@@ -481,6 +430,14 @@ Config.PoliceVehicleSpawns = {
 Config.RobberVehicleSpawns = { -- Example, might not be used if robbers acquire vehicles differently
     { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0 }, -- Near Robber spawn
     -- Add more spawn points as needed
+}
+
+-- Added by integrity check subtask - Default/Fallback values
+Config.AdminPermission = "admin" -- Example QBCore permission for admin commands if Config.Admins is not used for a check
+Config.MaxCops = 10 -- Example max cops
+Config.PlayerCountSyncInterval = 30 -- Seconds, example
+Config.PerkEffects = {
+    IncreasedArmorDurabilityModifier = 1.25 -- Example: 25% more armor
 }
 
 -- =========================

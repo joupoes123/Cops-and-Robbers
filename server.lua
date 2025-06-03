@@ -29,9 +29,65 @@ local playerDeployedSpikeStripsCount = {} -- For extra_spike_strips perk
 local activeSpikeStrips = {} -- To manage strip IDs and removal: {stripId = {copId = src, location = ...}}
 local nextSpikeStripId = 1
 
+-- Function to load bans from bans.json
+local function LoadBans()
+    local banFile = LoadResourceFile(GetCurrentResourceName(), "bans.json")
+    if banFile then
+        local success, loaded = pcall(json.decode, banFile)
+        if success and type(loaded) == "table" then
+            for identifier, banInfo in pairs(loaded) do
+                if not bannedPlayers[identifier] then -- Merge, Config.BannedPlayers can take precedence or be defaults
+                    bannedPlayers[identifier] = banInfo
+                end
+            end
+            Log("Loaded " .. tablelength(loaded) .. " bans from bans.json")
+        else
+            Log("Failed to decode bans.json: " .. tostring(loaded), "error")
+        end
+    else
+        Log("bans.json not found. Only using bans from Config.BannedPlayers.")
+    end
+end
+
+local function SaveBans()
+    local success = SaveResourceFile(GetCurrentResourceName(), "bans.json", json.encode(bannedPlayers), -1)
+    if success then
+        Log("Saved bans to bans.json")
+    else
+        Log("Failed to save bans.json", "error")
+    end
+end
+
+-- Function to load purchase history from purchase_history.json
+local function LoadPurchaseHistory()
+    local historyFile = LoadResourceFile(GetCurrentResourceName(), "purchase_history.json")
+    if historyFile then
+        local success, loaded = pcall(json.decode, historyFile)
+        if success and type(loaded) == "table" then
+            purchaseHistory = loaded
+            Log("Loaded purchase history from purchase_history.json. Count: " .. tablelength(purchaseHistory))
+        else
+            Log("Failed to decode purchase_history.json: " .. tostring(loaded), "error")
+            purchaseHistory = {} -- Start fresh if file is corrupt
+        end
+    else
+        Log("purchase_history.json not found. Initializing empty history.")
+        purchaseHistory = {}
+    end
+end
+
+local function SavePurchaseHistory()
+    if not Config.DynamicEconomy or not Config.DynamicEconomy.enabled then return end -- Only save if enabled
+    local success = SaveResourceFile(GetCurrentResourceName(), "purchase_history.json", json.encode(purchaseHistory), -1)
+    if success then
+        Log("Saved purchase history to purchase_history.json")
+    else
+        Log("Failed to save purchase_history.json", "error")
+    end
+end
+
 -- Configuration shortcuts
 local Config = Config
-local SharedUtils = SharedUtils
 
 -- Forward declaration for functions that might be called before definition due to event handlers
 local GetPlayerLevelAndXP, AddXP, SetPlayerRole, IsPlayerCop, IsPlayerRobber, SavePlayerData, LoadPlayerData, CheckAndPlaceBounty, UpdatePlayerWantedLevel, ReduceWantedLevel, SendToJail
@@ -95,8 +151,28 @@ local function RemovePlayerMoney(playerId, amount, type)
 end
 
 local function IsAdmin(playerId)
-    local player = GetPlayerFromServerId(playerId)
-    if player then return QBCore.Functions.HasPermission(playerId, Config.AdminPermission) or QBCore.Functions.HasPermission(playerId, "god") end
+    local src = tonumber(playerId) -- Ensure it is a number for GetPlayerIdentifiers
+    if not src then return false end
+
+    local identifiers = GetPlayerIdentifiers(tostring(src))
+    if not identifiers then return false end
+
+    if not Config or type(Config.Admins) ~= "table" then
+        Log("IsAdmin Check: Config.Admins is not loaded or not a table.", "error")
+        return false
+    end
+
+    for _, identifier in ipairs(identifiers) do
+        if Config.Admins[identifier] then
+            return true
+        end
+    end
+
+    -- Fallback or alternative: Check QBCore permission if Config.AdminPermission is set
+    if Config.AdminPermission and QBCore.Functions.HasPermission(src, Config.AdminPermission) then
+        return true
+    end
+    if QBCore.Functions.HasPermission(src, "god") then return true end -- Default god permission
     return false
 end
 
@@ -106,6 +182,278 @@ local function GetPlayerRole(playerId)
     return "citizen"
 end
 
+local function CalculateDynamicPrice(itemId, basePrice)
+    if not Config.DynamicEconomy or not Config.DynamicEconomy.enabled then
+        return basePrice
+    end
+
+    local currentTime = os.time()
+    local timeframe = Config.DynamicEconomy.popularityTimeframe or (3 * 60 * 60) -- Default 3 hours
+    local recentPurchases = 0
+
+    for _, purchase in ipairs(purchaseHistory) do
+        if purchase.itemId == itemId and (currentTime - purchase.timestamp) <= timeframe then
+            recentPurchases = recentPurchases + (purchase.quantity or 1)
+        end
+    end
+
+    local price = basePrice
+    if recentPurchases > (Config.DynamicEconomy.popularityThresholdHigh or 10) then
+        price = math.floor(basePrice * (Config.DynamicEconomy.priceIncreaseFactor or 1.2))
+        Log(string.format("DynamicPrice: Item %s popular (%d purchases), price increased to %d from %d", itemId, recentPurchases, price, basePrice))
+    elseif recentPurchases < (Config.DynamicEconomy.popularityThresholdLow or 2) then
+        price = math.floor(basePrice * (Config.DynamicEconomy.priceDecreaseFactor or 0.8))
+        Log(string.format("DynamicPrice: Item %s unpopular (%d purchases), price decreased to %d from %d", itemId, recentPurchases, price, basePrice))
+    else
+        Log(string.format("DynamicPrice: Item %s normal popularity (%d purchases), price remains %d", itemId, recentPurchases, price))
+    end
+    return price
+end
+
+-- =================================================================================================
+-- ITEMS, SHOPS, AND INVENTORY
+-- =================================================================================================
+RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
+    local src = tonumber(source)
+    local pData = GetCnrPlayerData(src)
+    quantity = tonumber(quantity) or 1
+
+    if not pData then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Player data not found.")
+        Log("cnr:buyItem - Player data not found for source: " .. src, "error")
+        return
+    end
+
+    local itemConfig = nil
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == itemId then
+            itemConfig = item
+            break
+        end
+    end
+
+    if not itemConfig then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Item not found in config.")
+        Log("cnr:buyItem - ItemId " .. itemId .. " not found in Config.Items for source: " .. src, "warn")
+        return
+    end
+
+    -- Level Restriction Check
+    if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "You are not high enough level for this item. (Required Cop Lvl: " .. itemConfig.minLevelCop .. ")")
+        return
+    elseif pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "You are not high enough level for this item. (Required Robber Lvl: " .. itemConfig.minLevelRobber .. ")")
+        return
+    end
+
+    -- Cop Only Restriction Check
+    if itemConfig.forCop and pData.role ~= "cop" then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "This item is restricted to Cops only.")
+        return
+    end
+
+    -- TODO: Implement dynamic pricing here in a future step. For now, use basePrice.
+    local itemPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
+    Log("cnr:buyItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Dynamic Price: " .. itemPrice)
+    local totalCost = itemPrice * quantity
+
+    local playerCash = QBCore.Functions.GetMoney(src, 'cash') -- Assuming QBCore.Functions.GetMoney takes src directly
+    if playerCash < totalCost then
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Not enough cash.")
+        return
+    end
+
+    if QBCore.Functions.RemoveMoney(src, 'cash', totalCost) then -- Assuming RemoveMoney takes src
+        local added, err = exports.ox_inventory:AddItem(src, itemId, quantity)
+        if added then
+            TriggerClientEvent('cops_and_robbers:purchaseConfirmed', src, itemId, quantity)
+            Log(string.format("Player %s purchased %dx %s for $%d", src, quantity, itemId, totalCost))
+            -- Record purchase for dynamic economy
+            if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+                table.insert(purchaseHistory, { itemId = itemId, playerId = src, timestamp = os.time(), price = itemPrice, quantity = quantity }) -- Using dynamic price
+                -- Consider calling SavePurchaseHistory() here or rely on periodic/onDrop save
+            end
+        else
+            Log(string.format("ox_inventory:AddItem failed for %s, item %s, quantity %d. Error: %s", src, itemId, quantity, err or "unknown"), "error")
+            TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not add item to inventory. Purchase reversed.")
+            QBCore.Functions.AddMoney(src, 'cash', totalCost) -- Refund
+        end
+    else
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not process payment.")
+        Log("cnr:buyItem - Failed to remove money from source: " .. src, "error")
+    end
+end)
+
+RegisterNetEvent('cnr:sellItem', function(itemId, quantity)
+    local src = tonumber(source)
+    local pData = GetCnrPlayerData(src)
+    quantity = tonumber(quantity) or 1
+
+    if not pData then
+        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Player data not found.")
+        return
+    end
+
+    local itemConfig = nil
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == itemId then
+            itemConfig = item
+            break
+        end
+    end
+
+    if not itemConfig then
+        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Item not found in config.")
+        return
+    end
+
+    if not itemConfig.basePrice then -- Ensure item has a price to base sell value on
+        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Item cannot be sold (no price defined).")
+        return
+    end
+
+    -- TODO: Use dynamic price for selling in a future step.
+    local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
+    local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
+    local sellPricePerItem = math.floor(currentMarketPrice * sellPriceFactor)
+    Log("cnr:sellItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Current Market Price: " .. currentMarketPrice .. ", Sell Price: " .. sellPricePerItem)
+    local totalGain = sellPricePerItem * quantity
+
+    local removed, err = exports.ox_inventory:RemoveItem(src, itemId, quantity)
+    if removed then
+        if QBCore.Functions.AddMoney(src, 'cash', totalGain) then -- Assuming AddMoney takes src
+            TriggerClientEvent('cops_and_robbers:sellConfirmed', src, itemId, quantity)
+            Log(string.format("Player %s sold %dx %s for $%d", src, quantity, itemId, totalGain))
+        else
+            Log(string.format("Failed to add money to %s after selling %s. Refunding item.", src, itemId), "error")
+            exports.ox_inventory:AddItem(src, itemId, quantity) -- Attempt to give item back
+            TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not process payment for sale.")
+        end
+    else
+        Log(string.format("ox_inventory:RemoveItem failed for %s, item %s, quantity %d. Error: %s", src, itemId, quantity, err or "unknown"), "error")
+        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not remove item from inventory.")
+    end
+end)
+
+-- K9 System Events
+RegisterNetEvent('cops_and_robbers:spawnK9', function()
+    local src = tonumber(source)
+    local pData = GetCnrPlayerData(src)
+
+    if not pData then
+        Log("cops_and_robbers:spawnK9 - Player data not found for source: " .. src, "error")
+        return
+    end
+
+    if pData.role ~= "cop" then
+        TriggerClientEvent('QBCore:Notify', src, "Only Cops can use the K9 whistle.", "error")
+        return
+    end
+
+    local k9WhistleConfig = nil
+    for _, item in ipairs(Config.Items) do
+        if item.itemId == "k9whistle" then -- Assuming "k9whistle" is the itemId in Config.Items
+            k9WhistleConfig = item
+            break
+        end
+    end
+
+    if not k9WhistleConfig then
+        Log("K9 Whistle item config not found in Config.Items!", "error")
+        TriggerClientEvent('QBCore:Notify', src, "K9 Whistle item not configured.", "error")
+        return
+    end
+
+    if k9WhistleConfig.minLevelCop and pData.level < k9WhistleConfig.minLevelCop then
+        TriggerClientEvent('QBCore:Notify', src, "You are not high enough level to use the K9 Whistle. (Required Cop Lvl: " .. k9WhistleConfig.minLevelCop .. ")", "error")
+        return
+    end
+
+    -- Check for K9 whistle item in inventory (actual item name might differ from itemId)
+    -- Assuming the itemId "k9whistle" is what ox_inventory uses.
+    local hasWhistle = exports.ox_inventory:Search('count', src, 'k9whistle') -- ox_inventory specific
+    if not hasWhistle or hasWhistle < 1 then
+         TriggerClientEvent('QBCore:Notify', src, "You do not have a K9 Whistle.", "error")
+         return
+    end
+
+    -- Potentially consume the whistle or have a cooldown managed by the item itself if it's not reusable.
+    -- For now, just checking possession.
+
+    TriggerClientEvent('cops_and_robbers:clientSpawnK9Authorized', src)
+    Log("Authorized K9 spawn for Cop: " .. src)
+end)
+
+-- Basic dismiss and command relays (assuming they exist or are simple)
+RegisterNetEvent('cops_and_robbers:dismissK9', function()
+    local src = tonumber(source)
+    if GetCnrPlayerData(src) and GetCnrPlayerData(src).role == "cop" then
+        TriggerClientEvent('cops_and_robbers:clientDismissK9', src)
+        Log("Cop " .. src .. " dismissed K9.")
+    end
+end)
+
+RegisterNetEvent('cops_and_robbers:commandK9', function(targetRobberServerId, commandType)
+    local src = tonumber(source)
+    if GetCnrPlayerData(src) and GetCnrPlayerData(src).role == "cop" then
+        -- Server could do more validation here if needed (e.g., target is valid robber)
+        TriggerClientEvent('cops_and_robbers:k9ProcessCommand', src, tonumber(targetRobberServerId), commandType)
+        Log(string.format("Cop %s commanded K9 (%s) for target %s", src, commandType, targetRobberServerId))
+    end
+end)
+
+-- Vehicle Access Logic (Example: Called by a vehicle shop)
+RegisterNetEvent('cnr:requestVehicleSpawn', function(vehicleModelName)
+    local src = tonumber(source)
+    local pData = GetCnrPlayerData(src)
+
+    if not pData then
+        Log("cnr:requestVehicleSpawn - Player data not found for source: " .. src, "error")
+        TriggerClientEvent('QBCore:Notify', src, "Your player data could not be found.", "error")
+        return
+    end
+
+    local vehicleKey = vehicleModelName:lower() -- Assuming vehicleModelName is a string like "police"
+    local foundUnlock = false
+    local canAccess = false
+    local requiredLevel = 0
+
+    if Config.LevelUnlocks and Config.LevelUnlocks[pData.role] then
+        for level, unlocks in pairs(Config.LevelUnlocks[pData.role]) do
+            for _, unlockDetail in ipairs(unlocks) do
+                if unlockDetail.type == "vehicle_access" and unlockDetail.vehicleHash:lower() == vehicleKey then
+                    foundUnlock = true
+                    requiredLevel = level
+                    if pData.level >= level then
+                        canAccess = true
+                    end
+                    goto check_done -- Found the specific vehicle unlock, no need to check further
+                end
+            end
+        end
+    end
+    ::check_done::
+
+    if not foundUnlock then
+        -- If not found in level unlocks, assume it's a default vehicle accessible by anyone in the role (if applicable)
+        -- or a vehicle not managed by level unlocks. For this example, we'll assume it's accessible if not explicitly restricted.
+        -- A more robust system might have a base list of allowed vehicles per role.
+        Log(string.format("cnr:requestVehicleSpawn - Vehicle %s not found in LevelUnlocks for role %s. Assuming default access.", vehicleModelName, pData.role))
+        canAccess = true -- Defaulting to accessible if not in unlock list; adjust if default should be restricted.
+    end
+
+    if canAccess then
+        TriggerClientEvent('QBCore:Notify', src, string.format("Access GRANTED for %s.", vehicleModelName), "success")
+        Log(string.format("Player %s (Lvl %d) GRANTED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
+        -- TODO: Actual vehicle spawning logic would go here, e.g.,
+        -- QBCore.Functions.SpawnVehicle(src, vehicleModelName, coords, heading, function(vehicle) ... end)
+    else
+        TriggerClientEvent('QBCore:Notify', src, string.format("Access DENIED for %s. Required Level: %d.", vehicleModelName, requiredLevel), "error")
+        Log(string.format("Player %s (Lvl %d) DENIED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
+    end
+end)
+
 -- =================================================================================================
 -- PLAYER DATA MANAGEMENT (XP, LEVELS, SAVING/LOADING)
 -- =================================================================================================
@@ -113,23 +461,53 @@ end
 LoadPlayerData = function(playerId)
     local pIdNum = tonumber(playerId)
     local player = GetPlayerFromServerId(pIdNum)
-    if not player then return end
+    if not player then Log("LoadPlayerData: Player " .. pIdNum .. " not found on server.", "error"); return end
+
+    local license = nil
+    local identifiers = GetPlayerIdentifiers(tostring(pIdNum))
+    for _, idStr in ipairs(identifiers) do
+        if string.match(idStr, "^license:") then
+            license = idStr
+            break
+        end
+    end
+
+    local filename = nil
+    if license then
+        filename = "player_data/" .. license:gsub(":", "") .. ".json"
+    else
+        Log("LoadPlayerData: Could not find license for player " .. pIdNum .. ". Using numeric ID as fallback filename for load attempt.", "warn")
+        filename = "player_data/pid_" .. pIdNum .. ".json"
+    end
+
+    local fileData = LoadResourceFile(GetCurrentResourceName(), filename)
+    if fileData then
+        local success, data = pcall(json.decode, fileData)
+        if success and type(data) == "table" then
+            playersData[pIdNum] = data
+            Log("Loaded player data for " .. pIdNum .. " from " .. filename .. ". Level: " .. (data.level or 0) .. ", Role: " .. (data.role or "citizen"))
+            playersData[pIdNum].money = player.Functions.GetMoney('cash') -- Refresh money from QBCore
+        else
+            Log("Failed to decode player data for " .. pIdNum .. " from " .. filename .. ". Using defaults. Error: " .. tostring(data), "error")
+            playersData[pIdNum] = nil -- Force default initialization
+        end
+    else
+        Log("No save file found for " .. pIdNum .. " at " .. filename .. ". Initializing default data.")
+        playersData[pIdNum] = nil -- Force default initialization
+    end
 
     if not playersData[pIdNum] then
-        Log("No existing data for player " .. pIdNum .. ", initializing default data.")
         playersData[pIdNum] = {
             xp = 0, level = 1, role = "citizen",
             lastKnownPosition = player.PlayerData.coords,
             perks = {}, armorModifier = 1.0, bountyCooldownUntil = 0,
             money = player.Functions.GetMoney('cash')
         }
-    else
-        Log("Loaded data for player " .. pIdNum .. ": Level " .. playersData[pIdNum].level .. ", XP " .. playersData[pIdNum].xp .. ", Role " .. playersData[pIdNum].role)
-        playersData[pIdNum].money = player.Functions.GetMoney('cash')
+        Log("Initialized default data for player " .. pIdNum .. ".")
     end
 
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
-    ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role) -- Apply perks after role is set
+    ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role)
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
 end
@@ -137,8 +515,29 @@ end
 SavePlayerData = function(playerId)
     local pIdNum = tonumber(playerId)
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then return end
-    Log(string.format("Player %s data would be saved here (Level: %d, XP: %d, Role: %s, Bounty Cooldown: %s)", pIdNum, pData.level, pData.xp, pData.role, pData.bountyCooldownUntil))
+    if not pData then Log("SavePlayerData: No data for player " .. pIdNum, "warn"); return end
+
+    local license = nil
+    local identifiers = GetPlayerIdentifiers(tostring(pIdNum))
+    for _, idStr in ipairs(identifiers) do
+        if string.match(idStr, "^license:") then
+            license = idStr
+            break
+        end
+    end
+
+    if not license then
+        Log("SavePlayerData: Could not find license for player " .. pIdNum .. ". Using numeric ID as fallback filename.", "warn")
+        license = "pid_" .. pIdNum -- Fallback, not ideal
+    end
+
+    local filename = "player_data/" .. license:gsub(":", "") .. ".json" -- Sanitize filename from identifier
+    local success = SaveResourceFile(GetCurrentResourceName(), filename, json.encode(pData), -1)
+    if success then
+        Log("Saved player data for " .. pIdNum .. " to " .. filename .. ".")
+    else
+        Log("Failed to save player data for " .. pIdNum .. " to " .. filename .. ".", "error")
+    end
 end
 
 SetPlayerRole = function(playerId, role, skipNotify)
@@ -179,12 +578,22 @@ IsPlayerCop = function(playerId) return GetPlayerRole(playerId) == "cop" end
 IsPlayerRobber = function(playerId) return GetPlayerRole(playerId) == "robber" end
 
 local function CalculateLevel(xp, role)
-    local levelsConfig = Config.Levels[role] or Config.Levels.default
-    local level = 1; for i = #levelsConfig, 1, -1 do if xp >= levelsConfig[i].xpRequired then level = i; break end end
-    if levelsConfig[1] and xp < levelsConfig[1].xpRequired then level = 1
-    elseif #levelsConfig == 0 then level = 1
-    elseif #levelsConfig > 0 and level == 1 and xp >= (levelsConfig[#levelsConfig].xpRequired + ((levelsConfig[2] and levelsConfig[2].xpRequired or levelsConfig[1].xpRequired) - levelsConfig[1].xpRequired)) then level = #levelsConfig end
-    return level
+    if not Config.LevelingSystemEnabled then return 1 end -- Return level 1 if system disabled
+    local currentLevel = 1
+    local cumulativeXp = 0
+
+    -- Iterate up to Config.MaxLevel - 1 because XPTable defines XP to reach NEXT level
+    for level = 1, (Config.MaxLevel or 10) - 1 do
+        local xpForNext = (Config.XPTable and Config.XPTable[level]) or 999999
+        cumulativeXp = cumulativeXp + xpForNext
+        if xp >= cumulativeXp then
+            currentLevel = level + 1
+        else
+            break -- Stop if player does not have enough XP for this level
+        end
+    end
+    -- Ensure level does not exceed MaxLevel
+    return math.min(currentLevel, (Config.MaxLevel or 10))
 end
 
 AddXP = function(playerId, amount, type)
@@ -295,27 +704,54 @@ end)
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     local pIdNum = tonumber(playerId); local player = GetPlayerFromServerId(pIdNum)
     if not player or not IsPlayerRobber(pIdNum) then return end
-    local crimeDetails = Config.WantedSettings.crimes[crimeKey]; if not crimeDetails then Log("Unknown crimeKey: " .. crimeKey, "error"); return end
-    if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
 
+    local crimeConfig = Config.WantedSettings.crimes[crimeKey]
+    if not crimeConfig then Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error"); return end
+
+    if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
     local currentWanted = wantedPlayers[pIdNum]
-    currentWanted.wantedLevel = math.min(currentWanted.wantedLevel + crimeDetails.wantedPoints, Config.WantedSettings.maxWantedLevel)
+
+    -- Use crimeConfig.points if defined, otherwise Config.WantedSettings.baseIncreasePoints
+    local pointsToAdd = (type(crimeConfig) == "table" and crimeConfig.wantedPoints) or (type(crimeConfig) == "number" and crimeConfig) or Config.WantedSettings.baseIncreasePoints or 1
+    local maxConfiguredWantedLevel = 0
+    if Config.WantedSettings and Config.WantedSettings.levels and #Config.WantedSettings.levels > 0 then
+        maxConfiguredWantedLevel = Config.WantedSettings.levels[#Config.WantedSettings.levels].threshold + 10 -- A bit above the highest threshold
+    else
+        maxConfiguredWantedLevel = 200 -- Fallback max wanted points if config is malformed
+    end
+
+    currentWanted.wantedLevel = math.min(currentWanted.wantedLevel + pointsToAdd, maxConfiguredWantedLevel)
     currentWanted.lastCrimeTime = os.time()
     if not currentWanted.crimesCommitted[crimeKey] then currentWanted.crimesCommitted[crimeKey] = 0 end
     currentWanted.crimesCommitted[crimeKey] = currentWanted.crimesCommitted[crimeKey] + 1
-    local newStars = 0; for i = #Config.WantedSettings.starThresholds, 1, -1 do if currentWanted.wantedLevel >= Config.WantedSettings.starThresholds[i] then newStars = i; break end end
+
+    local newStars = 0
+    if Config.WantedSettings and Config.WantedSettings.levels then
+        for i = #Config.WantedSettings.levels, 1, -1 do
+            if currentWanted.wantedLevel >= Config.WantedSettings.levels[i].threshold then
+                newStars = Config.WantedSettings.levels[i].stars
+                break
+            end
+        end
+    end
     currentWanted.stars = newStars
 
-    Log(string.format("Player %s committed crime '%s'. Wanted: %d, Stars: %d", pIdNum, crimeKey, currentWanted.wantedLevel, newStars))
-    TriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted)
+    Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
+    TriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
+    TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
     TriggerClientEvent('QBCore:Notify', pIdNum, string.format("Wanted level increased! (%d Stars)", newStars), "error")
+
+    local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
     for copId, _ in pairs(copsOnDuty) do local copPlayer = GetPlayerFromServerId(copId)
         if copPlayer then local robberCoords = GetEntityCoords(GetPlayerPed(pIdNum))
-            TriggerClientEvent('QBCore:Notify', copId, string.format("Suspect %s (%s) is %d-star wanted for %s.", player.PlayerData.name, pIdNum, newStars, crimeDetails.description), "warning")
+            TriggerClientEvent('QBCore:Notify', copId, string.format("Suspect %s (%s) is %d-star wanted for %s.", player.PlayerData.name, pIdNum, newStars, crimeDescription), "warning")
             TriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, robberCoords, newStars, true)
         end
     end
-    if crimeDetails.xpForRobber and crimeDetails.xpForRobber > 0 then AddXP(pIdNum, crimeDetails.xpForRobber, "robber") end
+
+    if type(crimeConfig) == "table" and crimeConfig.xpForRobber and crimeConfig.xpForRobber > 0 then
+        AddXP(pIdNum, crimeConfig.xpForRobber, "robber")
+    end
     CheckAndPlaceBounty(pIdNum)
 end
 
@@ -323,7 +759,15 @@ ReduceWantedLevel = function(playerId, amount)
     local pIdNum = tonumber(playerId)
     if wantedPlayers[pIdNum] then
         wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPlayers[pIdNum].wantedLevel - amount)
-        local newStars = 0; for i = #Config.WantedSettings.starThresholds, 1, -1 do if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.starThresholds[i] then newStars = i; break end end
+        local newStars = 0
+        if Config.WantedSettings and Config.WantedSettings.levels then
+            for i = #Config.WantedSettings.levels, 1, -1 do
+                if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.levels[i].threshold then
+                    newStars = Config.WantedSettings.levels[i].stars
+                    break
+                end
+            end
+        end
         wantedPlayers[pIdNum].stars = newStars
         TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
         Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
@@ -355,7 +799,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId)
     jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} }
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-    TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.Locations.jail.cell)
+    TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation) -- Corrected path
     TriggerClientEvent('QBCore:Notify', pIdNum, string.format("You have been jailed for %d seconds.", durationSeconds), "error")
     Log(string.format("Player %s jailed for %ds. Officer: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A"))
     for copId, _ in pairs(copsOnDuty) do if GetPlayerFromServerId(copId) then
@@ -397,7 +841,7 @@ CreateThread(function() -- Jail time update loop
         for playerId, jailData in pairs(jail) do local pIdNum = tonumber(playerId)
             if GetPlayerFromServerId(pIdNum) then jailData.remainingTime = jailData.remainingTime - 1
                 if jailData.remainingTime <= 0 then
-                    TriggerClientEvent('cnr:releaseFromJail', pIdNum, Config.Locations.jail.release)
+                    TriggerClientEvent('cnr:releaseFromJail', pIdNum) -- Corrected: No coords from server
                     TriggerClientEvent('QBCore:Notify', pIdNum, "You have been released.", "success"); Log("Player " .. pIdNum .. " released.")
                     jail[pIdNum] = nil
                 elseif jailData.remainingTime % 60 == 0 then TriggerClientEvent('QBCore:Notify', pIdNum, string.format("Jail time: %d sec.", jailData.remainingTime), "info") end
@@ -519,6 +963,7 @@ AddEventHandler('playerDropped', function(reason)
     local src = tonumber(source)
     Log("Player " .. src .. " (" .. GetPlayerFromServerId(src).PlayerData.name .. ") dropped. Reason: " .. reason .. ". Saving CnR data.")
     SavePlayerData(src)
+    SavePurchaseHistory() -- Save purchase history on player drop
     if copsOnDuty[src] then copsOnDuty[src] = nil end
     if robbersActive[src] then robbersActive[src] = nil end
     if jail[src] then Log("Player " .. src .. " was in jail. Jail time will be paused/persisted.", "info") end
@@ -575,6 +1020,61 @@ RegisterNetEvent('cnr:k9EngagedTarget', function(targetRobberServerId)
     Log(string.format("K9 Engagement: Cop %s K9 engaged Robber %s.", src, targetRobberServerId))
 end)
 
+RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)
+    local sourceAdmin = tonumber(source) -- In server events, source is the player who triggered it, or server if from server console
+    -- This event should ideally be triggered by an admin command that verifies IsAdmin(sourceAdmin)
+    -- For direct server-to-server trigger, source might be different or need explicit passing of admin source.
+    -- Assuming this event is triggered *after* an admin check on the sourceAdmin.
+    -- If sourceAdmin is 0 or a non-player ID when triggered server-side by another script, IsAdmin might fail.
+    -- For this implementation, we'll assume 'source' is a valid player admin, or this event is called internally
+    -- where admin rights are pre-verified. If it's directly from client, IsAdmin check is crucial.
+
+    local targetPlayerId = tonumber(targetId)
+    local targetPlayer = GetPlayerFromServerId(targetPlayerId)
+
+    if not targetPlayer then
+        -- This could happen if a ban command is issued for an offline player ID by an admin.
+        -- We might want to allow banning offline players by identifier if the admin provides it.
+        -- For now, only online player banning is handled here directly via targetPlayerId.
+        Log("cops_and_robbers:banPlayer: Target player " .. targetPlayerId .. " not found online.", "warn")
+        if sourceAdmin and GetPlayerFromServerId(sourceAdmin) then -- Check if source is a player
+             TriggerClientEvent("chat:addMessage", sourceAdmin, { args = { "^1Admin", "Target player with ID " .. targetPlayerId .. " not found online."} })
+        end
+        return
+    end
+
+    local identifiers = GetPlayerIdentifiers(tostring(targetPlayerId))
+    local primaryIdentifier = nil
+    for _, idStr in ipairs(identifiers) do
+        if string.match(idStr, "^license:") then primaryIdentifier = idStr; break; end
+    end
+    if not primaryIdentifier and #identifiers > 0 then primaryIdentifier = identifiers[1] end -- Fallback
+
+    if primaryIdentifier then
+        local adminName = "System" -- Default if not triggered by a player admin
+        if sourceAdmin and GetPlayerFromServerId(sourceAdmin) then
+            adminName = GetPlayerName(sourceAdmin)
+        elseif sourceAdmin == 0 then -- Or whatever denotes a server-initiated action
+            adminName = "Server Console"
+        end
+
+        bannedPlayers[primaryIdentifier] = {
+            reason = reason or "No reason provided.",
+            timestamp = os.time(),
+            admin = adminName,
+            expires = "permanent" -- Future: Could accept a duration parameter
+        }
+        SaveBans()
+        DropPlayer(targetPlayerId, "You have been banned: " .. (reason or "No reason provided."))
+        TriggerClientEvent("chat:addMessage", -1, { args = { "^1Admin", "Player " .. targetPlayer.PlayerData.name .. " (" .. targetPlayerId .. ") has been banned by " .. adminName .. ". Reason: " .. (reason or "N/A") } })
+        Log("Player " .. targetPlayer.PlayerData.name .. " (" .. primaryIdentifier .. ") banned by " .. adminName .. ". Reason: " .. (reason or "N/A"), "info")
+    else
+        Log("Failed to ban player " .. targetPlayerId .. ": No primary identifier found.", "error")
+        if sourceAdmin and GetPlayerFromServerId(sourceAdmin) then
+            TriggerClientEvent("chat:addMessage", sourceAdmin, { args = { "^1Admin", "Could not get identifier for target player " .. targetPlayerId .. " to ban."} })
+        end
+    end
+end)
 
 -- =================================================================================================
 -- MISC AND UTILITY FUNCTIONS
@@ -582,12 +1082,21 @@ end)
 function tablelength(T) local count = 0; for _ in pairs(T) do count = count + 1 end; return count end
 Log("-------------------------------------------------", "info")
 Log("Cops 'n' Robbers Gamemode Server Script Loaded", "info")
+    LoadBans() -- Load bans from file
+    LoadPurchaseHistory() -- Load purchase history
 Log("Debug Logging: " .. (Config.DebugLogging and "Enabled" or "Disabled"), "info")
 Log("-------------------------------------------------", "info")
 
 CreateThread(function()
     while true do Wait(Config.PlayerCountSyncInterval * 1000)
         TriggerClientEvent('cnr:updatePlayerCounts', -1, tablelength(copsOnDuty), tablelength(robbersActive))
+    end
+end)
+
+CreateThread(function() -- PeriodicSavePurchaseHistoryThread
+    while true do
+        Wait(1800000) -- Wait 30 minutes (1800000 ms)
+        SavePurchaseHistory()
     end
 end)
 
