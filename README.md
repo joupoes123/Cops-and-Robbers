@@ -1,6 +1,6 @@
 # Cops & Robbers - FiveM GTA V Roleplay Gamemode
 
-**IMPORTANT NOTE:** This game mode, and the game mode GitHub repository, is still in development and therefore, not currently in a playable state. Please join the Discord community for updates on the full release. 
+**IMPORTANT NOTE:** This game mode has undergone significant refactoring to improve stability and make it standalone. While major issues have been addressed, it's still recommended to test thoroughly before deploying to a live production environment. Community contributions and feedback are welcome!
 
 **Cops & Robbers** is an open-source gamemode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements. This project invites community contributions, encouraging developers to collaborate on creating dynamic gameplay with high-stakes chases, heists, and investigations.
 
@@ -50,6 +50,12 @@
 - **HUD Elements**: Displays vital information such as heist details, wanted levels, and notifications.
 - **Visual Feedback**: On-screen messages for level-ups, arrests, and other significant events.
 
+### Custom Inventory System
+
+- **Integrated Management**: Features a built-in inventory system for managing items, removing reliance on external inventory scripts.
+- **Configurable Items**: Items are defined in `config.lua`.
+- **Persistent Storage**: Player inventories are saved with their core data.
+
 ### Additional Bank Locations
 
 - **Variety of Heist Targets**: Multiple bank locations across the map offer diverse opportunities.
@@ -58,13 +64,13 @@
 ### Administrative Tools
 
 - **Expanded Admin Commands**: Comprehensive commands for server management, including player moderation and resource control.
-- **Real-Time Monitoring**: Spectate players, freeze/unfreeze actions, and teleport as needed.
-- **Player Management**: Adjust player roles, cash balances, inventories, and more.
+- **Real-Time Monitoring**: freeze/unfreeze actions, and teleport as needed.
+- **Player Management**: Adjust player roles, cash balances, and other core player data. Inventory management is now handled by an integrated system.
 
 ### Customizable Assets & Scripts
 
 - **Modify Game Elements**: Tailor vehicles, weapons, uniforms, and abilities to fit your community's vision.
-- **Seamless Integration**: Compatible with other popular FiveM mods and plugins for a versatile roleplay experience.
+- **Standalone Design**: Designed as a standalone resource. While integration with other mods is possible, core functionality does not rely on external frameworks like ESX or QBCore.
 
 ---
 
@@ -90,7 +96,7 @@
 
 4. **Install Dependencies**:
 
-   - Ensure all necessary dependencies are installed (e.g., a database if required).
+   - **Standalone**: This resource is now standalone and does not require external dependencies like `ox_inventory`, `ox_lib`, or specific frameworks (ESX/QBCore). Ensure your FiveM server is up to date.
 
 5. **Restart the Server**:
 
@@ -115,13 +121,13 @@ Customize the gameplay experience by editing the configuration options in `confi
 
 ### Experience and Leveling
 
-- **XP Requirements**: Define experience points needed for each level (`Config.Experience.Levels`).
-- **Rewards**: Customize rewards for leveling up for both cops and robbers (`Config.Experience.Rewards`).
+- **XP Requirements**: XP requirements for each level are defined in `Config.XPTable`. Role-specific XP for actions are in `Config.XPActionsCop` and `Config.XPActionsRobber`.
+- **Rewards**: Unlocks per level (items, perks, vehicles) are configured in `Config.LevelUnlocks`.
 
 ### Wanted Levels
 
-- **Thresholds and Descriptions**: Set wanted level stages and their effects (`Config.WantedLevels`).
-- **Action Impact**: Control how player actions influence their wanted level.
+- **Advanced Settings**: Advanced wanted system settings, including points for crimes, decay rates, and star thresholds, are managed in `Config.WantedSettings`.
+- **NPC Response**: NPC response to wanted levels can be configured in `Config.WantedNPCPresets`.
 
 ### Vehicles
 
