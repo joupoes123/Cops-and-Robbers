@@ -51,18 +51,13 @@ Config.CivilianVehicles = { "sultan", "futo", "blista", "banshee", "elegy2", "st
 -- =========================
 -- Experience and Leveling System (Legacy)
 -- =========================
--- This 'Config.Experience' table seems to be a legacy or alternative leveling system.
--- The newer, more detailed system is defined under 'Player Leveling System (New)' further down.
--- Consider removing or integrating this if it's redundant.
--- Config.Experience table (lines 40-61) removed by subtask
+-- Legacy Config.Experience table removed.
 
 
 -- =========================
 --    Wanted Level System (Legacy/Simple)
 -- =========================
--- Note: This simple wanted level system is mostly superseded by the advanced Config.WantedSettings below.
--- It might still be used for basic NPC police response or simple UI elements if not fully removed or integrated.
--- Config.WantedLevels table (lines 66-74) removed by subtask
+-- Legacy Config.WantedLevels table removed.
 
 
 -- =========================
@@ -276,14 +271,31 @@ Config.WantedSettings = {
 -- Defines NPC police response groups based on wanted level.
 -- Each preset (e.g., [1] for 1-star) is an array of groups to spawn.
 Config.WantedNPCPresets = {
-    [1] = {}, -- NPC groups removed by subtask
-    [2] = {}, -- NPC groups removed by subtask
-    [3] = {}, -- NPC groups removed by subtask
-    [4] = {}, -- NPC groups removed by subtask
-    [5] = {}  -- NPC groups removed by subtask
-    -- All original NPC group definitions removed.
+    [1] = { -- 1 Star: Local patrol response
+        { count = 1, pedModel = "s_m_y_cop_01", vehicle = "police", weapon = "weapon_pistol", accuracy = 10, armour = 25, sightDistance = 60.0, spawnGroup = "WANTED_LVL_1_PATROL" },
+    },
+    [2] = { -- 2 Stars: More patrol cars
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "police", weapon = "weapon_pistol", accuracy = 15, armour = 50, sightDistance = 70.0, spawnGroup = "WANTED_LVL_2_PATROL_A" },
+        { count = 1, pedModel = "s_m_y_cop_01", vehicle = "police2", weapon = "weapon_combatpistol", accuracy = 20, armour = 50, sightDistance = 70.0, spawnGroup = "WANTED_LVL_2_PATROL_B" },
+    },
+    [3] = { -- 3 Stars: Stronger units, some SMGs
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "police3", weapon = "weapon_smg", accuracy = 25, armour = 75, sightDistance = 80.0, spawnGroup = "WANTED_LVL_3_SMG_UNITS" },
+        { count = 2, pedModel = "s_f_y_cop_01", vehicle = "police", weapon = "weapon_pumpshotgun", accuracy = 20, armour = 75, sightDistance = 80.0, spawnGroup = "WANTED_LVL_3_SHOTGUN_UNITS" },
+    },
+    [4] = { -- 4 Stars: FIB/SWAT-like response, rifles
+        { count = 2, pedModel = "s_m_y_swat_01", vehicle = "fbi", weapon = "weapon_carbinerifle", accuracy = 35, armour = 100, sightDistance = 90.0, spawnGroup = "WANTED_LVL_4_SWAT_A" },
+        { count = 2, pedModel = "s_m_y_swat_01", vehicle = "fbi2", weapon = "weapon_assaultrifle", accuracy = 30, armour = 100, sightDistance = 90.0, spawnGroup = "WANTED_LVL_4_SWAT_B" },
+        -- Example for helicopter, if desired (ensure model is valid and spawn logic handles air vehicles)
+        -- { count = 1, pedModel = "s_m_y_pilot_01", helicopter = "polmav", weapon = "weapon_smg", accuracy = 20, spawnGroup = "WANTED_LVL_4_AIR_SUPPORT", helicopterChance = 0.3 }
+    },
+    [5] = { -- 5 Stars: Heavy response, multiple groups
+        { count = 3, pedModel = "s_m_y_swat_01", vehicle = "fbi", weapon = "weapon_carbinerifle", accuracy = 40, armour = 100, sightDistance = 100.0, spawnGroup = "WANTED_LVL_5_HEAVY_SWAT_A" },
+        { count = 3, pedModel = "s_m_y_swat_01", vehicle = "fbi2", weapon = "weapon_advancedrifle", accuracy = 35, armour = 100, sightDistance = 100.0, spawnGroup = "WANTED_LVL_5_HEAVY_SWAT_B" },
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "policet", weapon = "weapon_pumpshotgun", accuracy = 25, armour = 75, spawnGroup = "WANTED_LVL_5_RIOT_SUPPORT" },
+        -- { count = 1, pedModel = "s_m_y_pilot_01", helicopter = "savage", weapon = "weapon_minigun", accuracy = 30, spawnGroup = "WANTED_LVL_5_ATTACK_HELI", helicopterChance = 0.5 }
+    }
 }
-Config.MaxActiveNPCResponseGroups = 0 -- Disabled by subtask
+Config.MaxActiveNPCResponseGroups = 5 -- Set to a non-zero value
 
 Config.RestrictedAreas = {
     { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 750.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 20 },

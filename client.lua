@@ -288,7 +288,7 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
         return
     end
 
-    ShowNotification(string.format("~y~Wanted Level: %d star(s). (NPC response disabled)", stars)) -- Modified by subtask
+    -- ShowNotification(string.format("~y~Wanted Level: %d star(s). (NPC response disabled)", stars)) -- REMOVE THIS LINE
 
     local presetStarLevel = math.min(stars, #Config.WantedNPCPresets)
     if not Config.WantedNPCPresets[presetStarLevel] then
@@ -306,19 +306,27 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
             break
         end
 
-        --vvv-- NPC Spawning Loop Disabled by Subtask --vvv--
-        -- The following loop responsible for spawning NPC response units has been commented out.
-        -- if Config.MaxActiveNPCResponseGroups == 0 then print("NPC responses globally disabled via MaxActiveNPCResponseGroups=0 in config.") end
-        --[[ CreateThread(function() -- Spawn each group in its own thread for model loading
+        --vvv-- NPC Spawning Loop START --vvv--
+        CreateThread(function() -- Spawn each group in its own thread for model loading
             local groupEntitiesThisSpawn = {} -- Track entities for this specific group for timed removal
             local vehicle = nil
             local actualSpawnPos = vector3(lastKnownCoords.x, lastKnownCoords.y, lastKnownCoords.z) -- Use last known coords as base
 
             -- Determine spawn position (further away, try for roadside)
             local spawnOffsetAttempt = vector3(math.random(70,120) * (math.random(0,1)*2-1) + 0.01, math.random(70,120) * (math.random(0,1)*2-1) + 0.01, 2.0)
-            local foundSpawn, safeSpawnPos = GetSafeCoordForPed(actualSpawnPos + spawnOffsetAttempt, true, 0)
+
+            local foundSpawn, safeSpawnPos = GetSafeCoordForPed(actualSpawnPos.x + spawnOffsetAttempt.x, actualSpawnPos.y + spawnOffsetAttempt.y, actualSpawnPos.z + spawnOffsetAttempt.z, true, 0)
             if not foundSpawn then
-                foundSpawn, safeSpawnPos = GetSafeRoadsideCoords(actualSpawnPos + spawnOffsetAttempt, 15.0)
+                -- Try finding a position on the road, a bit more involved
+                local foundRoadNode, nodePos = GetClosestVehicleNode(actualSpawnPos.x + spawnOffsetAttempt.x, actualSpawnPos.y + spawnOffsetAttempt.y, actualSpawnPos.z, vector3(0,0,0), 1, 3.0, 0)
+                if foundRoadNode then
+                    local nodeX, nodeY, nodeZ = table.unpack(GetVehicleNodePosition(nodePos, vector3(0,0,0)))
+                    foundSpawn, safeSpawnPos = GetSafeCoordForPed(nodeX, nodeY, nodeZ, true, 0)
+                    if not foundSpawn then -- As a last resort, use the node position directly
+                         safeSpawnPos = vector3(nodeX, nodeY, nodeZ)
+                         foundSpawn = true -- Assume it's usable
+                    end
+                end
             end
             if foundSpawn then actualSpawnPos = safeSpawnPos else actualSpawnPos = actualSpawnPos + vector3(0,0,1.0) end
 
@@ -403,8 +411,8 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
                 end
             end
             -- print("NPC Response group (part) despawned after timeout: " .. groupInfo.spawnGroup)
-        end) --]]
-        --^^^-- NPC Spawning Loop Disabled by Subtask --^^^--
+        end)
+        --^^^-- NPC Spawning Loop END --^^^--
     end
 end)
 
@@ -901,40 +909,40 @@ end)
 --   - Managing player visibility and collision states correctly.
 --   - Ensuring smooth transitions and handling edge cases (target disconnects, etc.).
 -- This section should be completely rewritten with a proper spectate implementation.
-RegisterNetEvent('cops_and_robbers:spectatePlayer')
-AddEventHandler('cops_and_robbers:spectatePlayer', function(playerToSpectateId)
-    local ownPed = PlayerPedId()
-    local targetPed = GetPlayerPed(playerToSpectateId)
-
-    if not DoesEntityExist(targetPed) then
-        ShowNotification("~r~Target player for spectate not found or no longer exists.")
-        return
-    end
-
-    if NetworkIsInSpectatorMode() then
-        -- Stop spectating
-        ShowNotification("~g~Stopping spectate.")
-        NetworkSetInSpectatorMode(false, ownPed) -- Return to own ped
-        -- Restore player state (visibility, collision, freeze)
-        SetEntityVisible(ownPed, true, false)
-        SetEntityCollision(ownPed, true, true)
-        FreezeEntityPosition(ownPed, false)
-        -- Optional: Restore to a saved position if implemented
-        ClearPedTasksImmediately(ownPed)
-        RenderScriptCams(false, false, 0, true, true) -- Ensure scripted cams are off
-    else
-        -- Start spectating
-        ShowNotification("~b~Spectating player ID: " .. playerToSpectateId .. ". Use command again to stop.")
-        -- Save player state (optional, for more robust restore)
-        -- local originalPosition = GetEntityCoords(ownPed)
-
-        SetEntityVisible(ownPed, false, false)
-        SetEntityCollision(ownPed, false, false)
-        FreezeEntityPosition(ownPed, true)
-
-        NetworkSetInSpectatorMode(true, targetPed)
-    end
-end)
+-- RegisterNetEvent('cops_and_robbers:spectatePlayer') -- ENTIRE BLOCK REMOVED
+-- AddEventHandler('cops_and_robbers:spectatePlayer', function(playerToSpectateId)
+--     local ownPed = PlayerPedId()
+--     local targetPed = GetPlayerPed(playerToSpectateId)
+--
+--     if not DoesEntityExist(targetPed) then
+--         ShowNotification("~r~Target player for spectate not found or no longer exists.")
+--         return
+--     end
+--
+--     if NetworkIsInSpectatorMode() then
+--         -- Stop spectating
+--         ShowNotification("~g~Stopping spectate.")
+--         NetworkSetInSpectatorMode(false, ownPed) -- Return to own ped
+--         -- Restore player state (visibility, collision, freeze)
+--         SetEntityVisible(ownPed, true, false)
+--         SetEntityCollision(ownPed, true, true)
+--         FreezeEntityPosition(ownPed, false)
+--         -- Optional: Restore to a saved position if implemented
+--         ClearPedTasksImmediately(ownPed)
+--         RenderScriptCams(false, false, 0, true, true) -- Ensure scripted cams are off
+--     else
+--         -- Start spectating
+--         ShowNotification("~b~Spectating player ID: " .. playerToSpectateId .. ". Use command again to stop.")
+--         -- Save player state (optional, for more robust restore)
+--         -- local originalPosition = GetEntityCoords(ownPed)
+--
+--         SetEntityVisible(ownPed, false, false)
+--         SetEntityCollision(ownPed, false, false)
+--         FreezeEntityPosition(ownPed, true)
+--
+--         NetworkSetInSpectatorMode(true, targetPed)
+--     end
+-- end)
 
 -- Jail System: Send player to jail
 RegisterNetEvent('cops_and_robbers:sendToJail')
@@ -1118,32 +1126,13 @@ end)
 
 RegisterNUICallback('getPlayerInventory', function(data, cb)
     -- cb is the callback function to send data back to NUI.
-    -- We need to store this cb or associate it with this request if multiple inventory requests can happen.
-    -- For simplicity, assuming one outstanding request or that the server event response will be quick.
-    -- A more robust system might use a request ID.
-
-    local promise = exports.ox_lib:initiatePromise() -- Using ox_lib promise
-
-    -- Listen for the server's response ONCE for this specific request
-    local function handleInventoryResponse(inventoryData)
-        RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse) -- Clean up listener
-        cb(inventoryData) -- Send data back to NUI
-        promise:resolve()
+    -- We now call our new function in inventory_client.lua
+    if RequestInventoryForNUI then -- Check if function is available from inventory_client.lua
+        RequestInventoryForNUI(cb)
+    else
+        print("Error: RequestInventoryForNUI function not found. Ensure inventory_client.lua is loaded.", "error") -- Changed Log to print
+        cb({ error = "Internal error: Inventory system not available." })
     end
-    AddEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
-
-    -- Request inventory from the server
-    TriggerServerEvent('cops_and_robbers:requestPlayerInventory')
-
-    -- Optional: Timeout for the promise if server doesn't respond
-    SetTimeout(5000, function()
-        if promise:getStatus() == 'pending' then
-            RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
-            cb({ error = "Failed to get inventory: Timeout" })
-            promise:reject("timeout")
-            Log("getPlayerInventory NUI callback timed out waiting for server.", "warn")
-        end
-    end)
 end)
 
 -- =====================================

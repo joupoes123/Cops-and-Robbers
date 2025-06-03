@@ -11,8 +11,6 @@
 -- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
 -- - Refined Cop Arrest XP based on wanted level.
 
-local ox_inventory = exports.ox_inventory
-
 -- Global state tables
 local playersData = {}
 local copsOnDuty = {}
@@ -27,6 +25,9 @@ local activeBounties = {}
 local playerDeployedSpikeStripsCount = {} -- For extra_spike_strips perk
 local activeSpikeStrips = {} -- To manage strip IDs and removal: {stripId = {copId = src, location = ...}}
 local nextSpikeStripId = 1
+
+-- Table to store last report times for specific crimes per player
+local clientReportCooldowns = {}
 
 -- Function to load bans from bans.json
 local function LoadBans()
@@ -287,23 +288,19 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
     end
 
     -- Successfully removed money, now add item
-    local added, err = exports.ox_inventory:AddItem(src, itemId, quantity)
+    local added = AddItem(src, itemId, quantity) -- Use custom AddItem
     if added then
         TriggerClientEvent('cops_and_robbers:purchaseConfirmed', src, itemId, quantity)
-            Log(string.format("Player %s purchased %dx %s for $%d", src, quantity, itemId, totalCost))
-            -- Record purchase for dynamic economy
-            if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-                table.insert(purchaseHistory, { itemId = itemId, playerId = src, timestamp = os.time(), price = itemPrice, quantity = quantity }) -- Using dynamic price
-            end
-        else
-            Log(string.format("ox_inventory:AddItem failed for %s, item %s, quantity %d. Error: %s", src, itemId, quantity, err or "unknown"), "error")
-            TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not add item to inventory. Purchase reversed.")
-            AddPlayerMoney(src, totalCost, 'cash') -- Refund
+        Log(string.format("Player %s purchased %dx %s for $%d", src, quantity, itemId, totalCost))
+        -- Record purchase for dynamic economy
+        if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+            table.insert(purchaseHistory, { itemId = itemId, playerId = src, timestamp = os.time(), price = itemPrice, quantity = quantity }) -- Using dynamic price
         end
-    -- This 'else' block is now part of the RemovePlayerMoney check above.
-    -- else
-    --     TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not process payment.")
-    --     Log("cnr:buyItem - Failed to remove money from source: " .. src, "error")
+    else
+        Log(string.format("Custom AddItem failed for %s, item %s, quantity %d.", src, itemId, quantity), "error")
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not add item to inventory. Purchase reversed.")
+        AddPlayerMoney(src, totalCost, 'cash') -- Refund
+    end
 end)
 
 RegisterNetEvent('cnr:sellItem', function(itemId, quantity)
@@ -341,18 +338,18 @@ RegisterNetEvent('cnr:sellItem', function(itemId, quantity)
     Log("cnr:sellItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Current Market Price: " .. currentMarketPrice .. ", Sell Price: " .. sellPricePerItem)
     local totalGain = sellPricePerItem * quantity
 
-    local removed, err = exports.ox_inventory:RemoveItem(src, itemId, quantity)
+    local removed = RemoveItem(src, itemId, quantity) -- Use custom RemoveItem
     if removed then
         if AddPlayerMoney(src, totalGain, 'cash') then
             TriggerClientEvent('cops_and_robbers:sellConfirmed', src, itemId, quantity)
             Log(string.format("Player %s sold %dx %s for $%d", src, quantity, itemId, totalGain))
         else
-            Log(string.format("Failed to add money to %s after selling %s. Refunding item.", src, itemId), "error")
-            exports.ox_inventory:AddItem(src, itemId, quantity) -- Attempt to give item back
-            TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not process payment for sale.")
+            Log(string.format("Failed to add money to %s after selling %s. Attempting to refund item.", src, itemId), "error")
+            AddItem(src, itemId, quantity) -- Attempt to give item back using custom AddItem
+            TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not process payment for sale. Item may have been refunded.")
         end
     else
-        Log(string.format("ox_inventory:RemoveItem failed for %s, item %s, quantity %d. Error: %s", src, itemId, quantity, err or "unknown"), "error")
+        Log(string.format("Custom RemoveItem failed for %s, item %s, quantity %d.", src, itemId, quantity), "error")
         TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not remove item from inventory.")
     end
 end)
@@ -391,10 +388,8 @@ RegisterNetEvent('cops_and_robbers:spawnK9', function()
         return
     end
 
-    -- Check for K9 whistle item in inventory (actual item name might differ from itemId)
-    -- Assuming the itemId "k9whistle" is what ox_inventory uses.
-    local hasWhistle = exports.ox_inventory:Search('count', src, 'k9whistle') -- ox_inventory specific
-    if not hasWhistle or hasWhistle < 1 then
+    -- Check for K9 whistle item in inventory
+    if not HasItem(src, 'k9whistle', 1) then -- Use custom HasItem
          TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You do not have a K9 Whistle."} })
          return
     end
@@ -533,6 +528,7 @@ LoadPlayerData = function(playerId)
 
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
     ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role)
+    InitializePlayerInventory(pIdNum) -- Initialize inventory after player data is loaded/created
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
 end
@@ -1083,6 +1079,7 @@ AddEventHandler('playerDropped', function(reason)
     end
 
     playersData[src] = nil; activeCooldowns[src] = nil
+    clientReportCooldowns[src] = nil -- Clear report cooldowns for the disconnected player
     Log("Cleaned up session data for player " .. src)
 end)
 
@@ -1099,13 +1096,49 @@ RegisterNetEvent('cnr:requestRoleChange', function(role)
     end
 end)
 
-RegisterNetEvent('cnr:reportCrime', function(crimeKey, victimPosition, details)
+RegisterNetEvent('cnr:reportCrime', function(crimeKey, details) -- Removed victimPosition as it's not used
     local src = tonumber(source)
-    if GetPlayerName(src) == nil or not IsPlayerRobber(src) then return end -- Check player online
-    Log(string.format("Crime '%s' by %s. Details: %s", crimeKey, src, json.encode(details)))
-    UpdatePlayerWantedLevel(src, crimeKey, nil)
-    local crimeConfig = Config.WantedSettings.crimes[crimeKey]
-    if crimeConfig and crimeConfig.xpForRobber and crimeConfig.xpForRobber > 0 then AddXP(src, crimeConfig.xpForRobber, "robber") end
+    if GetPlayerName(src) == nil or not IsPlayerRobber(src) then return end
+
+    local pData = GetCnrPlayerData(src)
+    if not pData then return end -- Should not happen if previous checks pass
+
+    Log(string.format("Client Crime Report: '%s' by %s. Details: %s", crimeKey, src, json.encode(details)))
+
+    -- Initialize cooldown table for player if not present
+    if not clientReportCooldowns[src] then
+        clientReportCooldowns[src] = {}
+    end
+
+    -- Define cooldowns for specific crimes (in seconds)
+    local crimeSpecificCooldown = 0
+    if crimeKey == 'assault_civilian' then
+        crimeSpecificCooldown = 30 -- 30 seconds cooldown for reporting civilian assault
+    elseif crimeKey == 'grand_theft_auto' then
+        crimeSpecificCooldown = 60 -- 60 seconds cooldown for reporting GTA
+    end
+
+    if crimeSpecificCooldown > 0 then
+        local lastReportTime = clientReportCooldowns[src][crimeKey] or 0
+        if (os.time() - lastReportTime) < crimeSpecificCooldown then
+            Log(string.format("Client Crime Report for '%s' by %s IGNORED due to cooldown. Last report: %s, Cooldown: %s", crimeKey, src, lastReportTime, crimeSpecificCooldown))
+            TriggerClientEvent('chat:addMessage', src, { args = {"^3System", "Your report is too soon after a previous one."} })
+            return -- Ignore report if it's within cooldown
+        end
+    end
+
+    -- If report is not on cooldown or doesn't have a specific cooldown, proceed
+    UpdatePlayerWantedLevel(src, crimeKey, nil) -- Pass nil for officerId for client-reported crimes
+
+    -- Update the last report time for this crime
+    if crimeSpecificCooldown > 0 then
+        clientReportCooldowns[src][crimeKey] = os.time()
+    end
+
+    -- XP Award logic is handled within UpdatePlayerWantedLevel
+    -- local crimeConfig = Config.WantedSettings.crimes[crimeKey]
+    -- if crimeConfig and crimeConfig.xpForRobber and crimeConfig.xpForRobber > 0 then AddXP(src, crimeConfig.xpForRobber, "robber") end
+    -- This was the original line here, but UpdatePlayerWantedLevel already contains similar logic.
 end)
 
 RegisterNetEvent('cnr:k9EngagedTarget', function(targetRobberServerId)
@@ -1261,3 +1294,40 @@ if not string.starts then function string.starts(String,Start) return string.sub
 PrintAllPlayerDataDebug = function() print("Current Player Data Store:") for k,v in pairs(playersData) do print("Player ID: "..k, json.encode(v)) end end
 PrintActiveBountiesDebug = function() print("Active Bounties: ", json.encode(activeBounties)) end
 PrintK9EngagementsDebug = function() print("K9 Engagements: ", json.encode(k9Engagements)) end
+
+RegisterNetEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local src = tonumber(source)
+    local pData = GetCnrPlayerData(src)
+    if pData and pData.inventory then
+        -- Before sending, transform inventory for NUI if needed, especially for sell prices
+        local nuiInventory = {}
+        for itemId, itemData in pairs(pData.inventory) do
+            local itemConfig = nil
+            for _, cfgItem in ipairs(Config.Items) do
+                if cfgItem.itemId == itemId then
+                    itemConfig = cfgItem
+                    break
+                end
+            end
+
+            if itemConfig then
+                local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
+                local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice or 0)
+                local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
+
+                nuiInventory[itemId] = {
+                    itemId = itemId, -- NUI might need this explicitly
+                    name = itemData.name,
+                    count = itemData.count,
+                    category = itemData.category,
+                    sellPrice = sellPrice -- Add sell price here
+                    -- Add other relevant details for NUI if needed (e.g., item.label)
+                }
+            end
+        end
+        TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
+    else
+        TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
+    end
+end)

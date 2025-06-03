@@ -225,23 +225,6 @@ RegisterCommand("reassign", function(source, args, rawCommand)
     end
 end, false)
 
--- Spectate command
-RegisterCommand("spectate", function(source, args, rawCommand)
-    if not IsAdmin(source) then
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
-        return
-    end
-
-    local targetIdStr = args[1]
-    local targetId = tonumber(targetIdStr)
-
-    if targetId and IsValidPlayer(targetId) then
-        TriggerClientEvent('cops_and_robbers:spectatePlayer', source, targetId) -- Spectate is a client action, source needs to be targetId for some implementations
-    else
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
-    end
-end, false)
-
 -- Freeze command
 RegisterCommand("freeze", function(source, args, rawCommand)
     if not IsAdmin(source) then

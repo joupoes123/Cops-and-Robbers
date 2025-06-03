@@ -39,6 +39,43 @@ window.addEventListener('message', function(event) {
         case 'updateXPBar': // New case for XP Bar
             updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
             break;
+        case 'refreshSellListIfNeeded':
+            // Only refresh if store is open and sell tab is active
+            const storeMenu = document.getElementById('store-menu');
+            if (storeMenu && storeMenu.style.display === 'block' && window.currentTab === 'sell') {
+                console.log("Refreshing sell list due to inventory update:", data.inventory);
+                // The data.inventory here is the raw pData.inventory format from server.
+                // We need to transform it to the array format expected by createItemElement.
+                const sellableItems = [];
+                for (const itemId in data.inventory) {
+                    const item = data.inventory[itemId];
+                    // Find basePrice from window.items (buyable items list) to calculate sellPrice
+                    // This assumes window.items is populated when store opens.
+                    // A better way would be for server to send sellPrice directly.
+                    // The server.lua change in step 4 now sends sellPrice.
+                    sellableItems.push({
+                        itemId: itemId,
+                        name: item.name,
+                        count: item.count,
+                        category: item.category, // Optional, if NUI needs it
+                        sellPrice: item.sellPrice // Assuming server now sends this (as per server.lua change)
+                    });
+                }
+                const sellListContainer = document.getElementById('sell-section');
+                if (sellListContainer) {
+                    sellListContainer.innerHTML = ''; // Clear
+                    if (sellableItems.length === 0) {
+                        sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
+                    } else {
+                        const fragment = document.createDocumentFragment();
+                        sellableItems.forEach(invItem => {
+                            fragment.appendChild(createItemElement(invItem, 'sell'));
+                        });
+                        sellListContainer.appendChild(fragment);
+                    }
+                }
+            }
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
@@ -260,16 +297,18 @@ function loadSellItems() {
         }
         return resp.json();
     })
-    .then(data => {
+    .then(nuiInventory => { // nuiInventory is the object {itemId: {details...}}
         sellListContainer.innerHTML = ''; // Clear loading indicator / previous items
 
-        if (!data || !data.items || data.items.length === 0) {
+        const sellableItemsArray = Object.values(nuiInventory); // Convert object to array
+
+        if (!sellableItemsArray || sellableItemsArray.length === 0) {
             sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
             return;
         }
 
         const fragment = document.createDocumentFragment();
-        data.items.forEach(inventoryItem => { // inventoryItem: {name, itemId, count, sellPrice}
+        sellableItemsArray.forEach(inventoryItem => { // inventoryItem: {itemId, name, count, sellPrice, ...}
             fragment.appendChild(createItemElement(inventoryItem, 'sell'));
         });
         sellListContainer.appendChild(fragment);
@@ -666,9 +705,9 @@ window.addEventListener('message', function(event) {
         case 'showAdminPanel': // New action from client.lua
             showAdminPanel(data.players);
             break;
-        case 'updateXPBar': // New case for XP Bar from client.lua
-            updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
-            break;
+        // case 'updateXPBar': // This is duplicated, remove one instance
+        //    updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
+        //    break;
     }
 });
 
