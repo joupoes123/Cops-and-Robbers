@@ -759,7 +759,15 @@ ReduceWantedLevel = function(playerId, amount)
     local pIdNum = tonumber(playerId)
     if wantedPlayers[pIdNum] then
         wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPlayers[pIdNum].wantedLevel - amount)
-        local newStars = 0; for i = #Config.WantedSettings.starThresholds, 1, -1 do if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.starThresholds[i] then newStars = i; break end end
+        local newStars = 0
+        if Config.WantedSettings and Config.WantedSettings.levels then
+            for i = #Config.WantedSettings.levels, 1, -1 do
+                if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.levels[i].threshold then
+                    newStars = Config.WantedSettings.levels[i].stars
+                    break
+                end
+            end
+        end
         wantedPlayers[pIdNum].stars = newStars
         TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
         Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
@@ -791,7 +799,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId)
     jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} }
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-    TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.Locations.jail.cell)
+    TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation) -- Corrected path
     TriggerClientEvent('QBCore:Notify', pIdNum, string.format("You have been jailed for %d seconds.", durationSeconds), "error")
     Log(string.format("Player %s jailed for %ds. Officer: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A"))
     for copId, _ in pairs(copsOnDuty) do if GetPlayerFromServerId(copId) then
@@ -833,7 +841,7 @@ CreateThread(function() -- Jail time update loop
         for playerId, jailData in pairs(jail) do local pIdNum = tonumber(playerId)
             if GetPlayerFromServerId(pIdNum) then jailData.remainingTime = jailData.remainingTime - 1
                 if jailData.remainingTime <= 0 then
-                    TriggerClientEvent('cnr:releaseFromJail', pIdNum, Config.Locations.jail.release)
+                    TriggerClientEvent('cnr:releaseFromJail', pIdNum) -- Corrected: No coords from server
                     TriggerClientEvent('QBCore:Notify', pIdNum, "You have been released.", "success"); Log("Player " .. pIdNum .. " released.")
                     jail[pIdNum] = nil
                 elseif jailData.remainingTime % 60 == 0 then TriggerClientEvent('QBCore:Notify', pIdNum, string.format("Jail time: %d sec.", jailData.remainingTime), "info") end

@@ -195,7 +195,7 @@ function CalculateXpForNextLevelClient(currentLevel, playerRole)
     if Config.XPTable and Config.XPTable[currentLevel] then
         return Config.XPTable[currentLevel]
     else
-        Log("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found in Config.XPTable. Returning high value.", "warn")
+        print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found in Config.XPTable. Returning high value.", "warn") -- Changed Log to print
         return 999999 -- Fallback if XP for next level is not defined
     end
 end
@@ -288,7 +288,7 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
         return
     end
 
-    ShowNotification(string.format("~r~Police response intensifying! Wanted Level: %d star(s).", stars))
+    ShowNotification(string.format("~y~Wanted Level: %d star(s). (NPC response disabled)", stars)) -- Modified by subtask
 
     local presetStarLevel = math.min(stars, #Config.WantedNPCPresets)
     if not Config.WantedNPCPresets[presetStarLevel] then
@@ -306,7 +306,10 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
             break
         end
 
-        CreateThread(function() -- Spawn each group in its own thread for model loading
+        --vvv-- NPC Spawning Loop Disabled by Subtask --vvv--
+        -- The following loop responsible for spawning NPC response units has been commented out.
+        -- if Config.MaxActiveNPCResponseGroups == 0 then print("NPC responses globally disabled via MaxActiveNPCResponseGroups=0 in config.") end
+        --[[ CreateThread(function() -- Spawn each group in its own thread for model loading
             local groupEntitiesThisSpawn = {} -- Track entities for this specific group for timed removal
             local vehicle = nil
             local actualSpawnPos = vector3(lastKnownCoords.x, lastKnownCoords.y, lastKnownCoords.z) -- Use last known coords as base
@@ -400,7 +403,8 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
                 end
             end
             -- print("NPC Response group (part) despawned after timeout: " .. groupInfo.spawnGroup)
-        end)
+        end) --]]
+        --^^^-- NPC Spawning Loop Disabled by Subtask --^^^--
     end
 end)
 
@@ -954,8 +958,9 @@ AddEventHandler('cops_and_robbers:sendToJail', function(jailTime)
         end
         
         -- Release player from jail
-        spawnPlayer(role)
         ShowNotification("~g~You have been released from jail.")
+        local pData = playerData -- Use the global playerData
+        if pData and pData.role then spawnPlayer(pData.role) else spawnPlayer("robber") end -- Fallback to robber spawn
     end)
 end)
 
@@ -1109,6 +1114,36 @@ RegisterNUICallback('selectRole', function(data, cb)
         ShowNotification("Invalid role selected.")
         cb('error')
     end
+end)
+
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    -- cb is the callback function to send data back to NUI.
+    -- We need to store this cb or associate it with this request if multiple inventory requests can happen.
+    -- For simplicity, assuming one outstanding request or that the server event response will be quick.
+    -- A more robust system might use a request ID.
+
+    local promise = exports.ox_lib:initiatePromise() -- Using ox_lib promise
+
+    -- Listen for the server's response ONCE for this specific request
+    local function handleInventoryResponse(inventoryData)
+        RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse) -- Clean up listener
+        cb(inventoryData) -- Send data back to NUI
+        promise:resolve()
+    end
+    AddEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
+
+    -- Request inventory from the server
+    TriggerServerEvent('cops_and_robbers:requestPlayerInventory')
+
+    -- Optional: Timeout for the promise if server doesn't respond
+    SetTimeout(5000, function()
+        if promise:getStatus() == 'pending' then
+            RemoveEventHandler('cops_and_robbers:receivePlayerInventory', handleInventoryResponse)
+            cb({ error = "Failed to get inventory: Timeout" })
+            promise:reject("timeout")
+            Log("getPlayerInventory NUI callback timed out waiting for server.", "warn")
+        end
+    end)
 end)
 
 -- =====================================
@@ -1862,7 +1897,7 @@ Citizen.CreateThread(function()
             local activateEMPKey = (Config.Keybinds and Config.Keybinds.activateEMP) or 121 -- 121: INPUT_SELECT_WEAPON_UNARMED (NumPad 0)
             if IsControlJustPressed(0, activateEMPKey) then
                 -- Client-side check for item (improved UX, server still validates)
-                local empDeviceConfig = Config.Items["emp_device_vehicle"] -- Assuming this is the key for vehicle EMP
+                local empDeviceConfig = Config.Items["emp_device"] -- Corrected itemId
                 if empDeviceConfig and playerData.level >= (empDeviceConfig.minLevelRobber or 1) then
                     ShowNotification("~b~Activating EMP device...")
                     TriggerServerEvent('cops_and_robbers:activateEMP') -- Server checks inventory and level again
@@ -1926,7 +1961,7 @@ Citizen.CreateThread(function()
                 if #(playerCoords - grid.location) < 10.0 then -- Interaction radius (e.g., 10m)
                     DisplayHelpText(string.format("Press ~INPUT_CONTEXT~ to sabotage %s.", grid.name))
                     if IsControlJustPressed(0, 51) then -- E key (Context)
-                        local sabotageToolConfig = Config.Items["emp_device_grid"] -- Assuming a specific item for grid sabotage
+                        local sabotageToolConfig = Config.Items["emp_device"] -- Corrected itemId
                         if sabotageToolConfig and playerData.level >= (sabotageToolConfig.minLevelRobber or 1) then
                              ShowNotification("~b~Attempting power grid sabotage...")
                              TriggerServerEvent('cops_and_robbers:sabotagePowerGrid', i) -- Pass grid index (1-based)
