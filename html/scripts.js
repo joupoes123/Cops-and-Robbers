@@ -202,7 +202,7 @@ function updateCashDisplay(currentCash) {
 function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
-        roleSelectionUI.style.display = 'block';
+        roleSelectionUI.classList.remove('hidden');
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Role selection UI element not found.");
@@ -212,7 +212,7 @@ function showRoleSelection() {
 function hideRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
-        roleSelectionUI.style.display = 'none';
+        roleSelectionUI.classList.add('hidden');
         fetchSetNuiFocus(false, false);
     }
 }
