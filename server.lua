@@ -11,6 +11,23 @@
 -- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
 -- - Refined Cop Arrest XP based on wanted level.
 
+-- Configuration shortcuts (Config must be loaded before Log if Log uses it)
+-- However, config.lua is a shared_script, so Config global should be available.
+-- For safety, ensure Log definition handles potential nil Config if script order changes.
+local Config = Config -- Keep this near the top as Log depends on it.
+
+local function Log(message, level)
+    level = level or "info"
+    -- Check if Config and Config.DebugLogging are available
+    if Config and Config.DebugLogging then
+        if level == "error" then print("[CNR_ERROR] " .. message)
+        elseif level == "warn" then print("[CNR_WARN] " .. message)
+        else print("[CNR_INFO] " .. message) end
+    elseif level == "error" or level == "warn" then -- Always print errors/warnings if DebugLogging is off/Config unavailable
+        print("[CNR_CRITICAL_LOG] [" .. string.upper(level) .. "] " .. message)
+    end
+end
+
 -- Global state tables
 local playersData = {}
 local copsOnDuty = {}
@@ -29,6 +46,10 @@ local nextSpikeStripId = 1
 -- Table to store last report times for specific crimes per player
 local clientReportCooldowns = {}
 local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberId] = { copId = copId, expiryTimer = timer }
+
+-- Forward declaration for functions that might be called before definition due to event handlers
+local GetPlayerLevelAndXP, AddXP, SetPlayerRole, IsPlayerCop, IsPlayerRobber, SavePlayerData, LoadPlayerData, CheckAndPlaceBounty, UpdatePlayerWantedLevel, ReduceWantedLevel, SendToJail
+
 
 -- Function to load bans from bans.json
 local function LoadBans()
@@ -87,24 +108,9 @@ local function SavePurchaseHistory()
     end
 end
 
--- Configuration shortcuts
-local Config = Config
-
--- Forward declaration for functions that might be called before definition due to event handlers
-local GetPlayerLevelAndXP, AddXP, SetPlayerRole, IsPlayerCop, IsPlayerRobber, SavePlayerData, LoadPlayerData, CheckAndPlaceBounty, UpdatePlayerWantedLevel, ReduceWantedLevel, SendToJail
-
 -- =================================================================================================
 -- HELPER FUNCTIONS
 -- =================================================================================================
-
-local function Log(message, level)
-    level = level or "info"
-    if Config.DebugLogging then
-        if level == "error" then print("[CNR_ERROR] " .. message)
-        elseif level == "warn" then print("[CNR_WARN] " .. message)
-        else print("[CNR_INFO] " .. message) end
-    end
-end
 
 -- Helper function to get a player's license identifier
 local function GetPlayerLicense(playerId)

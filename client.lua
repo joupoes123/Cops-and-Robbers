@@ -123,8 +123,8 @@ AddEventHandler('playerSpawned', function()
     
     -- Show NUI role selection screen
     -- Ensure NUI is ready before sending messages, or have a queue system in NUI's JS.
-    SendNUIMessage({ action = 'showRoleSelection' })
-    SetNuiFocus(true, true) -- Give focus to NUI for role selection
+    SendNUIMessage({ action = 'showRoleSelection', resourceName = GetParentResourceName() })
+    -- SetNuiFocus(true, true) -- NUI now handles this via fetchSetNuiFocus triggered by showRoleSelection in JS
 end)
 
 -- Event: 'cnr:updatePlayerData' - Receives comprehensive player data from the server.
@@ -781,7 +781,7 @@ end)
 -- Receive item list from the server (Registered once)
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
-    SetNuiFocus(true, true)
+    -- SetNuiFocus(true, true) -- NUI now handles this via fetchSetNuiFocus triggered by openStoreMenu in JS
     SendNUIMessage({
         action = 'openStore',
         storeName = storeName,
@@ -1122,7 +1122,7 @@ RegisterNUICallback('selectRole', function(data, cb)
     local selectedRole = data.role
     if selectedRole == 'cop' or selectedRole == 'robber' then
         TriggerServerEvent('cops_and_robbers:setPlayerRole', selectedRole)
-        SetNuiFocus(false, false)
+        -- SetNuiFocus(false, false) -- NUI now handles this via fetchSetNuiFocus triggered by hideRoleSelection in JS
         cb('ok')
     else
         ShowNotification("Invalid role selected.")
@@ -2026,9 +2026,8 @@ Citizen.CreateThread(function()
                 ShowNotification("~b~Requesting Admin Panel data...")
                 TriggerServerEvent('cops_and_robbers:requestAdminDataForUI')
             else
-                SendNUIMessage({ action = 'hideAdminPanel' })
-                SetNuiFocus(false, false)
-                isAdminPanelOpen = false
+                SendNUIMessage({ action = 'hideAdminPanel' }) // This will trigger hideAdminPanel in JS, which calls fetchSetNuiFocus
+                isAdminPanelOpen = false // JS should also set this ideally, or NUI sends a closed event
                 ShowNotification("~y~Admin Panel closed.")
             end
         end
@@ -2040,13 +2039,13 @@ Citizen.CreateThread(function()
             if playerData.role == 'cop' then
                 isBountyBoardOpen = not isBountyBoardOpen
                 if isBountyBoardOpen then
-                    SendNUIMessage({action = "showBountyBoard", bounties = currentBounties})
+                    SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetParentResourceName()}) // Assuming showBountyBoard in JS will call fetchSetNuiFocus
                     ShowNotification("~g~Bounty Board opened.")
                 else
-                    SendNUIMessage({action = "hideBountyBoard"})
+                    SendNUIMessage({action = "hideBountyBoard"}) // Assuming hideBountyBoard in JS will call fetchSetNuiFocus
                     ShowNotification("~y~Bounty Board closed.")
                 end
-                SetNuiFocus(isBountyBoardOpen, isBountyBoardOpen)
+                -- SetNuiFocus(isBountyBoardOpen, isBountyBoardOpen) -- JS counterpart should handle this
             else
                 ShowNotification("~r~Only Cops can access the Bounty Board.")
             end
@@ -2067,7 +2066,7 @@ end)
 
 RegisterNUICallback('closeBountyNUI', function(data, cb)
     isBountyBoardOpen = false
-    SetNuiFocus(false, false)
+    -- SetNuiFocus(false, false) -- JS hideBountyBoard (if called by this) should handle focus
     ShowNotification("~y~Bounty Board closed by NUI button.")
     cb('ok')
 end)
@@ -2078,7 +2077,7 @@ AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag
     if not isAdminFlag then
         ShowNotification("~r~Admin Panel access denied by server.")
         isAdminPanelOpen = false -- Ensure state is consistent
-        SetNuiFocus(false, false) -- Ensure NUI focus is released
+        -- SetNuiFocus(false, false) -- NUI JS should handle this if an error message UI is shown and needs focus removed
         return
     end
 
@@ -2086,9 +2085,10 @@ AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag
         isAdminPanelOpen = true
         SendNUIMessage({
             action = 'showAdminPanel',
-            players = playerList
+            players = playerList,
+            resourceName = GetParentResourceName() // Pass resource name when showing admin panel too
         })
-        SetNuiFocus(true, true) -- Set NUI focus only when panel is actually shown with admin rights
+        -- SetNuiFocus(true, true) -- JS showAdminPanel handles this
         ShowNotification("~g~Admin Panel opened.")
     elseif isAdminPanelOpen and playerList then -- If panel is already open, just refresh player list
          SendNUIMessage({
