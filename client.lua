@@ -185,9 +185,13 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
 end)
 
 RegisterNetEvent('cnr:setNuiFocus')
-AddEventHandler('cnr:setNuiFocus', function(hasFocus, hasCursor)
-    print(string.format("[CNR_CLIENT] Setting NUI focus via event: hasFocus=%s, hasCursor=%s", tostring(hasFocus), tostring(hasCursor)))
-    SetNuiFocus(hasFocus, hasCursor)
+AddEventHandler('cnr:setNuiFocus', function(data)
+    if type(data) == "table" and data.hasFocus ~= nil and data.hasCursor ~= nil then
+        print(string.format("[CNR_CLIENT] Setting NUI focus via event: hasFocus=%s, hasCursor=%s", tostring(data.hasFocus), tostring(data.hasCursor)))
+        SetNuiFocus(data.hasFocus, data.hasCursor)
+    else
+        print(string.format("[CNR_CLIENT_WARN] cnr:setNuiFocus received invalid data: %s", json.encode and json.encode(data) or tostring(data)))
+    end
 end)
 
 function CalculateXpForNextLevelClient(currentLevel, playerRole)
