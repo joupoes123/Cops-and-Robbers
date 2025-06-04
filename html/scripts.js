@@ -425,11 +425,17 @@ function selectRole(selectedRole) {
         return resp.json();
     })
     .then(response => {
-        if (response.status === 'success' || response.ok === true) { // Handle 'ok' if server sends that
-            alert(`Role set to ${response.role || selectedRole}`); // Use selectedRole if response.role is missing
+        console.log('[CNR_NUI] Response from selectRole NUI callback:', response); // Log the actual response
+
+        // Check for various forms of success, including the simple string "ok"
+        if (response === 'ok' || (response && response.status === 'success') || (response && response.ok === true)) {
+            alert(`Role set to ${ (response && response.role) ? response.role : selectedRole }`); // Use selectedRole as fallback
             hideRoleSelection();
         } else {
-            alert(`Role selection failed: ${response.message || 'Unknown error from server'}`);
+            // Ensure response is an object before trying to access response.message
+            const message = (response && typeof response === 'object' && response.message) ? response.message : 'Unexpected server response';
+            alert(`Role selection failed: ${message}`);
+            console.error('Role selection failed due to server response:', response);
         }
     })
     .catch(error => {
