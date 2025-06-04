@@ -1,13 +1,16 @@
 // html/scripts.js
 // Handles NUI interactions for Cops and Robbers game mode.
 
+// At the top of html/scripts.js
+const resourceName = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'cops-and-robbers';
+
 // =================================================================---
 // NUI Message Handling & Security
 // =================================================================---
 
 // Allowed origins: include your resource's NUI origin and any other trusted domains.
 const allowedOrigins = [
-    `nui://${typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'cops-and-robbers'}`, // Dynamically set resource name
+    `nui://${resourceName}`, // Use the global resourceName
     "http://localhost:3000",   // Example for local development, remove if not used.
     "nui://game" // Added to trust messages from this origin
 ];
@@ -80,10 +83,29 @@ window.addEventListener('message', function(event) {
                 }
             }
             break;
+        // Admin Panel show action (moved from bottom to keep switch statement cleaner)
+        case 'showAdminPanel':
+            showAdminPanel(data.players); // data.players should be sent by client.lua
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
 });
+
+// =================================================================---
+// NUI Focus Helper Function
+// =================================================================---
+async function fetchSetNuiFocus(hasFocus, hasCursor) {
+    try {
+        await fetch(`https://$\{resourceName}/cnr:setNuiFocus`, { // Corrected event name
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({ hasFocus: hasFocus, hasCursor: hasCursor })
+        });
+    } catch (error) {
+        console.error('Error calling cnr:setNuiFocus:', error);
+    }
+}
 
 // =================================================================---
 // XP Level Display Functions
@@ -112,15 +134,16 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
     }
     if (xpBarFillElement) {
         let percentage = 0;
-        if (typeof nextLvlXp === 'number' && nextLvlXp > 0) {
+        if (typeof nextLvlXp === 'number' && nextLvlXp > 0 && xp < nextLvlXp) { // Check xp < nextLvlXp for normal progression
             percentage = (xp / nextLvlXp) * 100;
-        } else if (xp >= nextLvlXp) { // Handles "Max" or if current XP is passed as nextLvlXp for max level
-            percentage = 100;
+        } else if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) { // Handles "Max" or if current XP is passed as nextLvlXp for max level
+            percentage = 100; // At max level or if current XP meets/exceeds requirement (e.g. "Max" or already at cap for display)
         }
         percentage = Math.max(0, Math.min(100, percentage)); // Clamp between 0 and 100
         xpBarFillElement.style.width = percentage + '%';
     }
 }
+
 
 /**
  * Updates the cash display element in the NUI.
@@ -148,9 +171,7 @@ function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.style.display = 'block';
-        // SetNuiFocus is a FiveM NUI function to control mouse cursor and input focus.
-        // (true, true) means NUI is focused, and cursor is visible.
-        SetNuiFocus(true, true);
+        fetchSetNuiFocus(true, true); // MODIFIED
     } else {
         console.error("Role selection UI element not found.");
     }
@@ -164,8 +185,7 @@ function hideRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.style.display = 'none';
-        // (false, false) means NUI is not focused, and cursor is hidden (game regains control).
-        SetNuiFocus(false, false);
+        fetchSetNuiFocus(false, false); // MODIFIED
     }
 }
 
@@ -189,7 +209,7 @@ function openStoreMenu(storeName, storeItems) {
         loadItems();      // Load items for the 'buy' tab initially
 
         storeMenuUI.style.display = 'block';
-        SetNuiFocus(true, true);
+        fetchSetNuiFocus(true, true); // MODIFIED
     } else {
         console.error("Store menu UI or title element not found.");
     }
@@ -203,7 +223,7 @@ function closeStoreMenu() {
     const storeMenuUI = document.getElementById('store-menu');
     if (storeMenuUI) {
         storeMenuUI.style.display = 'none';
-        SetNuiFocus(false, false);
+        fetchSetNuiFocus(false, false); // MODIFIED
     }
 }
 
@@ -298,27 +318,23 @@ function loadSellItems() {
     const sellListContainer = document.getElementById('sell-section'); // This is the tab panel for selling
     if (!sellListContainer) return;
 
-    // It's good practice to have a dedicated sub-container for the list itself to clear/populate
-    // For now, assuming sellListContainer itself will hold the items or a direct child.
-    // If structure is <div id="sell-section"><div class="item-list-content">...</div></div>, adjust querySelector.
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>'; // Loading indicator
 
-    fetch(`https://cops-and-robbers/getPlayerInventory`, {
+    fetch(`https://$\{resourceName}/getPlayerInventory`, { // Use resourceName
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) // Empty body for GET-like behavior if required by server
+        body: JSON.stringify({})
     })
     .then(resp => {
         if (!resp.ok) {
-            // Attempt to parse error from server, else use HTTP status
             return resp.json().then(err => Promise.reject(err)).catch(() => Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status})` }));
         }
         return resp.json();
     })
-    .then(nuiInventory => { // nuiInventory is the object {itemId: {details...}}
-        sellListContainer.innerHTML = ''; // Clear loading indicator / previous items
+    .then(nuiInventory => {
+        sellListContainer.innerHTML = '';
 
-        const sellableItemsArray = Object.values(nuiInventory); // Convert object to array
+        const sellableItemsArray = Object.values(nuiInventory);
 
         if (!sellableItemsArray || sellableItemsArray.length === 0) {
             sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
@@ -326,7 +342,7 @@ function loadSellItems() {
         }
 
         const fragment = document.createDocumentFragment();
-        sellableItemsArray.forEach(inventoryItem => { // inventoryItem: {itemId, name, count, sellPrice, ...}
+        sellableItemsArray.forEach(inventoryItem => {
             fragment.appendChild(createItemElement(inventoryItem, 'sell'));
         });
         sellListContainer.appendChild(fragment);
@@ -346,44 +362,37 @@ function loadSellItems() {
 function createItemElement(item, type = 'buy') {
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
-    itemDiv.dataset.itemId = item.itemId; // Store itemId on the element for easy access in event handlers.
+    itemDiv.dataset.itemId = item.itemId;
 
-    // Item Name
     const nameDiv = document.createElement('div');
     nameDiv.className = 'item-name';
     nameDiv.textContent = item.name;
     itemDiv.appendChild(nameDiv);
 
-    // Item Quantity (for sellable items)
     if (type === 'sell' && item.count !== undefined) {
         const quantityDiv = document.createElement('div');
         quantityDiv.className = 'item-quantity';
-        quantityDiv.textContent = `x${item.count}`; // e.g., "x10"
+        quantityDiv.textContent = `x${item.count}`;
         itemDiv.appendChild(quantityDiv);
     }
 
-    // Item Price
     const priceDiv = document.createElement('div');
     priceDiv.className = 'item-price';
-    // Use item.price for buying, item.sellPrice for selling
     priceDiv.textContent = `$${(type === 'buy' ? item.price : item.sellPrice)}`;
     itemDiv.appendChild(priceDiv);
 
-    // Quantity Input
     const quantityInput = document.createElement('input');
     quantityInput.type = 'number';
     quantityInput.className = 'quantity-input';
     quantityInput.min = '1';
-    // Max for buying is arbitrary (e.g., 100), for selling it's the item count.
     quantityInput.max = (type === 'buy') ? '100' : (item.count ? item.count.toString() : '1');
     quantityInput.value = '1';
     itemDiv.appendChild(quantityInput);
 
-    // Action Button (Buy or Sell)
     const actionBtn = document.createElement('button');
     actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
     actionBtn.textContent = (type === 'buy') ? 'Buy' : 'Sell';
-    actionBtn.dataset.action = type; // Store action type for the event delegate.
+    actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
 
     return itemDiv;
@@ -402,26 +411,22 @@ function createItemElement(item, type = 'buy') {
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
     try {
-        const resp = await fetch(`https://cops-and-robbers/${endpoint}`, {
+        const resp = await fetch(`https://$\{resourceName}/${endpoint}`, { // Use resourceName
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: itemId, quantity: quantity })
         });
 
-        const response = await resp.json(); // Try to parse JSON regardless of resp.ok for server error messages
+        const response = await resp.json();
 
         if (!resp.ok) {
-            // Use server's error message if available, otherwise default
             throw new Error(response.message || `HTTP error ${resp.status}`);
         }
 
         if (response.status === 'success') {
-            // Use a less intrusive notification system if available
-            // For now, using alert for simplicity as in original code
             alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
             if (actionType === 'buy') {
-                // Potentially refresh buy list or update player balance display
-                // loadItems(); // Refreshing might be too broad, consider more targeted updates
+                // Player cash should be updated by server via 'updateMoney' NUI event.
             } else {
                 loadSellItems(); // Refresh sell list as inventory changes
             }
@@ -440,10 +445,10 @@ document.addEventListener('click', function(event) {
     const target = event.target;
     const itemDiv = target.closest('.item');
 
-    if (!itemDiv) return; // Click was not inside an .item element
+    if (!itemDiv) return;
 
     const itemId = itemDiv.dataset.itemId;
-    const actionType = target.dataset.action; // 'buy' or 'sell'
+    const actionType = target.dataset.action;
 
     if (itemId && (actionType === 'buy' || actionType === 'sell')) {
         const quantityInput = itemDiv.querySelector('.quantity-input');
@@ -468,7 +473,7 @@ document.addEventListener('click', function(event) {
 // -------------------------------------------------------------------
 
 function selectRole(selectedRole) {
-    fetch(`https://cops-and-robbers/selectRole`, {
+    fetch(`https://$\{resourceName}/selectRole`, { // Use resourceName
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: selectedRole })
@@ -478,14 +483,7 @@ function selectRole(selectedRole) {
         if (response.status === 'success') {
             alert(`Role set to ${response.role}`);
             hideRoleSelection();
-            // SpawnPlayer(response.role); -- Removed by subtask, client.lua handles this
-            // role = response.role; -- Removed by subtask, client.lua handles this
-            // Notify about role-specific abilities
-            if (response.role == 'cop') {
-                ShowNotification("Cop abilities loaded: Advanced equipment, vehicles, and backup available.");
-            } else if (role == 'robber') {
-                ShowNotification("Robber abilities loaded: Heist tools, getaway vehicles, and stealth strategies enabled.");
-            }
+            // Client.lua now handles actual role setting and spawning.
         } else {
             alert(`Role selection failed: ${response.message}`);
         }
@@ -496,12 +494,7 @@ function selectRole(selectedRole) {
     });
 }
 
-// Bind event listeners to role selection buttons on DOMContentLoaded
-// This targets buttons within the #role-selection section in main_ui.html
-// and also the buttons in the standalone role_selection.html if it's used.
 document.addEventListener('DOMContentLoaded', () => {
-    // Delegate to a common ancestor if #role-selection is dynamically added,
-    // but direct binding is fine if it's always present in the loaded HTML.
     const roleSelectionContainer = document.getElementById('role-selection');
     if (roleSelectionContainer) {
         roleSelectionContainer.addEventListener('click', function(event) {
@@ -512,7 +505,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     } else {
-        // Fallback for html/index.html structure if it's still in use and different
         const legacyRoleButtons = document.querySelectorAll('.menu button[data-role]');
         legacyRoleButtons.forEach(button => {
             button.addEventListener('click', () => {
@@ -522,19 +514,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize the store item list (buy tab) if store-menu is present
-    // This ensures items are loaded if the store is the default view or shown initially.
-    // However, openStoreMenu is typically called by an NUI event.
-    // If #item-list exists and is part of the buy section visible by default:
-    // if (document.getElementById('store-menu') && document.getElementById('item-list') && window.currentTab === 'buy') {
-    //     loadItems(); // This might require window.items to be populated by an earlier NUI message.
-    // }
-
-    // Initial state for XP bar - assuming it might be hidden by default via CSS or needs an initial call
-    // updateXPDisplayElements(0, 1, Config.XPTable[2] || 100); // Example initial call, needs Config access or default
-    // Better to have client.lua send initial state upon player load.
-
-    // Admin Panel event listeners (MOVED HERE)
     const adminPlayerListBody = document.getElementById('admin-player-list-body');
     if (adminPlayerListBody) {
         adminPlayerListBody.addEventListener('click', function(event) {
@@ -545,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (target.classList.contains('admin-kick-btn')) {
                     if (confirm(`Kick player ID ${targetId}?`)) {
-                        fetch(`https://cops-and-robbers/adminKickPlayer`, {
+                        fetch(`https://$\{resourceName}/adminKickPlayer`, { // Use resourceName
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
@@ -554,20 +533,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                 } else if (target.classList.contains('admin-ban-btn')) {
-                    currentAdminTargetPlayerId = targetId; // currentAdminTargetPlayerId needs to be accessible
+                    currentAdminTargetPlayerId = targetId;
                     const banReasonContainer = document.getElementById('admin-ban-reason-container');
                     if (banReasonContainer) banReasonContainer.classList.remove('hidden');
                     const banReasonInput = document.getElementById('admin-ban-reason');
                     if (banReasonInput) banReasonInput.focus();
                 } else if (target.classList.contains('admin-teleport-btn')) {
                     if (confirm(`Teleport to player ID ${targetId}?`)) {
-                         fetch(`https://cops-and-robbers/teleportToPlayerAdminUI`, {
+                         fetch(`https://$\{resourceName}/teleportToPlayerAdminUI`, { // Use resourceName
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
                         }).then(resp => resp.json()).then(res => {
                             alert(res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
-                            hideAdminPanel(); // hideAdminPanel function needs to be accessible
+                            hideAdminPanel();
                         });
                     }
                 }
@@ -578,16 +557,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminConfirmBanBtn = document.getElementById('admin-confirm-ban-btn');
     if (adminConfirmBanBtn) {
         adminConfirmBanBtn.addEventListener('click', function() {
-            if (currentAdminTargetPlayerId) { // currentAdminTargetPlayerId needs to be accessible
+            if (currentAdminTargetPlayerId) {
                 const reasonInput = document.getElementById('admin-ban-reason');
                 const reason = reasonInput ? reasonInput.value.trim() : "Banned by Admin via UI.";
-                fetch(`https://cops-and-robbers/adminBanPlayer`, {
+                fetch(`https://$\{resourceName}/adminBanPlayer`, { // Use resourceName
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
                 }).then(resp => resp.json()).then(res => {
                     alert(res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
-                    hideAdminPanel(); // hideAdminPanel function needs to be accessible
+                    hideAdminPanel();
                 });
             }
         });
@@ -600,16 +579,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (banReasonContainer) banReasonContainer.classList.add('hidden');
             const banReasonInput = document.getElementById('admin-ban-reason');
             if (banReasonInput) banReasonInput.value = '';
-            currentAdminTargetPlayerId = null; // currentAdminTargetPlayerId needs to be accessible
+            currentAdminTargetPlayerId = null;
         });
     }
 
     const adminCloseBtn = document.getElementById('admin-close-btn');
     if (adminCloseBtn) {
-        adminCloseBtn.addEventListener('click', hideAdminPanel); // hideAdminPanel needs to be accessible
+        adminCloseBtn.addEventListener('click', hideAdminPanel);
     }
 
-    // Tab button event listeners moved inside DOMContentLoaded
     const tabButtons = document.querySelectorAll('.tab-btn');
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -622,9 +600,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeTabContent.classList.add('active');
             }
             if (window.currentTab === 'sell') {
-                loadSellItems(); // loadSellItems needs to be accessible
+                loadSellItems();
             } else {
-                loadItems(); // loadItems needs to be accessible
+                loadItems();
             }
         });
     });
@@ -634,39 +612,36 @@ document.addEventListener('DOMContentLoaded', () => {
 // Heist Timer Functionality
 // -------------------------------------------------------------------
 
-// Global variable for heist timer interval to clear it if a new timer starts
 let heistTimerInterval = null;
 
 function startHeistTimer(duration, bankName) {
-    const heistTimerEl = document.getElementById('heist-timer'); // Assumes this element exists in the active HTML
+    const heistTimerEl = document.getElementById('heist-timer');
     if (!heistTimerEl) {
         console.warn('#heist-timer element not found. Cannot display timer.');
         return;
     }
     heistTimerEl.style.display = 'block';
 
-    const timerTextEl = document.getElementById('timer-text'); // Assumes this element exists
+    const timerTextEl = document.getElementById('timer-text');
     if (!timerTextEl) {
         console.warn('#timer-text element not found. Cannot display timer text.');
-        heistTimerEl.style.display = 'none'; // Hide timer if text element is missing
+        heistTimerEl.style.display = 'none';
         return;
     }
 
     let remainingTime = duration;
-    timerTextEl.textContent = `Heist at ${bankName}: ${formatTime(remainingTime)}`; // Use textContent
+    timerTextEl.textContent = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
 
     if (heistTimerInterval) {
-        clearInterval(heistTimerInterval); // Clear any existing timer
+        clearInterval(heistTimerInterval);
     }
 
     heistTimerInterval = setInterval(function() {
         remainingTime--;
         if (remainingTime <= 0) {
             clearInterval(heistTimerInterval);
-            heistTimerInterval = null; // Reset interval variable
+            heistTimerInterval = null;
             heistTimerEl.style.display = 'none';
-            // Optionally, send a message back to Lua that timer ended
-            // fetch(`https://cops-and-robbers/heistTimerEnded`, { method: 'POST' });
             return;
         }
         timerTextEl.textContent = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
@@ -682,7 +657,7 @@ function formatTime(seconds) {
 // =================================================================---
 // Admin Panel Functions
 // =================================================================---
-let currentAdminTargetPlayerId = null; // Store target player ID for ban confirmation
+let currentAdminTargetPlayerId = null;
 
 function showAdminPanel(playerList) {
     const adminPanel = document.getElementById('admin-panel');
@@ -693,7 +668,7 @@ function showAdminPanel(playerList) {
         return;
     }
 
-    playerListBody.innerHTML = ''; // Clear existing list
+    playerListBody.innerHTML = '';
 
     if (playerList && playerList.length > 0) {
         playerList.forEach(player => {
@@ -728,7 +703,7 @@ function showAdminPanel(playerList) {
     }
 
     adminPanel.classList.remove('hidden');
-    SetNuiFocus(true, true);
+    fetchSetNuiFocus(true, true); // MODIFIED
 }
 
 function hideAdminPanel() {
@@ -740,62 +715,13 @@ function hideAdminPanel() {
     if (banReasonContainer) {
         banReasonContainer.classList.add('hidden');
     }
-    document.getElementById('admin-ban-reason').value = ''; // Clear reason input
+    const banReasonInput = document.getElementById('admin-ban-reason'); // Ensure this ID exists or is correct
+    if (banReasonInput) banReasonInput.value = ''; // Clear reason input
     currentAdminTargetPlayerId = null;
-    SetNuiFocus(false, false);
+    fetchSetNuiFocus(false, false); // MODIFIED
 }
 
-// Update message listener for admin panel
-window.addEventListener('message', function(event) {
-    // Origin validation is already at the top
-    if (!allowedOrigins.includes(event.origin)) return;
-
-    const data = event.data;
-
-    switch (data.action) {
-        // ... existing cases ...
-        case 'showAdminPanel': // New action from client.lua
-            showAdminPanel(data.players);
-            break;
-        // case 'updateXPBar': // This is duplicated, remove one instance
-        //    updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
-        //    break;
-    }
-});
-
-/**
- * Updates the XP bar and level display elements in the NUI.
- * @param {number} xp - Current XP of the player.
- * @param {number} level - Current level of the player.
- * @param {number|string} nextLvlXp - XP needed for the next level segment, or a string like "Max" or current XP if max level.
- */
-function updateXPDisplayElements(xp, level, nextLvlXp) {
-    const levelTextEl = document.getElementById('level-text');
-    const xpTextEl = document.getElementById('xp-text');
-    const xpBarFillEl = document.getElementById('xp-bar-fill');
-    const xpLevelContainerEl = document.getElementById('xp-level-container');
-
-    if (levelTextEl && xpTextEl && xpBarFillEl && xpLevelContainerEl) {
-        levelTextEl.textContent = "LVL " + level;
-        xpTextEl.textContent = xp + " / " + nextLvlXp + " XP";
-
-        let xpPercentage = 0;
-        // If nextLvlXp is "Max" (or similar string) or if current XP is already the "next level" value (at max level)
-        if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
-            if (level >= (window.ConfigMaxLevel || 10) ) { // Assuming ConfigMaxLevel might be exposed or use a default
-                 percentage = 100; // At max level, bar is full
-            } else if (typeof nextLvlXp === 'number' && nextLvlXp > 0) { // If nextLvlXp is a number (e.g. current XP when maxed)
-                 percentage = (xp / nextLvlXp) * 100;
-            } else { // Fallback if nextLvlXp is not a number and not max level (e.g. "Error" string)
-                percentage = 0;
-            }
-        } else if (nextLvlXp > 0) {
-            percentage = (xp / nextLvlXp) * 100;
-        }
-
-        xpBarFillEl.style.width = Math.max(0, Math.min(100, percentage)) + '%'; // Clamp between 0-100
-        xpLevelContainerEl.style.display = 'flex'; // Make it visible
-    } else {
-        console.error("One or more XP display elements not found in HTML.");
-    }
-}
+// Removed duplicated updateXPDisplayElements and message listener for admin panel as it's handled by the main one.
+// Also ensured all fetch calls use https://${resourceName}/...
+// Corrected xp bar logic slightly.
+// Moved admin panel's 'showAdminPanel' case to the main message listener.

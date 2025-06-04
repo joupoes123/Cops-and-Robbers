@@ -182,6 +182,12 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     end
 end)
 
+RegisterNetEvent('cnr:setNuiFocus')
+AddEventHandler('cnr:setNuiFocus', function(hasFocus, hasCursor)
+    print(string.format("[CNR_CLIENT] Setting NUI focus via event: hasFocus=%s, hasCursor=%s", tostring(hasFocus), tostring(hasCursor)))
+    SetNuiFocus(hasFocus, hasCursor)
+end)
+
 -- Helper function to calculate XP needed for next level (client-side display approximation)
 -- Server's CalculateLevel is the source of truth. This is for UI.
 function CalculateXpForNextLevelClient(currentLevel, playerRole)
