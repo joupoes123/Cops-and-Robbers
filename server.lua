@@ -1453,6 +1453,13 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
     Wait(100) -- Allow identifiers to load
 
     local playerSrcString = source -- This is the temporary server ID for the connecting player
+
+    if not playerSrcString or GetPlayerName(playerSrcString) == nil then
+        Log(string.format("playerConnecting: Invalid source (ID: %s), cannot get identifiers. Allowing connection by default.", tostring(playerSrcString)), "warn")
+        deferrals.done()
+        return
+    end
+
     local identifiers = GetPlayerIdentifiers(playerSrcString)
     local matchedBan = nil
     local bannedIdentifier = nil
