@@ -918,12 +918,36 @@ end)
 RegisterNetEvent('cnr:armoredCarHeistCompleted', function()
     local src = tonumber(source)
     if IsPlayerRobber(src) then
-        AddXP(src, Config.XPActionsRobber.successful_armored_car_heist or 50, "robber")
-        Log(string.format("Armored car heist XP awarded to robber %s", src))
+        -- XP Award
+        local xpGained = Config.XPActionsRobber.successful_armored_car_heist or 50
+        AddXP(src, xpGained, "robber")
+        Log(string.format("Armored car heist XP (%d) awarded to robber %s", xpGained, src))
+
+        -- Cash Reward
+        local cashReward = 0
+        if Config.ArmoredCar and Config.ArmoredCar.rewardMin and Config.ArmoredCar.rewardMax then
+            cashReward = math.random(Config.ArmoredCar.rewardMin, Config.ArmoredCar.rewardMax)
+            if cashReward > 0 then
+                AddPlayerMoney(src, cashReward) -- Assumes 'cash' type by default
+                Log(string.format("Armored car heist cash reward ($%d) awarded to robber %s", cashReward, src))
+            end
+        else
+            Log("Armored Car Heist: Config.ArmoredCar.rewardMin/Max not defined. No cash reward given.", "warn")
+        end
+
+        -- Client Notification
+        TriggerClientEvent('chat:addMessage', src, {
+            args = {"^2Heist Success", string.format("You successfully completed the armored car heist! Gained %d XP and $%d.", xpGained, cashReward)}
+        })
+
+        -- Cooldown Management for the event itself would be handled by the event spawning logic, not here.
+        -- This event is for player rewards upon their successful completion/participation.
     end
 end)
 
 -- Add Contraband Collection XP & Perk Logic
+local activeContrabandDrops = {} -- Define this table to store active drop data including value and name
+
 RegisterNetEvent('cnr:startCollectingContraband', function(dropId) -- Assuming client sends this
     local src = tonumber(source)
     local pData = GetCnrPlayerData(src)
@@ -938,14 +962,48 @@ RegisterNetEvent('cnr:startCollectingContraband', function(dropId) -- Assuming c
     TriggerClientEvent('cops_and_robbers:collectingContrabandStarted', src, dropId, collectionTime)
 end)
 
-RegisterNetEvent('cnr:finishCollectingContraband', function(dropId) -- Assuming client sends this on success
+RegisterNetEvent('cnr:finishCollectingContraband', function(dropId)
     local src = tonumber(source)
-    if IsPlayerRobber(src) then
-        -- TODO: Add logic to validate dropId, give item/money, and then XP
-        AddXP(src, Config.XPActionsRobber.contraband_collected or 15, "robber")
-        Log(string.format("Contraband collected XP awarded to robber %s for drop %s", src, dropId))
-        -- Make sure to also TriggerClientEvent('cops_and_robbers:contrabandDropCollected', -1, dropId, GetPlayerName(src), "Collected Item")
+    local playerName = GetPlayerName(src)
+
+    if not IsPlayerRobber(src) or not playerName then return end
+
+    -- Validate the dropId and get its data
+    local dropData = activeContrabandDrops[dropId] -- Assuming this table exists and is populated
+    if not dropData then
+        Log(string.format("Player %s (%s) tried to finish collecting non-existent or already collected dropId: %s", playerName, src, dropId), "warn")
+        -- Optionally notify player of error
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Contraband drop not found or already collected."} })
+        return
     end
+
+    local itemName = dropData.name or "Unknown Item"
+    local itemValue = dropData.value or 0 -- Value from Config.ContrabandItems stored at spawn time
+    local xpGained = Config.XPActionsRobber.contraband_collected or 15
+
+    -- Award XP
+    AddXP(src, xpGained, "robber")
+    Log(string.format("Contraband collected: %s. XP (%d) awarded to robber %s (%s) for drop %s", itemName, xpGained, playerName, src, dropId))
+
+    -- Award Cash
+    if itemValue > 0 then
+        AddPlayerMoney(src, itemValue)
+        Log(string.format("Contraband cash reward ($%d) for %s awarded to robber %s (%s)", itemValue, itemName, playerName, src))
+    else
+        Log(string.format("Contraband %s had no value or value not configured. No cash reward for %s (%s).", itemName, playerName, src), "warn")
+    end
+
+    -- Notify player of success
+    TriggerClientEvent('chat:addMessage', src, {
+        args = {"^2Contraband", string.format("You collected %s! Gained %d XP and $%d.", itemName, xpGained, itemValue)}
+    })
+
+    -- Notify all clients that the drop has been collected (to remove blip/prop)
+    TriggerClientEvent('cops_and_robbers:contrabandDropCollected', -1, dropId, playerName, itemName)
+
+    -- Remove the drop from active list
+    activeContrabandDrops[dropId] = nil
+    Log(string.format("Contraband drop %s (item: %s) removed from active list.", dropId, itemName))
 end)
 
 

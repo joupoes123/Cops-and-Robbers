@@ -27,6 +27,9 @@ window.addEventListener('message', function(event) {
         case 'showRoleSelection':
             showRoleSelection();
             break;
+        case 'updateMoney':
+            updateCashDisplay(data.cash);
+            break;
         case 'showStoreMenu':
             openStoreMenu(data.storeName, data.items);
             break;
@@ -115,6 +118,20 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
         }
         percentage = Math.max(0, Math.min(100, percentage)); // Clamp between 0 and 100
         xpBarFillElement.style.width = percentage + '%';
+    }
+}
+
+/**
+ * Updates the cash display element in the NUI.
+ * @param {number} currentCash - The player's current cash amount.
+ */
+function updateCashDisplay(currentCash) {
+    const cashDisplayElement = document.getElementById('cash-display');
+    if (cashDisplayElement) {
+        cashDisplayElement.textContent = '$' + (currentCash !== undefined ? currentCash.toLocaleString() : '0'); // Format with commas
+        cashDisplayElement.style.display = 'block'; // Make it visible
+    } else {
+        console.error("Cash display element 'cash-display' not found in HTML.");
     }
 }
 
