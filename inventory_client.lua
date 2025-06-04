@@ -1,6 +1,13 @@
 -- inventory_client.lua
 -- Handles client-side custom inventory logic and NUI interaction.
 
+-- Helper function
+function Log(message, level)
+    level = level or "info"
+    -- Basic print logging for client, can be expanded
+    print("[CNR_INV_CLIENT] [" .. string.upper(level) .. "] " .. message)
+end
+
 local localPlayerInventory = {}
 
 RegisterNetEvent('cnr:inventoryUpdated')
@@ -49,11 +56,4 @@ function GetLocalInventory()
     return localPlayerInventory
 end
 
-Log("Custom Inventory System (client-side) loaded.")
-
--- Helper function, ensure Log is defined or use print
-function Log(message, level)
-    level = level or "info"
-    -- Basic print logging for client, can be expanded
-    print("[CNR_INV_CLIENT] [" .. string.upper(level) .. "] " .. message)
-end
+Log("Custom Inventory System (client-side) loaded.") -- This call is now after Log definition

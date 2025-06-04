@@ -8,7 +8,8 @@
 // Allowed origins: include your resource's NUI origin and any other trusted domains.
 const allowedOrigins = [
     `nui://${typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'cops-and-robbers'}`, // Dynamically set resource name
-    "http://localhost:3000"   // Example for local development, remove if not used.
+    "http://localhost:3000",   // Example for local development, remove if not used.
+    "nui://game" // Added to trust messages from this origin
 ];
 
 // Secure postMessage listener with strict origin validation.
@@ -532,6 +533,101 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial state for XP bar - assuming it might be hidden by default via CSS or needs an initial call
     // updateXPDisplayElements(0, 1, Config.XPTable[2] || 100); // Example initial call, needs Config access or default
     // Better to have client.lua send initial state upon player load.
+
+    // Admin Panel event listeners (MOVED HERE)
+    const adminPlayerListBody = document.getElementById('admin-player-list-body');
+    if (adminPlayerListBody) {
+        adminPlayerListBody.addEventListener('click', function(event) {
+            const target = event.target;
+            if (target.classList.contains('admin-action-btn')) {
+                const targetId = target.dataset.targetId;
+                if (!targetId) return;
+
+                if (target.classList.contains('admin-kick-btn')) {
+                    if (confirm(`Kick player ID ${targetId}?`)) {
+                        fetch(`https://cops-and-robbers/adminKickPlayer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ targetId: targetId })
+                        }).then(resp => resp.json()).then(res => {
+                            alert(res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.'));
+                        });
+                    }
+                } else if (target.classList.contains('admin-ban-btn')) {
+                    currentAdminTargetPlayerId = targetId; // currentAdminTargetPlayerId needs to be accessible
+                    const banReasonContainer = document.getElementById('admin-ban-reason-container');
+                    if (banReasonContainer) banReasonContainer.classList.remove('hidden');
+                    const banReasonInput = document.getElementById('admin-ban-reason');
+                    if (banReasonInput) banReasonInput.focus();
+                } else if (target.classList.contains('admin-teleport-btn')) {
+                    if (confirm(`Teleport to player ID ${targetId}?`)) {
+                         fetch(`https://cops-and-robbers/teleportToPlayerAdminUI`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ targetId: targetId })
+                        }).then(resp => resp.json()).then(res => {
+                            alert(res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
+                            hideAdminPanel(); // hideAdminPanel function needs to be accessible
+                        });
+                    }
+                }
+            }
+        });
+    }
+
+    const adminConfirmBanBtn = document.getElementById('admin-confirm-ban-btn');
+    if (adminConfirmBanBtn) {
+        adminConfirmBanBtn.addEventListener('click', function() {
+            if (currentAdminTargetPlayerId) { // currentAdminTargetPlayerId needs to be accessible
+                const reasonInput = document.getElementById('admin-ban-reason');
+                const reason = reasonInput ? reasonInput.value.trim() : "Banned by Admin via UI.";
+                fetch(`https://cops-and-robbers/adminBanPlayer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
+                }).then(resp => resp.json()).then(res => {
+                    alert(res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
+                    hideAdminPanel(); // hideAdminPanel function needs to be accessible
+                });
+            }
+        });
+    }
+
+    const adminCancelBanBtn = document.getElementById('admin-cancel-ban-btn');
+    if (adminCancelBanBtn) {
+        adminCancelBanBtn.addEventListener('click', function() {
+            const banReasonContainer = document.getElementById('admin-ban-reason-container');
+            if (banReasonContainer) banReasonContainer.classList.add('hidden');
+            const banReasonInput = document.getElementById('admin-ban-reason');
+            if (banReasonInput) banReasonInput.value = '';
+            currentAdminTargetPlayerId = null; // currentAdminTargetPlayerId needs to be accessible
+        });
+    }
+
+    const adminCloseBtn = document.getElementById('admin-close-btn');
+    if (adminCloseBtn) {
+        adminCloseBtn.addEventListener('click', hideAdminPanel); // hideAdminPanel needs to be accessible
+    }
+
+    // Tab button event listeners moved inside DOMContentLoaded
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            window.currentTab = btn.dataset.tab;
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            const activeTabContent = document.getElementById(`${window.currentTab}-section`);
+            if (activeTabContent) {
+                activeTabContent.classList.add('active');
+            }
+            if (window.currentTab === 'sell') {
+                loadSellItems(); // loadSellItems needs to be accessible
+            } else {
+                loadItems(); // loadItems needs to be accessible
+            }
+        });
+    });
 });
 
 // -------------------------------------------------------------------
@@ -648,67 +744,6 @@ function hideAdminPanel() {
     currentAdminTargetPlayerId = null;
     SetNuiFocus(false, false);
 }
-
-// Event listener for admin panel actions (using event delegation)
-document.getElementById('admin-player-list-body').addEventListener('click', function(event) {
-    const target = event.target;
-    if (target.classList.contains('admin-action-btn')) {
-        const targetId = target.dataset.targetId;
-        if (!targetId) return;
-
-        if (target.classList.contains('admin-kick-btn')) {
-            if (confirm(`Kick player ID ${targetId}?`)) {
-                fetch(`https://cops-and-robbers/adminKickPlayer`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ targetId: targetId })
-                }).then(resp => resp.json()).then(res => {
-                    alert(res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.'));
-                    // Optionally refresh player list: document.dispatchEvent(new Event('toggleAdminPanelRequest'));
-                });
-            }
-        } else if (target.classList.contains('admin-ban-btn')) {
-            currentAdminTargetPlayerId = targetId;
-            document.getElementById('admin-ban-reason-container').classList.remove('hidden');
-            document.getElementById('admin-ban-reason').focus();
-        } else if (target.classList.contains('admin-teleport-btn')) {
-            if (confirm(`Teleport to player ID ${targetId}?`)) {
-                 fetch(`https://cops-and-robbers/teleportToPlayerAdminUI`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ targetId: targetId })
-                }).then(resp => resp.json()).then(res => {
-                    alert(res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
-                    hideAdminPanel(); // Hide panel after teleporting
-                });
-            }
-        }
-    }
-});
-
-document.getElementById('admin-confirm-ban-btn').addEventListener('click', function() {
-    if (currentAdminTargetPlayerId) {
-        const reason = document.getElementById('admin-ban-reason').value.trim() || "Banned by Admin via UI.";
-        fetch(`https://cops-and-robbers/adminBanPlayer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
-        }).then(resp => resp.json()).then(res => {
-            alert(res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
-            hideAdminPanel(); // Also hides ban reason container
-        });
-    }
-});
-
-document.getElementById('admin-cancel-ban-btn').addEventListener('click', function() {
-    document.getElementById('admin-ban-reason-container').classList.add('hidden');
-    document.getElementById('admin-ban-reason').value = '';
-    currentAdminTargetPlayerId = null;
-});
-
-
-// Close admin panel button
-document.getElementById('admin-close-btn').addEventListener('click', hideAdminPanel);
 
 // Update message listener for admin panel
 window.addEventListener('message', function(event) {
