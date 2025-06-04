@@ -146,6 +146,7 @@ window.addEventListener('message', function(event) {
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
     try {
         const resName = window.cnrResourceName || 'cops-and-robbers';
+        console.log('[CNR_NUI] Attempting to fetchSetNuiFocus. URL:', `https://\${resName}/cnr:setNuiFocus`);
         await fetch(`https://\${resName}/cnr:setNuiFocus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
