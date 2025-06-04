@@ -401,24 +401,42 @@ document.addEventListener('click', function(event) {
 // Role Selection and Initialization
 // -------------------------------------------------------------------
 function selectRole(selectedRole) {
-    const resName = window.cnrResourceName || 'cops-and-robbers';
-    fetch(`https://$\{resName}/selectRole`, {
+    console.log('[CNR_NUI] Inside selectRole. window.cnrResourceName:', window.cnrResourceName, 'Selected Role:', selectedRole);
+    const resName = window.cnrResourceName || 'cops-and-robbers'; // Ensure resName is correctly defined
+
+    // Log the URL that will be used for the fetch call
+    const fetchURL = `https://${resName}/selectRole`;
+    console.log(`[CNR_NUI] Attempting to call 'selectRole'. Resource: ${resName}, URL: ${fetchURL}`);
+
+    fetch(fetchURL, { // Ensure this is a template literal with backticks and uses the defined fetchURL
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: selectedRole })
     })
-    .then(resp => resp.json())
+    .then(resp => {
+        if (!resp.ok) { // Check if response is not OK (status outside 200-299)
+            // Try to get text for more detailed error, then fall back to statusText
+            return resp.text().then(text => {
+                throw new Error(`HTTP error ${resp.status} (${resp.statusText}): ${text}`);
+            }).catch(() => { // Fallback if .text() also fails or if it's not a text response
+                 throw new Error(`HTTP error ${resp.status} (${resp.statusText})`);
+            });
+        }
+        return resp.json();
+    })
     .then(response => {
-        if (response.status === 'success') {
-            alert(`Role set to ${response.role}`);
+        if (response.status === 'success' || response.ok === true) { // Handle 'ok' if server sends that
+            alert(`Role set to ${response.role || selectedRole}`); // Use selectedRole if response.role is missing
             hideRoleSelection();
         } else {
-            alert(`Role selection failed: ${response.message}`);
+            alert(`Role selection failed: ${response.message || 'Unknown error from server'}`);
         }
     })
     .catch(error => {
-        console.error('Error selecting role:', error);
-        alert('Failed to select role.');
+        // Update the error log for clarity
+        const resNameForError = window.cnrResourceName || 'cops-and-robbers'; // Recapture for error message
+        console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
+        alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
     });
 }
 
