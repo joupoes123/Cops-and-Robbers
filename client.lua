@@ -1180,33 +1180,25 @@ Citizen.CreateThread(function()
             frameWait = math.min(frameWait, collisionCheckInterval) -- Ensure loop runs at collision check interval if strips exist
             lastCollisionCheck = GetGameTimer()
 
-            local playerPed = PlayerPedId() -- Ensure playerPed is defined in this scope
-            local playerVeh = GetVehiclePedIsIn(playerPed, false)
-
-            if playerVeh ~= 0 and DoesEntityExist(playerVeh) then -- Player is in a vehicle
-                local vehCoords = GetEntityCoords(playerVeh)
-                for stripId, stripData in pairs(currentSpikeStrips) do
-                    if stripData and stripData.obj and DoesEntityExist(stripData.obj) and stripData.location then
-                        local distance = #(vehCoords - stripData.location)
-                        -- Rough check based on distance. A more accurate check would involve bounding boxes or specific tire positions.
-                        -- The value '2.5' is an approximation for interaction.
-                        if distance < 3.0 then -- Increased slightly for better detection with simple distance
-                            -- Consider adding a short client-side cooldown per strip to prevent spamming server for same strip
-                            -- if not stripData.recentlyHit then
-                            ShowNotification("~r~You ran over spikes!") -- Notify self
-                            TriggerServerEvent('cops_and_robbers:vehicleHitSpikeStrip', stripId, VehToNet(playerVeh))
-                            -- stripData.recentlyHit = true
-                            -- SetTimeout(2000, function() if stripData then stripData.recentlyHit = false end end)
-                            break -- Process one strip hit per check cycle for this vehicle
-                            -- end
+            local playerPed = PlayerPedId()
+            -- ADD GUARD FOR playerPed BEFORE GetVehiclePedIsIn
+            if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+                local playerVeh = GetVehiclePedIsIn(playerPed, false)
+                -- ADD GUARD FOR playerVeh HERE
+                if playerVeh and playerVeh ~= 0 and DoesEntityExist(playerVeh) then
+                    local vehCoords = GetEntityCoords(playerVeh)
+                    for stripId, stripData in pairs(currentSpikeStrips) do
+                        if stripData and stripData.obj and DoesEntityExist(stripData.obj) and stripData.location then
+                            local distance = #(vehCoords - stripData.location)
+                            if distance < 3.0 then
+                                ShowNotification("~r~You ran over spikes!")
+                                TriggerServerEvent('cops_and_robbers:vehicleHitSpikeStrip', stripId, VehToNet(playerVeh))
+                                break
+                            end
                         end
-                    else
-                        -- Clean up nil or invalid strip data if it somehow occurs
-                        -- print("DEBUG: Invalid spike strip data for ID " .. tostring(stripId))
-                        -- currentSpikeStrips[stripId] = nil -- Risky if server hasn't confirmed removal
                     end
-                end
-            end
+                end -- END OF playerVeh GUARD
+            end -- END OF playerPed GUARD
         end
         Citizen.Wait(frameWait)
     end
@@ -1389,31 +1381,36 @@ end
 -- Detect player near a store or vendor
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(500) -- Check every 0.5 seconds to optimize performance
+        Citizen.Wait(500)
         local playerPed = PlayerPedId()
-        local playerCoords = GetEntityCoords(playerPed)
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            local playerCoords = GetEntityCoords(playerPed)
 
-        -- Check proximity to Ammu-Nation stores (now stored as vector3)
-        for _, store in ipairs(Config.AmmuNationStores) do
-            local distance = #(playerCoords - store) -- Calculate distance using vector subtraction and magnitude
-            if distance < 2.0 then
-                DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
-                if IsControlJustPressed(0, 51) then  -- E key (Default: Context)
-                    openStore('Ammu-Nation', 'AmmuNation', nil)
+            -- Check proximity to Ammu-Nation stores
+            for _, store_location in ipairs(Config.AmmuNationStores) do -- Renamed store to store_location
+                local distance = #(playerCoords - store_location)
+                if distance < 2.0 then
+                    DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation')
+                    if IsControlJustPressed(0, 51) then
+                        openStore('Ammu-Nation', 'AmmuNation', nil)
+                    end
+                    goto next_iteration -- Process only one interaction type per loop
                 end
             end
-        end
 
-        -- Check proximity to NPC vendors
-        for _, vendor in ipairs(Config.NPCVendors) do
-            local vendorCoords = vendor.location
-            local distance = #(playerCoords - vendorCoords) -- Calculate distance
-            if distance < 2.0 then
-                DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
-                if IsControlJustPressed(0, 51) then -- E key (Default: Context)
-                    openStore(vendor.name, 'Vendor', vendor.items)
+            -- Check proximity to NPC vendors
+            for _, vendor in ipairs(Config.NPCVendors) do
+                local vendorCoords = vendor.location
+                local distance = #(playerCoords - vendorCoords)
+                if distance < 2.0 then
+                    DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name)
+                    if IsControlJustPressed(0, 51) then
+                        openStore(vendor.name, 'Vendor', vendor.items)
+                    end
+                    goto next_iteration -- Process only one interaction type per loop
                 end
             end
+            ::next_iteration::
         end
     end
 end)
