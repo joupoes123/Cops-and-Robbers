@@ -111,7 +111,7 @@ end
 
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('cops_and_robbers:requestPlayerData')
-    SendNUIMessage({ action = 'showRoleSelection', resourceName = GetParentResourceName() })
+    SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
 end)
 
 RegisterNetEvent('cnr:updatePlayerData')
