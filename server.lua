@@ -1514,5 +1514,3 @@ AddEventHandler('cnr:requestMyInventory', function()
         TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
     end
 end)
-
-[end of server.lua]

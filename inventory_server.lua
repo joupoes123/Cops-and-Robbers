@@ -1,6 +1,23 @@
 -- inventory_server.lua
 -- Handles all server-side custom inventory logic for Cops 'n' Robbers.
 
+-- Ensure Config is accessible for Log function; it should be global if config.lua ran.
+local Config = Config
+
+local function Log(message, level)
+    level = level or "info"
+    local shouldLog = false
+    if Config and Config.DebugLogging then
+        shouldLog = true
+    end
+
+    if shouldLog then
+        if level == "error" then print("[CNR_INV_SERV_ERROR] " .. message)
+        elseif level == "warn" then print("[CNR_INV_SERV_WARN] " .. message)
+        else print("[CNR_INV_SERV_INFO] " .. message) end
+    end
+end
+
 -- Initialize player inventory when they load (called from main server.lua)
 function InitializePlayerInventory(playerId)
     local pData = playersData[tonumber(playerId)]
