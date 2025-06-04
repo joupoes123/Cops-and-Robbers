@@ -28,6 +28,7 @@ local nextSpikeStripId = 1
 
 -- Table to store last report times for specific crimes per player
 local clientReportCooldowns = {}
+local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberId] = { copId = copId, expiryTimer = timer }
 
 -- Function to load bans from bans.json
 local function LoadBans()
@@ -827,17 +828,27 @@ end)
 -- =================================================================================================
 -- JAIL SYSTEM
 -- =================================================================================================
-SendToJail = function(playerId, durationSeconds, arrestingOfficerId)
+SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
     local pIdNum = tonumber(playerId)
     if GetPlayerName(pIdNum) == nil then return end -- Check player online
     local jailedPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
+    arrestOptions = arrestOptions or {} -- Ensure options table exists
+
+    -- Store original wanted data before resetting (for accurate XP calculation)
+    local originalWantedData = {}
+    if wantedPlayers[pIdNum] then
+        originalWantedData.stars = wantedPlayers[pIdNum].stars or 0
+        -- Copy other fields if needed for complex XP rules later
+    else
+        originalWantedData.stars = 0
+    end
 
     jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } -- Reset wanted
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
     TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation)
     TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", durationSeconds)} })
-    Log(string.format("Player %s jailed for %ds. Officer: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A"))
+    Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
 
     local arrestingOfficerName = (arrestingOfficerId and GetPlayerName(arrestingOfficerId)) or "System"
     for copId, _ in pairs(copsOnDuty) do
@@ -850,27 +861,32 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId)
     if arrestingOfficerId and IsPlayerCop(arrestingOfficerId) then
         local officerIdNum = tonumber(arrestingOfficerId)
         local arrestXP = 0
-        -- Note: wantedPlayers[pIdNum] was just reset. Need to use the stars *before* jailing for XP calculation.
-        -- This is a logic flaw in the original. For now, we'll assume it's based on last known stars.
-        -- A better approach would be to pass the wanted level/stars at time of arrest to this function.
-        -- For this refactor, we'll keep the existing flawed logic structure regarding XP source.
-        local robberWantedData = wantedPlayers[pIdNum] -- This will show 0 stars due to reset above.
-                                                    -- This needs to be fixed by passing stars to SendToJail or getting it before reset.
-                                                    -- For now, XP will be minimal.
-        if robberWantedData then -- This will always be true, but stars will be 0.
-            if robberWantedData.stars >= 4 then arrestXP = Config.XPActionsCop.successful_arrest_high_wanted or 40
-            elseif robberWantedData.stars >= 2 then arrestXP = Config.XPActionsCop.successful_arrest_medium_wanted or 25
-            else arrestXP = Config.XPActionsCop.successful_arrest_low_wanted or 15 end
+
+        -- Use originalWantedData.stars for XP calculation
+        if originalWantedData.stars >= 4 then arrestXP = Config.XPActionsCop.successful_arrest_high_wanted or 40
+        elseif originalWantedData.stars >= 2 then arrestXP = Config.XPActionsCop.successful_arrest_medium_wanted or 25
         else arrestXP = Config.XPActionsCop.successful_arrest_low_wanted or 15 end
+
         AddXP(officerIdNum, arrestXP, "cop")
         TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("Gained %d XP for arrest.", arrestXP)} })
 
-        local engagement = k9Engagements[pIdNum]
-        if engagement and engagement.copId == officerIdNum and (os.time() - engagement.time < (Config.K9AssistWindowSeconds or 30)) then
-            local k9BonusXP = Config.XPActionsCop.k9_assist_arrest or 20
+        -- K9 Assist Bonus (existing logic, now using arrestOptions)
+        local engagement = k9Engagements[pIdNum] -- pIdNum is the robber
+        -- arrestOptions.isK9Assist would be set by K9 logic if it calls SendToJail
+        if (engagement and engagement.copId == officerIdNum and (os.time() - engagement.time < (Config.K9AssistWindowSeconds or 30))) or arrestOptions.isK9Assist then
+            local k9BonusXP = Config.XPActionsCop.k9_assist_arrest or 10 -- Corrected XP value
             AddXP(officerIdNum, k9BonusXP, "cop")
             TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP K9 Assist!", k9BonusXP)} })
-            Log(string.format("Cop %s K9 assist XP %d for robber %s.", officerIdNum, k9BonusXP, pIdNum)); k9Engagements[pIdNum] = nil
+            Log(string.format("Cop %s K9 assist XP %d for robber %s.", officerIdNum, k9BonusXP, pIdNum))
+            k9Engagements[pIdNum] = nil -- Clear engagement after awarding
+        end
+
+        -- Subdue Arrest Bonus (New Logic)
+        if arrestOptions.isSubdueArrest and not arrestOptions.isK9Assist then -- Avoid double bonus if K9 was also involved somehow in subdue
+            local subdueBonusXP = Config.XPActionsCop.subdue_arrest_bonus or 10
+            AddXP(officerIdNum, subdueBonusXP, "cop")
+            TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP for Subdue Arrest!", subdueBonusXP)} })
+            Log(string.format("Cop %s Subdue Arrest XP %d for robber %s.", officerIdNum, subdueBonusXP, pIdNum))
         end
         if Config.BountySettings.enabled and Config.BountySettings.claimMethod == "arrest" and activeBounties[pIdNum] then
             local bountyInfo = activeBounties[pIdNum]; local bountyAmt = bountyInfo.amount
@@ -1024,35 +1040,51 @@ RegisterNetEvent('cnr:deploySpikeStrip', function(location)
     local src = tonumber(source)
     if not IsPlayerCop(src) then return end
 
+    local spikeStripItemId = "spikestrip_item"
+
+    -- 1. Check if player has the item
+    if not HasItem(src, spikeStripItemId, 1) then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have any spike strips."} })
+        return
+    end
+
+    -- 2. Check deployment limit
     local pData = GetCnrPlayerData(src)
     local currentDeployedCount = playerDeployedSpikeStripsCount[src] or 0
     local maxStrips = Config.MaxDeployedSpikeStrips
 
     if pData and pData.perks and pData.perks.extra_spike_strips then
-        maxStrips = maxStrips + (pData.extraSpikeStrips or 0) -- Value stored in ApplyPerks
+        maxStrips = maxStrips + (pData.extraSpikeStrips or 0)
     end
 
-    if currentDeployedCount < maxStrips then
+    if currentDeployedCount >= maxStrips then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You've reached your maximum deployed spike strips."} })
+        return
+    end
+
+    -- 3. Consume item and then deploy
+    if RemoveItem(src, spikeStripItemId, 1) then
         local stripId = getNextSpikeStripId()
         activeSpikeStrips[stripId] = { copId = src, location = location, timestamp = os.time() }
         playerDeployedSpikeStripsCount[src] = currentDeployedCount + 1
 
-        TriggerClientEvent('cops_and_robbers:renderSpikeStrip', -1, stripId, location) -- Render for all clients
-        Log(string.format("Cop %s deployed spike strip %s. Total deployed: %d/%d", src, stripId, playerDeployedSpikeStripsCount[src], maxStrips))
+        TriggerClientEvent('cops_and_robbers:renderSpikeStrip', -1, stripId, location)
+        Log(string.format("Cop %s deployed spike strip %s. Total deployed: %d/%d. Item consumed.", src, stripId, playerDeployedSpikeStripsCount[src], maxStrips))
 
-        -- Auto-remove after duration
         SetTimeout(Config.SpikeStripDuration, function()
             if activeSpikeStrips[stripId] then
                 TriggerClientEvent('cops_and_robbers:removeSpikeStrip', -1, stripId)
                 activeSpikeStrips[stripId] = nil
-                if playerDeployedSpikeStripsCount[src] then
-                    playerDeployedSpikeStripsCount[src] = playerDeployedSpikeStripsCount[src] - 1
+                if playerDeployedSpikeStripsCount[src] then -- Check if player's count exists
+                     playerDeployedSpikeStripsCount[src] = math.max(0, (playerDeployedSpikeStripsCount[src] or 0) - 1) -- Ensure it doesn't go below 0
+                     Log(string.format("Decremented spike strip count for %s after auto-removal. New count: %d", src, playerDeployedSpikeStripsCount[src]))
                 end
                 Log(string.format("Auto-removed spike strip %s for cop %s.", stripId, src))
             end
         end)
     else
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You've reached your maximum deployed spike strips."} })
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Failed to use spike strip from inventory."} })
+        Log(string.format("Cop %s had spike strip but RemoveItem failed for %s.", src, spikeStripItemId), "error")
     end
 end)
 
@@ -1138,8 +1170,101 @@ AddEventHandler('playerDropped', function(reason)
 
     playersData[src] = nil; activeCooldowns[src] = nil
     clientReportCooldowns[src] = nil -- Clear report cooldowns for the disconnected player
+    if activeSubdues[src] then -- If the dropped player was being subdued
+        local subdueData = activeSubdues[src]
+        if subdueData.expiryTimer then ClearTimeout(subdueData.expiryTimer) end
+        Log(string.format("Subdue attempt on player %s cancelled due to disconnect.", src))
+    end
+    for robberId, subdueData in pairs(activeSubdues) do -- If the dropped player was the one subduing
+        if subdueData.copId == src then
+            if subdueData.expiryTimer then ClearTimeout(subdueData.expiryTimer) end
+            TriggerClientEvent('cops_and_robbers:subdueCancelled', tonumber(robberId))
+            Log(string.format("Subdue attempt by cop %s on %s cancelled due to cop disconnect.", src, robberId))
+            activeSubdues[robberId] = nil
+        end
+    end
     Log("Cleaned up session data for player " .. src)
 end)
+
+RegisterNetEvent('cops_and_robbers:startSubdue', function(targetRobberServerId)
+    local src = tonumber(source) -- This is the Cop
+    local targetRobberNumId = tonumber(targetRobberServerId)
+
+    if not IsPlayerCop(src) then
+        Log(string.format("Non-cop %s attempted to subdue.", src), "warn")
+        return
+    end
+
+    if not IsPlayerRobber(targetRobberNumId) or GetPlayerName(targetRobberNumId) == nil then
+        Log(string.format("Cop %s attempted to subdue invalid or offline target %s.", src, targetRobberNumId), "warn")
+        TriggerClientEvent('chat:addMessage', src, { args = {"^3System", "Invalid or offline target."} })
+        return
+    end
+
+    if activeSubdues[targetRobberNumId] then
+        Log(string.format("Robber %s is already being subdued or in a subdue process.", targetRobberNumId), "info")
+        TriggerClientEvent('chat:addMessage', src, { args = {"^3System", "Target is already being subdued."} })
+        return
+    end
+
+    -- TODO: Add distance check here between src (cop) and targetRobberNumId
+    -- For now, we assume client did a basic distance check. A server check is crucial.
+    -- local copCoords = GetEntityCoords(GetPlayerPed(src))
+    -- local robberCoords = GetEntityCoords(GetPlayerPed(targetRobberNumId))
+    -- if #(copCoords - robberCoords) > (Config.TackleDistance + 2.0) then -- Allow a small buffer over client check
+    --     TriggerClientEvent('chat:addMessage', src, { args = {"^3System", "Target is too far."} })
+    --     return
+    -- end
+
+    Log(string.format("Cop %s (%s) initiated subdue on Robber %s (%s).", GetPlayerName(src), src, GetPlayerName(targetRobberNumId), targetRobberNumId))
+    TriggerClientEvent('cops_and_robbers:beginSubdueSequence', targetRobberNumId, src) -- Tell robber client they are being subdued
+
+    activeSubdues[targetRobberNumId] = {
+        copId = src,
+        expiryTimer = SetTimeout(Config.SubdueTimeMs or 3000, function()
+            if activeSubdues[targetRobberNumId] and activeSubdues[targetRobberNumId].copId == src then -- Check if still the same subdue attempt
+                -- TODO: Final distance check before arrest
+                -- local currentCopCoords = GetEntityCoords(GetPlayerPed(src))
+                -- local currentRobberCoords = GetEntityCoords(GetPlayerPed(targetRobberNumId))
+                -- if #(currentCopCoords - currentRobberCoords) <= (Config.TackleDistance + 1.0) then
+                    Log(string.format("Subdue completed for Robber %s by Cop %s. Proceeding with arrest.", targetRobberNumId, src))
+
+                    local robberWantedData = wantedPlayers[targetRobberNumId]
+                    local starsAtArrest = robberWantedData and robberWantedData.stars or 0
+                    local jailDuration = CalculateJailTime(starsAtArrest) -- Assuming CalculateJailTime function exists
+
+                    SendToJail(targetRobberNumId, jailDuration, src, { isSubdueArrest = true })
+                    activeSubdues[targetRobberNumId] = nil
+                -- else
+                --     Log(string.format("Subdue timed out but Cop %s moved too far from Robber %s. Arrest cancelled.", src, targetRobberNumId))
+                --     TriggerClientEvent('cops_and_robbers:subdueCancelled', targetRobberNumId)
+                --     activeSubdues[targetRobberNumId] = nil
+                -- end
+            end
+        end)
+    }
+end)
+
+-- Placeholder for CalculateJailTime if it doesn't exist elsewhere
+-- This should ideally be more sophisticated based on wanted level/stars from Config
+if CalculateJailTime == nil then
+    CalculateJailTime = function(stars)
+        local baseTime = 30 -- seconds
+        return baseTime * (stars == 0 and 1 or stars) -- Min 30s, up to 150s for 5 stars (example)
+    end
+end
+
+RegisterNetEvent('cops_and_robbers:subdueCancelled', function(reason) -- If client (robber) cancels (e.g. escapes)
+    local src = tonumber(source) -- This is the Robber
+    if activeSubdues[src] then
+        local subdueData = activeSubdues[src]
+        if subdueData.expiryTimer then ClearTimeout(subdueData.expiryTimer) end
+        Log(string.format("Subdue on Robber %s was cancelled. Reason: %s", src, reason or "Robber action"))
+        TriggerClientEvent('chat:addMessage', subdueData.copId, { args = {"^3System", "Suspect is no longer subdued."} })
+        activeSubdues[src] = nil
+    end
+end)
+
 
 RegisterNetEvent('cnr:requestRoleChange', function(role)
     local src = tonumber(source)
@@ -1389,3 +1514,5 @@ AddEventHandler('cnr:requestMyInventory', function()
         TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
     end
 end)
+
+[end of server.lua]
