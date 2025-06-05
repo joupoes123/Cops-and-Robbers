@@ -575,10 +575,11 @@ SetPlayerRole = function(playerId, role, skipNotify)
     -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
     local playerName = GetPlayerName(pIdNum) or "Unknown"
 
-
-    if not playersData[pIdNum] then LoadPlayerData(pIdNum) end
-    if not playersData[pIdNum] then Log("SetPlayerRole: Failed to load/init player data for " .. pIdNum, "error"); return end
-
+    if not playersData[pIdNum] then
+        Log(string.format("SetPlayerRole: CRITICAL - Player data for %s (Name: %s) not found when trying to set role to '%s'. Role selection aborted. Data should have been loaded on spawn.", pIdNum, playerName, role), "error")
+        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Your player data is not loaded correctly. Cannot set role."} })
+        return -- Abort role change
+    end
 
     playersData[pIdNum].role = role
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
@@ -1122,10 +1123,26 @@ end)
 
 RegisterNetEvent('cnr:playerSpawned', function()
     local src = tonumber(source)
-    local playerName = GetPlayerName(src) or "Unknown"
-    Log("Player " .. src .. " (" .. playerName .. ") has spawned. Initializing CnR data.")
+    local playerName = GetPlayerName(src) -- Get name once for efficiency
+    local identifiers = GetPlayerIdentifiers(tostring(src))
+
+    -- CRITICAL VALIDATION: Ensure player has name and identifiers after spawning
+    if not playerName or playerName == "" or not identifiers or #identifiers == 0 then
+        local kickReason = "Critical error: Unable to retrieve your player identifiers after spawning. Please reconnect. (Error: PS_ID_FAIL)"
+        Log(string.format("CRITICAL: Player (ID: %s, Name: '%s') spawned but has missing name or no identifiers. Kicking. Identifiers found: %s",
+            tostring(src), playerName or "N/A", identifiers and json.encode(identifiers) or "None"), "error")
+        DropPlayer(src, kickReason)
+        return -- Stop further processing for this player
+    end
+
+    Log(string.format("Player %s (ID: %s) has spawned. Name: '%s'. Identifiers validated. Proceeding with CnR data initialization.", src, playerName, json.encode(identifiers)))
     -- Small delay to ensure all initial FiveM processes for player are settled.
     SetTimeout(1500, function()
+        -- Re-check player validity before loading data, as they might have disconnected during the timeout
+        if GetPlayerName(src) == nil then
+            Log(string.format("Player %s (Original Name: %s) disconnected before LoadPlayerData could execute within cnr:playerSpawned timeout. Aborting data load.", src, playerName), "warn")
+            return
+        end
         LoadPlayerData(src)
         -- Sync necessary client data after load
         local pData = GetCnrPlayerData(src)
@@ -1453,58 +1470,36 @@ end)
 
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     deferrals.defer()
-    Wait(250) -- Initial short delay for identifiers to load
+    Wait(250) -- Allow identifiers to load, can be adjusted.
 
-    local playerSrcString = source
-    local validSourceFound = false
-    local retries = 0
-    local maxRetries = 4 -- Total 5 attempts (1 initial + 4 retries)
-    local retryDelay = 300 -- ms
+    local playerSrcString = source -- This is the temporary server ID for the connecting player
+    local identifiers = nil
+    local pName = nil
 
-    while retries <= maxRetries do
-        playerSrcString = source -- Re-fetch source each time, as it might change or become valid
-        if playerSrcString and GetPlayerName(playerSrcString) then
-            local identifiers = GetPlayerIdentifiers(playerSrcString)
-            if identifiers and #identifiers > 0 then
-                validSourceFound = true
-                Log(string.format("playerConnecting: Valid source (ID: %s, Name: %s) and identifiers found on attempt %d.", tostring(playerSrcString), GetPlayerName(playerSrcString), retries + 1))
-                break
-            else
-                Log(string.format("playerConnecting: Source (ID: %s, Name: %s) valid, but no identifiers found on attempt %d.", tostring(playerSrcString), GetPlayerName(playerSrcString), retries + 1), "warn")
-            end
-        else
-            Log(string.format("playerConnecting: Invalid or nil source (ID: %s) or player name on attempt %d.", tostring(playerSrcString), retries + 1), "warn")
-        end
-
-        if retries < maxRetries then
-            Log(string.format("playerConnecting: Retrying in %dms...", retryDelay))
-            Wait(retryDelay)
-            retries = retries + 1
-        else
-            break -- Max retries reached
+    if playerSrcString then
+        pName = GetPlayerName(playerSrcString) -- Get name early for logging if possible
+        if pName then
+            identifiers = GetPlayerIdentifiers(playerSrcString)
         end
     end
 
-    if not validSourceFound then
-        local rejectReason = "Unable to verify your connection details. Please try again. (Error: PC_ID_RETRY_FAIL)"
-        Log(string.format("playerConnecting: Failed to get valid source/identifiers for player %s after %d attempts. Kicking. Final source: %s", playerName, maxRetries + 1, tostring(playerSrcString)), "error")
-        deferrals.done(rejectReason)
+    if not playerSrcString or not pName or not identifiers or #identifiers == 0 then
+        Log(string.format("playerConnecting: Could not reliably get identifiers for %s (Source ID: %s, Name: %s) at this stage. Allowing connection, subsequent checks in LoadPlayerData will be critical.", playerName, tostring(playerSrcString), pName or "N/A"), "warn")
+        -- Allow the player to connect; ban checks or data loading might use PID fallback if license isn't found later.
+        -- The critical logging in LoadPlayerData will flag if license is still missing.
+        deferrals.done()
         return
     end
 
-    -- At this point, playerSrcString is valid and has identifiers
-    local identifiers = GetPlayerIdentifiers(playerSrcString)
+    -- If we have identifiers, proceed with ban check.
     local matchedBan = nil
     local bannedIdentifier = nil
 
-    -- Check for bans using the now validated identifiers
-    if identifiers then -- Should always be true if validSourceFound is true, but good practice to check
-        for _, idStr in ipairs(identifiers) do
-            if bannedPlayers[idStr] then
-                matchedBan = bannedPlayers[idStr]
-                bannedIdentifier = idStr
-                break
-            end
+    for _, idStr in ipairs(identifiers) do
+        if bannedPlayers[idStr] then
+            matchedBan = bannedPlayers[idStr]
+            bannedIdentifier = idStr
+            break
         end
     end
 
@@ -1513,9 +1508,9 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
         local expiryMsg = banInfo.expires == "permanent" and "Permanent" or "Expires: " .. os.date("%c", banInfo.expires)
         local reason = string.format("Banned.\nReason: %s\n%s\nBy: %s", banInfo.reason, expiryMsg, banInfo.admin or "System")
         deferrals.done(reason)
-        Log(string.format("Banned player %s (Name: %s, ID: %s) attempted connect. Identifier: %s. Reason: %s", playerName, GetPlayerName(playerSrcString), tostring(playerSrcString), bannedIdentifier, banInfo.reason), "warn")
+        Log(string.format("Banned player %s (Name: %s, ID: %s) attempted connect. Identifier: %s. Reason: %s", playerName, pName, tostring(playerSrcString), bannedIdentifier, banInfo.reason), "warn")
     else
-        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found.", playerName, GetPlayerName(playerSrcString), tostring(playerSrcString)))
+        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found during initial check.", playerName, pName, tostring(playerSrcString)))
         deferrals.done()
     end
 end)
