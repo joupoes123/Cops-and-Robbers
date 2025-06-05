@@ -110,7 +110,7 @@ end
 -- =====================================
 
 AddEventHandler('playerSpawned', function()
-    TriggerServerEvent('cops_and_robbers:requestPlayerData')
+    TriggerServerEvent('cnr:playerSpawned') -- Corrected event name
     SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
 end)
 
