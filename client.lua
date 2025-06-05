@@ -116,6 +116,7 @@ end)
 
 RegisterNetEvent('cnr:updatePlayerData')
 AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    print(string.format("[CNR_CLIENT_DEBUG] Received cnr:updatePlayerData. Current client role: %s, New role from server: %s, Money: %s, XP: %s, Level: %s", role or "nil", newPlayerData and newPlayerData.role or "nil", newPlayerData and newPlayerData.money or "nil", newPlayerData and newPlayerData.xp or "nil", newPlayerData and newPlayerData.level or "nil"))
     if not newPlayerData then
         print("Error: 'cnr:updatePlayerData' received nil data.")
         ShowNotification("~r~Error: Failed to load player data.")
