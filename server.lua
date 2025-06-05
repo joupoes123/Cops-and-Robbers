@@ -493,9 +493,12 @@ LoadPlayerData = function(playerId)
     if license then
         filename = "player_data/" .. license:gsub(":", "") .. ".json"
     else
-        Log("LoadPlayerData: Could not find license for player " .. pIdNum .. ". Using numeric ID as fallback filename for load attempt.", "warn")
-        -- Consider if proceeding without a license is acceptable or if player should be kicked/not loaded.
-        -- For now, we'll attempt to use player ID, but this is less robust for persistence.
+        Log(string.format("LoadPlayerData: CRITICAL - Could not find license for player %s (Name: %s) even after playerConnecting. Attempting PID fallback (pid_%s.json), but this may lead to data inconsistencies or load failures if server IDs are not static.", pIdNum, GetPlayerName(pIdNum) or "N/A", pIdNum), "error")
+        -- The playerConnecting handler should ideally prevent this state for legitimate players.
+        -- If this occurs, it might be due to:
+        -- 1. A non-player entity somehow triggering this (e.g., faulty admin command or event).
+        -- 2. An issue with identifier loading that even retries couldn't solve.
+        -- 3. The player disconnected very rapidly after connecting, before identifiers were fully processed by all systems.
         filename = "player_data/pid_" .. pIdNum .. ".json"
     end
 
@@ -1450,36 +1453,69 @@ end)
 
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     deferrals.defer()
-    Wait(100) -- Allow identifiers to load
+    Wait(250) -- Initial short delay for identifiers to load
 
-    local playerSrcString = source -- This is the temporary server ID for the connecting player
+    local playerSrcString = source
+    local validSourceFound = false
+    local retries = 0
+    local maxRetries = 4 -- Total 5 attempts (1 initial + 4 retries)
+    local retryDelay = 300 -- ms
 
-    if not playerSrcString or GetPlayerName(playerSrcString) == nil then
-        Log(string.format("playerConnecting: Invalid source (ID: %s), cannot get identifiers. Allowing connection by default.", tostring(playerSrcString)), "warn")
-        deferrals.done()
+    while retries <= maxRetries do
+        playerSrcString = source -- Re-fetch source each time, as it might change or become valid
+        if playerSrcString and GetPlayerName(playerSrcString) then
+            local identifiers = GetPlayerIdentifiers(playerSrcString)
+            if identifiers and #identifiers > 0 then
+                validSourceFound = true
+                Log(string.format("playerConnecting: Valid source (ID: %s, Name: %s) and identifiers found on attempt %d.", tostring(playerSrcString), GetPlayerName(playerSrcString), retries + 1))
+                break
+            else
+                Log(string.format("playerConnecting: Source (ID: %s, Name: %s) valid, but no identifiers found on attempt %d.", tostring(playerSrcString), GetPlayerName(playerSrcString), retries + 1), "warn")
+            end
+        else
+            Log(string.format("playerConnecting: Invalid or nil source (ID: %s) or player name on attempt %d.", tostring(playerSrcString), retries + 1), "warn")
+        end
+
+        if retries < maxRetries then
+            Log(string.format("playerConnecting: Retrying in %dms...", retryDelay))
+            Wait(retryDelay)
+            retries = retries + 1
+        else
+            break -- Max retries reached
+        end
+    end
+
+    if not validSourceFound then
+        local rejectReason = "Unable to verify your connection details. Please try again. (Error: PC_ID_RETRY_FAIL)"
+        Log(string.format("playerConnecting: Failed to get valid source/identifiers for player %s after %d attempts. Kicking. Final source: %s", playerName, maxRetries + 1, tostring(playerSrcString)), "error")
+        deferrals.done(rejectReason)
         return
     end
 
+    -- At this point, playerSrcString is valid and has identifiers
     local identifiers = GetPlayerIdentifiers(playerSrcString)
     local matchedBan = nil
     local bannedIdentifier = nil
 
-    for _, idStr in ipairs(identifiers) do
-        if bannedPlayers[idStr] then
-            matchedBan = bannedPlayers[idStr]
-            bannedIdentifier = idStr
-            break
+    -- Check for bans using the now validated identifiers
+    if identifiers then -- Should always be true if validSourceFound is true, but good practice to check
+        for _, idStr in ipairs(identifiers) do
+            if bannedPlayers[idStr] then
+                matchedBan = bannedPlayers[idStr]
+                bannedIdentifier = idStr
+                break
+            end
         end
     end
 
     if matchedBan then
         local banInfo = matchedBan
         local expiryMsg = banInfo.expires == "permanent" and "Permanent" or "Expires: " .. os.date("%c", banInfo.expires)
-        -- Make sure banInfo.banner is banInfo.admin as per new structure
         local reason = string.format("Banned.\nReason: %s\n%s\nBy: %s", banInfo.reason, expiryMsg, banInfo.admin or "System")
         deferrals.done(reason)
-        Log("Banned player " .. playerName .. " (" .. bannedIdentifier .. ") attempted connect. Reason: " .. banInfo.reason, "warn")
+        Log(string.format("Banned player %s (Name: %s, ID: %s) attempted connect. Identifier: %s. Reason: %s", playerName, GetPlayerName(playerSrcString), tostring(playerSrcString), bannedIdentifier, banInfo.reason), "warn")
     else
+        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found.", playerName, GetPlayerName(playerSrcString), tostring(playerSrcString)))
         deferrals.done()
     end
 end)

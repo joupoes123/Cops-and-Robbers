@@ -559,11 +559,11 @@ Config.WeaponNames = {
 -- =========================
 Config.BountySettings = {
     enabled = true,
-    wantedLevelThreshold = 4,  -- Min wanted stars to get a bounty.
+    wantedLevelThreshold = 3,  -- Min wanted stars to get a bounty.
     baseAmount = 5000,
-    increasePerMinute = 100,   -- How much bounty increases per minute.
+    increasePerMinute = 50,   -- How much bounty increases per minute.
     maxBounty = 50000,
     claimMethod = "arrest",    -- Current options: "arrest". Could be "kill" if PvP is different.
-    durationMinutes = 60,      -- How long a bounty stays active if player maintains wanted level (or is offline). Refreshed if wanted level drops then re-triggers.
-    cooldownMinutes = 30       -- Cooldown on a player before a *new* bounty can be placed on them after one is claimed or expires.
+    durationMinutes = 90,      -- How long a bounty stays active if player maintains wanted level (or is offline). Refreshed if wanted level drops then re-triggers.
+    cooldownMinutes = 15       -- Cooldown on a player before a *new* bounty can be placed on them after one is claimed or expires.
 }
