@@ -19,28 +19,30 @@ local function Log(message, level)
 end
 
 -- Initialize player inventory when they load (called from main server.lua)
-function InitializePlayerInventory(playerId)
-    local pData = playersData[tonumber(playerId)]
+-- Accepts pData directly to avoid global lookups. playerId is for logging.
+function InitializePlayerInventory(pData, playerId)
     if pData and not pData.inventory then
         pData.inventory = {} -- { itemId = { count = X, metadata = {...} } }
-        Log("Initialized empty inventory for player " .. playerId)
+        Log("Initialized empty inventory for player " .. (playerId or "Unknown"))
     end
 end
 
 -- CanCarryItem: Checks if a player can carry an item (placeholder)
+-- Note: This function was not part of the refactor request but shown for context.
+-- If it were to be refactored, it would also take pData.
 function CanCarryItem(playerId, itemId, quantity)
     -- TODO: Implement weight/slot logic if desired
     return true -- Placeholder
 end
 
 -- AddItem: Adds an item to player's inventory
-function AddItem(playerId, itemId, quantity)
-    local pIdNum = tonumber(playerId)
-    local pData = playersData[pIdNum]
+-- Accepts pData directly. playerId (4th arg) is for logging & events.
+function AddItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData then Log("AddItem: Player data not found for " .. playerId, "error"); return false end
-    if not pData.inventory then InitializePlayerInventory(pIdNum) end -- Should be initialized on load
+    if not pData then Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error"); return false end
+    -- Ensure inventory table exists on pData
+    if not pData.inventory then InitializePlayerInventory(pData, playerId) end
 
     local itemConfig = nil
     for _, cfgItem in ipairs(Config.Items) do
@@ -50,27 +52,26 @@ function AddItem(playerId, itemId, quantity)
         end
     end
 
-    if not itemConfig then Log("AddItem: Item config not found for " .. itemId, "warn"); return false end
+    if not itemConfig then Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn"); return false end
 
     if not pData.inventory[itemId] then
         pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
     end
     pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
-    Log(string.format("Added %dx %s to player %s's inventory. New count: %d", quantity, itemId, playerId, pData.inventory[itemId].count))
-    TriggerClientEvent('cnr:inventoryUpdated', pIdNum, pData.inventory) -- Notify client of change
+    Log(string.format("Added %dx %s to player %s's inventory. New count: %d", quantity, itemId, playerId or "Unknown", pData.inventory[itemId].count))
+    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
     return true
 end
 
 -- RemoveItem: Removes an item from player's inventory
-function RemoveItem(playerId, itemId, quantity)
-    local pIdNum = tonumber(playerId)
-    local pData = playersData[pIdNum]
+-- Accepts pData directly. playerId (4th arg) is for logging & events.
+function RemoveItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData or not pData.inventory then Log("RemoveItem: Player data or inventory not found for " .. playerId, "error"); return false end
+    if not pData or not pData.inventory then Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error"); return false end
 
     if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
-        Log(string.format("RemoveItem: Player %s does not have %dx %s. Has: %d", playerId, quantity, itemId, (pData.inventory[itemId] and pData.inventory[itemId].count or 0)), "warn")
+        Log(string.format("RemoveItem: Player %s does not have %dx %s. Has: %d", playerId or "Unknown", quantity, itemId, (pData.inventory[itemId] and pData.inventory[itemId].count or 0)), "warn")
         return false
     end
 
@@ -78,16 +79,18 @@ function RemoveItem(playerId, itemId, quantity)
     if pData.inventory[itemId].count <= 0 then
         pData.inventory[itemId] = nil -- Remove item if count is zero
     end
-    Log(string.format("Removed %dx %s from player %s's inventory.", quantity, itemId, playerId))
-    TriggerClientEvent('cnr:inventoryUpdated', pIdNum, pData.inventory) -- Notify client of change
+    Log(string.format("Removed %dx %s from player %s's inventory.", quantity, itemId, playerId or "Unknown"))
+    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
     return true
 end
 
 -- GetInventory: Returns a player's inventory (or specific item count)
-function GetInventory(playerId, specificItemId)
-    local pIdNum = tonumber(playerId)
-    local pData = playersData[pIdNum]
-    if not pData or not pData.inventory then return specificItemId and 0 or {} end
+-- Accepts pData directly. playerId (3rd arg) is for potential future logging.
+function GetInventory(pData, specificItemId, playerId)
+    if not pData or not pData.inventory then
+        Log(string.format("GetInventory: Player data (pData) or inventory not provided for player %s.", playerId or "Unknown"), "warn")
+        return specificItemId and 0 or {}
+    end
 
     if specificItemId then
         return (pData.inventory[specificItemId] and pData.inventory[specificItemId].count) or 0
@@ -96,9 +99,10 @@ function GetInventory(playerId, specificItemId)
 end
 
 -- HasItem: Checks if a player has a specific quantity of an item
-function HasItem(playerId, itemId, quantity)
+-- Accepts pData directly. playerId (4th arg) is for passing to GetInventory.
+function HasItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
-    local currentCount = GetInventory(playerId, itemId)
+    local currentCount = GetInventory(pData, itemId, playerId)
     return currentCount >= quantity
 end
 

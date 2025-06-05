@@ -295,7 +295,7 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
     end
 
     -- Successfully removed money, now add item
-    local added = AddItem(src, itemId, quantity) -- Use custom AddItem
+    local added = AddItem(pData, itemId, quantity, src) -- Use custom AddItem, pass pData and src
     if added then
         TriggerClientEvent('cops_and_robbers:purchaseConfirmed', src, itemId, quantity)
         Log(string.format("Player %s purchased %dx %s for $%d", src, quantity, itemId, totalCost))
@@ -345,14 +345,14 @@ RegisterNetEvent('cnr:sellItem', function(itemId, quantity)
     Log("cnr:sellItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Current Market Price: " .. currentMarketPrice .. ", Sell Price: " .. sellPricePerItem)
     local totalGain = sellPricePerItem * quantity
 
-    local removed = RemoveItem(src, itemId, quantity) -- Use custom RemoveItem
+    local removed = RemoveItem(pData, itemId, quantity, src) -- Use custom RemoveItem, pass pData and src
     if removed then
         if AddPlayerMoney(src, totalGain, 'cash') then
             TriggerClientEvent('cops_and_robbers:sellConfirmed', src, itemId, quantity)
             Log(string.format("Player %s sold %dx %s for $%d", src, quantity, itemId, totalGain))
         else
             Log(string.format("Failed to add money to %s after selling %s. Attempting to refund item.", src, itemId), "error")
-            AddItem(src, itemId, quantity) -- Attempt to give item back using custom AddItem
+            AddItem(pData, itemId, quantity, src) -- Attempt to give item back, pass pData and src
             TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not process payment for sale. Item may have been refunded.")
         end
     else
@@ -396,7 +396,7 @@ RegisterNetEvent('cops_and_robbers:spawnK9', function()
     end
 
     -- Check for K9 whistle item in inventory
-    if not HasItem(src, 'k9whistle', 1) then -- Use custom HasItem
+    if not HasItem(pData, 'k9whistle', 1, src) then -- Use custom HasItem, pass pData and src
          TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You do not have a K9 Whistle."} })
          return
     end
@@ -538,7 +538,11 @@ LoadPlayerData = function(playerId)
 
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
     ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role)
-    InitializePlayerInventory(pIdNum) -- Initialize inventory after player data is loaded/created
+    if playersData[pIdNum] then -- Ensure pData exists before passing
+        InitializePlayerInventory(playersData[pIdNum], pIdNum) -- Initialize inventory after player data is loaded/created
+    else
+        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] is nil before InitializePlayerInventory for " .. pIdNum, "error")
+    end
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
 end
@@ -1053,13 +1057,19 @@ RegisterNetEvent('cnr:deploySpikeStrip', function(location)
     local spikeStripItemId = "spikestrip_item"
 
     -- 1. Check if player has the item
-    if not HasItem(src, spikeStripItemId, 1) then
+    local pData = GetCnrPlayerData(src) -- Get pData for HasItem and RemoveItem
+    if not pData then
+        Log("cnr:deploySpikeStrip - Player data not found for source: " .. src, "error")
+        return
+    end
+
+    if not HasItem(pData, spikeStripItemId, 1, src) then
         TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have any spike strips."} })
         return
     end
 
     -- 2. Check deployment limit
-    local pData = GetCnrPlayerData(src)
+    -- local pData = GetCnrPlayerData(src) -- Already fetched
     local currentDeployedCount = playerDeployedSpikeStripsCount[src] or 0
     local maxStrips = Config.MaxDeployedSpikeStrips
 
@@ -1073,7 +1083,7 @@ RegisterNetEvent('cnr:deploySpikeStrip', function(location)
     end
 
     -- 3. Consume item and then deploy
-    if RemoveItem(src, spikeStripItemId, 1) then
+    if RemoveItem(pData, spikeStripItemId, 1, src) then
         local stripId = getNextSpikeStripId()
         activeSpikeStrips[stripId] = { copId = src, location = location, timestamp = os.time() }
         playerDeployedSpikeStripsCount[src] = currentDeployedCount + 1
