@@ -94,7 +94,11 @@
      start Cops-and-Robbers
      ```
 
-4. **Restart the Server**:
+4. **Install Dependencies**:
+
+   - **Standalone**: This resource is now standalone and does not require external dependencies like `ox_inventory`, `ox_lib`, or specific frameworks (ESX/QBCore). Ensure your FiveM server is up to date.
+
+5. **Restart the Server**:
 
    - Restart or launch your server to initialize the resource.
 
@@ -137,7 +141,11 @@ Customize the gameplay experience by editing the configuration options in `confi
 We use a structured branching strategy to keep the project organized and maintain quality across all stages of development:
 
 - **Main**: Stable, production-ready code.
-- **Dev**: Staging area for new features and fixes.
+- **Development**: Staging area for new features and fixes.
+- **Feature**: Specific new features, e.g., `feature/experience-system`.
+- **Bugfix**: Targeted bug fixes, e.g., `bugfix/wanted-level-error`.
+- **Hotfix**: Urgent fixes for critical issues, merged directly into Main.
+- **Release**: Preparation for a new version release.
 - **Experimental**: Trial features and concepts under development.
 
 ---
