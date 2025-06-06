@@ -239,16 +239,30 @@ function hideRoleSelection() {
 }
 
 function openStoreMenu(storeName, storeItems) {
+    console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
+    console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2)); 
+    console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
+    console.log('[CNR_NUI_STORE] storeMenuUI element:', storeMenuUI);
+    console.log('[CNR_NUI_STORE] storeTitleEl element:', storeTitleEl);
+
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
         window.currentCategory = null;
-        window.currentTab = 'buy';
-        loadCategories();
-        loadItems();
+        window.currentTab = 'buy'; // Default to buy tab
+        loadCategories(); // This will also trigger loadItems if categories are present
+        loadItems(); // Initial load for "All" or first category
+        
+        console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block.');
         storeMenuUI.style.display = 'block';
+        console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
+        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
+        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
+        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
+        if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
+        
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Store menu UI or title element not found.");
@@ -280,10 +294,28 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 function loadCategories() {
+    console.log('[CNR_NUI_STORE] loadCategories called.');
     const categoryList = document.getElementById('category-list');
-    if (!categoryList) return;
-    const categories = [...new Set(window.items.map(item => item.category))];
-    categoryList.innerHTML = '';
+    if (!categoryList) {
+        console.error('[CNR_NUI_STORE] Category list element not found.');
+        return;
+    }
+    const categories = [...new Set((window.items || []).map(item => item.category))];
+    console.log('[CNR_NUI_STORE] Categories generated:', categories);
+    categoryList.innerHTML = ''; // Clear previous categories
+    
+    // Add "All" category button
+    const allBtn = document.createElement('button');
+    allBtn.className = 'category-btn active'; // Active by default
+    allBtn.textContent = 'All';
+    allBtn.onclick = () => {
+        window.currentCategory = null; // null signifies "All"
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        if (window.currentTab === 'buy') loadItems();
+    };
+    categoryList.appendChild(allBtn);
+    
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -296,20 +328,28 @@ function loadCategories() {
         };
         categoryList.appendChild(btn);
     });
+    console.log('[CNR_NUI_STORE] loadCategories finished.');
 }
 
 function loadItems() {
+    console.log('[CNR_NUI_STORE] loadItems called.');
     const itemList = document.getElementById('item-list');
-    if (!itemList) return;
+    if (!itemList) {
+        console.error('[CNR_NUI_STORE] Item list element not found.');
+        return;
+    }
     itemList.innerHTML = '';
-    const filteredItems = window.items.filter(item => !window.currentCategory || item.category === window.currentCategory);
+    const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
+    console.log('[CNR_NUI_STORE] Filtered items count:', filteredItems.length);
     if (filteredItems.length === 0) {
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
+        console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
     filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
     itemList.appendChild(fragment);
+    console.log('[CNR_NUI_STORE] loadItems finished.');
 }
 
 function loadSellItems() {
@@ -344,6 +384,7 @@ function loadSellItems() {
 }
 
 function createItemElement(item, type = 'buy') {
+    console.log('[CNR_NUI_STORE] createItemElement called for item:', JSON.stringify(item), 'Type:', type);
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
     itemDiv.dataset.itemId = item.itemId;
@@ -373,6 +414,7 @@ function createItemElement(item, type = 'buy') {
     actionBtn.textContent = (type === 'buy') ? 'Buy' : 'Sell';
     actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
+    console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
     return itemDiv;
 }
 
