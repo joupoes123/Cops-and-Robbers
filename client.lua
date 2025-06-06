@@ -343,8 +343,8 @@ RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
     print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received but deliberately ignored as its body is commented out for testing.")
     return -- Add this return to effectively disable the function's original content
-    -- Entire original body of this function should be below this return or commented out
-
+    
+    --[[ -- Start of multi-line comment
     local localPlayerId = PlayerId()
     if not (localPlayerId and localPlayerId ~= -1) then return end -- Guard for PlayerId()
     if targetPlayerId ~= localPlayerId then return end
@@ -425,6 +425,7 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
             for _, entityToClean in pairs(groupEntitiesThisSpawn) do if DoesEntityExist(entityToClean) then for k, trackedEntity in pairs(currentPlayerNPCResponseEntities) do if trackedEntity == entityToClean then table.remove(currentPlayerNPCResponseEntities, k); break end end; DeleteEntity(entityToClean) end end
         end)
     end
+    -- End of multi-line comment ]]--
 end)
 
 RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
