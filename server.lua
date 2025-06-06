@@ -1151,7 +1151,7 @@ RegisterNetEvent('cnr:playerSpawned', function()
 
     Log(string.format("Player %s (ID: %s) has spawned. Name: '%s'. Identifiers validated. Proceeding with CnR data initialization.", src, playerName, json.encode(identifiers)))
     -- Small delay to ensure all initial FiveM processes for player are settled.
-    SetTimeout(1500, function()
+    SetTimeout(100, function()
         -- Re-check player validity before loading data, as they might have disconnected during the timeout
         if GetPlayerName(src) == nil then
             Log(string.format("Player %s (Original Name: %s) disconnected before LoadPlayerData could execute within cnr:playerSpawned timeout. Aborting data load.", src, playerName), "warn")
@@ -1381,10 +1381,10 @@ AddEventHandler('cops_and_robbers:setPlayerRole', function(selectedRole)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
     Log(string.format("NetEvent 'cops_and_robbers:setPlayerRole' received. Player: %s (ID: %s), Role: %s", playerName, src, selectedRole), "info")
-
+    
     -- Call the main SetPlayerRole function
     -- The 'false' for skipNotify means they WILL get a chat message like "You are now a Cop."
-    SetPlayerRole(src, selectedRole, false)
+    SetPlayerRole(src, selectedRole, false) 
 end)
 
 RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)
