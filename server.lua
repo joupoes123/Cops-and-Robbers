@@ -1,15 +1,5 @@
 -- server.lua
 -- Version: <current_version_after_bounty_implementation_and_xp_perk_fixes>
--- Main changes in this version:
--- - Integrated Cop XP awards.
--- - Implemented server-side item/vehicle access restrictions based on level and role.
--- - Added server-side perk example: Increased Armor Durability for Cops.
--- - Added new crime 'power_grid_sabotaged_crime' handling.
--- - Added K9 Engagement tracking for K9 assist XP.
--- - Implemented Bounty System (Phase 2).
--- - Added missing XP awards for Armored Car Heist & Contraband.
--- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
--- - Refined Cop Arrest XP based on wanted level.
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
