@@ -578,6 +578,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
     -- local player = GetPlayerFromServerId(pIdNum) -- Example placeholder for framework code
     -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
     local playerName = GetPlayerName(pIdNum) or "Unknown"
+    Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
     if not playersData[pIdNum] then
         Log(string.format("SetPlayerRole: CRITICAL - Player data for %s (Name: %s) not found when trying to set role to '%s'. Role selection aborted. Data should have been loaded on spawn.", pIdNum, playerName, role), "error")
@@ -585,7 +586,9 @@ SetPlayerRole = function(playerId, role, skipNotify)
         return -- Abort role change
     end
 
+    Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
     playersData[pIdNum].role = role
+    Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
@@ -609,6 +612,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.")
     end
     ApplyPerks(pIdNum, playersData[pIdNum].level, role) -- Re-apply/update perks based on new role
+    Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
 end
 

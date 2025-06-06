@@ -429,7 +429,7 @@ function selectRole(selectedRole) {
 
         // Check for various forms of success, including the simple string "ok"
         if (response === 'ok' || (response && response.status === 'success') || (response && response.ok === true)) {
-            alert("NUI SAYS: Role selection processed.");
+            // alert("NUI SAYS: Role selection processed.");
             hideRoleSelection();
         } else {
             // Ensure response is an object before trying to access response.message
