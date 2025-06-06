@@ -669,7 +669,7 @@ end)
 
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
-    SendNUIMessage({ action = 'openStore', storeName = storeName, items = itemList, playerLevel = playerData.level, playerRole = playerData.role, playerPerks = playerData.perks, playerMoney = playerCash, resourceName = GetParentResourceName() })
+    SendNUIMessage({ action = 'openStore', storeName = storeName, items = itemList, playerLevel = playerData.level, playerRole = playerData.role, playerPerks = playerData.perks, playerMoney = playerCash, resourceName = GetCurrentResourceName() })
 end)
 
 RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
