@@ -8,55 +8,93 @@
     <title>Cops and Robbers</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Role Selection Section -->
-    <section id="role-selection" class="menu hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
-        <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
-        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
-        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
+    <!-- Enhanced Role Selection Section -->
+    <section id="role-selection" class="menu-container hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
+        <div class="menu-card">
+            <h1 id="roleSelectionHeadingMain" class="menu-title">Cops & Robbers</h1>
+            <p class="menu-subtitle">Select Your Role</p>
+            
+            <div class="button-container">
+                <button id="cop-btn" class="role-button police" data-role="cop" aria-label="Select Cop Role">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Police Officer</span>
+                </button>
+                <button id="robber-btn" class="role-button criminal" data-role="robber" aria-label="Select Robber Role">
+                    <i class="fas fa-mask"></i>
+                    <span>Criminal</span>
+                </button>
+            </div>
+            
+            <div class="menu-footer">
+                <p class="server-info">FiveM Roleplay Server</p>
+            </div>
+        </div>
     </section>
 
-    <!-- Store Section -->
-    <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
-        <h1 id="store-title">Store</h1>
-        <!-- Tab Menu -->
-        <div id="tab-menu" role="tablist">
-            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
-            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
+    <!-- Enhanced Store Section -->
+    <section id="store-menu" class="store-container hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
+        <div class="store-card">
+            <header class="store-header">
+                <h1 id="store-title" class="store-title">Black Market</h1>
+                <button id="close-btn" class="close-button" aria-label="Close Store Menu">
+                    <i class="fas fa-times"></i>
+                </button>
+            </header>
+
+            <div class="tabs-container">
+                <div id="tab-menu" role="tablist" class="tab-nav">
+                    <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">
+                        <i class="fas fa-shopping-cart"></i> Buy
+                    </button>
+                    <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">
+                        <i class="fas fa-dollar-sign"></i> Sell
+                    </button>
+                </div>
+            </div>
+
+            <div class="store-content">
+                <div id="category-list" class="category-nav" aria-label="Item Categories"></div>
+                
+                <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
+                    <div id="item-list" class="item-grid"></div>
+                </div>
+                <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
+                    <!-- Sell section content will be loaded here -->
+                </div>
+            </div>
         </div>
-        <!-- Category List -->
-        <div id="category-list" aria-label="Item Categories"></div>
-        <!-- Buy Section -->
-        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
-            <div id="item-list"></div>
-        </div>
-        <!-- Sell Section -->
-        <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
-            <!-- Sell section content will be loaded here -->
-        </div>
-        <!-- Close Store Button -->
-        <button id="close-btn" aria-label="Close Store Menu">Close</button>
     </section>
 
-    <!-- XP and Level Display HUD -->
-    <div id="xp-level-container" class="hud-element" style="display: none;"> <!-- Initially hidden -->
-        <span id="level-text">LVL 1</span>
-        <div id="xp-bar-background">
-            <div id="xp-bar-fill"></div>
+    <!-- Enhanced HUD Elements -->
+    <div class="hud-container">
+        <!-- XP and Level Display HUD -->
+        <div id="xp-level-container" class="hud-box" style="display: none;">
+            <div class="level-display">
+                <i class="fas fa-level-up-alt"></i>
+                <span id="level-text">1</span>
+            </div>
+            <div class="xp-progress">
+                <div id="xp-bar-background">
+                    <div id="xp-bar-fill"></div>
+                </div>
+                <span id="xp-text">0/100 XP</span>
+            </div>
         </div>
-        <span id="xp-text">0 / 100 XP</span>
-    </div>
 
-    <!-- Player Cash Display HUD -->
-    <div id="cash-display" class="hud-element" style="display: none; position: absolute; top: 60px; right: 10px; background-color: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 3px; color: green; font-weight: bold;">
-        <!-- Example styling, can be adjusted in styles.css -->
-        $0
-    </div>
+        <!-- Player Cash Display HUD -->
+        <div id="cash-display" class="hud-box cash-display" style="display: none;">
+            <i class="fas fa-money-bill-wave"></i>
+            <span class="cash-amount">$<span id="cash-value">0</span></span>
+        </div>
 
-    <!-- Heist Timer HUD (Moved from index.html) -->
-    <div id="heist-timer" class="hud" role="status" aria-live="polite" style="display: none;"> <!-- Initially hidden is good practice -->
-        <p id="timer-text"></p>
+        <!-- Enhanced Heist Timer -->
+        <div id="heist-timer" class="hud-box timer-display" role="status" aria-live="polite" style="display: none;">
+            <i class="fas fa-clock"></i>
+            <span id="timer-text">00:00</span>
+        </div>
     </div>
 
     <script src="scripts.js"></script>
