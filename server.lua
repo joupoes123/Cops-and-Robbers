@@ -785,11 +785,23 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
 
     local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
     local robberPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
-    for copId, _ in pairs(copsOnDuty) do
-        if GetPlayerName(copId) ~= nil then -- Check cop is online
-            local robberPed = GetPlayerPed(pIdNum)
-            local robberCoords = robberPed and GetEntityCoords(robberPed) or nil
-            if robberCoords then
+    local robberPed = GetPlayerPed(pIdNum) -- Get ped once
+    local robberCoords = robberPed and GetEntityCoords(robberPed) or nil
+
+    if newStars > 0 and robberCoords then -- Only proceed if player has stars and valid coordinates
+        -- NPC Police Response Logic (now explicitly server-triggered and configurable)
+        if Config.WantedSettings.enableNPCResponse then
+            TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
+            Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggered cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars)", pIdNum, newStars), "info")
+        else
+            Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars).", pIdNum, newStars), "info")
+            -- Optionally, if there's any fallback or alternative notification needed when NPC response is off, it could go here.
+            -- For now, we just prevent the client event that spawns NPCs.
+        end
+
+        -- Alert Human Cops (existing logic)
+        for copId, _ in pairs(copsOnDuty) do
+            if GetPlayerName(copId) ~= nil then -- Check cop is online
                 TriggerClientEvent('chat:addMessage', copId, { args = {"^5Police Alert", string.format("Suspect %s (%s) is %d-star wanted for %s.", robberPlayerName, pIdNum, newStars, crimeDescription)} })
                 TriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, robberCoords, newStars, true)
             end
