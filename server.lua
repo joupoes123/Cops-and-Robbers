@@ -956,6 +956,81 @@ end)
 -- =================================================================================================
 -- ITEMS, SHOPS, AND INVENTORY (Functions like CanPlayerAffordAndAccessItem, cnr:buyItem, etc.)
 -- =================================================================================================
+RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName)
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    if not pData then
+        Log("cops_and_robbers:getItemList - Player data not found for source: " .. src, "error")
+        return
+    end
+
+    local itemsForStore = {}
+    local itemsToProcess = {}
+
+    if storeType == 'AmmuNation' then
+        -- For AmmuNation, consider all general items from Config.Items
+        for _, itemConfig in ipairs(Config.Items) do
+            table.insert(itemsToProcess, itemConfig)
+        end
+    elseif storeType == 'Vendor' and vendorItemIds and type(vendorItemIds) == "table" then
+        -- For specific vendors, use the item IDs provided by that vendor's config
+        for _, itemIdFromVendor in ipairs(vendorItemIds) do
+            for _, itemConfig in ipairs(Config.Items) do
+                if itemConfig.itemId == itemIdFromVendor then
+                    table.insert(itemsToProcess, itemConfig)
+                    break -- Found the item in Config.Items
+                end
+            end
+        end
+    else
+        Log("cops_and_robbers:getItemList - Invalid storeType or missing vendorItemIds for store: " .. storeName, "warn")
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Store data missing or invalid.") -- Generic failure message
+        return
+    end
+
+    -- Filter items based on player role, level, and other restrictions
+    for _, itemConfig in ipairs(itemsToProcess) do
+        local canAccess = true
+        -- Cop Only Restriction Check
+        if itemConfig.forCop and pData.role ~= "cop" then
+            canAccess = false
+        end
+
+        -- Robber Only Restriction Check (if a future flag 'forRobber' is added)
+        -- if itemConfig.forRobber and pData.role ~= "robber" then
+        -- canAccess = false
+        -- end
+
+        -- Level Restriction Check
+        if canAccess and pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
+            canAccess = false
+        end
+        if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
+            canAccess = false
+        end
+
+        -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
+
+        if canAccess then
+            -- Calculate dynamic price
+            local dynamicPrice = CalculateDynamicPrice(itemConfig.itemId, itemConfig.basePrice)
+            table.insert(itemsForStore, {
+                itemId = itemConfig.itemId,
+                name = itemConfig.name,
+                basePrice = itemConfig.basePrice, -- Keep base for reference if needed
+                price = dynamicPrice, -- Actual selling price
+                category = itemConfig.category,
+                forCop = itemConfig.forCop,
+                minLevelCop = itemConfig.minLevelCop,
+                minLevelRobber = itemConfig.minLevelRobber
+                -- Add any other properties the NUI might need
+            })
+        end
+    end
+
+    Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
+    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
+end)
 -- ... (Code from previous version, ensuring playerIds used as keys are numeric) ...
 
 -- =================================================================================================

@@ -99,8 +99,8 @@ Config.NPCVendors = {
         items    = { "weapon_pistol", "weapon_sawnoffshotgun", "ammo_shotgun", "armor", "bandana" } -- Changed weapon_pistol50 to weapon_pistol for consistency
     },
     {
-        location = vector3(440.0, -975.0, 30.7),
-        heading  = 90.0,
+        location = vector3(454.35, -980.16, 30.69),
+        heading  = 89.52,
         model    = "s_m_y_cop_01",
         name     = "Cop Store",
         items    = {
