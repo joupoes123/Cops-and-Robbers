@@ -1376,6 +1376,17 @@ RegisterNetEvent('cnr:k9EngagedTarget', function(targetRobberServerId)
     Log(string.format("K9 Engagement: Cop %s K9 engaged Robber %s.", src, targetRobberServerId))
 end)
 
+RegisterNetEvent('cops_and_robbers:setPlayerRole')
+AddEventHandler('cops_and_robbers:setPlayerRole', function(selectedRole)
+    local src = source
+    local playerName = GetPlayerName(src) or "Unknown"
+    Log(string.format("NetEvent 'cops_and_robbers:setPlayerRole' received. Player: %s (ID: %s), Role: %s", playerName, src, selectedRole), "info")
+    
+    -- Call the main SetPlayerRole function
+    -- The 'false' for skipNotify means they WILL get a chat message like "You are now a Cop."
+    SetPlayerRole(src, selectedRole, false) 
+end)
+
 RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)
     local sourceAdmin = tonumber(source) -- In server events, source is the player who triggered it, or server if from server console
     -- This event should ideally be triggered by an admin command that verifies IsAdmin(sourceAdmin).
