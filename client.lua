@@ -151,8 +151,20 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
                 if modelToLoad == "mp_m_freemode_01" then
                     print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization for mp_m_freemode_01.")
                     SetPedRandomComponentVariation(playerPed, false) -- false for male mp_m_freemode_01
-                    ClearPedProps(playerPed) -- Restored
-                    SetPedRandomProps(playerPed) -- Restored
+                    
+                    if _G.ClearPedProps then
+                        ClearPedProps(playerPed)
+                        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: ClearPedProps executed.")
+                    else
+                        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: ClearPedProps native is nil or not available!")
+                    end
+
+                    if _G.SetPedRandomProps then
+                        SetPedRandomProps(playerPed)
+                        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: SetPedRandomProps executed.")
+                    else
+                        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: SetPedRandomProps native is nil or not available!")
+                    end
                 end
                 
             SetModelAsNoLongerNeeded(modelHash)
@@ -329,6 +341,10 @@ end)
 
 RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
+    print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received but deliberately ignored as its body is commented out for testing.")
+    return -- Add this return to effectively disable the function's original content
+    -- Entire original body of this function should be below this return or commented out
+
     local localPlayerId = PlayerId()
     if not (localPlayerId and localPlayerId ~= -1) then return end -- Guard for PlayerId()
     if targetPlayerId ~= localPlayerId then return end
