@@ -255,8 +255,10 @@ function openStoreMenu(storeName, storeItems) {
         loadCategories(); // This will also trigger loadItems if categories are present
         loadItems(); // Initial load for "All" or first category
         
-        console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block.');
-        storeMenuUI.style.display = 'block';
+        console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
+        storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
+        storeMenuUI.classList.remove('hidden');
+        console.log('[CNR_NUI_STORE] Removed "hidden" class. classList:', storeMenuUI.classList.toString()); // .toString() for better log
         console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
         if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
         if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
@@ -272,7 +274,9 @@ function openStoreMenu(storeName, storeItems) {
 function closeStoreMenu() {
     const storeMenuUI = document.getElementById('store-menu');
     if (storeMenuUI) {
-        storeMenuUI.style.display = 'none';
+        storeMenuUI.classList.add('hidden');
+        storeMenuUI.style.display = ''; // Let CSS handle display via .hidden class
+        console.log('[CNR_NUI_STORE] closeStoreMenu: Added "hidden" class, reset display style. classList:', storeMenuUI.classList.toString());
         fetchSetNuiFocus(false, false);
     }
 }
