@@ -3,6 +3,7 @@
 -- Version: 1.2 | Date: <current date>
 -- Ped readiness flag and guards implemented.
 
+_G.cnrSetDispatchServiceErrorLogged = false -- Initialize global flag for dispatch error logging
 local g_isPlayerPedReady = false
 
 -- =====================================
@@ -126,9 +127,9 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if newRole == "cop" then
         modelToLoad = "s_m_y_cop_01"
     elseif newRole == "robber" then
-        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for robber
+        modelToLoad = "a_m_m_farmer_01" -- Changed to a specific ped
     else -- citizen
-        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for citizen
+        modelToLoad = "a_m_m_farmer_01" -- Changed to a specific ped (or another if desired)
     end
     
     modelHash = GetHashKey(modelToLoad)
@@ -986,6 +987,50 @@ AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServer
         if targetRobberPed and DoesEntityExist(targetRobberPed) then
             if commandType == "attack" then ClearPedTasks(k9Ped); TaskCombatPed(k9Ped, targetRobberPed, 0, 16)
             elseif commandType == "follow" then local playerPed = PlayerPedId(); if playerPed and playerPed ~=0 and playerPed ~=-1 and DoesEntityExist(playerPed) then TaskFollowToOffsetOfEntity(k9Ped, playerPed, vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true) end end
+        end
+    end
+end)
+
+-- Thread to disable default FiveM police responses
+Citizen.CreateThread(function()
+    local policeDisableInterval = 5000 -- 5 seconds
+    print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
+
+    while true do
+        Citizen.Wait(policeDisableInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            -- Make police ignore the player (less likely to engage directly)
+            SetPoliceIgnorePlayer(playerId, true)
+
+            -- Disable various dispatch services
+            -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
+            -- It's important to do this repeatedly as the game might re-enable them.
+            for i = 1, 6 do
+                if _G.SetDispatchServiceActive then
+                    SetDispatchServiceActive(i, false)
+                else
+                    -- Print error only once to avoid console spam
+                    if not _G.cnrSetDispatchServiceErrorLogged then
+                        print("[CNR_CLIENT_ERROR] SetDispatchServiceActive native is nil or not available! Further dispatch disable attempts in this loop will be skipped.")
+                        _G.cnrSetDispatchServiceErrorLogged = true 
+                    end
+                    -- If SetDispatchServiceActive is nil, we might want to break the loop for it here for this iteration,
+                    -- or just let it try to SetPoliceIgnorePlayer and other measures.
+                    -- For now, just logging the error once and letting other measures in the loop continue.
+                end
+            end
+            
+            -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
+            if GetPlayerWantedLevel(playerId) > 0 then
+                SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
+                RemoveShockingEvent(-1) -- Clear any existing shocking events
+                SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0) -- Added line: Try to move wanted center far away and underground
+                -- print("[CNR_CLIENT_DEBUG] Applied wanted level suppression measures.") -- Optional: add a debug print
+            end
         end
     end
 end)

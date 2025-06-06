@@ -204,6 +204,7 @@ function showRoleSelection() {
     if (roleSelectionUI) {
         roleSelectionUI.classList.remove('hidden');
         roleSelectionUI.style.display = ''; // Revert to CSS default display (e.g. block or flex)
+        document.body.style.backgroundColor = ''; // Reset body background
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Role selection UI element not found.");
@@ -214,8 +215,10 @@ function hideRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.classList.add('hidden');
-        roleSelectionUI.style.display = 'none'; // Add this line
-        fetchSetNuiFocus(false, false);
+        roleSelectionUI.style.display = 'none'; 
+        document.body.style.backgroundColor = 'transparent'; // Diagnostic line
+        // Ensure no other UI manipulation happens before fetchSetNuiFocus
+        fetchSetNuiFocus(false, false); 
     }
 }
 

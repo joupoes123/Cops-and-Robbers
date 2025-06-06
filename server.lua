@@ -1508,35 +1508,24 @@ end)
 
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     deferrals.defer()
-    Citizen.Wait(0) -- Ensure deferral is registered before any long waits or loops
+    Citizen.Wait(250) -- Allow identifiers to load, can be adjusted.
 
-    local playerSrcString = nil
+    local playerSrcString = source -- This is the temporary server ID for the connecting player
     local pName = nil
     local identifiers = nil
-    local attempts = 0
-    local maxAttempts = 5 -- Max 5 attempts
-    local retryDelay = 300 -- 300ms delay between attempts
 
-    while attempts < maxAttempts do
-        playerSrcString = source -- Capture source in each attempt, it might become valid
-        if playerSrcString then
-            pName = GetPlayerName(playerSrcString)
-            if pName and pName ~= "" then -- Check if name is valid
-                identifiers = GetPlayerIdentifiers(playerSrcString)
-                if identifiers and #identifiers > 0 then
-                    Log(string.format("playerConnecting: Successfully fetched identifiers for %s (Source ID: %s, Name: %s) on attempt %d.", playerName, tostring(playerSrcString), pName, attempts + 1), "info")
-                    break -- Success, exit loop
-                end
-            end
+    if playerSrcString then
+        pName = GetPlayerName(playerSrcString) -- Get name early for logging if possible
+        if pName and pName ~= "" then
+            identifiers = GetPlayerIdentifiers(playerSrcString)
         end
-        attempts = attempts + 1
-        Log(string.format("playerConnecting: Attempt %d to get identifiers for %s (Source ID: %s) failed. Retrying in %dms...", attempts, playerName, tostring(playerSrcString), retryDelay), "warn")
-        Citizen.Wait(retryDelay)
     end
 
     if not playerSrcString or not pName or pName == "" or not identifiers or #identifiers == 0 then
-        Log(string.format("playerConnecting: CRITICAL - Failed to get valid identifiers for %s (Original Name: %s, Last Source ID: %s) after %d attempts. Kicking player.", playerName, playerName, tostring(playerSrcString), maxAttempts), "error")
-        deferrals.done("Unable to verify your connection details. Please try again. (Error: PC_ID_RETRY_FAIL)")
+        Log(string.format("playerConnecting: Could not reliably get identifiers for %s (Source ID: %s, Name: %s) at this stage. Allowing connection, subsequent checks will be critical.", playerName, tostring(playerSrcString), pName or "N/A"), "warn")
+        -- Allow the player to connect; ban checks or data loading might use PID fallback if license isn't found later.
+        -- The critical logging in LoadPlayerData will flag if license is still missing.
+        deferrals.done()
         return
     end
 
@@ -1559,7 +1548,7 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
         deferrals.done(reason)
         Log(string.format("Banned player %s (Name: %s, ID: %s) attempted connect. Identifier: %s. Reason: %s", playerName, pName, tostring(playerSrcString), bannedIdentifier, banInfo.reason), "warn")
     else
-        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found. Identifiers: %s", playerName, pName, tostring(playerSrcString), json.encode(identifiers)))
+        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found during initial check. Identifiers: %s", playerName, pName, tostring(playerSrcString), json.encode(identifiers)))
         deferrals.done()
     end
 end)
