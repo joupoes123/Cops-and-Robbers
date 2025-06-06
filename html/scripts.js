@@ -58,7 +58,7 @@ window.addEventListener('message', function(event) {
             openStoreMenu(data.storeName, data.items);
             break;
         case 'openStore': // New case for the specific 'openStore' action
-            if (data.resourceName) { 
+            if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
                 console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
@@ -71,7 +71,7 @@ window.addEventListener('message', function(event) {
             // The existing openStoreMenu function is suitable
             // It expects (storeName, storeItems)
             // event.data (which is 'data' here) should contain 'storeName' and 'items'
-            openStoreMenu(data.storeName, data.items); 
+            openStoreMenu(data.storeName, data.items);
             break;
         case 'closeStore':
             closeStoreMenu();
@@ -239,13 +239,13 @@ function hideRoleSelection() {
 }
 
 function openStoreMenu(storeName, storeItems) {
-    console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
-    console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2)); 
-    console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
+    // console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
+    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2));
+    // console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
-    console.log('[CNR_NUI_STORE] storeMenuUI element:', storeMenuUI);
-    console.log('[CNR_NUI_STORE] storeTitleEl element:', storeTitleEl);
+    // console.log('[CNR_NUI_STORE] storeMenuUI element:', storeMenuUI);
+    // console.log('[CNR_NUI_STORE] storeTitleEl element:', storeTitleEl);
 
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
@@ -254,17 +254,17 @@ function openStoreMenu(storeName, storeItems) {
         window.currentTab = 'buy'; // Default to buy tab
         loadCategories(); // This will also trigger loadItems if categories are present
         loadItems(); // Initial load for "All" or first category
-        
-        console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
+
+        // console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
         storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
         storeMenuUI.classList.remove('hidden');
-        console.log('[CNR_NUI_STORE] Removed "hidden" class. classList:', storeMenuUI.classList.toString()); // .toString() for better log
-        console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
-        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
-        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
-        if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
-        if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
-        
+        // console.log('[CNR_NUI_STORE] Removed "hidden" class. classList:', storeMenuUI.classList.toString()); // .toString() for better log
+        // console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
+
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Store menu UI or title element not found.");
@@ -276,7 +276,7 @@ function closeStoreMenu() {
     if (storeMenuUI) {
         storeMenuUI.classList.add('hidden');
         storeMenuUI.style.display = ''; // Let CSS handle display via .hidden class
-        console.log('[CNR_NUI_STORE] closeStoreMenu: Added "hidden" class, reset display style. classList:', storeMenuUI.classList.toString());
+        // console.log('[CNR_NUI_STORE] closeStoreMenu: Added "hidden" class, reset display style. classList:', storeMenuUI.classList.toString());
         fetchSetNuiFocus(false, false);
     }
 }
@@ -298,16 +298,16 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 function loadCategories() {
-    console.log('[CNR_NUI_STORE] loadCategories called.');
+    // console.log('[CNR_NUI_STORE] loadCategories called.');
     const categoryList = document.getElementById('category-list');
     if (!categoryList) {
         console.error('[CNR_NUI_STORE] Category list element not found.');
         return;
     }
     const categories = [...new Set((window.items || []).map(item => item.category))];
-    console.log('[CNR_NUI_STORE] Categories generated:', categories);
+    // console.log('[CNR_NUI_STORE] Categories generated:', categories);
     categoryList.innerHTML = ''; // Clear previous categories
-    
+
     // Add "All" category button
     const allBtn = document.createElement('button');
     allBtn.className = 'category-btn active'; // Active by default
@@ -319,7 +319,7 @@ function loadCategories() {
         if (window.currentTab === 'buy') loadItems();
     };
     categoryList.appendChild(allBtn);
-    
+
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -332,11 +332,11 @@ function loadCategories() {
         };
         categoryList.appendChild(btn);
     });
-    console.log('[CNR_NUI_STORE] loadCategories finished.');
+    // console.log('[CNR_NUI_STORE] loadCategories finished.');
 }
 
 function loadItems() {
-    console.log('[CNR_NUI_STORE] loadItems called.');
+    // console.log('[CNR_NUI_STORE] loadItems called.');
     const itemList = document.getElementById('item-list');
     if (!itemList) {
         console.error('[CNR_NUI_STORE] Item list element not found.');
@@ -344,16 +344,16 @@ function loadItems() {
     }
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
-    console.log('[CNR_NUI_STORE] Filtered items count:', filteredItems.length);
+    // console.log('[CNR_NUI_STORE] Filtered items count:', filteredItems.length);
     if (filteredItems.length === 0) {
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
-        console.log('[CNR_NUI_STORE] loadItems finished (no items).');
+        // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
     filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
     itemList.appendChild(fragment);
-    console.log('[CNR_NUI_STORE] loadItems finished.');
+    // console.log('[CNR_NUI_STORE] loadItems finished.');
 }
 
 function loadSellItems() {
@@ -388,7 +388,7 @@ function loadSellItems() {
 }
 
 function createItemElement(item, type = 'buy') {
-    console.log('[CNR_NUI_STORE] createItemElement called for item:', JSON.stringify(item), 'Type:', type);
+    // console.log('[CNR_NUI_STORE] createItemElement called for item:', JSON.stringify(item), 'Type:', type);
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
     itemDiv.dataset.itemId = item.itemId;
@@ -418,7 +418,7 @@ function createItemElement(item, type = 'buy') {
     actionBtn.textContent = (type === 'buy') ? 'Buy' : 'Sell';
     actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
-    console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
+    // console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
     return itemDiv;
 }
 
@@ -602,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (storeCloseButton) {
         storeCloseButton.addEventListener('click', closeStoreMenu);
     }
-    
+
     // Add event listener for the bounty board close button if it exists
     const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
     if (bountyCloseButton) {

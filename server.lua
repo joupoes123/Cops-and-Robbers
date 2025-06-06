@@ -684,7 +684,7 @@ ApplyPerks = function(playerId, level, role)
                     if type(perkDetail) == "table" then -- Ensure perkDetail is a table
                         -- Only try to set pData.perks if it's actually a perk and perkId is valid
                         if perkDetail.type == "passive_perk" and perkDetail.perkId then
-                            pData.perks[perkDetail.perkId] = true 
+                            pData.perks[perkDetail.perkId] = true
                             Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
                         -- else
                             -- Log for non-passive_perk types if needed for debugging, e.g.:
@@ -1035,7 +1035,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
         if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
             canAccess = false
         end
-        
+
         -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
 
         if canAccess then
@@ -1054,7 +1054,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
             })
         end
     end
-    
+
     Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
 end)

@@ -211,7 +211,7 @@ function UpdateCopStoreBlips(currentRole)
         print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
     end
-    
+
     -- First pass: Add/Remove blips based on current role and vendor type
     for i, vendor in ipairs(Config.NPCVendors) do
         if vendor and vendor.location and vendor.name then -- Basic validation for vendor entry
@@ -264,7 +264,7 @@ function UpdateCopStoreBlips(currentRole)
                 end
             end
         end
-        
+
         if not stillExistsAndIsCopStore then
             if blipId and DoesBlipExist(blipId) then -- Ensure blipId is not nil before DoesBlipExist
                 RemoveBlip(blipId)
@@ -851,11 +851,11 @@ RegisterNUICallback('buyItem', function(data, cb)
 
     print(string.format("NUI buyItem: Request to buy %dx %s", quantity, itemId))
     -- Trigger the server event that actually handles the purchase logic
-    TriggerServerEvent('cnr:buyItem', itemId, quantity) 
-    
-    -- Immediately acknowledge the NUI callback. 
+    TriggerServerEvent('cnr:buyItem', itemId, quantity)
+
+    -- Immediately acknowledge the NUI callback.
     -- The success/failure will be communicated via separate events later (e.g., purchaseConfirmed/Failed)
-    cb({ status = 'received', message = 'Buy request sent to server.'}) 
+    cb({ status = 'received', message = 'Buy request sent to server.'})
 end)
 
 Citizen.CreateThread(function()
@@ -962,7 +962,7 @@ Citizen.CreateThread(function()
         Citizen.Wait(250) -- Check more frequently for responsiveness
         local playerPed = PlayerPedId()
         if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_vendor_loop end
-        
+
         local playerCoords = GetEntityCoords(playerPed)
         local newHelpTextTarget = nil
         local helpTextMessage = ""
@@ -976,8 +976,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "AmmuNation_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to open Ammu-Nation'
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then 
-                            openStore('Ammu-Nation', 'AmmuNation', nil) 
+                        if IsControlJustPressed(0, 51) then
+                            openStore('Ammu-Nation', 'AmmuNation', nil)
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -993,8 +993,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "NPCVendor_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then 
-                            openStore(vendor.name, 'Vendor', vendor.items) 
+                        if IsControlJustPressed(0, 51) then
+                            openStore(vendor.name, 'Vendor', vendor.items)
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -1011,7 +1011,7 @@ Citizen.CreateThread(function()
             currentHelpTextTarget = nil
             -- DisplayHelpText("") -- Optionally explicitly clear, though often not needed
         end
-        
+
         ::continue_store_vendor_loop::
     end
 end)
