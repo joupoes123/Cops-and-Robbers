@@ -791,8 +791,9 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     if newStars > 0 and robberCoords then -- Only proceed if player has stars and valid coordinates
         -- NPC Police Response Logic (now explicitly server-triggered and configurable)
         if Config.WantedSettings.enableNPCResponse then
-            TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
-            Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggered cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars)", pIdNum, newStars), "info")
+            -- TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
+            -- Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggered cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars)", pIdNum, newStars), "info")
+            Log(string.format("UpdatePlayerWantedLevel: NPC Response Trigger Suppressed (Aggressive Disable). Would have triggered for player %s (%d stars)", pIdNum, newStars), "warn")
         else
             Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars).", pIdNum, newStars), "info")
             -- Optionally, if there's any fallback or alternative notification needed when NPC response is off, it could go here.

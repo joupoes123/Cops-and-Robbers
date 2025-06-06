@@ -145,13 +145,14 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         if HasModelLoaded(modelHash) then
             print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Model %s loaded. Setting player model.", modelToLoad))
             SetPlayerModel(PlayerId(), modelHash)
-            SetPedDefaultComponentVariation(playerPed) -- Reset components to default for the new model
+            Citizen.Wait(10) -- Added delay
+            SetPedDefaultComponentVariation(playerPed, true) -- Changed to true, applies to all models after model set
 
                 if modelToLoad == "mp_m_freemode_01" then
-                    print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization.")
+                    print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization for mp_m_freemode_01.")
                     SetPedRandomComponentVariation(playerPed, false) -- false for male mp_m_freemode_01
-                    -- ClearPedProps(playerPed) -- Temporarily commented out due to error
-                    -- SetPedRandomProps(playerPed) -- Temporarily commented out
+                    ClearPedProps(playerPed) -- Restored
+                    SetPedRandomProps(playerPed) -- Restored
                 end
                 
             SetModelAsNoLongerNeeded(modelHash)
