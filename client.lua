@@ -212,7 +212,7 @@ function UpdateCopStoreBlips(currentRole)
         print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
     end
-
+    
     -- First pass: Add/Remove blips based on current role and vendor type
     for i, vendor in ipairs(Config.NPCVendors) do
         if vendor and vendor.location and vendor.name then -- Basic validation for vendor entry
@@ -265,7 +265,7 @@ function UpdateCopStoreBlips(currentRole)
                 end
             end
         end
-
+        
         if not stillExistsAndIsCopStore then
             if blipId and DoesBlipExist(blipId) then -- Ensure blipId is not nil before DoesBlipExist
                 RemoveBlip(blipId)
@@ -796,10 +796,10 @@ end)
 RegisterNetEvent('cops_and_robbers:addAmmo')
 AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoToAdd)
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
         ShowNotification("~r~Cannot add ammo: Player ped invalid.")
         print("[CNR_CLIENT_AMMO] addAmmo: Player ped invalid.")
-        return
+        return 
     end
 
     print(string.format("[CNR_CLIENT_AMMO] addAmmo: Received event. weaponName (from server weaponLink): '%s', ammoToAdd: %d", tostring(weaponName), tonumber(ammoToAdd)))
@@ -839,10 +839,10 @@ end)
 RegisterNetEvent('cops_and_robbers:applyArmor')
 AddEventHandler('cops_and_robbers:applyArmor', function(armorType) -- armorType is the itemId, e.g., "armor"
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
         ShowNotification("~r~Cannot apply armor: Player ped invalid.")
-        print("[CNR_CLIENT_ARMOR] applyArmor: Player ped invalid.")
-        return
+        print("[CNR_CLIENT_ARMOR] applyArmor: Player ped invalid.") 
+        return 
     end
 
     print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Received event for armorType: %s", tostring(armorType)))
@@ -895,7 +895,7 @@ AddEventHandler('cops_and_robbers:applyArmor', function(armorType) -- armorType 
         print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Calculated armorValue is %d for %s. Aborting.", armorValue, itemName))
         return
     end
-
+    
     local finalArmor = armorValue
     if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then
         finalArmor = math.floor(armorValue * playerData.armorModifier)
@@ -921,7 +921,7 @@ RegisterNUICallback('getPlayerInventory', function(data, cb)
     if RequestInventoryForNUI then
         -- RequestInventoryForNUI expects a callback that it will call with the inventory data.
         -- This callback needs to be `cb` from the NUI request.
-        RequestInventoryForNUI(cb)
+        RequestInventoryForNUI(cb) 
         print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Called RequestInventoryForNUI, passing NUI's cb directly.")
     else
         print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: CRITICAL - RequestInventoryForNUI function not found in client context!")
@@ -960,10 +960,10 @@ RegisterNUICallback('buyItem', function(data, cb)
     end
 
     print(string.format("[CNR_CLIENT_NUI_CALLBACK] buyItem: Validated data. Requesting to buy %dx %s", quantity, itemId))
-
+    
     -- Trigger the server event that actually handles the purchase logic
-    TriggerServerEvent('cnr:buyItem', itemId, quantity)
-
+    TriggerServerEvent('cnr:buyItem', itemId, quantity) 
+    
     -- Immediately acknowledge the NUI callback.
     -- The success/failure of the actual purchase will be communicated via separate server-to-client events.
     cb({ status = 'received', message = 'Buy request forwarded to server.' })
@@ -1074,7 +1074,7 @@ Citizen.CreateThread(function()
         Citizen.Wait(100) -- Changed from 250
         local playerPed = PlayerPedId()
         if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_vendor_loop end
-
+        
         local playerCoords = GetEntityCoords(playerPed)
         local newHelpTextTarget = nil
         local helpTextMessage = ""
@@ -1088,8 +1088,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "AmmuNation_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to open Ammu-Nation'
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then
-                            openStore('Ammu-Nation', 'AmmuNation', nil)
+                        if IsControlJustPressed(0, 51) then 
+                            openStore('Ammu-Nation', 'AmmuNation', nil) 
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -1105,8 +1105,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "NPCVendor_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then
-                            openStore(vendor.name, 'Vendor', vendor.items)
+                        if IsControlJustPressed(0, 51) then 
+                            openStore(vendor.name, 'Vendor', vendor.items) 
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -1123,7 +1123,7 @@ Citizen.CreateThread(function()
             currentHelpTextTarget = nil
             -- DisplayHelpText("") -- Optionally explicitly clear, though often not needed
         end
-
+        
         ::continue_store_vendor_loop::
     end
 end)
@@ -1254,7 +1254,7 @@ end)
 
 -- Thread to disable default FiveM police responses
 Citizen.CreateThread(function()
-    local policeDisableInterval = 5000 -- 5 seconds
+    local policeDisableInterval = 5000 -- How often to run the checks in milliseconds
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
 
     while true do
