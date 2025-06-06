@@ -838,6 +838,26 @@ RegisterNUICallback('setNuiFocus', function(data, cb)
     end
 end)
 
+RegisterNUICallback('buyItem', function(data, cb)
+    local itemId = data.itemId
+    local quantity = tonumber(data.quantity or 1) -- Ensure quantity is a number
+
+    if not itemId or not quantity or quantity < 1 then
+        -- Log is not defined client-side, use print or ShowNotification
+        print("NUI buyItem: Invalid data received. ItemId: " .. tostring(itemId) .. ", Quantity: " .. tostring(quantity))
+        cb({ status = 'error', message = 'Invalid item data received from NUI.' })
+        return
+    end
+
+    print(string.format("NUI buyItem: Request to buy %dx %s", quantity, itemId))
+    -- Trigger the server event that actually handles the purchase logic
+    TriggerServerEvent('cnr:buyItem', itemId, quantity) 
+    
+    -- Immediately acknowledge the NUI callback. 
+    -- The success/failure will be communicated via separate events later (e.g., purchaseConfirmed/Failed)
+    cb({ status = 'received', message = 'Buy request sent to server.'}) 
+end)
+
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
     print("[CNR_CLIENT] Thread for Spike Strip Deployment & Collision now starting its main loop.")

@@ -57,6 +57,22 @@ window.addEventListener('message', function(event) {
             }
             openStoreMenu(data.storeName, data.items);
             break;
+        case 'openStore': // New case for the specific 'openStore' action
+            if (data.resourceName) { 
+                window.cnrResourceName = data.resourceName;
+                console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
+                const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
+                if (!allowedOrigins.includes(currentResourceOriginDynamic)) {
+                    allowedOrigins.push(currentResourceOriginDynamic);
+                    // For debugging, you might want to log the updated allowedOrigins
+                    // console.log("NUI: Updated allowedOrigins: ", allowedOrigins);
+                }
+            }
+            // The existing openStoreMenu function is suitable
+            // It expects (storeName, storeItems)
+            // event.data (which is 'data' here) should contain 'storeName' and 'items'
+            openStoreMenu(data.storeName, data.items); 
+            break;
         case 'closeStore':
             closeStoreMenu();
             break;
@@ -534,6 +550,40 @@ document.addEventListener('DOMContentLoaded', () => {
             else loadItems();
         });
     });
+
+    // Add event listener for the main store close button
+    const storeCloseButton = document.getElementById('close-btn');
+    if (storeCloseButton) {
+        storeCloseButton.addEventListener('click', closeStoreMenu);
+    }
+    
+    // Add event listener for the bounty board close button if it exists
+    const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
+    if (bountyCloseButton) {
+        bountyCloseButton.addEventListener('click', hideBountyBoardUI);
+    }
+});
+
+
+// Global Escape key handler
+window.addEventListener('keydown', function(event) {
+    const storeMenu = document.getElementById('store-menu');
+    const adminPanel = document.getElementById('admin-panel');
+    const roleSelectionPanel = document.getElementById('role-selection');
+    const bountyBoardPanel = document.getElementById('bounty-board');
+
+
+    if (event.key === 'Escape' || event.keyCode === 27) {
+        if (storeMenu && storeMenu.style.display === 'block') {
+            closeStoreMenu();
+        } else if (adminPanel && adminPanel.style.display !== 'none' && !adminPanel.classList.contains('hidden')) {
+            hideAdminPanel();
+        } else if (bountyBoardPanel && bountyBoardPanel.style.display !== 'none' && !bountyBoardPanel.classList.contains('hidden')){
+            hideBountyBoardUI();
+        // } else if (roleSelectionPanel && roleSelectionPanel.style.display !== 'none' && !roleSelectionPanel.classList.contains('hidden')) {
+            // hideRoleSelection(); // Usually, role selection is modal and shouldn't be escapable without making a choice or specific cancel button.
+        }
+    }
 });
 
 // -------------------------------------------------------------------
