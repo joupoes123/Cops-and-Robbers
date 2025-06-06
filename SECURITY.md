@@ -28,7 +28,7 @@ If you discover a security vulnerability in the **Cops and Robbers** game mode, 
 
 ---
 
-## Security Improvements in Version 2.0
+## Security Improvements in Version 1.1.0
 
 Version **1.1.0** includes several important security enhancements:
 
@@ -38,7 +38,7 @@ Version **1.1.0** includes several important security enhancements:
 - **Function Definition Corrections**: Resolved issues related to function scopes and definitions to prevent potential script errors and vulnerabilities.
 - **Bug Fixes**: Addressed known bugs that could affect game stability and security, such as parameter mismatches and undefined globals.
 
-We strongly recommend updating to **version 2.0** to benefit from these security improvements and to maintain compatibility with the latest features.
+We strongly recommend updating to **version 1.1.0** to benefit from these security improvements and to maintain compatibility with the latest features.
 
 ---
 
