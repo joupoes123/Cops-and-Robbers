@@ -667,28 +667,55 @@ ApplyPerks = function(playerId, level, role)
     pData.perks = {} -- Reset perks
     pData.extraSpikeStrips = 0 -- Reset specific perk values
     pData.contrabandCollectionModifier = 1.0 -- Reset specific perk values
+    pData.armorModifier = 1.0 -- Ensure armorModifier is also reset
 
-    local unlocks = (role == "cop" and Config.LevelUnlocks.cop) or (role == "robber" and Config.LevelUnlocks.robber) or {}
+    local unlocks = {}
+    if role and Config.LevelUnlocks and Config.LevelUnlocks[role] then
+        unlocks = Config.LevelUnlocks[role]
+    else
+        Log(string.format("ApplyPerks: No level unlocks defined for role '%s'. Player %s will have no role-specific level perks.", tostring(role), pIdNum))
+        -- No need to immediately return, as pData.perks (now empty) and other perk-related values need to be synced.
+    end
 
     for levelKey, levelUnlocksTable in pairs(unlocks) do
         if level >= levelKey then
-            for _, perkDetail in ipairs(levelUnlocksTable) do
-                pData.perks[perkDetail.perkId] = true -- Generic perk flag
-                Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
-                if perkDetail.perkId == "increased_armor_durability" and role == "cop" then
-                    pData.armorModifier = perkDetail.value or Config.PerkEffects.IncreasedArmorDurabilityModifier or 1.25
-                    Log(string.format("Player %s granted increased_armor_durability (modifier: %s).", pIdNum, pData.armorModifier))
-                elseif perkDetail.perkId == "extra_spike_strips" and role == "cop" then
-                    pData.extraSpikeStrips = perkDetail.value or 1
-                    Log(string.format("Player %s granted extra_spike_strips (value: %d).", pIdNum, pData.extraSpikeStrips))
-                elseif perkDetail.perkId == "faster_contraband_collection" and role == "robber" then
-                     pData.contrabandCollectionModifier = perkDetail.value or 0.8
-                     Log(string.format("Player %s granted faster_contraband_collection (modifier: %s).", pIdNum, pData.contrabandCollectionModifier))
+            if type(levelUnlocksTable) == "table" then -- Ensure levelUnlocksTable is a table
+                for _, perkDetail in ipairs(levelUnlocksTable) do
+                    if type(perkDetail) == "table" then -- Ensure perkDetail is a table
+                        -- Only try to set pData.perks if it's actually a perk and perkId is valid
+                        if perkDetail.type == "passive_perk" and perkDetail.perkId then
+                            pData.perks[perkDetail.perkId] = true 
+                            Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
+                        -- else
+                            -- Log for non-passive_perk types if needed for debugging, e.g.:
+                            -- if perkDetail.type ~= "passive_perk" then
+                            --     Log(string.format("ApplyPerks: Skipping non-passive_perk type '%s' for player %s at level %d.", tostring(perkDetail.type), pIdNum, levelKey))
+                            -- end
+                        end
+
+                        -- Handle specific perk values (existing logic, ensure perkDetail.type matches and perkId is valid)
+                        if perkDetail.type == "passive_perk" and perkDetail.perkId then
+                            if perkDetail.perkId == "increased_armor_durability" and role == "cop" then
+                                pData.armorModifier = perkDetail.value or Config.PerkEffects.IncreasedArmorDurabilityModifier or 1.25
+                                Log(string.format("Player %s granted increased_armor_durability (modifier: %s).", pIdNum, pData.armorModifier))
+                            elseif perkDetail.perkId == "extra_spike_strips" and role == "cop" then
+                                pData.extraSpikeStrips = perkDetail.value or 1
+                                Log(string.format("Player %s granted extra_spike_strips (value: %d).", pIdNum, pData.extraSpikeStrips))
+                            elseif perkDetail.perkId == "faster_contraband_collection" and role == "robber" then
+                                 pData.contrabandCollectionModifier = perkDetail.value or 0.8
+                                 Log(string.format("Player %s granted faster_contraband_collection (modifier: %s).", pIdNum, pData.contrabandCollectionModifier))
+                            end
+                        end
+                    else
+                        Log(string.format("ApplyPerks: perkDetail at levelKey %s for role %s is not a table. Skipping.", levelKey, role), "warn")
+                    end
                 end
+            else
+                 Log(string.format("ApplyPerks: levelUnlocksTable at levelKey %s for role %s is not a table. Skipping.", levelKey, role), "warn")
             end
         end
     end
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pData)
+    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pData) -- This was already here, ensure it stays
 end
 
 
@@ -1008,7 +1035,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
         if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
             canAccess = false
         end
-
+        
         -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
 
         if canAccess then
@@ -1027,7 +1054,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
             })
         end
     end
-
+    
     Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
 end)
