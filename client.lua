@@ -105,6 +105,86 @@ local function spawnPlayer(playerRole)
     end
 end
 
+local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
+    local playerPed = PlayerPedId()
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
+        return
+    end
+
+    print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: newRole=%s, oldRole=%s", newRole, oldRole or "nil"))
+
+    -- Remove all current weapons first (simplistic approach for now)
+    RemoveAllPedWeapons(playerPed, true)
+    playerWeapons = {} -- Clear client-side tracking
+    playerAmmo = {}    -- Clear client-side tracking
+    print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: All weapons removed.")
+
+    local modelToLoad = nil
+    local modelHash = nil
+
+    if newRole == "cop" then
+        modelToLoad = "s_m_y_cop_01"
+    elseif newRole == "robber" then
+        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for robber
+    else -- citizen
+        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for citizen
+    end
+    
+    modelHash = GetHashKey(modelToLoad)
+    print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Attempting to load model: %s (Hash: %s)", modelToLoad, modelHash))
+
+    if modelHash and modelHash ~= 0 and modelHash ~= -1 then
+        RequestModel(modelHash)
+        local attempts = 0
+        while not HasModelLoaded(modelHash) and attempts < 100 do
+            Citizen.Wait(50)
+            attempts = attempts + 1
+        end
+
+        if HasModelLoaded(modelHash) then
+            print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Model %s loaded. Setting player model.", modelToLoad))
+            SetPlayerModel(PlayerId(), modelHash)
+            SetPedDefaultComponentVariation(playerPed) -- Reset components to default for the new model
+
+                if modelToLoad == "mp_m_freemode_01" then
+                    print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization.")
+                    SetPedRandomComponentVariation(playerPed, false) -- false for male mp_m_freemode_01
+                    ClearPedProps(playerPed)
+                    SetPedRandomProps(playerPed)
+                end
+                
+            SetModelAsNoLongerNeeded(modelHash)
+        else
+            print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
+        end
+    else
+        print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
+    end
+
+    -- Give weapons based on new role
+    Citizen.Wait(500) -- Wait a bit for model change to settle before giving weapons
+
+    playerPed = PlayerPedId() -- Re-get ped ID as it might change with model, though usually doesn't with SetPlayerModel
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
+        return
+    end
+
+    if newRole == "cop" then
+        local pistolHash = GetHashKey("weapon_pistol")
+        GiveWeaponToPed(playerPed, pistolHash, 100, false, true)
+        playerWeapons["weapon_pistol"] = true; playerAmmo["weapon_pistol"] = 100
+        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave pistol to cop.")
+    elseif newRole == "robber" then
+        local batHash = GetHashKey("weapon_bat")
+        GiveWeaponToPed(playerPed, batHash, 1, false, true)
+        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
+        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
+    end
+    ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
+end
+
 -- =====================================
 --           NETWORK EVENTS
 -- =====================================
@@ -127,21 +207,32 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     playerData = newPlayerData
 
     playerCash = newPlayerData.money or 0
-    role = playerData.role
+    role = playerData.role -- This is the new role
 
     local playerPedOnUpdate = PlayerPedId() -- Get ped ID at this point
 
-    if role and oldRole ~= role then
+    -- Handle spawning and visual/loadout changes
+    if role and oldRole ~= role then -- Role has changed
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
-            spawnPlayer(role)
+            ApplyRoleVisualsAndLoadout(role, oldRole) -- Apply model and loadout first
+            Citizen.Wait(100) -- Short wait for model to apply before spawning
+            spawnPlayer(role) -- Then spawn at the correct location
         else
             print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during role change spawn.")
         end
-    elseif not oldRole and role then
+    elseif not oldRole and role and role ~= "citizen" then -- Initial role set (and not just to citizen)
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
             spawnPlayer(role)
         else
             print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial role spawn.")
+        end
+    elseif not oldRole and role and role == "citizen" then -- Initial set to citizen, just spawn
+         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial citizen spawn.")
         end
     end
 
@@ -461,7 +552,7 @@ Citizen.CreateThread(function()
         lastPlayerVehicle = currentVehicle
 
         if IsPedInMeleeCombat(playerPed) and (GetGameTimer() - lastAssaultReportTime) > assaultReportCooldown then
-            local _, targetPed = GetPedMeleeTargetForPed(playerPed)
+            local _, targetPed = GetMeleeTargetForPed(playerPed) -- Corrected function name
             if DoesEntityExist(targetPed) and not IsPedAPlayer(targetPed) and IsPedHuman(targetPed) then
                 local targetModel = GetEntityModel(targetPed)
                 if targetModel ~= GetHashKey("s_m_y_cop_01") and targetModel ~= GetHashKey("s_f_y_cop_01") and targetModel ~= GetHashKey("s_m_y_swat_01") and GetPedRelationshipGroupHash(targetPed) ~= GetHashKey("COP") then

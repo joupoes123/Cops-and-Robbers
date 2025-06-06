@@ -20,7 +20,8 @@ Config.DefaultStartMoney = 2500 -- Starting cash for new players.
 -- Spawn locations based on roles
 Config.SpawnPoints = {
     cop    = vector3(452.6, -980.0, 30.7),   -- Police station location (Mission Row PD)
-    robber = vector3(2126.7, 4794.1, 41.1)   -- Example: Countryside airport location (Sandy Shores Airfield)
+    robber = vector3(2126.7, 4794.1, 41.1),  -- Example: Countryside airport location (Sandy Shores Airfield)
+    citizen = vector3(-260.0, -970.0, 31.2) -- Legion Square
 }
 
 -- Jail Location (players are sent here when jailed)
