@@ -150,8 +150,8 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
                 if modelToLoad == "mp_m_freemode_01" then
                     print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization.")
                     SetPedRandomComponentVariation(playerPed, false) -- false for male mp_m_freemode_01
-                    ClearPedProps(playerPed)
-                    SetPedRandomProps(playerPed)
+                    -- ClearPedProps(playerPed) -- Temporarily commented out due to error
+                    -- SetPedRandomProps(playerPed) -- Temporarily commented out
                 end
                 
             SetModelAsNoLongerNeeded(modelHash)
