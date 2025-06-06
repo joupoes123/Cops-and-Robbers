@@ -1718,6 +1718,33 @@ AddEventHandler('cnr:requestMyInventory', function()
                 }
             end
         end
+
+        Log(string.format("[CNR_SERVER_INVENTORY] Preparing to send inventory to player %s. Number of unique items: %d", src, tablelength(nuiInventory)), "info")
+    
+        local sampleCount = 0
+        local nuiInventorySampleForLog = {}
+        for k, v in pairs(nuiInventory) do
+            if sampleCount < 5 then -- Log details for up to 5 items
+                nuiInventorySampleForLog[k] = v
+                sampleCount = sampleCount + 1
+            else
+                break
+            end
+        end
+        Log(string.format("[CNR_SERVER_INVENTORY] Inventory sample being sent to player %s: %s", src, json.encode(nuiInventorySampleForLog)), "info")
+
+        -- Attempt to encode the full inventory to check for size issues (log only, don't send this encoded string unless necessary for extreme debugging)
+        local encodedFullInventory, encodeError = pcall(json.encode, nuiInventory)
+        if not encodedFullInventory then
+            Log(string.format("[CNR_SERVER_INVENTORY] CRITICAL: Failed to json.encode full nuiInventory for player %s before sending. Error: %s", src, tostring(encodeError)), "error")
+            -- Potentially send an empty inventory or an error message to client here instead of triggering the unsafe event
+            -- For now, we'll let it proceed to hit the 'not safe for net' if this is the root cause of that error itself
+        else
+            Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
+            -- If string.len is very large (e.g., > 60KB), it might be a size issue.
+        end
+        
+        -- The original TriggerClientEvent call:
         TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
     else
         TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory

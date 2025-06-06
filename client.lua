@@ -61,6 +61,7 @@ local currentSafeZoneName = ""
 local currentPlayerNPCResponseEntities = {}
 local corruptOfficialNPCs = {}
 local copStoreBlips = {}
+local currentHelpTextTarget = nil -- Moved to top level for broader access
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -795,25 +796,116 @@ end)
 RegisterNetEvent('cops_and_robbers:addAmmo')
 AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoToAdd)
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then ShowNotification("~r~Cannot add ammo: Player ped invalid."); return end
-    local weaponHash = GetHashKey(weaponName)
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
+        ShowNotification("~r~Cannot add ammo: Player ped invalid.")
+        print("[CNR_CLIENT_AMMO] addAmmo: Player ped invalid.")
+        return 
+    end
+
+    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Received event. weaponName (from server weaponLink): '%s', ammoToAdd: %d", tostring(weaponName), tonumber(ammoToAdd)))
+
+    local weaponHash = GetHashKey(weaponName) -- weaponName here is expected to be like "weapon_pistol", "weapon_assaultrifle" etc.
+    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Resolved weaponHash for '%s': %s", tostring(weaponName), tostring(weaponHash)))
+
     if weaponHash ~= 0 and weaponHash ~= -1 then
-        if HasPedGotWeapon(playerPed, weaponHash, false) then AddAmmoToPed(playerPed, weaponHash, ammoToAdd); playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoToAdd; ShowNotification(string.format("~g~Added %d ammo to %s.", ammoToAdd, (Config.WeaponNames[weaponName] or weaponName)))
-        else ShowNotification("~y~You don't have the weapon (" .. (Config.WeaponNames[weaponName] or weaponName) .. ") for this ammo.") end
-    else ShowNotification("~r~Invalid weapon specified for ammo: " .. tostring(weaponName)) end
+        local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+        print(string.format("[CNR_CLIENT_AMMO] addAmmo: Before AddAmmoToPed - Does player have weapon '%s' (hash: %s)? %s", tostring(weaponName), tostring(weaponHash), tostring(hasWeapon)))
+
+        if hasWeapon then
+            AddAmmoToPed(playerPed, weaponHash, tonumber(ammoToAdd))
+            -- Update local ammo tracking if necessary (playerAmmo table)
+            if playerWeapons[weaponName] then -- Check if weapon itself is tracked
+                 playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + tonumber(ammoToAdd)
+            else -- If weapon wasn't tracked but ammo is being added, maybe it should be? Or this indicates a new weapon.
+                 -- For now, just log if playerWeapons[weaponName] was nil for this ammo type
+                 if not playerWeapons[weaponName] then
+                    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Note - playerWeapons['%s'] was not set, but adding ammo. Current playerWeapons: %s", weaponName, json.encode(playerWeapons)))
+                 end
+                 -- Still add to playerAmmo as a fallback, assuming server logic for giving weapon was separate or implicit
+                 playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + tonumber(ammoToAdd)
+            end
+            ShowNotification(string.format("~g~Added %d ammo to %s.", tonumber(ammoToAdd), (Config.WeaponNames and Config.WeaponNames[weaponName] or weaponName)))
+            print(string.format("[CNR_CLIENT_AMMO] addAmmo: Successfully added %d ammo to %s (hash: %s).", tonumber(ammoToAdd), tostring(weaponName), tostring(weaponHash)))
+        else
+            ShowNotification("~y~You don't have the weapon (" .. (Config.WeaponNames and Config.WeaponNames[weaponName] or weaponName) .. ") for this ammo.")
+            print(string.format("[CNR_CLIENT_AMMO] addAmmo: Player does not have weapon '%s' (hash: %s). Cannot add ammo.", tostring(weaponName), tostring(weaponHash)))
+        end
+    else
+        ShowNotification("~r~Invalid weapon specified for ammo: " .. tostring(weaponName))
+        print(string.format("[CNR_CLIENT_AMMO] addAmmo: Invalid weaponHash for weaponName '%s'. Hash: %s", tostring(weaponName), tostring(weaponHash)))
+    end
 end)
 
 RegisterNetEvent('cops_and_robbers:applyArmor')
-AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
+AddEventHandler('cops_and_robbers:applyArmor', function(armorType) -- armorType is the itemId, e.g., "armor"
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then ShowNotification("~r~Cannot apply armor: Player ped invalid."); return end
-    local armorValue = 0; local armorConfig = Config.Items[armorType]
-    if armorConfig and armorConfig.armorValue then armorValue = armorConfig.armorValue
-    else if armorType == "armor" then armorValue = 50 elseif armorType == "heavy_armor" then armorValue = 100 else ShowNotification("Invalid armor type: " .. tostring(armorType)); return end end
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
+        ShowNotification("~r~Cannot apply armor: Player ped invalid.")
+        print("[CNR_CLIENT_ARMOR] applyArmor: Player ped invalid.") 
+        return 
+    end
+
+    print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Received event for armorType: %s", tostring(armorType)))
+
+    local itemDefinition = nil
+    if Config.Items and type(Config.Items) == "table" then
+        for _, def in ipairs(Config.Items) do
+            if def.itemId == armorType then
+                itemDefinition = def
+                break
+            end
+        end
+    end
+
+    local armorValue = 0
+    local itemName = armorType -- Fallback name
+
+    if itemDefinition then
+        itemName = itemDefinition.name or armorType
+        if itemDefinition.armorValue then -- Check for a specific armorValue in config
+            armorValue = tonumber(itemDefinition.armorValue) or 0
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Using armorValue %d from itemDefinition for %s", armorValue, itemName))
+        elseif armorType == "armor" then -- Check itemId string
+            armorValue = 50
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: No armorValue in itemDefinition for %s, using default 50 for itemId 'armor'", itemName))
+        elseif armorType == "heavy_armor" then -- Check itemId string
+            armorValue = 100
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: No armorValue in itemDefinition for %s, using default 100 for itemId 'heavy_armor'", itemName))
+        else
+            ShowNotification("~r~Unknown armor item definition: " .. itemName)
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Unknown armor itemId '%s' with no explicit armorValue or default handling.", armorType))
+            return
+        end
+    else -- Fallback if itemDefinition not found
+        if armorType == "armor" then
+            armorValue = 50
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: itemDefinition not found for %s, using default 50 for itemId 'armor'", armorType))
+        elseif armorType == "heavy_armor" then
+            armorValue = 100
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: itemDefinition not found for %s, using default 100 for itemId 'heavy_armor'", armorType))
+        else
+            ShowNotification("~r~Invalid armor type: " .. armorType)
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Invalid armorType '%s' and itemDefinition not found.", armorType))
+            return
+        end
+    end
+
+    if armorValue <= 0 then
+        ShowNotification("~r~Armor value is zero or invalid for: " .. itemName)
+        print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Calculated armorValue is %d for %s. Aborting.", armorValue, itemName))
+        return
+    end
+    
     local finalArmor = armorValue
-    if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then finalArmor = math.floor(armorValue * playerData.armorModifier); ShowNotification(string.format("~g~Perk Active: Increased Armor Durability! (%.0f -> %.0f)", armorValue, finalArmor)) end
+    if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then
+        finalArmor = math.floor(armorValue * playerData.armorModifier)
+        ShowNotification(string.format("~g~Perk Active: Increased Armor Durability! (%.0f -> %.0f)", armorValue, finalArmor))
+        print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Perk applied. Base: %d, Final: %d", armorValue, finalArmor))
+    end
+
     SetPedArmour(playerPed, finalArmor)
-    ShowNotification(string.format("~g~Armor Applied: %s (~w~%d Armor)", (armorConfig and armorConfig.label or armorType), finalArmor))
+    ShowNotification(string.format("~g~Armor Applied: %s (~w~%d Armor)", itemName, finalArmor))
+    print(string.format("[CNR_CLIENT_ARMOR] applyArmor: SetPedArmour to %d for %s.", finalArmor, itemName))
 end)
 
 RegisterNUICallback('selectRole', function(data, cb)
@@ -976,7 +1068,7 @@ local function openStore(storeName, storeType, vendorItems) TriggerServerEvent('
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
     print("[CNR_CLIENT] Thread for Store/Vendor Interaction now starting its main loop.")
-    local currentHelpTextTarget = nil -- Initialize here, outside the loop, to persist across checks
+    -- local currentHelpTextTarget = nil -- Moved to top level
 
     while true do
         Citizen.Wait(100) -- Changed from 250
