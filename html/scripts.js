@@ -58,7 +58,7 @@ window.addEventListener('message', function(event) {
             openStoreMenu(data.storeName, data.items);
             break;
         case 'openStore': // New case for the specific 'openStore' action
-            if (data.resourceName) { 
+            if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
                 console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
@@ -71,7 +71,7 @@ window.addEventListener('message', function(event) {
             // The existing openStoreMenu function is suitable
             // It expects (storeName, storeItems)
             // event.data (which is 'data' here) should contain 'storeName' and 'items'
-            openStoreMenu(data.storeName, data.items); 
+            openStoreMenu(data.storeName, data.items);
             break;
         case 'closeStore':
             closeStoreMenu();
@@ -240,7 +240,7 @@ function hideRoleSelection() {
 
 function openStoreMenu(storeName, storeItems) {
     // console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
-    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2)); 
+    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2));
     // console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
@@ -254,7 +254,7 @@ function openStoreMenu(storeName, storeItems) {
         window.currentTab = 'buy'; // Default to buy tab
         loadCategories(); // This will also trigger loadItems if categories are present
         loadItems(); // Initial load for "All" or first category
-        
+
         // console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
         storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
         storeMenuUI.classList.remove('hidden');
@@ -264,7 +264,7 @@ function openStoreMenu(storeName, storeItems) {
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
-        
+
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Store menu UI or title element not found.");
@@ -307,7 +307,7 @@ function loadCategories() {
     const categories = [...new Set((window.items || []).map(item => item.category))];
     // console.log('[CNR_NUI_STORE] Categories generated:', categories);
     categoryList.innerHTML = ''; // Clear previous categories
-    
+
     // Add "All" category button
     const allBtn = document.createElement('button');
     allBtn.className = 'category-btn active'; // Active by default
@@ -319,7 +319,7 @@ function loadCategories() {
         if (window.currentTab === 'buy') loadItems();
     };
     categoryList.appendChild(allBtn);
-    
+
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -344,7 +344,7 @@ function loadItems() {
     }
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
-    
+
     console.log('[CNR_NUI_PERF] Original filteredItems count:', filteredItems.length);
     const itemsToRender = filteredItems.slice(0, 5); // Limit to 5 items for testing
     console.log('[CNR_NUI_PERF] Rendering only first 5 items for performance test. Count:', itemsToRender.length);
@@ -364,7 +364,7 @@ function loadSellItems() {
     const sellListContainer = document.getElementById('sell-section');
     if (!sellListContainer) return;
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>';
-    
+
     const resName = window.cnrResourceName || 'cops-and-robbers';
     const url = `https://${resName}/getPlayerInventory`; // Use backticks for template literal
     console.log(`[CNR_NUI_FETCH] loadSellItems: Attempting to fetch inventory. resName: ${resName}, URL: ${url}`);
@@ -627,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (storeCloseButton) {
         storeCloseButton.addEventListener('click', closeStoreMenu);
     }
-    
+
     // Add event listener for the bounty board close button if it exists
     const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
     if (bountyCloseButton) {

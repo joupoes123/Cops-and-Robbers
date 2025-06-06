@@ -1,5 +1,15 @@
 -- server.lua
 -- Version: <current_version_after_bounty_implementation_and_xp_perk_fixes>
+-- Main changes in this version:
+-- - Integrated Cop XP awards.
+-- - Implemented server-side item/vehicle access restrictions based on level and role.
+-- - Added server-side perk example: Increased Armor Durability for Cops.
+-- - Added new crime 'power_grid_sabotaged_crime' handling.
+-- - Added K9 Engagement tracking for K9 assist XP.
+-- - Implemented Bounty System (Phase 2).
+-- - Added missing XP awards for Armored Car Heist & Contraband.
+-- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
+-- - Refined Cop Arrest XP based on wanted level.
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -301,7 +311,7 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
                 if itemConfig.category == "Weapons" then
                     -- More specific ammo defaults could be set here based on weapon type if desired
                     -- For now, a generic small amount for newly purchased firearms.
-                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12 
+                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12
                 end
                 TriggerClientEvent('cops_and_robbers:addWeapon', src, itemConfig.itemId, defaultAmmo)
                 Log(string.format("Triggered addWeapon for player %s, item %s, ammo %d", src, itemConfig.itemId, defaultAmmo))
@@ -699,7 +709,7 @@ ApplyPerks = function(playerId, level, role)
                     if type(perkDetail) == "table" then -- Ensure perkDetail is a table
                         -- Only try to set pData.perks if it's actually a perk and perkId is valid
                         if perkDetail.type == "passive_perk" and perkDetail.perkId then
-                            pData.perks[perkDetail.perkId] = true 
+                            pData.perks[perkDetail.perkId] = true
                             Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
                         -- else
                             -- Log for non-passive_perk types if needed for debugging, e.g.:
@@ -1050,7 +1060,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
         if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
             canAccess = false
         end
-        
+
         -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
 
         if canAccess then
@@ -1069,7 +1079,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
             })
         end
     end
-    
+
     Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
 end)
@@ -1699,18 +1709,18 @@ AddEventHandler('cnr:requestMyInventory', function()
                 local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
 
                 nuiInventory[itemId] = {
-                    itemId = itemId, -- NUI might need this explicitly
-                    name = itemData.name,
-                    count = itemData.count,
-                    category = itemData.category,
-                    sellPrice = sellPrice -- Add sell price here
-                    -- Add other relevant details for NUI if needed (e.g., item.label)
+                    itemId = tostring(itemId),
+                    name = tostring(itemData.name or itemConfig.name or "Unknown Item"), -- Ensure string
+                    count = tonumber(itemData.count or 0), -- Ensure number
+                    category = tostring(itemData.category or itemConfig.category or "Misc"), -- Ensure string
+                    sellPrice = tonumber(sellPrice or 0) -- Ensure number
+                    -- DO NOT add itemConfig directly or other potentially complex fields
                 }
             end
         end
 
         Log(string.format("[CNR_SERVER_INVENTORY] Preparing to send inventory to player %s. Number of unique items: %d", src, tablelength(nuiInventory)), "info")
-    
+
         local sampleCount = 0
         local nuiInventorySampleForLog = {}
         for k, v in pairs(nuiInventory) do
@@ -1733,7 +1743,7 @@ AddEventHandler('cnr:requestMyInventory', function()
             Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
             -- If string.len is very large (e.g., > 60KB), it might be a size issue.
         end
-        
+
         -- The original TriggerClientEvent call:
         TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
     else

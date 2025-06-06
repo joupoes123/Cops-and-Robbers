@@ -77,6 +77,7 @@ button:hover {
 
 /* Store Container */
 #store-menu {
+    position: relative; /* Ensure the parent is a positioning context for absolute positioning of children */
     width: 600px;
     max-width: 90%;
     margin: 50px auto;
@@ -198,15 +199,24 @@ button:hover {
 
 /* Store Close Button */
 #close-btn {
-    width: 100%;
-    padding: 12px; /* Increased padding */
-    background-color: #d9534f; /* Red color for close/action */
+    position: absolute;
+    top: 10px; /* Adjust as needed */
+    right: 10px; /* Adjust as needed */
+    padding: 5px 10px;
+    background-color: #f44336; /* Red background */
+    color: white;
     border: none;
-    color: #fff;
-    font-size: 16px;
+    border-radius: 3px;
     cursor: pointer;
-    border-radius: 5px; /* Added for softer edges */
-    margin-top: 20px; /* Added margin for spacing */
+    font-size: 16px; /* Adjust if 'X' looks too small/big */
+    line-height: 1; /* Ensure 'X' is centered if it's text */
+    width: auto; /* Adjust if you want a fixed width/height circle/square */
+    min-width: 30px; /* Ensure it's clickable */
+    text-align: center;
+}
+
+#close-btn:hover {
+    background-color: #d32f2f; /* Darker red on hover */
 }
 
 /* ==========================================================================

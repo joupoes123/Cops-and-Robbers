@@ -6,8 +6,8 @@ We actively support the latest major release of **Cops and Robbers**. Please ens
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.1.0     | :white_check_mark: |
-| < 1.0.0   | :x:                |
+| 0.0.0     | :white_check_mark: |
+| < 0.0.0   | :x:                |
 
 ---
 
@@ -28,9 +28,9 @@ If you discover a security vulnerability in the **Cops and Robbers** game mode, 
 
 ---
 
-## Security Improvements in Version 1.1.0
+## Security Improvements in Version 2.0
 
-Version **1.1.0** includes several important security enhancements:
+Version **2.0** includes several important security enhancements:
 
 - **Input Validation**: Improved validation of all player inputs to prevent exploits, injections, and unauthorized access.
 - **Admin Command Security**: Ensured that all admin commands have consistent security checks and proper input validation to prevent misuse.
@@ -38,7 +38,7 @@ Version **1.1.0** includes several important security enhancements:
 - **Function Definition Corrections**: Resolved issues related to function scopes and definitions to prevent potential script errors and vulnerabilities.
 - **Bug Fixes**: Addressed known bugs that could affect game stability and security, such as parameter mismatches and undefined globals.
 
-We strongly recommend updating to **version 1.1.0** to benefit from these security improvements and to maintain compatibility with the latest features.
+We strongly recommend updating to **version 2.0** to benefit from these security improvements and to maintain compatibility with the latest features.
 
 ---
 
