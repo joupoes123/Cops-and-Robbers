@@ -98,6 +98,29 @@ Config.NPCVendors = {
         name     = "Gang Supplier",
         items    = { "weapon_pistol", "weapon_sawnoffshotgun", "ammo_shotgun", "armor", "bandana" } -- Changed weapon_pistol50 to weapon_pistol for consistency
     },
+    {
+        location = vector3(440.0, -975.0, 30.7),
+        heading  = 90.0,
+        model    = "s_m_y_cop_01",
+        name     = "Cop Store",
+        items    = {
+            "weapon_stungun",
+            "weapon_pistol",
+            "weapon_combatpistol",
+            "ammo_pistol",
+            "weapon_pumpshotgun",
+            "ammo_shotgun",
+            "weapon_carbinerifle",
+            "ammo_rifle",
+            "armor",
+            "firstaidkit",
+            "medkit",
+            "weapon_flashlight",
+            "spikestrip_item",
+            "speedradar_gun",
+            "k9whistle"
+        }
+    }
     -- Additional NPC vendors can be added here following the same structure.
 }
 
@@ -160,6 +183,7 @@ Config.Items = {
     { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true },
     { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2 },
     { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3 },
+    { name = "Taser",             itemId = "weapon_stungun",        basePrice = 350,  category = "Cop Gear", forCop = true, minLevelCop = 1 },
 
     -- Robber Gear (Restricted items for Robbers)
     { name = "EMP Device",        itemId = "emp_device",            basePrice = 2500, category = "Robber Gear", minLevelRobber = 5 }

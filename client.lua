@@ -60,6 +60,7 @@ local currentSafeZoneName = ""
 -- Wanted System Expansion Client State
 local currentPlayerNPCResponseEntities = {}
 local corruptOfficialNPCs = {}
+local copStoreBlips = {}
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -186,10 +187,10 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     end
 
     if newRole == "cop" then
-        local pistolHash = GetHashKey("weapon_pistol")
-        GiveWeaponToPed(playerPed, pistolHash, 100, false, true)
-        playerWeapons["weapon_pistol"] = true; playerAmmo["weapon_pistol"] = 100
-        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave pistol to cop.")
+        local taserHash = GetHashKey("weapon_stungun")
+        GiveWeaponToPed(playerPed, taserHash, 5, false, true)
+        playerWeapons["weapon_stungun"] = true; playerAmmo["weapon_stungun"] = 5
+        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
         GiveWeaponToPed(playerPed, batHash, 1, false, true)
@@ -197,6 +198,88 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
+end
+
+function UpdateCopStoreBlips(currentRole)
+    if not Config.NPCVendors then
+        print("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Config.NPCVendors not found.")
+        return
+    end
+
+    -- Ensure Config.NPCVendors is an array for ipairs
+    if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
+        print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+        return
+    end
+
+    -- First pass: Add/Remove blips based on current role and vendor type
+    for i, vendor in ipairs(Config.NPCVendors) do
+        if vendor and vendor.location and vendor.name then -- Basic validation for vendor entry
+            local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z) -- More robust key
+
+            if vendor.name == "Cop Store" then
+                if currentRole == "cop" then
+                    if not copStoreBlips[blipKey] or not DoesBlipExist(copStoreBlips[blipKey]) then
+                        local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
+                        SetBlipSprite(blip, 60) -- Police/Ammu-nation like sprite (e.g., armory)
+                        SetBlipColour(blip, 3)  -- Blue color for police
+                        SetBlipScale(blip, 0.8)
+                        SetBlipAsShortRange(blip, true)
+                        BeginTextCommandSetBlipName("STRING")
+                        AddTextComponentSubstringPlayerName(vendor.name)
+                        EndTextCommandSetBlipName(blip)
+                        copStoreBlips[blipKey] = blip
+                        print(string.format("[CNR_CLIENT_DEBUG] Created blip for Cop Store '%s' at: %s", vendor.name, blipKey))
+                    end
+                else -- Not a cop, ensure blip is removed
+                    if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
+                        RemoveBlip(copStoreBlips[blipKey])
+                        copStoreBlips[blipKey] = nil
+                        print(string.format("[CNR_CLIENT_DEBUG] Removed Cop Store blip for non-cop role at: %s", blipKey))
+                    end
+                end
+            else -- This vendor is NOT a "Cop Store"
+                -- Clean up any stray blip if it was mistakenly associated with a non-cop store under copStoreBlips
+                if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
+                    print(string.format("[CNR_CLIENT_WARN] Removing stray blip from copStoreBlips, associated with a non-Cop Store: '%s' at %s", vendor.name, blipKey))
+                    RemoveBlip(copStoreBlips[blipKey])
+                    copStoreBlips[blipKey] = nil
+                end
+            end
+        else
+            print(string.format("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Invalid vendor entry at index %d.", i))
+        end
+    end
+
+    -- Second pass to remove any blips in copStoreBlips whose corresponding vendors are no longer in Config.NPCVendors or changed name
+    for blipKey, blipId in pairs(copStoreBlips) do
+        local stillExistsAndIsCopStore = false
+        if Config.NPCVendors and type(Config.NPCVendors) == "table" then -- Re-check type for safety
+            for _, vendor in ipairs(Config.NPCVendors) do
+                if vendor and vendor.location and vendor.name then -- Basic validation
+                    if tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z) == blipKey and vendor.name == "Cop Store" then
+                        stillExistsAndIsCopStore = true
+                        break
+                    end
+                end
+            end
+        end
+
+        if not stillExistsAndIsCopStore then
+            if blipId and DoesBlipExist(blipId) then -- Ensure blipId is not nil before DoesBlipExist
+                RemoveBlip(blipId)
+            end
+            copStoreBlips[blipKey] = nil -- Remove from table regardless of DoesBlipExist result if it's nil
+            print(string.format("[CNR_CLIENT_DEBUG] Cleaned up orphaned/renamed Cop Store blip for key: %s", blipKey))
+        end
+    end
+    print("[CNR_CLIENT_DEBUG] UpdateCopStoreBlips finished. Current copStoreBlips count: " .. tablelength(copStoreBlips))
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
 end
 
 -- =====================================
@@ -251,6 +334,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     end
 
     SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    UpdateCopStoreBlips(role) -- Update blips based on new role
     SendNUIMessage({
         action = "updateXPBar",
         currentXP = playerData.xp,
