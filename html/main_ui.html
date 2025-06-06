@@ -13,28 +13,31 @@
     <!-- Role Selection Section -->
     <section id="role-selection" class="menu hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
         <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
-        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
-        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
+        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role"><span class="icon">👮</span>Cop</button>
+        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role"><span class="icon">💰</span>Robber</button>
     </section>
 
     <!-- Store Section -->
     <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
         <h1 id="store-title">Store</h1>
-        <button id="close-btn" aria-label="Close Store Menu">X</button> <!-- Moved here, changed text to "X" -->
+        <button id="close-btn" aria-label="Close Store Menu"><span class="icon">❌</span></button> <!-- Moved here, changed text to "X" -->
         <!-- Tab Menu -->
         <div id="tab-menu" role="tablist">
-            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
-            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
+            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section"><span class="icon">🛒</span>Buy</button>
+            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section"><span class="icon">💸</span>Sell</button>
         </div>
         <!-- Category List -->
         <div id="category-list" aria-label="Item Categories"></div>
         <!-- Buy Section -->
         <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
-            <div id="item-list"></div>
+            <div id="item-list">
+                <!-- JS will add icons to .buy-btn, e.g., <span class="icon">🛒</span> Buy -->
+            </div>
         </div>
         <!-- Sell Section -->
         <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
             <!-- Sell section content will be loaded here -->
+            <!-- JS will add icons to .sell-btn, e.g., <span class="icon">💰</span> Sell -->
         </div>
         <!-- Close Store Button MOVED TO TOP -->
     </section>
@@ -65,7 +68,7 @@
     <section id="admin-panel" class="hidden" role="dialog" aria-labelledby="adminPanelTitle" aria-modal="true">
         <h1 id="adminPanelTitle">Admin Panel</h1>
         <div class="admin-controls">
-            <button id="admin-close-btn" aria-label="Close Admin Panel">Close Panel</button>
+            <button id="admin-close-btn" aria-label="Close Admin Panel"><span class="icon">❌</span>Close Panel</button>
         </div>
         <h2>Player List</h2>
         <div class="admin-player-list-container">
@@ -81,15 +84,23 @@
                 </thead>
                 <tbody id="admin-player-list-body">
                     <!-- Player rows will be injected here by scripts.js -->
+                    <!-- JS will add icons to action buttons like:
+                         <button class="admin-action-btn admin-kick-btn"><span class="icon">👢</span>Kick</button>
+                         <button class="admin-action-btn admin-ban-btn"><span class="icon">🚫</span>Ban</button>
+                         <button class="admin-action-btn admin-teleport-btn"><span class="icon">➡️</span>TP to</button>
+                    -->
                 </tbody>
             </table>
         </div>
         <div id="admin-ban-reason-container" class="hidden" style="margin-top: 10px;">
             <label for="admin-ban-reason">Ban Reason:</label>
             <input type="text" id="admin-ban-reason" placeholder="Enter reason for ban">
-            <button id="admin-confirm-ban-btn">Confirm Ban</button>
-            <button id="admin-cancel-ban-btn">Cancel</button>
+            <button id="admin-confirm-ban-btn"><span class="icon">✔️</span>Confirm Ban</button>
+            <button id="admin-cancel-ban-btn"><span class="icon">❌</span>Cancel</button>
         </div>
     </section>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast-notification" style="display:none;"></div>
 </body>
 </html>

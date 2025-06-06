@@ -197,9 +197,49 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
             percentage = (xp / nextLvlXp) * 100;
         } else if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
             percentage = 100;
+            // Potentially call showLevelUpConfetti here if level up is detected
+            // For now, this function is just being defined.
+            // Actual call would be triggered by game logic sending a specific NUI event.
         }
         xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
     }
+}
+
+function showLevelUpConfetti() {
+    // Use a simple confetti library or custom canvas animation here
+    // For demo: alert('Level Up! 🎉');
+    // Integrate with XP/level up event
+    alert('Level Up! 🎉'); // Placeholder as per issue description
+    console.log('Level Up! 🎉 (Confetti placeholder)');
+}
+
+function showToast(message, type = 'info', duration = 3000) { // Added type parameter
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = 'toast-notification'; // Reset classes, keeps base class
+    if (type === 'success') {
+        toast.classList.add('success');
+    } else if (type === 'error') {
+        toast.classList.add('error');
+    }
+    // else 'info' or default styling (from .toast-notification) will apply
+
+    toast.style.display = 'block';
+    // Apply animation class using keyframes
+    // The (duration - 500) ensures the fadeOut starts 0.5s before the total duration ends.
+    // Adjust 500ms (0.5s) if your fadeOut animation duration is different.
+    const fadeOutDelay = duration - 500; // Assuming 0.5s fadeOut
+    if (fadeOutDelay < 0) { // Ensure delay isn't negative if duration is too short
+        toast.style.animation = `fadeInNotification 0.5s ease-out forwards`;
+    } else {
+        toast.style.animation = `fadeInNotification 0.5s ease-out, fadeOutNotification 0.5s ease-in ${fadeOutDelay}ms forwards`;
+    }
+
+    setTimeout(() => {
+        toast.style.display = 'none';
+        toast.style.animation = ''; // Clear animation styles
+    }, duration);
 }
 
 function updateCashDisplay(currentCash) {
@@ -436,7 +476,8 @@ function createItemElement(item, type = 'buy') {
     itemDiv.appendChild(quantityInput);
     const actionBtn = document.createElement('button');
     actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
-    actionBtn.textContent = (type === 'buy') ? 'Buy' : 'Sell';
+    // Add icon to button text
+    actionBtn.innerHTML = `<span class="icon">${type === 'buy' ? '🛒' : '💰'}</span> ${type === 'buy' ? 'Buy' : 'Sell'}`;
     actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
     // console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
@@ -708,13 +749,13 @@ function showAdminPanel(playerList) {
             row.insertCell().textContent = '$' + (player.cash || 0);
             const actionsCell = row.insertCell();
             const kickBtn = document.createElement('button');
-            kickBtn.textContent = 'Kick'; kickBtn.className = 'admin-action-btn admin-kick-btn';
+            kickBtn.innerHTML = '<span class="icon">👢</span>Kick'; kickBtn.className = 'admin-action-btn admin-kick-btn';
             kickBtn.dataset.targetId = player.serverId; actionsCell.appendChild(kickBtn);
             const banBtn = document.createElement('button');
-            banBtn.textContent = 'Ban'; banBtn.className = 'admin-action-btn admin-ban-btn';
+            banBtn.innerHTML = '<span class="icon">🚫</span>Ban'; banBtn.className = 'admin-action-btn admin-ban-btn';
             banBtn.dataset.targetId = player.serverId; actionsCell.appendChild(banBtn);
             const teleportBtn = document.createElement('button');
-            teleportBtn.textContent = 'TP to'; teleportBtn.className = 'admin-action-btn admin-teleport-btn';
+            teleportBtn.innerHTML = '<span class="icon">➡️</span>TP to'; teleportBtn.className = 'admin-action-btn admin-teleport-btn';
             teleportBtn.dataset.targetId = player.serverId; actionsCell.appendChild(teleportBtn);
         });
     } else {
@@ -760,24 +801,65 @@ function hideBountyBoardUI() {
 }
 
 function updateBountyListUI(bounties) {
-    // Placeholder: Implement logic to update the bounty list in the UI
     console.log("Updating bounty list UI with:", bounties);
-    const bountyListContainer = document.getElementById('bounty-list-container'); // Assuming this ID
-    if (bountyListContainer) {
-        bountyListContainer.innerHTML = ''; // Clear old bounties
+    const bountyListUL = document.getElementById('bounty-list'); // Target the UL element
+
+    if (bountyListUL) {
+        bountyListUL.innerHTML = ''; // Clear old bounties
         if (Object.keys(bounties).length === 0) {
-            bountyListContainer.innerHTML = '<p>No active bounties.</p>';
+            const noBountiesLi = document.createElement('li');
+            noBountiesLi.className = 'no-bounties'; // From bounties.css for styling this message
+            noBountiesLi.textContent = 'No active bounties.';
+            bountyListUL.appendChild(noBountiesLi);
             return;
         }
+
         for (const targetId in bounties) {
-            const bounty = bounties[targetId];
-            const bountyDiv = document.createElement('div');
-            bountyDiv.className = 'bounty-entry';
-            bountyDiv.innerHTML = `Target: ${bounty.name} (ID: ${targetId}) - Reward: $${bounty.amount}`;
-            // Add more details as needed
-            bountyListContainer.appendChild(bountyDiv);
+            const data = bounties[targetId]; // 'data' is more consistent with issue description
+            const li = document.createElement('li');
+
+            // Avatar
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'bounty-target-avatar';
+            const nameInitial = data.name ? data.name.charAt(0).toUpperCase() : '?';
+            avatarDiv.textContent = nameInitial;
+            li.appendChild(avatarDiv);
+
+            // Text Content Container
+            const textContainer = document.createElement('div');
+            textContainer.className = 'bounty-text-content';
+
+            // Bounty Amount (Color Coded)
+            let amountClass = 'bounty-amount-low';
+            if (data.amount > 50000) amountClass = 'bounty-amount-high';
+            else if (data.amount > 10000) amountClass = 'bounty-amount-medium';
+
+            // Simplified formatNumber, actual implementation might be more robust
+            const formatNumber = (num) => num.toLocaleString();
+            const bountyAmountHTML = `<span class="${amountClass}">$${formatNumber(data.amount || 0)}</span>`;
+
+            // Bounty Details
+            // Using textContent for safety against XSS, then innerHTML for the part with the span
+            const targetInfo = document.createElement('div');
+            targetInfo.textContent = `Target: ${data.name || 'Unknown'} (ID: ${targetId})`;
+
+            const rewardInfo = document.createElement('div');
+            rewardInfo.innerHTML = `Reward: ${bountyAmountHTML}`; // Use innerHTML here for the span
+
+            textContainer.appendChild(targetInfo);
+            textContainer.appendChild(rewardInfo);
+            // Add more details to textContainer if needed
+
+            li.appendChild(textContainer);
+            bountyListUL.appendChild(li);
+
+            // Animation for new item
+            li.classList.add('new-item-animation');
+            setTimeout(() => {
+                li.classList.remove('new-item-animation');
+            }, 300); // Match CSS animation duration
         }
     } else {
-        console.warn("Bounty list container element not found for UI update.");
+        console.warn("Bounty list UL element ('bounty-list') not found for UI update.");
     }
 }
