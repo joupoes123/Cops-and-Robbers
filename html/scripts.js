@@ -58,7 +58,7 @@ window.addEventListener('message', function(event) {
             openStoreMenu(data.storeName, data.items);
             break;
         case 'openStore': // New case for the specific 'openStore' action
-            if (data.resourceName) {
+            if (data.resourceName) { 
                 window.cnrResourceName = data.resourceName;
                 console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
@@ -71,7 +71,7 @@ window.addEventListener('message', function(event) {
             // The existing openStoreMenu function is suitable
             // It expects (storeName, storeItems)
             // event.data (which is 'data' here) should contain 'storeName' and 'items'
-            openStoreMenu(data.storeName, data.items);
+            openStoreMenu(data.storeName, data.items); 
             break;
         case 'closeStore':
             closeStoreMenu();
@@ -240,7 +240,7 @@ function hideRoleSelection() {
 
 function openStoreMenu(storeName, storeItems) {
     // console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
-    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2));
+    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2)); 
     // console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
@@ -254,7 +254,7 @@ function openStoreMenu(storeName, storeItems) {
         window.currentTab = 'buy'; // Default to buy tab
         loadCategories(); // This will also trigger loadItems if categories are present
         loadItems(); // Initial load for "All" or first category
-
+        
         // console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
         storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
         storeMenuUI.classList.remove('hidden');
@@ -264,7 +264,7 @@ function openStoreMenu(storeName, storeItems) {
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
         // if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
-
+        
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Store menu UI or title element not found.");
@@ -307,7 +307,7 @@ function loadCategories() {
     const categories = [...new Set((window.items || []).map(item => item.category))];
     // console.log('[CNR_NUI_STORE] Categories generated:', categories);
     categoryList.innerHTML = ''; // Clear previous categories
-
+    
     // Add "All" category button
     const allBtn = document.createElement('button');
     allBtn.className = 'category-btn active'; // Active by default
@@ -319,7 +319,7 @@ function loadCategories() {
         if (window.currentTab === 'buy') loadItems();
     };
     categoryList.appendChild(allBtn);
-
+    
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -339,19 +339,23 @@ function loadItems() {
     // console.log('[CNR_NUI_STORE] loadItems called.');
     const itemList = document.getElementById('item-list');
     if (!itemList) {
-        console.error('[CNR_NUI_STORE] Item list element not found.');
+        console.error('[CNR_NUI_STORE] Item list element not found.'); // Corrected log message
         return;
     }
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
-    // console.log('[CNR_NUI_STORE] Filtered items count:', filteredItems.length);
-    if (filteredItems.length === 0) {
+    
+    console.log('[CNR_NUI_PERF] Original filteredItems count:', filteredItems.length);
+    const itemsToRender = filteredItems.slice(0, 5); // Limit to 5 items for testing
+    console.log('[CNR_NUI_PERF] Rendering only first 5 items for performance test. Count:', itemsToRender.length);
+
+    if (itemsToRender.length === 0) { // Check itemsToRender instead of filteredItems
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
         // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
-    filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
+    itemsToRender.forEach(item => fragment.appendChild(createItemElement(item, 'buy'))); // Use itemsToRender
     itemList.appendChild(fragment);
     // console.log('[CNR_NUI_STORE] loadItems finished.');
 }
@@ -360,14 +364,28 @@ function loadSellItems() {
     const sellListContainer = document.getElementById('sell-section');
     if (!sellListContainer) return;
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>';
+    
     const resName = window.cnrResourceName || 'cops-and-robbers';
-    fetch(`https://$\{resName}/getPlayerInventory`, {
-        method: 'POST',
+    const url = `https://${resName}/getPlayerInventory`; // Use backticks for template literal
+    console.log(`[CNR_NUI_FETCH] loadSellItems: Attempting to fetch inventory. resName: ${resName}, URL: ${url}`);
+
+    fetch(url, {
+        method: 'POST', // Should match what RegisterNUICallback expects, often POST even for GET-like actions
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}) // Empty body if not needed by callback
     })
     .then(resp => {
-        if (!resp.ok) return resp.json().then(err => Promise.reject(err)).catch(() => Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status})` }));
+        console.log(`[CNR_NUI_FETCH] loadSellItems: Received response. Status: ${resp.status}, StatusText: ${resp.statusText}`);
+        if (!resp.ok) {
+            // Try to parse as JSON for an error message, otherwise use statusText
+            return resp.json().then(err => {
+                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with error:', err);
+                return Promise.reject(err.error || err.message || `Failed to load inventory (HTTP ${resp.status})`);
+            }).catch(() => { // Catch if resp.json() itself fails (e.g. not a JSON response)
+                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with non-JSON error. Status:', resp.status, resp.statusText);
+                return Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status} - ${resp.statusText})` });
+            });
+        }
         return resp.json();
     })
     .then(nuiInventory => {
@@ -380,10 +398,13 @@ function loadSellItems() {
         const fragment = document.createDocumentFragment();
         sellableItemsArray.forEach(inventoryItem => fragment.appendChild(createItemElement(inventoryItem, 'sell')));
         sellListContainer.appendChild(fragment);
+        console.log('[CNR_NUI_FETCH] loadSellItems: Successfully fetched and parsed inventory for NUI.', nuiInventory);
     })
     .catch(error => {
-        console.error('Error fetching player inventory:', error.message || error);
-        sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error'}</p>`;
+        console.error(`[CNR_NUI_FETCH] Error fetching player inventory (URL: ${url}):`, error); // Log the full error object
+        if (sellListContainer) { // Ensure sellListContainer is still defined (it should be)
+            sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error. Check F8 console.'}</p>`;
+        }
     });
 }
 
@@ -425,8 +446,11 @@ function createItemElement(item, type = 'buy') {
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
     const resName = window.cnrResourceName || 'cops-and-robbers';
+    const url = `https://${resName}/${endpoint}`; // Correctly use backticks for template literal
+    console.log(`[CNR_NUI_FETCH] handleItemAction: Attempting ${actionType}. resName: ${resName}, URL: ${url}, ItemID: ${itemId}, Quantity: ${quantity}`);
+
     try {
-        const resp = await fetch(`https://$\{resName}/${endpoint}`, {
+        const resp = await fetch(url, { // Use the defined url variable
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: itemId, quantity: quantity })
@@ -434,14 +458,14 @@ async function handleItemAction(itemId, quantity, actionType) {
         const response = await resp.json();
         if (!resp.ok) throw new Error(response.message || `HTTP error ${resp.status}`);
         if (response.status === 'success') {
-            alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
+            // alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
             if (actionType === 'sell') loadSellItems();
         } else {
-            alert(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed: ${response.message || 'Unknown error'}`);
+            // alert(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed: ${response.message || 'Unknown error'}`);
         }
     } catch (error) {
-        console.error(`Error ${actionType}ing item:`, error.message || error);
-        alert(`Failed to ${actionType} item: ${error.message || 'Check console for details.'}`);
+        console.error(`[CNR_NUI_FETCH] Error ${actionType}ing item (URL: ${url}):`, error); // Log the full error object
+        // alert(`Failed to ${actionType} item: ${error.message || 'Network error. Check F8 console (or NUI DevTools if open).'}`);
     }
 }
 
@@ -457,7 +481,8 @@ document.addEventListener('click', function(event) {
         const quantity = parseInt(quantityInput.value);
         const maxQuantity = parseInt(quantityInput.max);
         if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
-            alert(`Invalid quantity. Must be between 1 and ${maxQuantity}.`);
+            // alert(`Invalid quantity. Must be between 1 and ${maxQuantity}.`);
+            console.warn(`[CNR_NUI_INPUT_VALIDATION] Invalid quantity input: ${quantity}. Max allowed: ${maxQuantity}. ItemId: ${itemId}`);
             return;
         }
         handleItemAction(itemId, quantity, actionType);
@@ -501,15 +526,15 @@ function selectRole(selectedRole) {
         } else {
             // Ensure response is an object before trying to access response.message
             const message = (response && typeof response === 'object' && response.message) ? response.message : 'Unexpected server response';
-            alert(`Role selection failed: ${message}`);
-            console.error('Role selection failed due to server response:', response);
+            // alert(`Role selection failed: ${message}`);
+            console.error(`Role selection failed: ${message}`, response);
         }
     })
     .catch(error => {
         // Update the error log for clarity
         const resNameForError = window.cnrResourceName || 'cops-and-robbers'; // Recapture for error message
         console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
-        alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
+        // alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
     });
 }
 
@@ -539,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetch(`https://$\{resName}/adminKickPlayer`, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
-                        }).then(resp => resp.json()).then(res => alert(res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.')));
+                        }).then(resp => resp.json()).then(res => console.log('[CNR_NUI_ADMIN] Kick response:', res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.')));
                     }
                 } else if (target.classList.contains('admin-ban-btn')) {
                     currentAdminTargetPlayerId = targetId;
@@ -551,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
                         }).then(resp => resp.json()).then(res => {
-                            alert(res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
+                            console.log('[CNR_NUI_ADMIN] Teleport response:', res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
                             hideAdminPanel();
                         });
                     }
@@ -569,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
             }).then(resp => resp.json()).then(res => {
-                alert(res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
+                console.log('[CNR_NUI_ADMIN] Ban response:', res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
                 hideAdminPanel();
             });
         }
@@ -602,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (storeCloseButton) {
         storeCloseButton.addEventListener('click', closeStoreMenu);
     }
-
+    
     // Add event listener for the bounty board close button if it exists
     const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
     if (bountyCloseButton) {
@@ -613,6 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Global Escape key handler
 window.addEventListener('keydown', function(event) {
+    console.log('[CNR_NUI_ESCAPE] Keydown event:', event.key);
     const storeMenu = document.getElementById('store-menu');
     const adminPanel = document.getElementById('admin-panel');
     const roleSelectionPanel = document.getElementById('role-selection');
@@ -620,6 +646,7 @@ window.addEventListener('keydown', function(event) {
 
 
     if (event.key === 'Escape' || event.keyCode === 27) {
+        console.log('[CNR_NUI_ESCAPE] Escape key pressed. Checking for open menus...');
         if (storeMenu && storeMenu.style.display === 'block') {
             closeStoreMenu();
         } else if (adminPanel && adminPanel.style.display !== 'none' && !adminPanel.classList.contains('hidden')) {

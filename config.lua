@@ -155,11 +155,11 @@ Config.Items = {
     { name = "Flashlight",        itemId = "weapon_flashlight",     basePrice = 100,  category = "Melee Weapons" }, -- Often considered a melee weapon too
 
     -- Ammunition (ammo_X corresponds to weapon type, not specific weapon model)
-    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition" }, -- For all pistols
-    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition" }, -- For all SMGs
-    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition" }, -- For all assault/carbine rifles
-    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition" }, -- For all shotguns
-    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition" }, -- For all sniper rifles
+    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition", weaponLink = "weapon_pistol", ammoAmount = 12 },
+    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition", weaponLink = "weapon_smg", ammoAmount = 30 },
+    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition", weaponLink = "weapon_assaultrifle", ammoAmount = 30 }, -- Linking to assaultrifle, could be carbinerifle too
+    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition", weaponLink = "weapon_pumpshotgun", ammoAmount = 8 }, -- Linking to pumpshotgun
+    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition", weaponLink = "weapon_sniperrifle", ammoAmount = 5 },
 
     -- Armor and Utility
     { name = "Body Armor",        itemId = "armor",                 basePrice = 500,  category = "Armor" },

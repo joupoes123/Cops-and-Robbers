@@ -303,6 +303,31 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
         if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
             table.insert(purchaseHistory, { itemId = itemId, playerId = src, timestamp = os.time(), price = itemPrice, quantity = quantity }) -- Using dynamic price
         end
+
+        -- Trigger client-side events for equipping/using items
+        if itemConfig then -- Ensure itemConfig is available
+            if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
+                local defaultAmmo = 1 -- Default for melee
+                if itemConfig.category == "Weapons" then
+                    -- More specific ammo defaults could be set here based on weapon type if desired
+                    -- For now, a generic small amount for newly purchased firearms.
+                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12 
+                end
+                TriggerClientEvent('cops_and_robbers:addWeapon', src, itemConfig.itemId, defaultAmmo)
+                Log(string.format("Triggered addWeapon for player %s, item %s, ammo %d", src, itemConfig.itemId, defaultAmmo))
+            elseif itemConfig.category == "Armor" then
+                TriggerClientEvent('cops_and_robbers:applyArmor', src, itemConfig.itemId)
+                Log(string.format("Triggered applyArmor for player %s, item %s", src, itemConfig.itemId))
+            elseif itemConfig.category == "Ammunition" then
+                if itemConfig.weaponLink and itemConfig.ammoAmount then
+                    local totalAmmoToAdd = quantity * itemConfig.ammoAmount -- quantity is how many "packs" of ammo were bought
+                    TriggerClientEvent('cops_and_robbers:addAmmo', src, itemConfig.weaponLink, totalAmmoToAdd)
+                    Log(string.format("Player %s purchased %dx %s. Triggered client event addAmmo for weapon %s with %d total rounds.", src, quantity, itemId, itemConfig.weaponLink, totalAmmoToAdd))
+                else
+                    Log(string.format("Player %s purchased ammo %s, but it's missing weaponLink or ammoAmount in Config.Items. Cannot trigger addAmmo automatically.", src, itemId), "warn")
+                end
+            end
+        end
     else
         Log(string.format("Custom AddItem failed for %s, item %s, quantity %d.", src, itemId, quantity), "error")
         TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not add item to inventory. Purchase reversed.")
@@ -684,7 +709,7 @@ ApplyPerks = function(playerId, level, role)
                     if type(perkDetail) == "table" then -- Ensure perkDetail is a table
                         -- Only try to set pData.perks if it's actually a perk and perkId is valid
                         if perkDetail.type == "passive_perk" and perkDetail.perkId then
-                            pData.perks[perkDetail.perkId] = true
+                            pData.perks[perkDetail.perkId] = true 
                             Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
                         -- else
                             -- Log for non-passive_perk types if needed for debugging, e.g.:
@@ -1035,7 +1060,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
         if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
             canAccess = false
         end
-
+        
         -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
 
         if canAccess then
@@ -1054,7 +1079,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
             })
         end
     end
-
+    
     Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
 end)

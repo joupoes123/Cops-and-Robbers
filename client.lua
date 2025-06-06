@@ -211,7 +211,7 @@ function UpdateCopStoreBlips(currentRole)
         print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
     end
-
+    
     -- First pass: Add/Remove blips based on current role and vendor type
     for i, vendor in ipairs(Config.NPCVendors) do
         if vendor and vendor.location and vendor.name then -- Basic validation for vendor entry
@@ -264,7 +264,7 @@ function UpdateCopStoreBlips(currentRole)
                 end
             end
         end
-
+        
         if not stillExistsAndIsCopStore then
             if blipId and DoesBlipExist(blipId) then -- Ensure blipId is not nil before DoesBlipExist
                 RemoveBlip(blipId)
@@ -823,8 +823,18 @@ RegisterNUICallback('selectRole', function(data, cb)
 end)
 
 RegisterNUICallback('getPlayerInventory', function(data, cb)
-    if RequestInventoryForNUI then RequestInventoryForNUI(cb)
-    else print("Error: RequestInventoryForNUI function not found.", "error"); cb({ error = "Internal error: Inventory system not available." }) end
+    print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Callback TRIGGERED from NUI fetch.")
+    print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Received data from NUI: " .. json.encode(data))
+
+    if RequestInventoryForNUI then
+        -- RequestInventoryForNUI expects a callback that it will call with the inventory data.
+        -- This callback needs to be `cb` from the NUI request.
+        RequestInventoryForNUI(cb) 
+        print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Called RequestInventoryForNUI, passing NUI's cb directly.")
+    else
+        print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: CRITICAL - RequestInventoryForNUI function not found in client context!")
+        cb({ error = "Internal client error: Inventory system not ready for NUI." })
+    end
 end)
 
 RegisterNUICallback('setNuiFocus', function(data, cb)
@@ -839,23 +849,33 @@ RegisterNUICallback('setNuiFocus', function(data, cb)
 end)
 
 RegisterNUICallback('buyItem', function(data, cb)
-    local itemId = data.itemId
-    local quantity = tonumber(data.quantity or 1) -- Ensure quantity is a number
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Callback TRIGGERED.")
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Received data: " .. json.encode(data))
 
-    if not itemId or not quantity or quantity < 1 then
-        -- Log is not defined client-side, use print or ShowNotification
-        print("NUI buyItem: Invalid data received. ItemId: " .. tostring(itemId) .. ", Quantity: " .. tostring(quantity))
-        cb({ status = 'error', message = 'Invalid item data received from NUI.' })
+    local itemId = data.itemId
+    local quantity = data.quantity and tonumber(data.quantity) or 1 -- Ensure quantity is a number
+
+    if not itemId or type(itemId) ~= "string" or itemId == "" then
+        print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Invalid itemId received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid item ID received from NUI.' })
         return
     end
 
-    print(string.format("NUI buyItem: Request to buy %dx %s", quantity, itemId))
-    -- Trigger the server event that actually handles the purchase logic
-    TriggerServerEvent('cnr:buyItem', itemId, quantity)
+    if not quantity or type(quantity) ~= "number" or quantity < 1 then
+        print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Invalid quantity received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid quantity received from NUI.' })
+        return
+    end
 
+    print(string.format("[CNR_CLIENT_NUI_CALLBACK] buyItem: Validated data. Requesting to buy %dx %s", quantity, itemId))
+    
+    -- Trigger the server event that actually handles the purchase logic
+    TriggerServerEvent('cnr:buyItem', itemId, quantity) 
+    
     -- Immediately acknowledge the NUI callback.
-    -- The success/failure will be communicated via separate events later (e.g., purchaseConfirmed/Failed)
-    cb({ status = 'received', message = 'Buy request sent to server.'})
+    -- The success/failure of the actual purchase will be communicated via separate server-to-client events.
+    cb({ status = 'received', message = 'Buy request forwarded to server.' })
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Acknowledgement sent to NUI (cb called).")
 end)
 
 Citizen.CreateThread(function()
@@ -959,10 +979,10 @@ Citizen.CreateThread(function()
     local currentHelpTextTarget = nil -- Initialize here, outside the loop, to persist across checks
 
     while true do
-        Citizen.Wait(250) -- Check more frequently for responsiveness
+        Citizen.Wait(100) -- Changed from 250
         local playerPed = PlayerPedId()
         if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_vendor_loop end
-
+        
         local playerCoords = GetEntityCoords(playerPed)
         local newHelpTextTarget = nil
         local helpTextMessage = ""
@@ -976,8 +996,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "AmmuNation_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to open Ammu-Nation'
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then
-                            openStore('Ammu-Nation', 'AmmuNation', nil)
+                        if IsControlJustPressed(0, 51) then 
+                            openStore('Ammu-Nation', 'AmmuNation', nil) 
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -993,8 +1013,8 @@ Citizen.CreateThread(function()
                         newHelpTextTarget = "NPCVendor_" .. i -- Unique key using index
                         helpTextMessage = 'Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name
                         interactionFound = true
-                        if IsControlJustPressed(0, 51) then
-                            openStore(vendor.name, 'Vendor', vendor.items)
+                        if IsControlJustPressed(0, 51) then 
+                            openStore(vendor.name, 'Vendor', vendor.items) 
                         end
                         goto check_help_text_change -- Exit inner loop once interaction is found and processed
                     end
@@ -1011,7 +1031,7 @@ Citizen.CreateThread(function()
             currentHelpTextTarget = nil
             -- DisplayHelpText("") -- Optionally explicitly clear, though often not needed
         end
-
+        
         ::continue_store_vendor_loop::
     end
 end)
@@ -1355,7 +1375,7 @@ Citizen.CreateThread(function()
         if IsControlJustPressed(0, toggleBountyBoardKey) then
             if playerData.role == 'cop' then
                 isBountyBoardOpen = not isBountyBoardOpen
-                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetParentResourceName()}); ShowNotification("~g~Bounty Board opened.")
+                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetCurrentResourceName()}); ShowNotification("~g~Bounty Board opened.")
                 else SendNUIMessage({action = "hideBountyBoard"}); ShowNotification("~y~Bounty Board closed.") end
             else ShowNotification("~r~Only Cops can access Bounty Board.") end
         end
@@ -1375,7 +1395,7 @@ end)
 RegisterNetEvent('cops_and_robbers:showAdminUI')
 AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
     if not isAdminFlag then ShowNotification("~r~Admin Panel access denied."); isAdminPanelOpen = false; return end
-    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetParentResourceName() }); ShowNotification("~g~Admin Panel opened.")
+    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetCurrentResourceName() }); ShowNotification("~g~Admin Panel opened.")
     elseif isAdminPanelOpen and playerList then SendNUIMessage({ action = 'refreshAdminPanelPlayers', players = playerList }); ShowNotification("~b~Admin Panel refreshed.") end
 end)
 
