@@ -1256,6 +1256,15 @@ end)
 Citizen.CreateThread(function()
     local policeDisableInterval = 5000 -- 5 seconds
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
+    local copModels = { -- List of common cop model hashes
+        GetHashKey("s_m_y_cop_01"),
+        GetHashKey("s_f_y_cop_01"),
+        GetHashKey("s_m_y_sheriff_01"),
+        GetHashKey("s_f_y_sheriff_01"),
+        GetHashKey("s_m_y_swat_01"), -- SWAT
+        GetHashKey("s_m_y_hwaycop_01"), -- Highway Patrol
+        -- Add other specific cop models if needed
+    }
 
     while true do
         Citizen.Wait(policeDisableInterval)
@@ -1266,6 +1275,9 @@ Citizen.CreateThread(function()
         if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
             -- Make police ignore the player (less likely to engage directly)
             SetPoliceIgnorePlayer(playerId, true)
+
+            -- Disable dispatching of cops for the player specifically
+            SetDispatchCopsForPlayer(playerId, false)
 
             -- Disable various dispatch services
             -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
@@ -1285,6 +1297,55 @@ Citizen.CreateThread(function()
                 end
             end
             
+            -- Selectively delete non-player police peds in a 1000.0m radius
+            local playerCoords = GetEntityCoords(playerPed)
+            if playerCoords then
+                local peds = GetGamePool('CPed')
+                for _, pedHandle in ipairs(peds) do
+                    if DoesEntityExist(pedHandle) and pedHandle ~= playerPed and not IsPedAPlayer(pedHandle) then
+                        if #(GetEntityCoords(pedHandle) - playerCoords) < 1000.0 then
+                            local isCop = false
+                            -- Method 1: IsPedACop (might not always work for custom/non-standard peds)
+                            if IsPedACop(pedHandle) then
+                                isCop = true
+                            end
+                            -- Method 2: Check model against known list (more reliable for specific models)
+                            if not isCop then
+                                local pedModel = GetEntityModel(pedHandle)
+                                for _, copModelHash in ipairs(copModels) do
+                                    if pedModel == copModelHash then
+                                        isCop = true
+                                        break
+                                    end
+                                end
+                            end
+
+                            if isCop then
+                                local vehicleCorPisin = GetVehiclePedIsIn(pedHandle, false)
+                                if DoesEntityExist(vehicleCorPisin) then
+                                    -- Ped is in a vehicle. Check if a player is driving.
+                                    local driver = GetPedInVehicleSeat(vehicleCorPisin, -1)
+                                    if DoesEntityExist(driver) and IsPedAPlayer(driver) then
+                                        -- Player is driving this vehicle, so don't delete the cop ped.
+                                        goto next_ped
+                                    end
+                                    -- If not driven by a player, the NPC cop (and potentially the vehicle) will be removed by deleting the ped.
+                                    print("[CNR_CLIENT_DEBUG] Deleting NPC cop (in NPC-driven or empty vehicle): " .. pedHandle)
+                                    -- SetEntityAsMissionEntity(pedHandle, true, true) -- Removed this line
+                                    DeletePed(pedHandle)
+                                else
+                                    -- Ped is on foot.
+                                    print("[CNR_CLIENT_DEBUG] Deleting NPC cop (on foot): " .. pedHandle)
+                                    -- SetEntityAsMissionEntity(pedHandle, true, true) -- Removed this line
+                                    DeletePed(pedHandle)
+                                end
+                            end
+                        end
+                    end
+                    ::next_ped:: -- Label for goto
+                end
+            end
+
             -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
             if GetPlayerWantedLevel(playerId) > 0 then
                 SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
