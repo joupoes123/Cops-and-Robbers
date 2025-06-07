@@ -1267,6 +1267,9 @@ Citizen.CreateThread(function()
             -- Make police ignore the player (less likely to engage directly)
             SetPoliceIgnorePlayer(playerId, true)
 
+            -- Disable dispatching of cops for the player specifically
+            SetDispatchCopsForPlayer(playerId, false)
+
             -- Disable various dispatch services
             -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
             -- It's important to do this repeatedly as the game might re-enable them.
@@ -1285,6 +1288,12 @@ Citizen.CreateThread(function()
                 end
             end
             
+            -- Actively clear cops in a radius around the player
+            local playerLocalisation = GetEntityCoords(playerPed)
+            if playerLocalisation then -- Ensure coords are valid
+                ClearAreaOfCops(playerLocalisation.x, playerLocalisation.y, playerLocalisation.z, 400.0, 0) -- Flag 0 is standard
+            end
+
             -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
             if GetPlayerWantedLevel(playerId) > 0 then
                 SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
