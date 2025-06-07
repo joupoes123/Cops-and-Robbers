@@ -78,8 +78,8 @@ end
 Log("Custom Inventory System (client-side) loaded.")
 
 -- Global diagnostic handler for cnr:receiveMyInventory
-AddEventHandler('cnr:receiveMyInventory', function(diag_data)
-    print("[CNR_DIAGNOSTIC_PRINT] GLOBAL_HANDLER for cnr:receiveMyInventory received data: " .. (json.encode and json.encode(diag_data) or "RAW_DATA_RECEIVED_BY_GLOBAL_HANDLER"))
-    -- Optionally, try to send a simple NUI message to see if NUI is responsive from this context
-    -- SendNUIMessage({ action = 'globalHandlerDebug', payload = diag_data })
-end)
+-- AddEventHandler('cnr:receiveMyInventory', function(diag_data)
+--     print("[CNR_DIAGNOSTIC_PRINT] GLOBAL_HANDLER for cnr:receiveMyInventory received data: " .. (json.encode and json.encode(diag_data) or "RAW_DATA_RECEIVED_BY_GLOBAL_HANDLER"))
+--     -- Optionally, try to send a simple NUI message to see if NUI is responsive from this context
+--     -- SendNUIMessage({ action = 'globalHandlerDebug', payload = diag_data })
+-- end)

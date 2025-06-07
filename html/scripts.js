@@ -650,18 +650,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('admin-close-btn')?.addEventListener('click', hideAdminPanel);
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            window.currentTab = btn.dataset.tab;
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            const activeTabContent = document.getElementById(`${window.currentTab}-section`);
-            if (activeTabContent) activeTabContent.classList.add('active');
-            if (window.currentTab === 'sell') loadSellItems();
-            else loadItems();
-        });
-    });
+    // document.querySelectorAll('.tab-btn').forEach(btn => {
+    //     btn.addEventListener('click', () => {
+    //         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    //         btn.classList.add('active');
+    //         window.currentTab = btn.dataset.tab;
+    //         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    //         const activeTabContent = document.getElementById(`${window.currentTab}-section`);
+    //         if (activeTabContent) activeTabContent.classList.add('active');
+    //         if (window.currentTab === 'sell') loadSellItems();
+    //         else loadItems();
+    //     });
+    // });
 
     // Add event listener for the main store close button
     const storeCloseButton = document.getElementById('close-btn');
