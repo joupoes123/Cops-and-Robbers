@@ -512,7 +512,7 @@ Citizen.CreateThread(function()
 end)
 
 Citizen.CreateThread(function()
-    local clearCheckInterval = 2500 -- milliseconds (e.g., every 7.5 seconds)
+    local clearCheckInterval = 2500 -- milliseconds (e.g., every 2.5 seconds as per refined subtask)
     print("[CNR_CLIENT] Ambient Police Ped Clearing Thread Started. Interval: " .. clearCheckInterval .. "ms")
 
     while true do
@@ -564,33 +564,17 @@ Citizen.CreateThread(function()
             for _, pedToClear in ipairs(allPedsInRadius) do
                 -- Double check entity existence before operating
                 if DoesEntityExist(pedToClear) then
-                    local pedModel = GetEntityModel(pedToClear)
-                    local isCopModel = false
-                    local copModels = {
-                        GetHashKey("s_m_y_cop_01"), GetHashKey("s_f_y_cop_01"),
-                        GetHashKey("s_m_y_swat_01"), GetHashKey("s_m_y_sheriff_01"),
-                        GetHashKey("s_f_y_sheriff_01"), GetHashKey("s_m_y_hwaycop_01")
-                        -- Add other relevant police/dispatch ped models if necessary
-                    }
-                    for _, modelHash in ipairs(copModels) do
-                        if pedModel == modelHash then
-                            isCopModel = true
-                            break
-                        end
-                    end
+                    if IsPedAPoliceman(pedToClear) then
+                        -- Ped is identified as a policeman by the game native
+                        local pedModel = GetEntityModel(pedToClear) -- Get model for debug print
+                        print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Found police ped (Model: %s, IsPedAPoliceman: true). Attempting to clear.", pedModel))
 
-                    if isCopModel then
-                        -- Check if ped is in a vehicle. We only delete peds, not vehicles.
                         if IsPedInAnyVehicle(pedToClear, false) then
-                            -- Ped is in a vehicle. Delete the ped, leaving the vehicle.
-                            -- ShowNotification(string.format("Deleting ambient police ped (in vehicle) model %s", pedModel)) -- Potentially spammy
-                            ClearPedTasksImmediately(pedToClear) -- Added line
+                            ClearPedTasksImmediately(pedToClear)
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
                         else
-                            -- Ped is on foot. Delete the ped.
-                            -- ShowNotification(string.format("Deleting ambient police ped (on foot) model %s", pedModel)) -- Potentially spammy
-                            ClearPedTasksImmediately(pedToClear) -- Added line
+                            ClearPedTasksImmediately(pedToClear)
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
                         end
