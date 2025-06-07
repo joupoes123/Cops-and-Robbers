@@ -537,41 +537,42 @@ Citizen.CreateThread(function()
 
             -- Get all peds in the radius
             local allPedsInRadius = {}
-            local findPedHandle, foundPed = FindFirstPed() -- Corrected usage
-            local pedsChecked = 0 -- Debug counter
-            local maxPedsToConsider = 500 -- Safety break for very dense areas
+            -- Debug: Confirm this section is reached when player is wanted
+            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Player %s has %d stars. Attempting FindFirstPed.", GetPlayerName(PlayerId()), currentWantedStarsClient)) -- Ensure PlayerId() is used if playerId variable is not in this scope, or pass playerId if available. Assuming currentWantedStarsClient is accessible.
 
-            if foundPed then
+            local findPedHandle, foundPed = FindFirstPed()
+            -- Debug: Log the immediate result of FindFirstPed
+            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: FindFirstPed immediate result - Handle=%s, FoundPed=%s", tostring(findPedHandle), tostring(foundPed)))
+
+            local pedsChecked = 0 -- Debug counter
+            local maxPedsToConsider = 500
+
+            if foundPed and foundPed ~= 0 then -- Added check for foundPed ~= 0
                 repeat
                     pedsChecked = pedsChecked + 1
-                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
+                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then -- playerPed should be PlayerPedId() defined at the start of the thread
                         local currentPedCoords = GetEntityCoords(foundPed)
-                        -- Optional: Log peds slightly outside radius for broader context, if needed later.
-                        -- if #(playerCoords - currentPedCoords) < (clearRadius + 200.0) then
-                        --    print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear - Considered Ped (further out): Handle=%s, Model=%s", foundPed, GetEntityModel(foundPed)))
-                        -- end
-
-                        if #(playerCoords - currentPedCoords) < clearRadius then
+                        if #(playerCoords - currentPedCoords) < clearRadius then -- playerCoords should be GetEntityCoords(PlayerPedId())
                             local pedModel = GetEntityModel(foundPed)
-                            local isPoliceNative = IsPedAPoliceman(foundPed) -- Renamed to avoid conflict with any local 'isPolice'
+                            local isPoliceNative = IsPedAPoliceman(foundPed)
                             local pedType = GetPedType(foundPed)
-                            -- Using json.encode for coords might be too verbose for frequent logs;
-                            -- consider logging coords only if isPoliceNative is true, or remove json.encode for coords.
-                            -- For now, keeping it for max info on potentially problematic peds.
                             print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear - Nearby Ped: Handle=%s, Model=%s, IsPolicemanNative=%s, PedType=%s, Coords=%s", foundPed, pedModel, tostring(isPoliceNative), pedType, json.encode(currentPedCoords)))
 
                             table.insert(allPedsInRadius, foundPed)
                         end
                     end
-                    -- Check for safety break
                     if pedsChecked > maxPedsToConsider then
-                        print("[CNR_CLIENT_WARN] Ambient Police Ped Clearing: Exceeded maxPedsToConsider (" .. maxPedsToConsider .. "). Breaking ped find loop to prevent performance issues.")
+                        print("[CNR_CLIENT_WARN] Ambient Police Ped Clearing: Exceeded maxPedsToConsider (" .. maxPedsToConsider .. "). Breaking ped find loop.")
                         break
                     end
-                    foundPed = FindNextPed(findPedHandle) -- Corrected usage: only one return value needed for the loop condition
-                until not foundPed
+                    -- Important: Get the next ped using the original handle from FindFirstPed
+                    foundPed = FindNextPed(findPedHandle)
+                until not foundPed or foundPed == 0 -- Added check for foundPed == 0
+            else
+                -- Debug: Log if FindFirstPed didn't find any ped initially
+                print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: FindFirstPed did not find any initial ped or result was 0. Handle=%s, FoundPed=%s", tostring(findPedHandle), tostring(foundPed)))
             end
-            EndFindPed(findPedHandle) -- Corrected usage
+            EndFindPed(findPedHandle) -- Correctly end with the handle from FindFirstPed
 
             local clearedPedCount = 0
             for _, pedToClear in ipairs(allPedsInRadius) do
