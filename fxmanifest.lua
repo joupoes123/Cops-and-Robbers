@@ -6,18 +6,12 @@ description 'An immersive Cops and Robbers game mode with advanced features and 
 author 'Indominus'
 version '2.0'
 
--- Define the loading screen (early)
-loading_screen 'html/loading.html'
-
 -- Define the main NUI page
 ui_page 'html/main_ui.html' -- Consolidated NUI page for role selection, store, admin panel, etc.
 
 -- Define files to be included with the resource.
 -- These files are accessible by the client and NUI.
 files {
-    'html/loading.html',
-    'html/loading.css',
-    'html/loading.js',
     'html/main_ui.html',     -- Main HTML file for the NUI.
     'html/styles.css',       -- CSS styles for the NUI.
     'html/scripts.js',       -- JavaScript for NUI interactions.
