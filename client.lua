@@ -3,7 +3,7 @@
 -- Version: 1.2 | Date: <current date>
 -- Ped readiness flag and guards implemented.
 
-_G.cnrSetDispatchServiceErrorLogged = false -- Initialize global flag for dispatch error logging
+-- _G.cnrSetDispatchServiceErrorLogged = false -- Removed as part of subtask
 local g_isPlayerPedReady = false
 
 -- =====================================
@@ -512,7 +512,7 @@ Citizen.CreateThread(function()
 end)
 
 Citizen.CreateThread(function()
-    local clearCheckInterval = 7500 -- milliseconds (e.g., every 7.5 seconds)
+    local clearCheckInterval = 2500 -- milliseconds (e.g., every 7.5 seconds)
     print("[CNR_CLIENT] Ambient Police Ped Clearing Thread Started. Interval: " .. clearCheckInterval .. "ms")
 
     while true do
@@ -584,11 +584,13 @@ Citizen.CreateThread(function()
                         if IsPedInAnyVehicle(pedToClear, false) then
                             -- Ped is in a vehicle. Delete the ped, leaving the vehicle.
                             -- ShowNotification(string.format("Deleting ambient police ped (in vehicle) model %s", pedModel)) -- Potentially spammy
+                            ClearPedTasksImmediately(pedToClear) -- Added line
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
                         else
                             -- Ped is on foot. Delete the ped.
                             -- ShowNotification(string.format("Deleting ambient police ped (on foot) model %s", pedModel)) -- Potentially spammy
+                            ClearPedTasksImmediately(pedToClear) -- Added line
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
                         end
@@ -1301,6 +1303,9 @@ end)
 
 -- Thread to disable default FiveM police responses
 Citizen.CreateThread(function()
+    if not _G.SetDispatchServiceActive then
+        print("[CNR_CLIENT_WARN] The native 'SetDispatchServiceActive' is not available in this environment. Default police dispatch services cannot be programmatically disabled by this script. Alternative suppression methods are active.")
+    end
     local policeDisableInterval = 5000 -- 5 seconds
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
 
@@ -1320,15 +1325,6 @@ Citizen.CreateThread(function()
             for i = 1, 6 do
                 if _G.SetDispatchServiceActive then
                     SetDispatchServiceActive(i, false)
-                else
-                    -- Print error only once to avoid console spam
-                    if not _G.cnrSetDispatchServiceErrorLogged then
-                        print("[CNR_CLIENT_ERROR] SetDispatchServiceActive native is nil or not available! Further dispatch disable attempts in this loop will be skipped.")
-                        _G.cnrSetDispatchServiceErrorLogged = true 
-                    end
-                    -- If SetDispatchServiceActive is nil, we might want to break the loop for it here for this iteration,
-                    -- or just let it try to SetPoliceIgnorePlayer and other measures.
-                    -- For now, just logging the error once and letting other measures in the loop continue.
                 end
             end
             
