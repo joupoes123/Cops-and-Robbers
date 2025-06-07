@@ -1687,7 +1687,7 @@ PrintAllPlayerDataDebug = function() print("Current Player Data Store:") for k,v
 PrintActiveBountiesDebug = function() print("Active Bounties: ", json.encode(activeBounties)) end
 PrintK9EngagementsDebug = function() print("K9 Engagements: ", json.encode(k9Engagements)) end
 
-RegisterNetEvent('cnr:requestMyInventory')
+RegisterServerEvent('cnr:requestMyInventory')
 AddEventHandler('cnr:requestMyInventory', function()
     local src = tonumber(source)
     
