@@ -23,63 +23,50 @@ AddEventHandler('cnr:inventoryUpdated', function(updatedInventory)
     Log("Client inventory updated.")
 end)
 
--- Simplified version of RequestInventoryForNUI
-function RequestInventoryForNUI(callbackNUI) -- Renamed callback for clarity
-    local handlerWasCalled = false
-    local eventHandler = nil -- Store the handler reference
+-- Robust version of RequestInventoryForNUI with activeHandler and promise
+function RequestInventoryForNUI(callbackNUI)
+    local promise = {}
+    local activeHandler = nil
 
-    -- Define the event handling function
-    local function receiveInventoryHandler(inventoryData)
-        if handlerWasCalled then
-            Log("RequestInventoryForNUI: receiveInventoryHandler called but handlerWasCalled is true. Skipping.", "debug")
-            return
+    local function originalHandleReceiveMyInventory(inventoryData)
+        if activeHandler then
+            RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
+            activeHandler = nil
         end
-        handlerWasCalled = true
-
-        -- Attempt to remove the event handler using its reference
-        if eventHandler then
-            RemoveEventHandler(eventHandler)
-            Log("RequestInventoryForNUI: Removed cnr:receiveMyInventory handler after successful receive.", "debug")
-            eventHandler = nil -- Clear the reference
-        else
-            Log("RequestInventoryForNUI: eventHandler reference was nil upon successful receive. Cannot remove.", "warn")
-        end
-
-        localPlayerInventory = inventoryData or {} -- Assuming localPlayerInventory is defined globally or up-scoped
+        localPlayerInventory = inventoryData or {}
         if callbackNUI then
             callbackNUI(localPlayerInventory)
         end
-        Log("Inventory received from server for NUI and processed.")
+        promise.resolved = true
+        Log("Inventory received from server for NUI and processed by originalHandleReceiveMyInventory.")
     end
 
-    -- Register the event handler and store its reference
-    -- Important: The event name here must match what the server triggers.
-    eventHandler = AddEventHandler('cnr:receiveMyInventory', receiveInventoryHandler)
-    Log("RequestInventoryForNUI: Added cnr:receiveMyInventory handler.", "debug")
+    activeHandler = originalHandleReceiveMyInventory
+    AddEventHandler('cnr:receiveMyInventory', activeHandler)
+    Log("RequestInventoryForNUI: Added cnr:receiveMyInventory handler (originalHandleReceiveMyInventory).", "debug")
 
     TriggerServerEvent('cnr:requestMyInventory')
     Log("Requested inventory from server for NUI.")
 
-    -- Timeout logic
     SetTimeout(5000, function()
-        if handlerWasCalled then
-            Log("RequestInventoryForNUI: Timeout function ran, but handlerWasCalled is true. Skipping timeout logic.", "debug")
-            return
-        end
-        handlerWasCalled = true -- Mark as called to prevent the main handler if it arrives late
-
-        if eventHandler then
-            RemoveEventHandler(eventHandler)
-            Log("RequestInventoryForNUI: Timeout occurred, removed cnr:receiveMyInventory handler.", "warn")
-            eventHandler = nil -- Clear the reference
+        if not promise.resolved then
+            if activeHandler then
+                RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
+                activeHandler = nil
+                Log("RequestInventoryForNUI: Timeout occurred, removed cnr:receiveMyInventory handler (originalHandleReceiveMyInventory).", "warn")
+            end
+            if callbackNUI then
+                callbackNUI({ error = "Failed to get inventory: Timeout" })
+            end
+            Log("RequestInventoryForNUI timed out, error callback sent to NUI.", "warn")
         else
-            Log("RequestInventoryForNUI: Timeout occurred, but eventHandler reference was already nil. Cannot remove.", "warn")
+            -- This case (promise resolved but timeout still runs and activeHandler is somehow still set) should be rare.
+            if activeHandler then
+                Log("RequestInventoryForNUI: Promise resolved but timeout ran with activeHandler still set. Cleaning up.", "warn")
+                RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
+                activeHandler = nil
+            end
         end
-
-        if callbackNUI then
-            callbackNUI({ error = "Failed to get inventory: Timeout" })
-        end
-        Log("RequestInventoryForNUI timed out, error callback sent to NUI.", "warn")
     end)
 end
 
