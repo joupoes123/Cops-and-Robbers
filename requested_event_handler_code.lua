@@ -55,7 +55,7 @@ AddEventHandler('cnr:requestMyInventory', function()
             finalNuiInventory = truncatedInventory -- This is what will be sent and logged
             print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s NUI inventory truncated to %d items.", src, tablelength(finalNuiInventory)))
         end
-        
+
         local sampleCount = 0
         local nuiInventorySampleForLog = {}
         for k, v in pairs(finalNuiInventory) do

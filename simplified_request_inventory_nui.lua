@@ -4,12 +4,12 @@ function RequestInventoryForNUI(callbackNUI) -- Renamed callback for clarity
 
     -- Define the event handling function
     local function receiveInventoryHandler(inventoryData)
-        if handlerWasCalled then 
+        if handlerWasCalled then
             Log("RequestInventoryForNUI: receiveInventoryHandler called but handlerWasCalled is true. Skipping.", "debug")
-            return 
+            return
         end
         handlerWasCalled = true
-        
+
         -- Attempt to remove the event handler using its reference
         if eventHandler then
             RemoveEventHandler(eventHandler)
@@ -21,7 +21,7 @@ function RequestInventoryForNUI(callbackNUI) -- Renamed callback for clarity
 
         localPlayerInventory = inventoryData or {} -- Assuming localPlayerInventory is defined globally or up-scoped
         if callbackNUI then
-            callbackNUI(localPlayerInventory) 
+            callbackNUI(localPlayerInventory)
         end
         Log("Inventory received from server for NUI and processed.")
     end
@@ -35,9 +35,9 @@ function RequestInventoryForNUI(callbackNUI) -- Renamed callback for clarity
 
     -- Timeout logic
     SetTimeout(5000, function()
-        if handlerWasCalled then 
+        if handlerWasCalled then
             Log("RequestInventoryForNUI: Timeout function ran, but handlerWasCalled is true. Skipping timeout logic.", "debug")
-            return 
+            return
         end
         handlerWasCalled = true -- Mark as called to prevent the main handler if it arrives late
 
@@ -48,7 +48,7 @@ function RequestInventoryForNUI(callbackNUI) -- Renamed callback for clarity
         else
             Log("RequestInventoryForNUI: Timeout occurred, but eventHandler reference was already nil. Cannot remove.", "warn")
         end
-        
+
         if callbackNUI then
             callbackNUI({ error = "Failed to get inventory: Timeout" })
         end
