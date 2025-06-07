@@ -1690,87 +1690,69 @@ PrintK9EngagementsDebug = function() print("K9 Engagements: ", json.encode(k9Eng
 RegisterServerEvent('cnr:requestMyInventory')
 AddEventHandler('cnr:requestMyInventory', function()
     local src = tonumber(source)
+
+    print("[CNR_DIAGNOSTIC_PRINT] Entered cnr:requestMyInventory handler for player " .. src)
+
     local pData = GetCnrPlayerData(src)
+    if not pData then
+        print(string.format("[CNR_DIAGNOSTIC_PRINT] Player data not found for player %s in cnr:requestMyInventory. Aborting.", src))
+        Log(string.format("cnr:requestMyInventory - Player data not found for player %s. Cannot send inventory.", src), "error")
+        return -- Prevent further execution
+    end
 
-    print("[CNR_DIAGNOSTIC_PRINT] Entered cnr:requestMyInventory handler for player " .. src .. ". pData present: " .. tostring(pData ~= nil))
-    if pData and pData.inventory then
-        print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s pData.inventory present. Item count: %d", src, tablelength(pData.inventory))) -- Assuming tablelength is accessible
+    -- Assuming GetInventory is globally available from inventory_server.lua
+    -- GetInventory(pData, nil, src) returns pData.inventory
+    local actualInventory = GetInventory(pData, nil, src)
 
-        local nuiInventory = {}
-        for itemId, itemData in pairs(pData.inventory) do
-            local itemConfig = nil
-            for _, cfgItem in ipairs(Config.Items) do -- Assuming Config.Items is accessible
-                if cfgItem.itemId == itemId then
-                    itemConfig = cfgItem
-                    break
-                end
-            end
+    local inventoryToSend = {}
+    local itemsSentCount = 0
+    local maxItemsToSend = 30 -- As per requirement
 
-            if itemConfig then
-                local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
-                local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice or 0) -- Assuming CalculateDynamicPrice is accessible
-                local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
-
-                nuiInventory[itemId] = {
-                    itemId = tostring(itemId),
-                    name = tostring(itemData.name or itemConfig.name or "Unknown Item"),
-                    count = tonumber(itemData.count or 0),
-                    sellPrice = tonumber(sellPrice or 0)
-                    -- category field removed
-                }
-            else
-                 Log(string.format("[CNR_SERVER_INVENTORY] Warning: Item %s in player %s inventory not found in Config.Items. It will not be sent to NUI.", tostring(itemId), src), "warn")
-            end
-        end
-
-        print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s raw inventory item count from pData.inventory: %d", src, tablelength(pData.inventory)))
-        print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s NUI-formatted inventory item count before truncation: %d", src, tablelength(nuiInventory)))
-
-        local maxItemsToSend = 30 -- Test limit
-        local originalItemCount = tablelength(nuiInventory)
-        local finalNuiInventory = nuiInventory -- Use by default
-
-        if originalItemCount > maxItemsToSend then
-            print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s NUI inventory count (%d) exceeds test limit (%d). Truncating.", src, originalItemCount, maxItemsToSend))
-            local truncatedInventory = {}
-            local count = 0
-            for k, v in pairs(nuiInventory) do
-                if count >= maxItemsToSend then
-                    break
-                end
-                truncatedInventory[k] = v
-                count = count + 1
-            end
-            finalNuiInventory = truncatedInventory
-            print(string.format("[CNR_DIAGNOSTIC_PRINT] Player %s NUI inventory truncated to %d items.", src, tablelength(finalNuiInventory)))
-        end
-
-        local sampleCount = 0
-        local nuiInventorySampleForLog = {}
-        for k, v in pairs(finalNuiInventory) do
-            if sampleCount < 5 then
-                nuiInventorySampleForLog[k] = v
-                sampleCount = sampleCount + 1
-            else
+    if actualInventory and type(actualInventory) == "table" then
+        for itemId, itemData in pairs(actualInventory) do
+            if itemsSentCount >= maxItemsToSend then
+                Log(string.format("cnr:requestMyInventory - Reached max item limit (%d) for player %s. Not all items sent.", maxItemsToSend, src), "warn")
                 break
             end
-        end
-        print(string.format("[CNR_DIAGNOSTIC_PRINT] Inventory sample being sent to player %s: %s", src, json.encode(nuiInventorySampleForLog))) -- Assuming json.encode is accessible
 
-        local success, resultOrError = pcall(json.encode, finalNuiInventory)
-        if not success then
-            print(string.format("[CNR_DIAGNOSTIC_PRINT] CRITICAL: Failed to json.encode full finalNuiInventory for player %s for logging purposes. Error: %s", src, tostring(resultOrError)))
-        else
-            local actualEncodedInventoryString = resultOrError
-            print(string.format("[CNR_DIAGNOSTIC_PRINT] Successfully json.encoded full finalNuiInventory for player %s for logging. Approx size: %d bytes.", src, string.len(actualEncodedInventoryString)))
-            if string.len(actualEncodedInventoryString) > 60000 then
-                 print(string.format("[CNR_DIAGNOSTIC_PRINT] WARNING: Encoded finalNuiInventory for player %s is large (%d bytes). This might exceed network event limits if not handled carefully by FiveM.", src, string.len(actualEncodedInventoryString)))
+            if itemData and itemData.count > 0 then -- Ensure item has data and count > 0
+                local itemConfigFound = nil
+                if Config and Config.Items then
+                    for _, configItem in ipairs(Config.Items) do
+                        if configItem.itemId == itemId then
+                            itemConfigFound = configItem
+                            break
+                        end
+                    end
+                end
+
+                local sellPrice = 0
+                if itemConfigFound and itemConfigFound.basePrice then
+                    -- For now, sell price is basePrice. Could be dynamic or a fraction later.
+                    -- The original testInventory used sellPrice directly, implying it might not be a calculated value for this event.
+                    -- Let's stick to a direct assignment of basePrice as sellPrice for now, or a fraction if defined.
+                    -- Using basePrice as a stand-in for sellPrice as per example.
+                    -- A more complex sell price calculation might involve Config.DynamicEconomy.sellPriceFactor
+                    sellPrice = itemConfigFound.basePrice
+                else
+                    Log(string.format("cnr:requestMyInventory - Config for item %s (player %s) not found or no basePrice. Sell price set to 0.", itemId, src), "warn")
+                end
+
+                inventoryToSend[itemId] = {
+                    itemId = itemId,
+                    name = itemData.name, -- This comes from pData.inventory[itemId].name
+                    count = itemData.count,
+                    sellPrice = sellPrice
+                }
+                itemsSentCount = itemsSentCount + 1
             end
         end
-
-        TriggerClientEvent('cnr:receiveMyInventory', src, finalNuiInventory)
     else
-        print(string.format("[CNR_DIAGNOSTIC_PRINT] No inventory data found for player %s (pData: %s, pData.inventory: %s). Sending empty inventory.", src, tostring(pData), pData and tostring(pData.inventory) or "nil"))
-        TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
+        Log(string.format("cnr:requestMyInventory - actualInventory for player %s is nil or not a table. pData.inventory: %s", src, pData and json.encode(pData.inventory) or "nil pData"), "warn")
     end
+
+    -- Assuming json.encode is available for logging as per existing diagnostic print
+    print(string.format("[CNR_DIAGNOSTIC_PRINT] Sending actual inventory to player %s: %s", src, json.encode(inventoryToSend)))
+
+    TriggerClientEvent('cnr:receiveMyInventory', src, inventoryToSend)
 end)
