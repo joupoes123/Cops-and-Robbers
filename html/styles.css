@@ -131,16 +131,21 @@ button:hover {
 
 /* Store Container */
 #store-menu {
-    position: relative; /* Ensure the parent is a positioning context for absolute positioning of children */
+    position: absolute; /* Changed */
+    top: 50%; /* Added */
+    left: 50%; /* Added */
+    /* transform: translate(-50%, -50%); */ /* This will be handled by the animation's 'to' state */
     width: 600px;
     max-width: 90%;
-    margin: 50px auto;
+    /* margin: 50px auto; */ /* Removed */
     background-color: #16213e; /* New Secondary Background */
     padding: 30px; /* Further Increased padding */
     border-radius: 12px; /* Slightly larger border-radius */
     border: 1px solid #0f3460; /* New Accent Color 2 for border */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* New Box Shadow */
     animation: fadeInMenu 0.4s ease-out forwards; /* Slightly longer for larger menu */
+    max-height: 90vh; /* Added/Ensure */
+    overflow-y: auto; /* Added/Ensure */
 }
 
 #store-title {
@@ -326,7 +331,7 @@ button:hover {
 @media (max-width: 600px) {
     #store-menu {
         padding: 20px 15px; /* Adjusted padding */
-        margin: 20px auto; /* Adjusted margin for smaller screens */
+        /* margin: 20px auto; */ /* Removed: Conflicts with absolute centering via top/left/transform */
         width: 90%; /* Ensure it doesn't hit screen edges */
     }
 

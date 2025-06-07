@@ -311,7 +311,7 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
                 if itemConfig.category == "Weapons" then
                     -- More specific ammo defaults could be set here based on weapon type if desired
                     -- For now, a generic small amount for newly purchased firearms.
-                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12 
+                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12
                 end
                 TriggerClientEvent('cops_and_robbers:addWeapon', src, itemConfig.itemId, defaultAmmo)
                 Log(string.format("Triggered addWeapon for player %s, item %s, ammo %d", src, itemConfig.itemId, defaultAmmo))
@@ -709,7 +709,7 @@ ApplyPerks = function(playerId, level, role)
                     if type(perkDetail) == "table" then -- Ensure perkDetail is a table
                         -- Only try to set pData.perks if it's actually a perk and perkId is valid
                         if perkDetail.type == "passive_perk" and perkDetail.perkId then
-                            pData.perks[perkDetail.perkId] = true 
+                            pData.perks[perkDetail.perkId] = true
                             Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
                         -- else
                             -- Log for non-passive_perk types if needed for debugging, e.g.:
@@ -1060,7 +1060,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
         if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
             canAccess = false
         end
-        
+
         -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
 
         if canAccess then
@@ -1079,7 +1079,7 @@ RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemI
             })
         end
     end
-    
+
     Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
 end)
@@ -1694,8 +1694,7 @@ AddEventHandler('cnr:requestMyInventory', function()
     if pData and pData.inventory then
         -- Before sending, transform inventory for NUI if needed, especially for sell prices
         local nuiInventory = {}
-        local hasLoggedSampleTypes = false -- Initialize before the loop
-        for itemId, itemData in pairs(pDatalinventory) do
+        for itemId, itemData in pairs(pData.inventory) do
             local itemConfig = nil
             for _, cfgItem in ipairs(Config.Items) do
                 if cfgItem.itemId == itemId then
@@ -1710,30 +1709,18 @@ AddEventHandler('cnr:requestMyInventory', function()
                 local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
 
                 nuiInventory[itemId] = {
-                    itemId = tostring(itemId), 
-                    name = tostring(itemConfig.name or "Unknown Item"), -- Directly from itemConfig
-                    count = tonumber(itemData.count or 0), -- itemData.count should be safe (number)
-                    category = tostring(itemConfig.category or "Misc"), -- Directly from itemConfig
-                    sellPrice = tonumber(sellPrice or 0)
+                    itemId = tostring(itemId),
+                    name = tostring(itemData.name or itemConfig.name or "Unknown Item"), -- Ensure string
+                    count = tonumber(itemData.count or 0), -- Ensure number
+                    category = tostring(itemData.category or itemConfig.category or "Misc"), -- Ensure string
+                    sellPrice = tonumber(sellPrice or 0) -- Ensure number
+                    -- DO NOT add itemConfig directly or other potentially complex fields
                 }
-                -- Log the type of each field being added for one item for detailed debugging
-                if not hasLoggedSampleTypes then
-                    Log(string.format("[CNR_SERVER_INVENTORY_DEBUG] Sample item for nuiInventory - itemId: %s (type %s), name: %s (type %s), count: %s (type %s), category: %s (type %s), sellPrice: %s (type %s)",
-                        tostring(itemId), type(itemId),
-                        tostring(itemConfig.name or "Unknown Item"), type(itemConfig.name or "Unknown Item"),
-                        tostring(itemData.count or 0), type(itemData.count or 0),
-                        tostring(itemConfig.category or "Misc"), type(itemConfig.category or "Misc"),
-                        tostring(sellPrice or 0), type(sellPrice or 0)
-                    ), "info")
-                    hasLoggedSampleTypes = true -- Only log types for the first item to avoid spam
-                end
-            else
-                Log(string.format("[CNR_SERVER_INVENTORY] Warning: No itemConfig found in Config.Items for itemId '%s' from player's inventory. Skipping.", tostring(itemId)), "warn")
             end
         end
 
         Log(string.format("[CNR_SERVER_INVENTORY] Preparing to send inventory to player %s. Number of unique items: %d", src, tablelength(nuiInventory)), "info")
-    
+
         local sampleCount = 0
         local nuiInventorySampleForLog = {}
         for k, v in pairs(nuiInventory) do
@@ -1749,19 +1736,14 @@ AddEventHandler('cnr:requestMyInventory', function()
         -- Attempt to encode the full inventory to check for size issues (log only, don't send this encoded string unless necessary for extreme debugging)
         local encodedFullInventory, encodeError = pcall(json.encode, nuiInventory)
         if not encodedFullInventory then
-            -- If pcall failed, encodedFullInventory is false, and encodeError has the error message
             Log(string.format("[CNR_SERVER_INVENTORY] CRITICAL: Failed to json.encode full nuiInventory for player %s before sending. Error: %s", src, tostring(encodeError)), "error")
+            -- Potentially send an empty inventory or an error message to client here instead of triggering the unsafe event
+            -- For now, we'll let it proceed to hit the 'not safe for net' if this is the root cause of that error itself
         else
-            -- If pcall succeeded, encodedFullInventory is the JSON string
-            if type(encodedFullInventory) == "string" then
-                Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
-            else
-                -- This case should ideally not be reached if pcall's first return value is true only on actual success.
-                -- But as a safeguard if pcall could return true then a non-string, log that.
-                Log(string.format("[CNR_SERVER_INVENTORY] WARNING: json.encode pcall succeeded but result was not a string for player %s. Type: %s", src, type(encodedFullInventory)), "warn")
-            end
+            Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
+            -- If string.len is very large (e.g., > 60KB), it might be a size issue.
         end
-        
+
         -- The original TriggerClientEvent call:
         TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
     else

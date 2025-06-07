@@ -137,7 +137,6 @@ Config.NPCVendors = {
 Config.Items = {
     -- Weapons
     { name = "Pistol",            itemId = "weapon_pistol",         basePrice = 500,  category = "Weapons" },
-    { name = "Taser", itemId = "weapon_stungun", basePrice = 350, category = "Cop Gear", forCop = true, minLevelCop = 1 },
     { name = "Combat Pistol",     itemId = "weapon_combatpistol",   basePrice = 750,  category = "Weapons" },
     { name = "Heavy Pistol",      itemId = "weapon_heavypistol",    basePrice = 1000, category = "Weapons", minLevelCop = 5, minLevelRobber = 7 },
     { name = "SMG",               itemId = "weapon_smg",            basePrice = 1500, category = "Weapons" },
