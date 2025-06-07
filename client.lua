@@ -1256,15 +1256,6 @@ end)
 Citizen.CreateThread(function()
     local policeDisableInterval = 5000 -- 5 seconds
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
-    local copModels = { -- List of common cop model hashes
-        GetHashKey("s_m_y_cop_01"),
-        GetHashKey("s_f_y_cop_01"),
-        GetHashKey("s_m_y_sheriff_01"),
-        GetHashKey("s_f_y_sheriff_01"),
-        GetHashKey("s_m_y_swat_01"), -- SWAT
-        GetHashKey("s_m_y_hwaycop_01"), -- Highway Patrol
-        -- Add other specific cop models if needed
-    }
 
     while true do
         Citizen.Wait(policeDisableInterval)
@@ -1297,48 +1288,10 @@ Citizen.CreateThread(function()
                 end
             end
             
-            -- Selectively delete non-player police peds in a 1000.0m radius
-            local playerCoords = GetEntityCoords(playerPed)
-            if playerCoords then
-                local peds = GetGamePool('CPed')
-                for _, pedHandle in ipairs(peds) do
-                    if DoesEntityExist(pedHandle) and pedHandle ~= playerPed and not IsPedAPlayer(pedHandle) then
-                        if #(GetEntityCoords(pedHandle) - playerCoords) < 1000.0 then
-                            local isCop = false
-                            -- Method 1: IsPedACop (might not always work for custom/non-standard peds)
-                            if IsPedACop(pedHandle) then
-                                isCop = true
-                            end
-                            -- Method 2: Check model against known list (more reliable for specific models)
-                            if not isCop then
-                                local pedModel = GetEntityModel(pedHandle)
-                                for _, copModelHash in ipairs(copModels) do
-                                    if pedModel == copModelHash then
-                                        isCop = true
-                                        break
-                                    end
-                                end
-                            end
-
-                            if isCop then
-                                -- Check if ped is in a vehicle, and if that vehicle is driven by a player.
-                                -- This is a simple check; more complex scenarios might exist.
-                                local vehicle = GetVehiclePedIsIn(pedHandle, false)
-                                if DoesEntityExist(vehicle) then
-                                    local driver = GetPedInVehicleSeat(vehicle, -1)
-                                    if DoesEntityExist(driver) and IsPedAPlayer(driver) then
-                                        -- Don't delete this cop if they are in a vehicle driven by a player
-                                        goto next_ped -- Skip to the next ped
-                                    end
-                                end
-                                print("[CNR_CLIENT_DEBUG] Deleting NPC cop: " .. pedHandle)
-                                SetEntityAsMissionEntity(pedHandle, true, true) -- Attempt to make it deletable
-                                DeletePed(pedHandle) -- Use DeletePed for peds
-                            end
-                        end
-                    end
-                    ::next_ped:: -- Label for goto
-                end
+            -- Actively clear cops in a radius around the player
+            local playerLocalisation = GetEntityCoords(playerPed)
+            if playerLocalisation then -- Ensure coords are valid
+                ClearAreaOfCops(playerLocalisation.x, playerLocalisation.y, playerLocalisation.z, 400.0, 0) -- Flag 0 is standard
             end
 
             -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
