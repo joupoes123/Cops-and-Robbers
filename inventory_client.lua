@@ -26,9 +26,13 @@ end)
 function RequestInventoryForNUI(callback)
     local promise = {}
     local activeHandler = nil -- Declare activeHandler
+    local handlerExecuted = false -- New flag
 
     -- Define the actual handler function
     local function originalHandleReceiveMyInventory(inventoryData)
+        if handlerExecuted then return end -- Prevent re-entry
+        handlerExecuted = true -- Mark as executed
+
         if activeHandler then -- Check if handler is still active
             RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Use activeHandler to remove
             activeHandler = nil -- Mark as inactive/cleaned up
@@ -49,17 +53,22 @@ function RequestInventoryForNUI(callback)
 
     SetTimeout(5000, function()
         if not promise.resolved then
-            if activeHandler then -- Check if handler is still active before trying to remove
+            if activeHandler and not handlerExecuted then -- Check flag here too
                 RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
                 activeHandler = nil -- Mark as cleaned up
             end
-            if callback then
+            if callback and not handlerExecuted then -- Only call error callback if main logic didn't run
                 -- Ensure callback is still valid if it was tied to the handler context (though less likely here)
                 callback({ error = "Failed to get inventory: Timeout" })
             end
-            Log("RequestInventoryForNUI timed out.", "warn")
+            if not handlerExecuted then -- Only log timeout if main logic didn't run
+                Log("RequestInventoryForNUI timed out.", "warn")
+            end
         else
-            -- If promise was resolved, but somehow timeout still runs, ensure activeHandler is nil
+            -- If promise was resolved (meaning originalHandleReceiveMyInventory ran and set handlerExecuted to true)
+            -- but timeout still runs, activeHandler might have already been set to nil.
+            -- The original logic here for cleanup if activeHandler is still set is probably fine,
+            -- as handlerExecuted would be true.
             if activeHandler then
                  -- This case should ideally not be hit if promise.resolved = true means originalHandleReceiveMyInventory ran.
                  -- However, to be absolutely safe and prevent future issues if logic changes:
