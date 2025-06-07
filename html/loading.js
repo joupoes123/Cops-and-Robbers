@@ -46,7 +46,7 @@ function updateVisuals(progress) {
 
 // Initialize with 0% progress
 updateVisuals(0);
-loadingMessage.textContent = "Initializing connection..."; // Initial message before progress starts
+// Line removed as the initial message is now handled in updateVisuals(0)
 
 // --- FiveM NUI Event Handling (Simulated) ---
 // In a real FiveM environment, you would listen for NUI messages.
