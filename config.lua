@@ -249,7 +249,7 @@ Config.PowerGridSabotageCooldown   = 600    -- seconds (10 minutes) cooldown bef
 -- Advanced Wanted System Settings
 -- =========================
 Config.WantedSettings = {
-    enableNPCResponse = false, -- MASTER SWITCH: Set to true to enable NPC police response, false to disable.
+    enableNPCResponse = true, -- MASTER SWITCH: Set to true to enable NPC police response, false to disable.
     baseIncreasePoints = 1,    -- Default points for minor infractions if not specified in crimes. (Renamed from baseIncrease)
     levels = {                 -- Defines star levels and UI labels based on accumulated wanted points.
         { stars = 1, threshold = 10,  uiLabel = "Wanted: ★☆☆☆☆", minPunishment = 60,  maxPunishment = 120 }, -- Punishment in seconds (jail time)

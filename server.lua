@@ -335,18 +335,18 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
     end
 end)
 
-RegisterNetEvent('cnr:sellItem', function(data)
+RegisterNUICallback('sellItem', function(data, cb)
     local src = tonumber(source)
     local itemId = data.itemId
     local quantity = tonumber(data.quantity) or 1
 
-    Log(string.format("[NET_EVENT] cnr:sellItem triggered by %s for item %s, quantity %d", src, itemId, quantity))
+    Log(string.format("[NUI_CALLBACK] sellItem triggered by %s for item %s, quantity %d", src, itemId, quantity))
 
     local pData = GetCnrPlayerData(src)
 
     if not pData then
-        Log(string.format("[NET_EVENT] cnr:sellItem FAIL for %s: Player data not found.", src), "warn")
-        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Player data not found.")
+        Log(string.format("[NUI_CALLBACK] sellItem FAIL for %s: Player data not found. Returning error.", src), "warn")
+        cb({ status = "error", message = "Player data not found." })
         return
     end
 
@@ -359,37 +359,37 @@ RegisterNetEvent('cnr:sellItem', function(data)
     end
 
     if not itemConfig then
-        Log(string.format("[NET_EVENT] cnr:sellItem FAIL for %s: Item %s not in config.", src, itemId), "warn")
-        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Item not found in config.")
+        Log(string.format("[NUI_CALLBACK] sellItem FAIL for %s: Item %s not in config. Returning error.", src, itemId), "warn")
+        cb({ status = "error", message = "Item not found in config." })
         return
     end
 
     if not itemConfig.basePrice then
-        Log(string.format("[NET_EVENT] cnr:sellItem FAIL for %s: Item %s cannot be sold (no price).", src, itemId), "warn")
-        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Item cannot be sold (no price defined).")
+        Log(string.format("[NUI_CALLBACK] sellItem FAIL for %s: Item %s cannot be sold (no price). Returning error.", src, itemId), "warn")
+        cb({ status = "error", message = "Item cannot be sold (no price defined)." })
         return
     end
 
     local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
     local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
     local sellPricePerItem = math.floor(currentMarketPrice * sellPriceFactor)
-    Log("[NET_EVENT] cnr:sellItem - Item: " .. itemId .. ", Base Price: " .. (itemConfig.basePrice or "N/A") .. ", Current Market Price: " .. currentMarketPrice .. ", Sell Price: " .. sellPricePerItem)
+    Log("[NUI_CALLBACK] sellItem - Item: " .. itemId .. ", Base Price: " .. (itemConfig.basePrice or "N/A") .. ", Current Market Price: " .. currentMarketPrice .. ", Sell Price: " .. sellPricePerItem)
     local totalGain = sellPricePerItem * quantity
 
     local removed = RemoveItem(pData, itemId, quantity, src)
     if removed then
         if AddPlayerMoney(src, totalGain, 'cash') then
-            Log(string.format("[NET_EVENT] cnr:sellItem SUCCESS for %s: Sold %dx %s for $%d.", src, quantity, itemId, totalGain))
-            TriggerClientEvent('cops_and_robbers:sellConfirmed', src, itemId, quantity)
+            Log(string.format("[NUI_CALLBACK] sellItem SUCCESS for %s: Sold %dx %s for $%d. Returning success.", src, quantity, itemId, totalGain))
             TriggerClientEvent('cnr:inventoryUpdated', src, pData.inventory)
+            cb({ status = "success", message = "Item sold successfully.", itemName = itemConfig.name, quantitySold = quantity, totalGain = totalGain })
         else
-            Log(string.format("[NET_EVENT] cnr:sellItem FAIL for %s: Sold %s, but failed to add money. Refunding item.", src, itemId), "error")
+            Log(string.format("[NUI_CALLBACK] sellItem FAIL for %s: Sold %s, but failed to add money. Refunding item. Returning error.", src, itemId), "error")
             AddItem(pData, itemId, quantity, src)
-            TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not process payment. Item refunded.")
+            cb({ status = "error", message = "Could not process payment for sale. Item may have been refunded." })
         end
     else
-        Log(string.format("[NET_EVENT] cnr:sellItem FAIL for %s: Could not remove %dx %s from inventory. Returning error.", src, quantity, itemId), "error") -- Ensure quantity is in log
-        TriggerClientEvent('cops_and_robbers:sellFailed', src, "Could not remove item from inventory.")
+        Log(string.format("[NUI_CALLBACK] sellItem FAIL for %s: Could not remove %dx %s from inventory. Returning error.", src, quantity, itemId), "error") -- Corrected log to show quantity
+        cb({ status = "error", message = "Could not remove item from inventory." })
     end
 end)
 
@@ -853,6 +853,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
             -- TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
             -- Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggered cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars)", pIdNum, newStars), "info")
             Log(string.format("UpdatePlayerWantedLevel: NPC Response Trigger Suppressed (Aggressive Disable). Would have triggered for player %s (%d stars)", pIdNum, newStars), "warn")
+            TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords) -- Re-added based on subtask
         else
             Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars).", pIdNum, newStars), "info")
             -- Optionally, if there's any fallback or alternative notification needed when NPC response is off, it could go here.

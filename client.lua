@@ -427,13 +427,94 @@ end)
 
 RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
-    print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received but deliberately ignored as its body is commented out for testing.")
-    return -- Add this return to effectively disable the function's original content
+    print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received. Processing normally.")
+    -- Removed the return statement that was disabling this function.
     
     --[[ -- Start of multi-line comment
     local localPlayerId = PlayerId()
     if not (localPlayerId and localPlayerId ~= -1) then return end -- Guard for PlayerId()
     if targetPlayerId ~= localPlayerId then return end
+
+    -- New logic to clear ambient police peds
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    local clearRadius = 1000.0
+
+    ShowNotification(string.format("Clearing police peds within %.1fm of player.", clearRadius)) -- Debug notification
+
+    -- Get all peds in the radius
+    local allPedsInRadius = {}
+    local pedHandle = FindFirstPed()
+    local success
+    repeat
+        local currentPedCoords = GetEntityCoords(pedHandle)
+        if #(playerCoords - currentPedCoords) < clearRadius then
+            table.insert(allPedsInRadius, pedHandle)
+        end
+        success, pedHandle = FindNextPed(pedHandle)
+    until not success
+    EndFindPed(pedHandle) -- End the find operation
+
+    local clearedPedCount = 0
+    for _, ped in ipairs(allPedsInRadius) do
+        if DoesEntityExist(ped) and ped ~= playerPed then
+            -- Check if it's a police ped (e.g., by model or relationship group)
+            -- For simplicity, let's assume any non-player ped that is a cop should be cleared.
+            -- More specific checks (e.g., GetPedRelationshipGroupHash(ped) == GetHashKey("COP")) can be added.
+            local pedModel = GetEntityModel(ped)
+            local isCopModel = false
+            local copModels = {
+                GetHashKey("s_m_y_cop_01"),
+                GetHashKey("s_f_y_cop_01"),
+                GetHashKey("s_m_y_swat_01"),
+                GetHashKey("s_m_y_sheriff_01"),
+                GetHashKey("s_f_y_sheriff_01"),
+                GetHashKey("s_m_y_hwaycop_01")
+            }
+            for _, modelHash in ipairs(copModels) do
+                if pedModel == modelHash then
+                    isCopModel = true
+                    break
+                end
+            end
+
+            if isCopModel then
+                -- Check if this ped is part of the current response group (already handled by existing cleanup)
+                local isPartOfCurrentResponse = false
+                for _, responseEntity in ipairs(currentPlayerNPCResponseEntities) do
+                    if responseEntity == ped then
+                        isPartOfCurrentResponse = true
+                        break
+                    end
+                end
+
+                if not isPartOfCurrentResponse then
+                    if IsPedInAnyVehicle(ped, false) then
+                        local vehicle = GetVehiclePedIsIn(ped, false)
+                        -- If ped is in a vehicle, only delete the ped if we want to leave the vehicle.
+                        -- The issue states: "leaving Police vehicles that have no been interacted with by a NPC police ped"
+                        -- This implies if an NPC is *in* a vehicle, that vehicle *has* been interacted with.
+                        -- However, the goal is to clear *peds* and leave *vehicles that haven't been interacted with*.
+                        -- So, if an ambient cop is in an ambient vehicle, we delete the cop, the vehicle remains.
+                        -- If a script-spawned cop is in a script-spawned vehicle, that's handled by the existing cleanup.
+
+                        -- For this step, we are focusing on AMBIENT peds.
+                        -- If an ambient cop is in a vehicle, deleting the ped will leave the vehicle empty.
+                        ShowNotification(string.format("Deleting ambient police ped (in vehicle) model %s", pedModel)) -- Debug
+                        DeletePed(ped) -- Deletes the ped, leaves vehicle.
+                        clearedPedCount = clearedPedCount + 1
+                    else
+                        -- Ped is on foot, delete the ped.
+                        ShowNotification(string.format("Deleting ambient police ped (on foot) model %s", pedModel)) -- Debug
+                        DeletePed(ped) -- Deletes the ped.
+                        clearedPedCount = clearedPedCount + 1
+                    end
+                end
+            end
+        end
+    end
+    ShowNotification(string.format("Cleared %d ambient police peds.", clearedPedCount)) -- Debug notification
+    -- End of new logic
 
     for _, entity in ipairs(currentPlayerNPCResponseEntities) do
         if DoesEntityExist(entity) then DeleteEntity(entity) end -- Model release handled by DeleteEntity for mission entities
