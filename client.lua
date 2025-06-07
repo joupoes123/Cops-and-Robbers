@@ -544,10 +544,23 @@ Citizen.CreateThread(function()
             if foundPed then
                 repeat
                     pedsChecked = pedsChecked + 1
-                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then -- Use foundPed
-                        local currentPedCoords = GetEntityCoords(foundPed) -- Use foundPed
+                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
+                        local currentPedCoords = GetEntityCoords(foundPed)
+                        -- Optional: Log peds slightly outside radius for broader context, if needed later.
+                        -- if #(playerCoords - currentPedCoords) < (clearRadius + 200.0) then
+                        --    print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear - Considered Ped (further out): Handle=%s, Model=%s", foundPed, GetEntityModel(foundPed)))
+                        -- end
+
                         if #(playerCoords - currentPedCoords) < clearRadius then
-                            table.insert(allPedsInRadius, foundPed) -- Use foundPed
+                            local pedModel = GetEntityModel(foundPed)
+                            local isPoliceNative = IsPedAPoliceman(foundPed) -- Renamed to avoid conflict with any local 'isPolice'
+                            local pedType = GetPedType(foundPed)
+                            -- Using json.encode for coords might be too verbose for frequent logs;
+                            -- consider logging coords only if isPoliceNative is true, or remove json.encode for coords.
+                            -- For now, keeping it for max info on potentially problematic peds.
+                            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear - Nearby Ped: Handle=%s, Model=%s, IsPolicemanNative=%s, PedType=%s, Coords=%s", foundPed, pedModel, tostring(isPoliceNative), pedType, json.encode(currentPedCoords)))
+
+                            table.insert(allPedsInRadius, foundPed)
                         end
                     end
                     -- Check for safety break
