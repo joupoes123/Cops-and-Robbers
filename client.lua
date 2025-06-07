@@ -1051,6 +1051,37 @@ RegisterNUICallback('buyItem', function(data, cb)
     print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Acknowledgement sent to NUI (cb called).")
 end)
 
+RegisterNUICallback('sellItem', function(data, cb)
+    print("[CNR_CLIENT_NUI_CALLBACK] sellItem: Callback TRIGGERED.")
+    print("[CNR_CLIENT_NUI_CALLBACK] sellItem: Received data: " .. json.encode(data))
+
+    local itemId = data.itemId
+    local quantity = data.quantity and tonumber(data.quantity) or 1 -- Ensure quantity is a number
+
+    if not itemId or type(itemId) ~= "string" or itemId == "" then
+        print("[CNR_CLIENT_NUI_CALLBACK] sellItem: Invalid itemId received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid item ID received from NUI for selling.' })
+        return
+    end
+
+    if not quantity or type(quantity) ~= "number" or quantity < 1 then
+        print("[CNR_CLIENT_NUI_CALLBACK] sellItem: Invalid quantity received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid quantity received from NUI for selling.' })
+        return
+    end
+
+    print(string.format("[CNR_CLIENT_NUI_CALLBACK] sellItem: Validated data. Requesting to sell %dx %s", quantity, itemId))
+
+    -- Trigger the server event that actually handles the sell logic
+    TriggerServerEvent('cnr:sellItemServerEvent', itemId, quantity)
+
+    -- Immediately acknowledge the NUI callback.
+    -- The success/failure of the actual sale will be communicated via separate server-to-client events
+    -- like 'cops_and_robbers:sellConfirmed' or 'cops_and_robbers:sellFailed'.
+    cb({ status = 'received', message = 'Sell request forwarded to server.' })
+    print("[CNR_CLIENT_NUI_CALLBACK] sellItem: Acknowledgement sent to NUI (cb called).")
+end)
+
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
     print("[CNR_CLIENT] Thread for Spike Strip Deployment & Collision now starting its main loop.")
