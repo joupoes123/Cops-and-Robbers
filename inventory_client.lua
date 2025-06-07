@@ -33,10 +33,9 @@ function RequestInventoryForNUI(callback)
         if handlerExecuted then return end -- Prevent re-entry
         handlerExecuted = true -- Mark as executed
 
-        if activeHandler then -- Check if handler is still active
-            RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Use activeHandler to remove
-            activeHandler = nil -- Mark as inactive/cleaned up
-        end
+        -- if activeHandler then -- Check if handler is still active -- No longer needed to check activeHandler for removal
+        activeHandler = nil -- Mark as inactive/cleaned up by clearing our reference
+        -- end
         localPlayerInventory = inventoryData or {}
         if callback then
             callback(localPlayerInventory)
@@ -54,7 +53,7 @@ function RequestInventoryForNUI(callback)
     SetTimeout(5000, function()
         if not promise.resolved then
             if activeHandler and not handlerExecuted then -- Check flag here too
-                RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
+                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
                 activeHandler = nil -- Mark as cleaned up
             end
             if callback and not handlerExecuted then -- Only call error callback if main logic didn't run
@@ -73,7 +72,7 @@ function RequestInventoryForNUI(callback)
                  -- This case should ideally not be hit if promise.resolved = true means originalHandleReceiveMyInventory ran.
                  -- However, to be absolutely safe and prevent future issues if logic changes:
                 Log("RequestInventoryForNUI: Promise resolved but timeout ran with activeHandler still set. Cleaning up.", "warn")
-                RemoveEventHandler('cnr:receiveMyInventory', activeHandler)
+                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
                 activeHandler = nil
             end
         end
