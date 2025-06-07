@@ -1733,18 +1733,23 @@ AddEventHandler('cnr:requestMyInventory', function()
         end
         Log(string.format("[CNR_SERVER_INVENTORY] Inventory sample being sent to player %s: %s", src, json.encode(nuiInventorySampleForLog)), "info")
 
-        -- Attempt to encode the full inventory to check for size issues (log only, don't send this encoded string unless necessary for extreme debugging)
-        local encodedFullInventory, encodeError = pcall(json.encode, nuiInventory)
-        if not encodedFullInventory then
-            Log(string.format("[CNR_SERVER_INVENTORY] CRITICAL: Failed to json.encode full nuiInventory for player %s before sending. Error: %s", src, tostring(encodeError)), "error")
-            -- Potentially send an empty inventory or an error message to client here instead of triggering the unsafe event
-            -- For now, we'll let it proceed to hit the 'not safe for net' if this is the root cause of that error itself
+        -- Attempt to encode the full inventory for logging its size and checking for errors
+        local success, resultOrError = pcall(json.encode, nuiInventory)
+        if not success then
+            Log(string.format("[CNR_SERVER_INVENTORY] CRITICAL: Failed to json.encode full nuiInventory for player %s for logging purposes. Error: %s", src, tostring(resultOrError)), "error")
+            -- Note: We still attempt to send nuiInventory below as the error might be specific to encoding certain complex structures
+            -- that are fine for network transport but not for json.encode, or vice-versa.
+            -- Or, the NUI data itself might be problematic.
         else
-            Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
-            -- If string.len is very large (e.g., > 60KB), it might be a size issue.
+            local actualEncodedInventoryString = resultOrError
+            Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s for logging. Approx size: %d bytes.", src, string.len(actualEncodedInventoryString)), "info")
+            if string.len(actualEncodedInventoryString) > 60000 then -- Log warning if potentially too large for network event
+                 Log(string.format("[CNR_SERVER_INVENTORY] WARNING: Encoded inventory for player %s is large (%d bytes). This might exceed network event limits if not handled carefully by FiveM.", src, string.len(actualEncodedInventoryString)), "warn")
+            end
         end
 
         -- The original TriggerClientEvent call:
+        -- This sends the raw lua table 'nuiInventory', FiveM handles its own serialization for events.
         TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
     else
         TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
