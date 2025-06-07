@@ -427,172 +427,11 @@ end)
 
 RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
-    print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received. Processing normally.")
-    -- Removed the return statement that was disabling this function.
-    
-    --[[ -- Start of multi-line comment
-    local localPlayerId = PlayerId()
-    if not (localPlayerId and localPlayerId ~= -1) then return end -- Guard for PlayerId()
-    if targetPlayerId ~= localPlayerId then return end
-
-    -- New logic to clear ambient police peds
-    local playerPed = PlayerPedId()
-    local playerCoords = GetEntityCoords(playerPed)
-    local clearRadius = 1000.0
-
-    ShowNotification(string.format("Clearing police peds within %.1fm of player.", clearRadius)) -- Debug notification
-
-    -- Get all peds in the radius
-    local allPedsInRadius = {}
-    local pedHandle = FindFirstPed()
-    local success
-    repeat
-        local currentPedCoords = GetEntityCoords(pedHandle)
-        if #(playerCoords - currentPedCoords) < clearRadius then
-            table.insert(allPedsInRadius, pedHandle)
-        end
-        success, pedHandle = FindNextPed(pedHandle)
-    until not success
-    EndFindPed(pedHandle) -- End the find operation
-
-    local clearedPedCount = 0
-    for _, ped in ipairs(allPedsInRadius) do
-        if DoesEntityExist(ped) and ped ~= playerPed then
-            -- Check if it's a police ped (e.g., by model or relationship group)
-            -- For simplicity, let's assume any non-player ped that is a cop should be cleared.
-            -- More specific checks (e.g., GetPedRelationshipGroupHash(ped) == GetHashKey("COP")) can be added.
-            local pedModel = GetEntityModel(ped)
-            local isCopModel = false
-            local copModels = {
-                GetHashKey("s_m_y_cop_01"),
-                GetHashKey("s_f_y_cop_01"),
-                GetHashKey("s_m_y_swat_01"),
-                GetHashKey("s_m_y_sheriff_01"),
-                GetHashKey("s_f_y_sheriff_01"),
-                GetHashKey("s_m_y_hwaycop_01")
-            }
-            for _, modelHash in ipairs(copModels) do
-                if pedModel == modelHash then
-                    isCopModel = true
-                    break
-                end
-            end
-
-            if isCopModel then
-                -- Check if this ped is part of the current response group (already handled by existing cleanup)
-                local isPartOfCurrentResponse = false
-                for _, responseEntity in ipairs(currentPlayerNPCResponseEntities) do
-                    if responseEntity == ped then
-                        isPartOfCurrentResponse = true
-                        break
-                    end
-                end
-
-                if not isPartOfCurrentResponse then
-                    if IsPedInAnyVehicle(ped, false) then
-                        local vehicle = GetVehiclePedIsIn(ped, false)
-                        -- If ped is in a vehicle, only delete the ped if we want to leave the vehicle.
-                        -- The issue states: "leaving Police vehicles that have no been interacted with by a NPC police ped"
-                        -- This implies if an NPC is *in* a vehicle, that vehicle *has* been interacted with.
-                        -- However, the goal is to clear *peds* and leave *vehicles that haven't been interacted with*.
-                        -- So, if an ambient cop is in an ambient vehicle, we delete the cop, the vehicle remains.
-                        -- If a script-spawned cop is in a script-spawned vehicle, that's handled by the existing cleanup.
-
-                        -- For this step, we are focusing on AMBIENT peds.
-                        -- If an ambient cop is in a vehicle, deleting the ped will leave the vehicle empty.
-                        ShowNotification(string.format("Deleting ambient police ped (in vehicle) model %s", pedModel)) -- Debug
-                        DeletePed(ped) -- Deletes the ped, leaves vehicle.
-                        clearedPedCount = clearedPedCount + 1
-                    else
-                        -- Ped is on foot, delete the ped.
-                        ShowNotification(string.format("Deleting ambient police ped (on foot) model %s", pedModel)) -- Debug
-                        DeletePed(ped) -- Deletes the ped.
-                        clearedPedCount = clearedPedCount + 1
-                    end
-                end
-            end
-        end
-    end
-    ShowNotification(string.format("Cleared %d ambient police peds.", clearedPedCount)) -- Debug notification
-    -- End of new logic
-
-    for _, entity in ipairs(currentPlayerNPCResponseEntities) do
-        if DoesEntityExist(entity) then DeleteEntity(entity) end -- Model release handled by DeleteEntity for mission entities
-    end
-    currentPlayerNPCResponseEntities = {}
-
-    if stars == 0 then ShowNotification("~g~Police response stood down."); return end
-
-    local presetStarLevel = math.min(stars, #Config.WantedNPCPresets)
-    if not Config.WantedNPCPresets[presetStarLevel] then print("No NPC response preset for level: " .. presetStarLevel); return end
-
-    local responseGroupsConfig = Config.WantedNPCPresets[presetStarLevel]
-    local playerPed = PlayerPedId() -- Guarded by the initial PlayerId() check at the top of event
-
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
-        print("[CNR_CLIENT_WARN] wantedLevelResponseUpdate: playerPed invalid, cannot spawn NPC response.")
-        return
-    end
-
-    local activeSpawnedGroupsCount = 0
-    for _, groupInfo in ipairs(responseGroupsConfig) do
-        if activeSpawnedGroupsCount >= Config.MaxActiveNPCResponseGroups then break end
-        CreateThread(function()
-             while not g_isPlayerPedReady do Citizen.Wait(500) end -- Ensure player is ready before this thread's logic
-            local currentGroupPlayerPed = PlayerPedId() -- Re-fetch in thread if needed, or use playerPed from outer scope carefully
-            if not (currentGroupPlayerPed and currentGroupPlayerPed ~= 0 and currentGroupPlayerPed ~= -1 and DoesEntityExist(currentGroupPlayerPed)) then return end
-
-            local groupEntitiesThisSpawn = {}
-            local vehicle = nil
-            local actualSpawnPos = vector3(lastKnownCoords.x, lastKnownCoords.y, lastKnownCoords.z)
-            local spawnOffsetAttempt = vector3(math.random(70,120) * (math.random(0,1)*2-1) + 0.01, math.random(70,120) * (math.random(0,1)*2-1) + 0.01, 2.0)
-            local foundSpawn, safeSpawnPos = GetSafeCoordForPed(actualSpawnPos.x + spawnOffsetAttempt.x, actualSpawnPos.y + spawnOffsetAttempt.y, actualSpawnPos.z + spawnOffsetAttempt.z, true, 0)
-            if not foundSpawn then
-                local foundRoadNode, nodePos = GetClosestVehicleNode(actualSpawnPos.x + spawnOffsetAttempt.x, actualSpawnPos.y + spawnOffsetAttempt.y, actualSpawnPos.z, vector3(0,0,0), 1, 3.0, 0)
-                if foundRoadNode then
-                    local nodeX, nodeY, nodeZ = table.unpack(GetVehicleNodePosition(nodePos, vector3(0,0,0)))
-                    foundSpawn, safeSpawnPos = GetSafeCoordForPed(nodeX, nodeY, nodeZ, true, 0)
-                    if not foundSpawn then safeSpawnPos = vector3(nodeX, nodeY, nodeZ); foundSpawn = true end
-                end
-            end
-            if foundSpawn then actualSpawnPos = safeSpawnPos else actualSpawnPos = actualSpawnPos + vector3(0,0,1.0) end
-            local currentHeading = GetEntityHeading(currentGroupPlayerPed)
-
-            if groupInfo.helicopterChance and groupInfo.helicopter and math.random() < groupInfo.helicopterChance then
-                local heliModel = (type(groupInfo.helicopter) == "number" and groupInfo.helicopter) or GetHashKey(groupInfo.helicopter)
-                RequestModel(heliModel); local attempts = 0; while not HasModelLoaded(heliModel) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
-                if HasModelLoaded(heliModel) then vehicle = CreateVehicle(heliModel, actualSpawnPos.x, actualSpawnPos.y, actualSpawnPos.z + 50.0, currentHeading, true, false); table.insert(groupEntitiesThisSpawn, vehicle); table.insert(currentPlayerNPCResponseEntities, vehicle) end
-                SetModelAsNoLongerNeeded(heliModel)
-            elseif groupInfo.vehicle then
-                local vehicleModel = (type(groupInfo.vehicle) == "number" and groupInfo.vehicle) or GetHashKey(groupInfo.vehicle)
-                RequestModel(vehicleModel); local attempts = 0; while not HasModelLoaded(vehicleModel) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
-                if HasModelLoaded(vehicleModel) then vehicle = CreateVehicle(vehicleModel, actualSpawnPos.x, actualSpawnPos.y, actualSpawnPos.z, currentHeading + 180.0, true, false); table.insert(groupEntitiesThisSpawn, vehicle); table.insert(currentPlayerNPCResponseEntities, vehicle) end
-                SetModelAsNoLongerNeeded(vehicleModel)
-            end
-            local weaponHash = (type(groupInfo.weapon) == "number" and groupInfo.weapon) or GetHashKey(groupInfo.weapon)
-            local pedModelHash = (type(groupInfo.pedModel) == "number" and groupInfo.pedModel) or GetHashKey(groupInfo.pedModel or "s_m_y_cop_01")
-            RequestModel(pedModelHash); local attempts = 0; while not HasModelLoaded(pedModelHash) and attempts < 50 do Citizen.Wait(50); attempts = attempts + 1 end
-            if HasModelLoaded(pedModelHash) then
-                for i = 1, groupInfo.count do
-                    local ped
-                    if vehicle and i <= GetVehicleMaxNumberOfPassengers(vehicle) and GetPedInVehicleSeat(vehicle, -1 + (i-1)) == 0 then ped = CreatePedInsideVehicle(vehicle, 26, pedModelHash, -1 + (i-1), true, false)
-                    else ped = CreatePed(26, pedModelHash, actualSpawnPos.x + math.random(-5,5), actualSpawnPos.y + math.random(-5,5), actualSpawnPos.z, currentHeading, true, false) end
-                    if ped then
-                        GiveWeaponToPed(ped, weaponHash, 250, false, true); SetPedArmour(ped, groupInfo.armour or 25); SetPedAccuracy(ped, groupInfo.accuracy or 15)
-                        SetPedCombatAttributes(ped, 46, true); if groupInfo.combatAttributes then for attrId, valBool in pairs(groupInfo.combatAttributes) do SetPedCombatAttributes(ped, attrId, valBool) end end
-                        SetPedSeeingRange(ped, groupInfo.sightDistance or 80.0); SetEntityIsTargetPriority(ped, true, 0); SetPedRelationshipGroupHash(ped, GetHashKey("COP"))
-                        if vehicle and GetPedInVehicleSeat(vehicle, -1) == ped then TaskVehicleDriveToCoord(ped, vehicle, GetEntityCoords(currentGroupPlayerPed).x, GetEntityCoords(currentGroupPlayerPed).y, GetEntityCoords(currentGroupPlayerPed).z, 25.0, 1, GetHashKey(Config.PoliceVehicles[1] or "police"), 786603, 10.0, -1); SetPedKeepTask(ped, true)
-                        else TaskCombatPed(ped, currentGroupPlayerPed, 0, 16) end
-                        table.insert(groupEntitiesThisSpawn, ped); table.insert(currentPlayerNPCResponseEntities, ped)
-                    end
-                end
-            end
-            SetModelAsNoLongerNeeded(pedModelHash); activeSpawnedGroupsCount = activeSpawnedGroupsCount + 1
-            Citizen.Wait(180000)
-            for _, entityToClean in pairs(groupEntitiesThisSpawn) do if DoesEntityExist(entityToClean) then for k, trackedEntity in pairs(currentPlayerNPCResponseEntities) do if trackedEntity == entityToClean then table.remove(currentPlayerNPCResponseEntities, k); break end end; DeleteEntity(entityToClean) end end
-        end)
-    end
-    -- End of multi-line comment ]]--
+    -- This event handler is currently not responsible for spawning custom NPC police responses.
+    -- Ambient ped clearing is handled by a separate periodic thread.
+    -- Default police dispatch is suppressed by the 'Default Police Disabler Thread'.
+    -- Log if needed for debugging that this event was received.
+    print(string.format("[CNR_CLIENT] Event cops_and_robbers:wantedLevelResponseUpdate received for player %s. Stars: %d. Currently, this event does not spawn custom NPCs.", targetPlayerId, stars))
 end)
 
 RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
@@ -669,6 +508,102 @@ Citizen.CreateThread(function()
         end
         Citizen.Wait(loopWait)
         ::continue_contraband_loop::
+    end
+end)
+
+Citizen.CreateThread(function()
+    local clearCheckInterval = 7500 -- milliseconds (e.g., every 7.5 seconds)
+    print("[CNR_CLIENT] Ambient Police Ped Clearing Thread Started. Interval: " .. clearCheckInterval .. "ms")
+
+    while true do
+        Citizen.Wait(clearCheckInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+            goto continue_ambient_clear_loop -- Skip if player ped is not valid
+        end
+
+        -- Only run if player has a wanted level
+        if currentWantedStarsClient > 0 then -- Using the client-side 'currentWantedStarsClient' variable
+            local playerCoords = GetEntityCoords(playerPed)
+            local clearRadius = 1000.0
+
+            -- Pasted ambient ped clearing logic starts here
+            -- Ensure ShowNotification is used appropriately (maybe only for debug, or less frequently)
+            -- For example, you might remove ShowNotifications or make them conditional on a debug flag.
+            -- For now, I will keep them for debugging visibility during this change.
+
+            -- Get all peds in the radius
+            local allPedsInRadius = {}
+            local findPedHandle, foundPed = FindFirstPed() -- Corrected usage
+            local pedsChecked = 0 -- Debug counter
+            local maxPedsToConsider = 500 -- Safety break for very dense areas
+
+            if foundPed then
+                repeat
+                    pedsChecked = pedsChecked + 1
+                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then -- Use foundPed
+                        local currentPedCoords = GetEntityCoords(foundPed) -- Use foundPed
+                        if #(playerCoords - currentPedCoords) < clearRadius then
+                            table.insert(allPedsInRadius, foundPed) -- Use foundPed
+                        end
+                    end
+                    -- Check for safety break
+                    if pedsChecked > maxPedsToConsider then
+                        print("[CNR_CLIENT_WARN] Ambient Police Ped Clearing: Exceeded maxPedsToConsider (" .. maxPedsToConsider .. "). Breaking ped find loop to prevent performance issues.")
+                        break
+                    end
+                    foundPed = FindNextPed(findPedHandle) -- Corrected usage: only one return value needed for the loop condition
+                until not foundPed
+            end
+            EndFindPed(findPedHandle) -- Corrected usage
+
+            local clearedPedCount = 0
+            for _, pedToClear in ipairs(allPedsInRadius) do
+                -- Double check entity existence before operating
+                if DoesEntityExist(pedToClear) then
+                    local pedModel = GetEntityModel(pedToClear)
+                    local isCopModel = false
+                    local copModels = {
+                        GetHashKey("s_m_y_cop_01"), GetHashKey("s_f_y_cop_01"),
+                        GetHashKey("s_m_y_swat_01"), GetHashKey("s_m_y_sheriff_01"),
+                        GetHashKey("s_f_y_sheriff_01"), GetHashKey("s_m_y_hwaycop_01")
+                        -- Add other relevant police/dispatch ped models if necessary
+                    }
+                    for _, modelHash in ipairs(copModels) do
+                        if pedModel == modelHash then
+                            isCopModel = true
+                            break
+                        end
+                    end
+
+                    if isCopModel then
+                        -- Check if ped is in a vehicle. We only delete peds, not vehicles.
+                        if IsPedInAnyVehicle(pedToClear, false) then
+                            -- Ped is in a vehicle. Delete the ped, leaving the vehicle.
+                            -- ShowNotification(string.format("Deleting ambient police ped (in vehicle) model %s", pedModel)) -- Potentially spammy
+                            DeletePed(pedToClear)
+                            clearedPedCount = clearedPedCount + 1
+                        else
+                            -- Ped is on foot. Delete the ped.
+                            -- ShowNotification(string.format("Deleting ambient police ped (on foot) model %s", pedModel)) -- Potentially spammy
+                            DeletePed(pedToClear)
+                            clearedPedCount = clearedPedCount + 1
+                        end
+                    end
+                end
+            end
+
+            if clearedPedCount > 0 then
+                -- This notification can be very spammy. Consider removing or making it debug-only.
+                -- ShowNotification(string.format("Ambient Clear: %d police peds removed.", clearedPedCount))
+                print(string.format("[CNR_CLIENT] Ambient Clear: %d police peds removed near player %s.", clearedPedCount, GetPlayerName(playerId)))
+            end
+            -- Pasted ambient ped clearing logic ends here
+        end
+        ::continue_ambient_clear_loop::
     end
 end)
 
