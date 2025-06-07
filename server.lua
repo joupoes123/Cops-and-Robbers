@@ -1521,10 +1521,10 @@ AddEventHandler('cops_and_robbers:setPlayerRole', function(selectedRole)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
     Log(string.format("NetEvent 'cops_and_robbers:setPlayerRole' received. Player: %s (ID: %s), Role: %s", playerName, src, selectedRole), "info")
-    
+
     -- Call the main SetPlayerRole function
     -- The 'false' for skipNotify means they WILL get a chat message like "You are now a Cop."
-    SetPlayerRole(src, selectedRole, false) 
+    SetPlayerRole(src, selectedRole, false)
 end)
 
 RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)
