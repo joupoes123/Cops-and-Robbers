@@ -53,6 +53,18 @@ body {
     color: #ffffff; /* New Text Color */
 }
 
+/* Focus States */
+button:focus,
+input:focus,
+textarea:focus, /* Added textarea for completeness */
+select:focus, /* Added select for completeness */
+.tab-btn:focus,
+.category-btn:focus {
+    outline: 2px solid #e94560; /* Accent color 1 for outline */
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3); /* Optional: softer glow effect */
+}
+
 /* ==========================================================================
    Generic Component Styles
    ========================================================================== */
@@ -117,7 +129,7 @@ button:hover {
     transform: translateX(-50%);
     color: #fff;
     font-size: 24px;
-    text-shadow: 1px 1px 2px #000;
+    text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.7), 0px 0px 10px rgba(0, 0, 0, 0.5); /* Enhanced text shadow */
 }
 
 /* Specific Heist Timer Style */
@@ -238,6 +250,23 @@ button:hover {
     padding-right: 10px; /* Added padding for scrollbar */
 }
 
+/* Webkit Scrollbar Styling for #item-list */
+#item-list::-webkit-scrollbar {
+    width: 8px;
+}
+#item-list::-webkit-scrollbar-track {
+    background: #1a1a2e; /* Primary background for track */
+    border-radius: 10px;
+}
+#item-list::-webkit-scrollbar-thumb {
+    background: #0f3460; /* Accent Color 2 for thumb */
+    border-radius: 10px;
+}
+#item-list::-webkit-scrollbar-thumb:hover {
+    background: #1f4e79; /* Darker Accent Color 2 for thumb hover */
+}
+
+
 /* Individual Item Styling */
 .item {
     display: flex;
@@ -270,13 +299,13 @@ button:hover {
 }
 
 .quantity-input { /* Used with buy/sell actions */
-    width: 50px;
+    width: 50px; /* Keep specific width for quantity input */
     margin-right: 10px;
-    padding: 5px; /* Added padding */
-    border-radius: 3px; /* Added for softer edges */
-    border: 1px solid #444; /* Added border */
-    background-color: #333; /* Darker background */
-    color: #fff; /* White text */
+    padding: 8px 10px; /* Adjusted padding */
+    border-radius: 6px; /* Consistent with other smaller inputs */
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    background-color: #1a1a2e; /* New Primary Background */
+    color: #ffffff; /* New Text Color */
 }
 
 /* Item Action Buttons (Buy/Sell) */
@@ -442,6 +471,23 @@ button:hover {
     border-radius: 8px; /* New border-radius */
 }
 
+/* Webkit Scrollbar Styling for .admin-player-list-container */
+.admin-player-list-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px; /* For horizontal scroll if overflow-x is also auto */
+}
+.admin-player-list-container::-webkit-scrollbar-track {
+    background: #1a1a2e; /* Primary background for track */
+    border-radius: 10px;
+}
+.admin-player-list-container::-webkit-scrollbar-thumb {
+    background: #0f3460; /* Accent Color 2 for thumb */
+    border-radius: 10px;
+}
+.admin-player-list-container::-webkit-scrollbar-thumb:hover {
+    background: #1f4e79; /* Darker Accent Color 2 for thumb hover */
+}
+
 #admin-panel table {
     width: 100%;
     border-collapse: collapse;
@@ -499,7 +545,7 @@ button:hover {
     width: calc(100% - 22px); /* Adjust for padding/border */
     padding: 10px; /* Increased padding */
     margin-bottom: 10px;
-    border-radius: 5px; /* New border-radius */
+    border-radius: 6px; /* Adjusted for consistency */
     border: 1px solid #16213e; /* New Secondary Background for border */
     background-color: #1a1a2e; /* New Primary Background */
     color: #ffffff; /* New Text Color */
@@ -560,6 +606,24 @@ button:hover {
     color: #ffffff; /* New Text Color */
     font-family: Arial, sans-serif;
     border: 1px solid #0f3460; /* New Accent Color 2 for border */
+}
+
+/* Player Cash Display HUD Styling */
+#cash-display {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    background-color: #16213e; /* New Secondary Background */
+    color: #ffffff; /* New Text Color */
+    padding: 10px 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    font-weight: bold;
+    font-size: 16px;
+    z-index: 90;
+    display: none; /* Hidden by default, JS controls visibility */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 #level-text {
