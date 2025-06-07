@@ -8,7 +8,6 @@ version '2.0'
 
 -- Define shared scripts, loaded first on both server and client.
 shared_scripts {
-    -- '@ox_lib/init.lua', -- REMOVED
     'config.lua'        -- Game mode configuration.
 }
 
@@ -40,11 +39,6 @@ files {
     'purchase_history.json', -- For dynamic pricing persistence (ensure write access for server).
     'player_data/*',         -- Wildcard for player save files (ensure server has write access to this conceptual path).
     'bans.json'
-    -- REMOVED: 'html/index.html',
-    -- REMOVED: 'html/store.html',
-    -- REMOVED: 'html/role_selection.html',
-    -- Note: Redundant/obsolete HTML files (e.g., store.html, role_selection.html, index.html) are assumed
-    -- to be consolidated into main_ui.html.
 }
 
 -- Declare resource dependencies.
