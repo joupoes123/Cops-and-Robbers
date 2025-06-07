@@ -57,6 +57,22 @@ window.addEventListener('message', function(event) {
             }
             openStoreMenu(data.storeName, data.items);
             break;
+        case 'openStore': // New case for the specific 'openStore' action
+            if (data.resourceName) {
+                window.cnrResourceName = data.resourceName;
+                console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
+                const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
+                if (!allowedOrigins.includes(currentResourceOriginDynamic)) {
+                    allowedOrigins.push(currentResourceOriginDynamic);
+                    // For debugging, you might want to log the updated allowedOrigins
+                    // console.log("NUI: Updated allowedOrigins: ", allowedOrigins);
+                }
+            }
+            // The existing openStoreMenu function is suitable
+            // It expects (storeName, storeItems)
+            // event.data (which is 'data' here) should contain 'storeName' and 'items'
+            openStoreMenu(data.storeName, data.items);
+            break;
         case 'closeStore':
             closeStoreMenu();
             break;
@@ -181,9 +197,49 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
             percentage = (xp / nextLvlXp) * 100;
         } else if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
             percentage = 100;
+            // Potentially call showLevelUpConfetti here if level up is detected
+            // For now, this function is just being defined.
+            // Actual call would be triggered by game logic sending a specific NUI event.
         }
         xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
     }
+}
+
+function showLevelUpConfetti() {
+    // Use a simple confetti library or custom canvas animation here
+    // For demo: alert('Level Up! 🎉');
+    // Integrate with XP/level up event
+    alert('Level Up! 🎉'); // Placeholder as per issue description
+    console.log('Level Up! 🎉 (Confetti placeholder)');
+}
+
+function showToast(message, type = 'info', duration = 3000) { // Added type parameter
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = 'toast-notification'; // Reset classes, keeps base class
+    if (type === 'success') {
+        toast.classList.add('success');
+    } else if (type === 'error') {
+        toast.classList.add('error');
+    }
+    // else 'info' or default styling (from .toast-notification) will apply
+
+    toast.style.display = 'block';
+    // Apply animation class using keyframes
+    // The (duration - 500) ensures the fadeOut starts 0.5s before the total duration ends.
+    // Adjust 500ms (0.5s) if your fadeOut animation duration is different.
+    const fadeOutDelay = duration - 500; // Assuming 0.5s fadeOut
+    if (fadeOutDelay < 0) { // Ensure delay isn't negative if duration is too short
+        toast.style.animation = `fadeInNotification 0.5s ease-out forwards`;
+    } else {
+        toast.style.animation = `fadeInNotification 0.5s ease-out, fadeOutNotification 0.5s ease-in ${fadeOutDelay}ms forwards`;
+    }
+
+    setTimeout(() => {
+        toast.style.display = 'none';
+        toast.style.animation = ''; // Clear animation styles
+    }, duration);
 }
 
 function updateCashDisplay(currentCash) {
@@ -203,6 +259,8 @@ function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.classList.remove('hidden');
+        roleSelectionUI.style.display = ''; // Revert to CSS default display (e.g. block or flex)
+        document.body.style.backgroundColor = ''; // Reset body background
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Role selection UI element not found.");
@@ -213,21 +271,40 @@ function hideRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.classList.add('hidden');
-        fetchSetNuiFocus(false, false);
+        roleSelectionUI.style.display = 'none'; 
+        document.body.style.backgroundColor = 'transparent'; // Diagnostic line
+        // Ensure no other UI manipulation happens before fetchSetNuiFocus
+        fetchSetNuiFocus(false, false); 
     }
 }
 
 function openStoreMenu(storeName, storeItems) {
+    // console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
+    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2));
+    // console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
+    // console.log('[CNR_NUI_STORE] storeMenuUI element:', storeMenuUI);
+    // console.log('[CNR_NUI_STORE] storeTitleEl element:', storeTitleEl);
+
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
         window.currentCategory = null;
-        window.currentTab = 'buy';
-        loadCategories();
-        loadItems();
-        storeMenuUI.style.display = 'block';
+        window.currentTab = 'buy'; // Default to buy tab
+        loadCategories(); // This will also trigger loadItems if categories are present
+        loadItems(); // Initial load for "All" or first category
+
+        // console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
+        storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
+        storeMenuUI.classList.remove('hidden');
+        // console.log('[CNR_NUI_STORE] Removed "hidden" class. classList:', storeMenuUI.classList.toString()); // .toString() for better log
+        // console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
+        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
+
         fetchSetNuiFocus(true, true);
     } else {
         console.error("Store menu UI or title element not found.");
@@ -237,7 +314,9 @@ function openStoreMenu(storeName, storeItems) {
 function closeStoreMenu() {
     const storeMenuUI = document.getElementById('store-menu');
     if (storeMenuUI) {
-        storeMenuUI.style.display = 'none';
+        storeMenuUI.classList.add('hidden');
+        storeMenuUI.style.display = ''; // Let CSS handle display via .hidden class
+        // console.log('[CNR_NUI_STORE] closeStoreMenu: Added "hidden" class, reset display style. classList:', storeMenuUI.classList.toString());
         fetchSetNuiFocus(false, false);
     }
 }
@@ -259,10 +338,28 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 function loadCategories() {
+    // console.log('[CNR_NUI_STORE] loadCategories called.');
     const categoryList = document.getElementById('category-list');
-    if (!categoryList) return;
-    const categories = [...new Set(window.items.map(item => item.category))];
-    categoryList.innerHTML = '';
+    if (!categoryList) {
+        console.error('[CNR_NUI_STORE] Category list element not found.');
+        return;
+    }
+    const categories = [...new Set((window.items || []).map(item => item.category))];
+    // console.log('[CNR_NUI_STORE] Categories generated:', categories);
+    categoryList.innerHTML = ''; // Clear previous categories
+
+    // Add "All" category button
+    const allBtn = document.createElement('button');
+    allBtn.className = 'category-btn active'; // Active by default
+    allBtn.textContent = 'All';
+    allBtn.onclick = () => {
+        window.currentCategory = null; // null signifies "All"
+        document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        if (window.currentTab === 'buy') loadItems();
+    };
+    categoryList.appendChild(allBtn);
+
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -275,34 +372,60 @@ function loadCategories() {
         };
         categoryList.appendChild(btn);
     });
+    // console.log('[CNR_NUI_STORE] loadCategories finished.');
 }
 
 function loadItems() {
+    // console.log('[CNR_NUI_STORE] loadItems called.');
     const itemList = document.getElementById('item-list');
-    if (!itemList) return;
+    if (!itemList) {
+        console.error('[CNR_NUI_STORE] Item list element not found.'); // Corrected log message
+        return;
+    }
     itemList.innerHTML = '';
-    const filteredItems = window.items.filter(item => !window.currentCategory || item.category === window.currentCategory);
-    if (filteredItems.length === 0) {
+    const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
+
+    console.log('[CNR_NUI_PERF] Original filteredItems count:', filteredItems.length);
+    const itemsToRender = filteredItems.slice(0, 5); // Limit to 5 items for testing
+    console.log('[CNR_NUI_PERF] Rendering only first 5 items for performance test. Count:', itemsToRender.length);
+
+    if (itemsToRender.length === 0) { // Check itemsToRender instead of filteredItems
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
+        // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
-    filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
+    itemsToRender.forEach(item => fragment.appendChild(createItemElement(item, 'buy'))); // Use itemsToRender
     itemList.appendChild(fragment);
+    // console.log('[CNR_NUI_STORE] loadItems finished.');
 }
 
 function loadSellItems() {
     const sellListContainer = document.getElementById('sell-section');
     if (!sellListContainer) return;
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>';
+
     const resName = window.cnrResourceName || 'cops-and-robbers';
-    fetch(`https://$\{resName}/getPlayerInventory`, {
-        method: 'POST',
+    const url = `https://${resName}/getPlayerInventory`; // Use backticks for template literal
+    console.log(`[CNR_NUI_FETCH] loadSellItems: Attempting to fetch inventory. resName: ${resName}, URL: ${url}`);
+
+    fetch(url, {
+        method: 'POST', // Should match what RegisterNUICallback expects, often POST even for GET-like actions
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}) // Empty body if not needed by callback
     })
     .then(resp => {
-        if (!resp.ok) return resp.json().then(err => Promise.reject(err)).catch(() => Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status})` }));
+        console.log(`[CNR_NUI_FETCH] loadSellItems: Received response. Status: ${resp.status}, StatusText: ${resp.statusText}`);
+        if (!resp.ok) {
+            // Try to parse as JSON for an error message, otherwise use statusText
+            return resp.json().then(err => {
+                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with error:', err);
+                return Promise.reject(err.error || err.message || `Failed to load inventory (HTTP ${resp.status})`);
+            }).catch(() => { // Catch if resp.json() itself fails (e.g. not a JSON response)
+                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with non-JSON error. Status:', resp.status, resp.statusText);
+                return Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status} - ${resp.statusText})` });
+            });
+        }
         return resp.json();
     })
     .then(nuiInventory => {
@@ -315,14 +438,18 @@ function loadSellItems() {
         const fragment = document.createDocumentFragment();
         sellableItemsArray.forEach(inventoryItem => fragment.appendChild(createItemElement(inventoryItem, 'sell')));
         sellListContainer.appendChild(fragment);
+        console.log('[CNR_NUI_FETCH] loadSellItems: Successfully fetched and parsed inventory for NUI.', nuiInventory);
     })
     .catch(error => {
-        console.error('Error fetching player inventory:', error.message || error);
-        sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error'}</p>`;
+        console.error(`[CNR_NUI_FETCH] Error fetching player inventory (URL: ${url}):`, error); // Log the full error object
+        if (sellListContainer) { // Ensure sellListContainer is still defined (it should be)
+            sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error. Check F8 console.'}</p>`;
+        }
     });
 }
 
 function createItemElement(item, type = 'buy') {
+    // console.log('[CNR_NUI_STORE] createItemElement called for item:', JSON.stringify(item), 'Type:', type);
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
     itemDiv.dataset.itemId = item.itemId;
@@ -349,17 +476,22 @@ function createItemElement(item, type = 'buy') {
     itemDiv.appendChild(quantityInput);
     const actionBtn = document.createElement('button');
     actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
-    actionBtn.textContent = (type === 'buy') ? 'Buy' : 'Sell';
+    // Add icon to button text
+    actionBtn.innerHTML = `<span class="icon">${type === 'buy' ? '🛒' : '💰'}</span> ${type === 'buy' ? 'Buy' : 'Sell'}`;
     actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
+    // console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
     return itemDiv;
 }
 
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
     const resName = window.cnrResourceName || 'cops-and-robbers';
+    const url = `https://${resName}/${endpoint}`; // Correctly use backticks for template literal
+    console.log(`[CNR_NUI_FETCH] handleItemAction: Attempting ${actionType}. resName: ${resName}, URL: ${url}, ItemID: ${itemId}, Quantity: ${quantity}`);
+
     try {
-        const resp = await fetch(`https://$\{resName}/${endpoint}`, {
+        const resp = await fetch(url, { // Use the defined url variable
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: itemId, quantity: quantity })
@@ -367,14 +499,14 @@ async function handleItemAction(itemId, quantity, actionType) {
         const response = await resp.json();
         if (!resp.ok) throw new Error(response.message || `HTTP error ${resp.status}`);
         if (response.status === 'success') {
-            alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
+            // alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
             if (actionType === 'sell') loadSellItems();
         } else {
-            alert(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed: ${response.message || 'Unknown error'}`);
+            // alert(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed: ${response.message || 'Unknown error'}`);
         }
     } catch (error) {
-        console.error(`Error ${actionType}ing item:`, error.message || error);
-        alert(`Failed to ${actionType} item: ${error.message || 'Check console for details.'}`);
+        console.error(`[CNR_NUI_FETCH] Error ${actionType}ing item (URL: ${url}):`, error); // Log the full error object
+        // alert(`Failed to ${actionType} item: ${error.message || 'Network error. Check F8 console (or NUI DevTools if open).'}`);
     }
 }
 
@@ -390,7 +522,8 @@ document.addEventListener('click', function(event) {
         const quantity = parseInt(quantityInput.value);
         const maxQuantity = parseInt(quantityInput.max);
         if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
-            alert(`Invalid quantity. Must be between 1 and ${maxQuantity}.`);
+            // alert(`Invalid quantity. Must be between 1 and ${maxQuantity}.`);
+            console.warn(`[CNR_NUI_INPUT_VALIDATION] Invalid quantity input: ${quantity}. Max allowed: ${maxQuantity}. ItemId: ${itemId}`);
             return;
         }
         handleItemAction(itemId, quantity, actionType);
@@ -434,15 +567,15 @@ function selectRole(selectedRole) {
         } else {
             // Ensure response is an object before trying to access response.message
             const message = (response && typeof response === 'object' && response.message) ? response.message : 'Unexpected server response';
-            alert(`Role selection failed: ${message}`);
-            console.error('Role selection failed due to server response:', response);
+            // alert(`Role selection failed: ${message}`);
+            console.error(`Role selection failed: ${message}`, response);
         }
     })
     .catch(error => {
         // Update the error log for clarity
         const resNameForError = window.cnrResourceName || 'cops-and-robbers'; // Recapture for error message
         console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
-        alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
+        // alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
     });
 }
 
@@ -472,7 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetch(`https://$\{resName}/adminKickPlayer`, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
-                        }).then(resp => resp.json()).then(res => alert(res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.')));
+                        }).then(resp => resp.json()).then(res => console.log('[CNR_NUI_ADMIN] Kick response:', res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.')));
                     }
                 } else if (target.classList.contains('admin-ban-btn')) {
                     currentAdminTargetPlayerId = targetId;
@@ -484,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
                         }).then(resp => resp.json()).then(res => {
-                            alert(res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
+                            console.log('[CNR_NUI_ADMIN] Teleport response:', res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
                             hideAdminPanel();
                         });
                     }
@@ -502,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
             }).then(resp => resp.json()).then(res => {
-                alert(res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
+                console.log('[CNR_NUI_ADMIN] Ban response:', res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
                 hideAdminPanel();
             });
         }
@@ -529,6 +662,42 @@ document.addEventListener('DOMContentLoaded', () => {
             else loadItems();
         });
     });
+
+    // Add event listener for the main store close button
+    const storeCloseButton = document.getElementById('close-btn');
+    if (storeCloseButton) {
+        storeCloseButton.addEventListener('click', closeStoreMenu);
+    }
+
+    // Add event listener for the bounty board close button if it exists
+    const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
+    if (bountyCloseButton) {
+        bountyCloseButton.addEventListener('click', hideBountyBoardUI);
+    }
+});
+
+
+// Global Escape key handler
+window.addEventListener('keydown', function(event) {
+    console.log('[CNR_NUI_ESCAPE] Keydown event:', event.key);
+    const storeMenu = document.getElementById('store-menu');
+    const adminPanel = document.getElementById('admin-panel');
+    const roleSelectionPanel = document.getElementById('role-selection');
+    const bountyBoardPanel = document.getElementById('bounty-board');
+
+
+    if (event.key === 'Escape' || event.keyCode === 27) {
+        console.log('[CNR_NUI_ESCAPE] Escape key pressed. Checking for open menus...');
+        if (storeMenu && storeMenu.style.display === 'block') {
+            closeStoreMenu();
+        } else if (adminPanel && adminPanel.style.display !== 'none' && !adminPanel.classList.contains('hidden')) {
+            hideAdminPanel();
+        } else if (bountyBoardPanel && bountyBoardPanel.style.display !== 'none' && !bountyBoardPanel.classList.contains('hidden')){
+            hideBountyBoardUI();
+        // } else if (roleSelectionPanel && roleSelectionPanel.style.display !== 'none' && !roleSelectionPanel.classList.contains('hidden')) {
+            // hideRoleSelection(); // Usually, role selection is modal and shouldn't be escapable without making a choice or specific cancel button.
+        }
+    }
 });
 
 // -------------------------------------------------------------------
@@ -580,13 +749,13 @@ function showAdminPanel(playerList) {
             row.insertCell().textContent = '$' + (player.cash || 0);
             const actionsCell = row.insertCell();
             const kickBtn = document.createElement('button');
-            kickBtn.textContent = 'Kick'; kickBtn.className = 'admin-action-btn admin-kick-btn';
+            kickBtn.innerHTML = '<span class="icon">👢</span>Kick'; kickBtn.className = 'admin-action-btn admin-kick-btn';
             kickBtn.dataset.targetId = player.serverId; actionsCell.appendChild(kickBtn);
             const banBtn = document.createElement('button');
-            banBtn.textContent = 'Ban'; banBtn.className = 'admin-action-btn admin-ban-btn';
+            banBtn.innerHTML = '<span class="icon">🚫</span>Ban'; banBtn.className = 'admin-action-btn admin-ban-btn';
             banBtn.dataset.targetId = player.serverId; actionsCell.appendChild(banBtn);
             const teleportBtn = document.createElement('button');
-            teleportBtn.textContent = 'TP to'; teleportBtn.className = 'admin-action-btn admin-teleport-btn';
+            teleportBtn.innerHTML = '<span class="icon">➡️</span>TP to'; teleportBtn.className = 'admin-action-btn admin-teleport-btn';
             teleportBtn.dataset.targetId = player.serverId; actionsCell.appendChild(teleportBtn);
         });
     } else {
@@ -632,24 +801,65 @@ function hideBountyBoardUI() {
 }
 
 function updateBountyListUI(bounties) {
-    // Placeholder: Implement logic to update the bounty list in the UI
     console.log("Updating bounty list UI with:", bounties);
-    const bountyListContainer = document.getElementById('bounty-list-container'); // Assuming this ID
-    if (bountyListContainer) {
-        bountyListContainer.innerHTML = ''; // Clear old bounties
+    const bountyListUL = document.getElementById('bounty-list'); // Target the UL element
+
+    if (bountyListUL) {
+        bountyListUL.innerHTML = ''; // Clear old bounties
         if (Object.keys(bounties).length === 0) {
-            bountyListContainer.innerHTML = '<p>No active bounties.</p>';
+            const noBountiesLi = document.createElement('li');
+            noBountiesLi.className = 'no-bounties'; // From bounties.css for styling this message
+            noBountiesLi.textContent = 'No active bounties.';
+            bountyListUL.appendChild(noBountiesLi);
             return;
         }
+
         for (const targetId in bounties) {
-            const bounty = bounties[targetId];
-            const bountyDiv = document.createElement('div');
-            bountyDiv.className = 'bounty-entry';
-            bountyDiv.innerHTML = `Target: ${bounty.name} (ID: ${targetId}) - Reward: $${bounty.amount}`;
-            // Add more details as needed
-            bountyListContainer.appendChild(bountyDiv);
+            const data = bounties[targetId]; // 'data' is more consistent with issue description
+            const li = document.createElement('li');
+
+            // Avatar
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'bounty-target-avatar';
+            const nameInitial = data.name ? data.name.charAt(0).toUpperCase() : '?';
+            avatarDiv.textContent = nameInitial;
+            li.appendChild(avatarDiv);
+
+            // Text Content Container
+            const textContainer = document.createElement('div');
+            textContainer.className = 'bounty-text-content';
+
+            // Bounty Amount (Color Coded)
+            let amountClass = 'bounty-amount-low';
+            if (data.amount > 50000) amountClass = 'bounty-amount-high';
+            else if (data.amount > 10000) amountClass = 'bounty-amount-medium';
+
+            // Simplified formatNumber, actual implementation might be more robust
+            const formatNumber = (num) => num.toLocaleString();
+            const bountyAmountHTML = `<span class="${amountClass}">$${formatNumber(data.amount || 0)}</span>`;
+
+            // Bounty Details
+            // Using textContent for safety against XSS, then innerHTML for the part with the span
+            const targetInfo = document.createElement('div');
+            targetInfo.textContent = `Target: ${data.name || 'Unknown'} (ID: ${targetId})`;
+
+            const rewardInfo = document.createElement('div');
+            rewardInfo.innerHTML = `Reward: ${bountyAmountHTML}`; // Use innerHTML here for the span
+
+            textContainer.appendChild(targetInfo);
+            textContainer.appendChild(rewardInfo);
+            // Add more details to textContainer if needed
+
+            li.appendChild(textContainer);
+            bountyListUL.appendChild(li);
+
+            // Animation for new item
+            li.classList.add('new-item-animation');
+            setTimeout(() => {
+                li.classList.remove('new-item-animation');
+            }, 300); // Match CSS animation duration
         }
     } else {
-        console.warn("Bounty list container element not found for UI update.");
+        console.warn("Bounty list UL element ('bounty-list') not found for UI update.");
     }
 }

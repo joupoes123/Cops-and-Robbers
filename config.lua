@@ -98,6 +98,29 @@ Config.NPCVendors = {
         name     = "Gang Supplier",
         items    = { "weapon_pistol", "weapon_sawnoffshotgun", "ammo_shotgun", "armor", "bandana" } -- Changed weapon_pistol50 to weapon_pistol for consistency
     },
+    {
+        location = vector3(451.39, -974.42, 30.69),
+        heading  = 125.60,
+        model    = "s_m_y_cop_01",
+        name     = "Cop Store",
+        items    = {
+            "weapon_stungun",
+            "weapon_pistol",
+            "weapon_combatpistol",
+            "ammo_pistol",
+            "weapon_pumpshotgun",
+            "ammo_shotgun",
+            "weapon_carbinerifle",
+            "ammo_rifle",
+            "armor",
+            "firstaidkit",
+            "medkit",
+            "weapon_flashlight",
+            "spikestrip_item",
+            "speedradar_gun",
+            "k9whistle"
+        }
+    }
     -- Additional NPC vendors can be added here following the same structure.
 }
 
@@ -132,11 +155,11 @@ Config.Items = {
     { name = "Flashlight",        itemId = "weapon_flashlight",     basePrice = 100,  category = "Melee Weapons" }, -- Often considered a melee weapon too
 
     -- Ammunition (ammo_X corresponds to weapon type, not specific weapon model)
-    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition" }, -- For all pistols
-    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition" }, -- For all SMGs
-    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition" }, -- For all assault/carbine rifles
-    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition" }, -- For all shotguns
-    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition" }, -- For all sniper rifles
+    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition", weaponLink = "weapon_pistol", ammoAmount = 12 },
+    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition", weaponLink = "weapon_smg", ammoAmount = 30 },
+    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition", weaponLink = "weapon_carbinerifle", ammoAmount = 30 }, -- Changed from weapon_assaultrifle
+    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition", weaponLink = "weapon_pumpshotgun", ammoAmount = 8 }, -- Linking to pumpshotgun
+    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition", weaponLink = "weapon_sniperrifle", ammoAmount = 5 },
 
     -- Armor and Utility
     { name = "Body Armor",        itemId = "armor",                 basePrice = 500,  category = "Armor" },
@@ -160,6 +183,7 @@ Config.Items = {
     { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true },
     { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2 },
     { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3 },
+    { name = "Taser",             itemId = "weapon_stungun",        basePrice = 350,  category = "Cop Gear", forCop = true, minLevelCop = 1 },
 
     -- Robber Gear (Restricted items for Robbers)
     { name = "EMP Device",        itemId = "emp_device",            basePrice = 2500, category = "Robber Gear", minLevelRobber = 5 }

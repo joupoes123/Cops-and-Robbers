@@ -3,6 +3,7 @@
 -- Version: 1.2 | Date: <current date>
 -- Ped readiness flag and guards implemented.
 
+_G.cnrSetDispatchServiceErrorLogged = false -- Initialize global flag for dispatch error logging
 local g_isPlayerPedReady = false
 
 -- =====================================
@@ -59,6 +60,8 @@ local currentSafeZoneName = ""
 -- Wanted System Expansion Client State
 local currentPlayerNPCResponseEntities = {}
 local corruptOfficialNPCs = {}
+local copStoreBlips = {}
+local currentHelpTextTarget = nil -- Moved to top level for broader access
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -126,9 +129,9 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if newRole == "cop" then
         modelToLoad = "s_m_y_cop_01"
     elseif newRole == "robber" then
-        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for robber
+        modelToLoad = "a_m_m_farmer_01" -- Changed to a specific ped
     else -- citizen
-        modelToLoad = "mp_m_freemode_01" -- Example generic freemode model for citizen
+        modelToLoad = "a_m_m_farmer_01" -- Changed to a specific ped (or another if desired)
     end
     
     modelHash = GetHashKey(modelToLoad)
@@ -185,10 +188,10 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     end
 
     if newRole == "cop" then
-        local pistolHash = GetHashKey("weapon_pistol")
-        GiveWeaponToPed(playerPed, pistolHash, 100, false, true)
-        playerWeapons["weapon_pistol"] = true; playerAmmo["weapon_pistol"] = 100
-        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave pistol to cop.")
+        local taserHash = GetHashKey("weapon_stungun")
+        GiveWeaponToPed(playerPed, taserHash, 5, false, true)
+        playerWeapons["weapon_stungun"] = true; playerAmmo["weapon_stungun"] = 5
+        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
         GiveWeaponToPed(playerPed, batHash, 1, false, true)
@@ -196,6 +199,88 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
+end
+
+function UpdateCopStoreBlips(currentRole)
+    if not Config.NPCVendors then
+        print("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Config.NPCVendors not found.")
+        return
+    end
+
+    -- Ensure Config.NPCVendors is an array for ipairs
+    if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
+        print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+        return
+    end
+
+    -- First pass: Add/Remove blips based on current role and vendor type
+    for i, vendor in ipairs(Config.NPCVendors) do
+        if vendor and vendor.location and vendor.name then -- Basic validation for vendor entry
+            local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z) -- More robust key
+
+            if vendor.name == "Cop Store" then
+                if currentRole == "cop" then
+                    if not copStoreBlips[blipKey] or not DoesBlipExist(copStoreBlips[blipKey]) then
+                        local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
+                        SetBlipSprite(blip, 60) -- Police/Ammu-nation like sprite (e.g., armory)
+                        SetBlipColour(blip, 3)  -- Blue color for police
+                        SetBlipScale(blip, 0.8)
+                        SetBlipAsShortRange(blip, true)
+                        BeginTextCommandSetBlipName("STRING")
+                        AddTextComponentSubstringPlayerName(vendor.name)
+                        EndTextCommandSetBlipName(blip)
+                        copStoreBlips[blipKey] = blip
+                        print(string.format("[CNR_CLIENT_DEBUG] Created blip for Cop Store '%s' at: %s", vendor.name, blipKey))
+                    end
+                else -- Not a cop, ensure blip is removed
+                    if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
+                        RemoveBlip(copStoreBlips[blipKey])
+                        copStoreBlips[blipKey] = nil
+                        print(string.format("[CNR_CLIENT_DEBUG] Removed Cop Store blip for non-cop role at: %s", blipKey))
+                    end
+                end
+            else -- This vendor is NOT a "Cop Store"
+                -- Clean up any stray blip if it was mistakenly associated with a non-cop store under copStoreBlips
+                if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
+                    print(string.format("[CNR_CLIENT_WARN] Removing stray blip from copStoreBlips, associated with a non-Cop Store: '%s' at %s", vendor.name, blipKey))
+                    RemoveBlip(copStoreBlips[blipKey])
+                    copStoreBlips[blipKey] = nil
+                end
+            end
+        else
+            print(string.format("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Invalid vendor entry at index %d.", i))
+        end
+    end
+
+    -- Second pass to remove any blips in copStoreBlips whose corresponding vendors are no longer in Config.NPCVendors or changed name
+    for blipKey, blipId in pairs(copStoreBlips) do
+        local stillExistsAndIsCopStore = false
+        if Config.NPCVendors and type(Config.NPCVendors) == "table" then -- Re-check type for safety
+            for _, vendor in ipairs(Config.NPCVendors) do
+                if vendor and vendor.location and vendor.name then -- Basic validation
+                    if tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z) == blipKey and vendor.name == "Cop Store" then
+                        stillExistsAndIsCopStore = true
+                        break
+                    end
+                end
+            end
+        end
+
+        if not stillExistsAndIsCopStore then
+            if blipId and DoesBlipExist(blipId) then -- Ensure blipId is not nil before DoesBlipExist
+                RemoveBlip(blipId)
+            end
+            copStoreBlips[blipKey] = nil -- Remove from table regardless of DoesBlipExist result if it's nil
+            print(string.format("[CNR_CLIENT_DEBUG] Cleaned up orphaned/renamed Cop Store blip for key: %s", blipKey))
+        end
+    end
+    print("[CNR_CLIENT_DEBUG] UpdateCopStoreBlips finished. Current copStoreBlips count: " .. tablelength(copStoreBlips))
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
 end
 
 -- =====================================
@@ -250,6 +335,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     end
 
     SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    UpdateCopStoreBlips(role) -- Update blips based on new role
     SendNUIMessage({
         action = "updateXPBar",
         currentXP = playerData.xp,
@@ -343,8 +429,8 @@ RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
     print("[CNR_CLIENT_DEBUG] wantedLevelResponseUpdate event received but deliberately ignored as its body is commented out for testing.")
     return -- Add this return to effectively disable the function's original content
-    -- Entire original body of this function should be below this return or commented out
-
+    
+    --[[ -- Start of multi-line comment
     local localPlayerId = PlayerId()
     if not (localPlayerId and localPlayerId ~= -1) then return end -- Guard for PlayerId()
     if targetPlayerId ~= localPlayerId then return end
@@ -425,6 +511,7 @@ AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPla
             for _, entityToClean in pairs(groupEntitiesThisSpawn) do if DoesEntityExist(entityToClean) then for k, trackedEntity in pairs(currentPlayerNPCResponseEntities) do if trackedEntity == entityToClean then table.remove(currentPlayerNPCResponseEntities, k); break end end; DeleteEntity(entityToClean) end end
         end)
     end
+    -- End of multi-line comment ]]--
 end)
 
 RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
@@ -583,7 +670,7 @@ end)
 
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList)
-    SendNUIMessage({ action = 'openStore', storeName = storeName, items = itemList, playerLevel = playerData.level, playerRole = playerData.role, playerPerks = playerData.perks, playerMoney = playerCash, resourceName = GetParentResourceName() })
+    SendNUIMessage({ action = 'openStore', storeName = storeName, items = itemList, playerLevel = playerData.level, playerRole = playerData.role, playerPerks = playerData.perks, playerMoney = playerCash, resourceName = GetCurrentResourceName() })
 end)
 
 RegisterNetEvent('cops_and_robbers:notifyBankRobbery')
@@ -709,25 +796,116 @@ end)
 RegisterNetEvent('cops_and_robbers:addAmmo')
 AddEventHandler('cops_and_robbers:addAmmo', function(weaponName, ammoToAdd)
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then ShowNotification("~r~Cannot add ammo: Player ped invalid."); return end
-    local weaponHash = GetHashKey(weaponName)
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+        ShowNotification("~r~Cannot add ammo: Player ped invalid.")
+        print("[CNR_CLIENT_AMMO] addAmmo: Player ped invalid.")
+        return
+    end
+
+    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Received event. weaponName (from server weaponLink): '%s', ammoToAdd: %d", tostring(weaponName), tonumber(ammoToAdd)))
+
+    local weaponHash = GetHashKey(weaponName) -- weaponName here is expected to be like "weapon_pistol", "weapon_assaultrifle" etc.
+    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Resolved weaponHash for '%s': %s", tostring(weaponName), tostring(weaponHash)))
+
     if weaponHash ~= 0 and weaponHash ~= -1 then
-        if HasPedGotWeapon(playerPed, weaponHash, false) then AddAmmoToPed(playerPed, weaponHash, ammoToAdd); playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + ammoToAdd; ShowNotification(string.format("~g~Added %d ammo to %s.", ammoToAdd, (Config.WeaponNames[weaponName] or weaponName)))
-        else ShowNotification("~y~You don't have the weapon (" .. (Config.WeaponNames[weaponName] or weaponName) .. ") for this ammo.") end
-    else ShowNotification("~r~Invalid weapon specified for ammo: " .. tostring(weaponName)) end
+        local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+        print(string.format("[CNR_CLIENT_AMMO] addAmmo: Before AddAmmoToPed - Does player have weapon '%s' (hash: %s)? %s", tostring(weaponName), tostring(weaponHash), tostring(hasWeapon)))
+
+        if hasWeapon then
+            AddAmmoToPed(playerPed, weaponHash, tonumber(ammoToAdd))
+            -- Update local ammo tracking if necessary (playerAmmo table)
+            if playerWeapons[weaponName] then -- Check if weapon itself is tracked
+                 playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + tonumber(ammoToAdd)
+            else -- If weapon wasn't tracked but ammo is being added, maybe it should be? Or this indicates a new weapon.
+                 -- For now, just log if playerWeapons[weaponName] was nil for this ammo type
+                 if not playerWeapons[weaponName] then
+                    print(string.format("[CNR_CLIENT_AMMO] addAmmo: Note - playerWeapons['%s'] was not set, but adding ammo. Current playerWeapons: %s", weaponName, json.encode(playerWeapons)))
+                 end
+                 -- Still add to playerAmmo as a fallback, assuming server logic for giving weapon was separate or implicit
+                 playerAmmo[weaponName] = (playerAmmo[weaponName] or 0) + tonumber(ammoToAdd)
+            end
+            ShowNotification(string.format("~g~Added %d ammo to %s.", tonumber(ammoToAdd), (Config.WeaponNames and Config.WeaponNames[weaponName] or weaponName)))
+            print(string.format("[CNR_CLIENT_AMMO] addAmmo: Successfully added %d ammo to %s (hash: %s).", tonumber(ammoToAdd), tostring(weaponName), tostring(weaponHash)))
+        else
+            ShowNotification("~y~You don't have the weapon (" .. (Config.WeaponNames and Config.WeaponNames[weaponName] or weaponName) .. ") for this ammo.")
+            print(string.format("[CNR_CLIENT_AMMO] addAmmo: Player does not have weapon '%s' (hash: %s). Cannot add ammo.", tostring(weaponName), tostring(weaponHash)))
+        end
+    else
+        ShowNotification("~r~Invalid weapon specified for ammo: " .. tostring(weaponName))
+        print(string.format("[CNR_CLIENT_AMMO] addAmmo: Invalid weaponHash for weaponName '%s'. Hash: %s", tostring(weaponName), tostring(weaponHash)))
+    end
 end)
 
 RegisterNetEvent('cops_and_robbers:applyArmor')
-AddEventHandler('cops_and_robbers:applyArmor', function(armorType)
+AddEventHandler('cops_and_robbers:applyArmor', function(armorType) -- armorType is the itemId, e.g., "armor"
     local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then ShowNotification("~r~Cannot apply armor: Player ped invalid."); return end
-    local armorValue = 0; local armorConfig = Config.Items[armorType]
-    if armorConfig and armorConfig.armorValue then armorValue = armorConfig.armorValue
-    else if armorType == "armor" then armorValue = 50 elseif armorType == "heavy_armor" then armorValue = 100 else ShowNotification("Invalid armor type: " .. tostring(armorType)); return end end
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+        ShowNotification("~r~Cannot apply armor: Player ped invalid.")
+        print("[CNR_CLIENT_ARMOR] applyArmor: Player ped invalid.")
+        return
+    end
+
+    print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Received event for armorType: %s", tostring(armorType)))
+
+    local itemDefinition = nil
+    if Config.Items and type(Config.Items) == "table" then
+        for _, def in ipairs(Config.Items) do
+            if def.itemId == armorType then
+                itemDefinition = def
+                break
+            end
+        end
+    end
+
+    local armorValue = 0
+    local itemName = armorType -- Fallback name
+
+    if itemDefinition then
+        itemName = itemDefinition.name or armorType
+        if itemDefinition.armorValue then -- Check for a specific armorValue in config
+            armorValue = tonumber(itemDefinition.armorValue) or 0
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Using armorValue %d from itemDefinition for %s", armorValue, itemName))
+        elseif armorType == "armor" then -- Check itemId string
+            armorValue = 50
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: No armorValue in itemDefinition for %s, using default 50 for itemId 'armor'", itemName))
+        elseif armorType == "heavy_armor" then -- Check itemId string
+            armorValue = 100
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: No armorValue in itemDefinition for %s, using default 100 for itemId 'heavy_armor'", itemName))
+        else
+            ShowNotification("~r~Unknown armor item definition: " .. itemName)
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Unknown armor itemId '%s' with no explicit armorValue or default handling.", armorType))
+            return
+        end
+    else -- Fallback if itemDefinition not found
+        if armorType == "armor" then
+            armorValue = 50
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: itemDefinition not found for %s, using default 50 for itemId 'armor'", armorType))
+        elseif armorType == "heavy_armor" then
+            armorValue = 100
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: itemDefinition not found for %s, using default 100 for itemId 'heavy_armor'", armorType))
+        else
+            ShowNotification("~r~Invalid armor type: " .. armorType)
+            print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Invalid armorType '%s' and itemDefinition not found.", armorType))
+            return
+        end
+    end
+
+    if armorValue <= 0 then
+        ShowNotification("~r~Armor value is zero or invalid for: " .. itemName)
+        print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Calculated armorValue is %d for %s. Aborting.", armorValue, itemName))
+        return
+    end
+
     local finalArmor = armorValue
-    if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then finalArmor = math.floor(armorValue * playerData.armorModifier); ShowNotification(string.format("~g~Perk Active: Increased Armor Durability! (%.0f -> %.0f)", armorValue, finalArmor)) end
+    if playerData and playerData.perks and playerData.perks.increased_armor_durability and playerData.armorModifier and playerData.armorModifier > 1.0 then
+        finalArmor = math.floor(armorValue * playerData.armorModifier)
+        ShowNotification(string.format("~g~Perk Active: Increased Armor Durability! (%.0f -> %.0f)", armorValue, finalArmor))
+        print(string.format("[CNR_CLIENT_ARMOR] applyArmor: Perk applied. Base: %d, Final: %d", armorValue, finalArmor))
+    end
+
     SetPedArmour(playerPed, finalArmor)
-    ShowNotification(string.format("~g~Armor Applied: %s (~w~%d Armor)", (armorConfig and armorConfig.label or armorType), finalArmor))
+    ShowNotification(string.format("~g~Armor Applied: %s (~w~%d Armor)", itemName, finalArmor))
+    print(string.format("[CNR_CLIENT_ARMOR] applyArmor: SetPedArmour to %d for %s.", finalArmor, itemName))
 end)
 
 RegisterNUICallback('selectRole', function(data, cb)
@@ -737,8 +915,18 @@ RegisterNUICallback('selectRole', function(data, cb)
 end)
 
 RegisterNUICallback('getPlayerInventory', function(data, cb)
-    if RequestInventoryForNUI then RequestInventoryForNUI(cb)
-    else print("Error: RequestInventoryForNUI function not found.", "error"); cb({ error = "Internal error: Inventory system not available." }) end
+    print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Callback TRIGGERED from NUI fetch.")
+    print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Received data from NUI: " .. json.encode(data))
+
+    if RequestInventoryForNUI then
+        -- RequestInventoryForNUI expects a callback that it will call with the inventory data.
+        -- This callback needs to be `cb` from the NUI request.
+        RequestInventoryForNUI(cb)
+        print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: Called RequestInventoryForNUI, passing NUI's cb directly.")
+    else
+        print("[CNR_CLIENT_NUI_CALLBACK] getPlayerInventory: CRITICAL - RequestInventoryForNUI function not found in client context!")
+        cb({ error = "Internal client error: Inventory system not ready for NUI." })
+    end
 end)
 
 RegisterNUICallback('setNuiFocus', function(data, cb)
@@ -750,6 +938,36 @@ RegisterNUICallback('setNuiFocus', function(data, cb)
         print(string.format("[CNR_CLIENT_WARN] NUI callback 'setNuiFocus' received invalid data: %s", json.encode and json.encode(data) or tostring(data)))
         cb('error') -- Or cb({status='error', message='Invalid data'})
     end
+end)
+
+RegisterNUICallback('buyItem', function(data, cb)
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Callback TRIGGERED.")
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Received data: " .. json.encode(data))
+
+    local itemId = data.itemId
+    local quantity = data.quantity and tonumber(data.quantity) or 1 -- Ensure quantity is a number
+
+    if not itemId or type(itemId) ~= "string" or itemId == "" then
+        print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Invalid itemId received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid item ID received from NUI.' })
+        return
+    end
+
+    if not quantity or type(quantity) ~= "number" or quantity < 1 then
+        print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Invalid quantity received. Data: " .. json.encode(data))
+        cb({ status = 'error', message = 'Invalid quantity received from NUI.' })
+        return
+    end
+
+    print(string.format("[CNR_CLIENT_NUI_CALLBACK] buyItem: Validated data. Requesting to buy %dx %s", quantity, itemId))
+
+    -- Trigger the server event that actually handles the purchase logic
+    TriggerServerEvent('cnr:buyItem', itemId, quantity)
+
+    -- Immediately acknowledge the NUI callback.
+    -- The success/failure of the actual purchase will be communicated via separate server-to-client events.
+    cb({ status = 'received', message = 'Buy request forwarded to server.' })
+    print("[CNR_CLIENT_NUI_CALLBACK] buyItem: Acknowledgement sent to NUI (cb called).")
 end)
 
 Citizen.CreateThread(function()
@@ -850,17 +1068,62 @@ local function openStore(storeName, storeType, vendorItems) TriggerServerEvent('
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
     print("[CNR_CLIENT] Thread for Store/Vendor Interaction now starting its main loop.")
+    -- local currentHelpTextTarget = nil -- Moved to top level
+
     while true do
-        Citizen.Wait(500)
+        Citizen.Wait(100) -- Changed from 250
         local playerPed = PlayerPedId()
         if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_vendor_loop end
+
         local playerCoords = GetEntityCoords(playerPed)
-        for _, store_location in ipairs(Config.AmmuNationStores) do
-            if #(playerCoords - store_location) < 2.0 then DisplayHelpText('Press ~INPUT_CONTEXT~ to open Ammu-Nation'); if IsControlJustPressed(0, 51) then openStore('Ammu-Nation', 'AmmuNation', nil) end; goto continue_store_vendor_loop end
+        local newHelpTextTarget = nil
+        local helpTextMessage = ""
+        local interactionFound = false
+
+        -- Check AmmuNation Stores
+        if Config.AmmuNationStores and type(Config.AmmuNationStores) == "table" then
+            for i, store_location in ipairs(Config.AmmuNationStores) do
+                if store_location and store_location.x then -- Basic validation
+                    if #(playerCoords - store_location) < 2.0 then
+                        newHelpTextTarget = "AmmuNation_" .. i -- Unique key using index
+                        helpTextMessage = 'Press ~INPUT_CONTEXT~ to open Ammu-Nation'
+                        interactionFound = true
+                        if IsControlJustPressed(0, 51) then
+                            openStore('Ammu-Nation', 'AmmuNation', nil)
+                        end
+                        goto check_help_text_change -- Exit inner loop once interaction is found and processed
+                    end
+                end
+            end
         end
-        for _, vendor in ipairs(Config.NPCVendors) do
-            if #(playerCoords - vendor.location) < 2.0 then DisplayHelpText('Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name); if IsControlJustPressed(0, 51) then openStore(vendor.name, 'Vendor', vendor.items) end; goto continue_store_vendor_loop end
+
+        -- Check NPC Vendors
+        if not interactionFound and Config.NPCVendors and type(Config.NPCVendors) == "table" then
+            for i, vendor in ipairs(Config.NPCVendors) do
+                if vendor and vendor.location and vendor.name and vendor.location.x then -- Basic validation
+                    if #(playerCoords - vendor.location) < 2.0 then
+                        newHelpTextTarget = "NPCVendor_" .. i -- Unique key using index
+                        helpTextMessage = 'Press ~INPUT_CONTEXT~ to talk to ' .. vendor.name
+                        interactionFound = true
+                        if IsControlJustPressed(0, 51) then
+                            openStore(vendor.name, 'Vendor', vendor.items)
+                        end
+                        goto check_help_text_change -- Exit inner loop once interaction is found and processed
+                    end
+                end
+            end
         end
+
+        ::check_help_text_change::
+        if newHelpTextTarget and newHelpTextTarget ~= currentHelpTextTarget then
+            DisplayHelpText(helpTextMessage)
+            currentHelpTextTarget = newHelpTextTarget
+        elseif not newHelpTextTarget and currentHelpTextTarget then
+            -- Player has moved away from any interaction point
+            currentHelpTextTarget = nil
+            -- DisplayHelpText("") -- Optionally explicitly clear, though often not needed
+        end
+
         ::continue_store_vendor_loop::
     end
 end)
@@ -985,6 +1248,59 @@ AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServer
         if targetRobberPed and DoesEntityExist(targetRobberPed) then
             if commandType == "attack" then ClearPedTasks(k9Ped); TaskCombatPed(k9Ped, targetRobberPed, 0, 16)
             elseif commandType == "follow" then local playerPed = PlayerPedId(); if playerPed and playerPed ~=0 and playerPed ~=-1 and DoesEntityExist(playerPed) then TaskFollowToOffsetOfEntity(k9Ped, playerPed, vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true) end end
+        end
+    end
+end)
+
+-- Thread to disable default FiveM police responses
+Citizen.CreateThread(function()
+    local policeDisableInterval = 5000 -- 5 seconds
+    print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
+
+    while true do
+        Citizen.Wait(policeDisableInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            -- Make police ignore the player (less likely to engage directly)
+            SetPoliceIgnorePlayer(playerId, true)
+
+            -- Disable dispatching of cops for the player specifically
+            SetDispatchCopsForPlayer(playerId, false)
+
+            -- Disable various dispatch services
+            -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
+            -- It's important to do this repeatedly as the game might re-enable them.
+            for i = 1, 6 do
+                if _G.SetDispatchServiceActive then
+                    SetDispatchServiceActive(i, false)
+                else
+                    -- Print error only once to avoid console spam
+                    if not _G.cnrSetDispatchServiceErrorLogged then
+                        print("[CNR_CLIENT_ERROR] SetDispatchServiceActive native is nil or not available! Further dispatch disable attempts in this loop will be skipped.")
+                        _G.cnrSetDispatchServiceErrorLogged = true 
+                    end
+                    -- If SetDispatchServiceActive is nil, we might want to break the loop for it here for this iteration,
+                    -- or just let it try to SetPoliceIgnorePlayer and other measures.
+                    -- For now, just logging the error once and letting other measures in the loop continue.
+                end
+            end
+            
+            -- Actively clear cops in a radius around the player
+            local playerLocalisation = GetEntityCoords(playerPed)
+            if playerLocalisation then -- Ensure coords are valid
+                ClearAreaOfCops(playerLocalisation.x, playerLocalisation.y, playerLocalisation.z, 400.0, 0) -- Flag 0 is standard
+            end
+
+            -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
+            if GetPlayerWantedLevel(playerId) > 0 then
+                SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
+                RemoveShockingEvent(-1) -- Clear any existing shocking events
+                SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0) -- Added line: Try to move wanted center far away and underground
+                -- print("[CNR_CLIENT_DEBUG] Applied wanted level suppression measures.") -- Optional: add a debug print
+            end
         end
     end
 end)
@@ -1160,7 +1476,7 @@ Citizen.CreateThread(function()
         if IsControlJustPressed(0, toggleBountyBoardKey) then
             if playerData.role == 'cop' then
                 isBountyBoardOpen = not isBountyBoardOpen
-                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetParentResourceName()}); ShowNotification("~g~Bounty Board opened.")
+                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetCurrentResourceName()}); ShowNotification("~g~Bounty Board opened.")
                 else SendNUIMessage({action = "hideBountyBoard"}); ShowNotification("~y~Bounty Board closed.") end
             else ShowNotification("~r~Only Cops can access Bounty Board.") end
         end
@@ -1180,7 +1496,7 @@ end)
 RegisterNetEvent('cops_and_robbers:showAdminUI')
 AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
     if not isAdminFlag then ShowNotification("~r~Admin Panel access denied."); isAdminPanelOpen = false; return end
-    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetParentResourceName() }); ShowNotification("~g~Admin Panel opened.")
+    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetCurrentResourceName() }); ShowNotification("~g~Admin Panel opened.")
     elseif isAdminPanelOpen and playerList then SendNUIMessage({ action = 'refreshAdminPanelPlayers', players = playerList }); ShowNotification("~b~Admin Panel refreshed.") end
 end)
 

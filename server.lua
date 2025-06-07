@@ -303,6 +303,31 @@ RegisterNetEvent('cnr:buyItem', function(itemId, quantity)
         if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
             table.insert(purchaseHistory, { itemId = itemId, playerId = src, timestamp = os.time(), price = itemPrice, quantity = quantity }) -- Using dynamic price
         end
+
+        -- Trigger client-side events for equipping/using items
+        if itemConfig then -- Ensure itemConfig is available
+            if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
+                local defaultAmmo = 1 -- Default for melee
+                if itemConfig.category == "Weapons" then
+                    -- More specific ammo defaults could be set here based on weapon type if desired
+                    -- For now, a generic small amount for newly purchased firearms.
+                    defaultAmmo = tonumber(itemConfig.defaultAmmo) or 12
+                end
+                TriggerClientEvent('cops_and_robbers:addWeapon', src, itemConfig.itemId, defaultAmmo)
+                Log(string.format("Triggered addWeapon for player %s, item %s, ammo %d", src, itemConfig.itemId, defaultAmmo))
+            elseif itemConfig.category == "Armor" then
+                TriggerClientEvent('cops_and_robbers:applyArmor', src, itemConfig.itemId)
+                Log(string.format("Triggered applyArmor for player %s, item %s", src, itemConfig.itemId))
+            elseif itemConfig.category == "Ammunition" then
+                if itemConfig.weaponLink and itemConfig.ammoAmount then
+                    local totalAmmoToAdd = quantity * itemConfig.ammoAmount -- quantity is how many "packs" of ammo were bought
+                    TriggerClientEvent('cops_and_robbers:addAmmo', src, itemConfig.weaponLink, totalAmmoToAdd)
+                    Log(string.format("Player %s purchased %dx %s. Triggered client event addAmmo for weapon %s with %d total rounds.", src, quantity, itemId, itemConfig.weaponLink, totalAmmoToAdd))
+                else
+                    Log(string.format("Player %s purchased ammo %s, but it's missing weaponLink or ammoAmount in Config.Items. Cannot trigger addAmmo automatically.", src, itemId), "warn")
+                end
+            end
+        end
     else
         Log(string.format("Custom AddItem failed for %s, item %s, quantity %d.", src, itemId, quantity), "error")
         TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Could not add item to inventory. Purchase reversed.")
@@ -667,28 +692,55 @@ ApplyPerks = function(playerId, level, role)
     pData.perks = {} -- Reset perks
     pData.extraSpikeStrips = 0 -- Reset specific perk values
     pData.contrabandCollectionModifier = 1.0 -- Reset specific perk values
+    pData.armorModifier = 1.0 -- Ensure armorModifier is also reset
 
-    local unlocks = (role == "cop" and Config.LevelUnlocks.cop) or (role == "robber" and Config.LevelUnlocks.robber) or {}
+    local unlocks = {}
+    if role and Config.LevelUnlocks and Config.LevelUnlocks[role] then
+        unlocks = Config.LevelUnlocks[role]
+    else
+        Log(string.format("ApplyPerks: No level unlocks defined for role '%s'. Player %s will have no role-specific level perks.", tostring(role), pIdNum))
+        -- No need to immediately return, as pData.perks (now empty) and other perk-related values need to be synced.
+    end
 
     for levelKey, levelUnlocksTable in pairs(unlocks) do
         if level >= levelKey then
-            for _, perkDetail in ipairs(levelUnlocksTable) do
-                pData.perks[perkDetail.perkId] = true -- Generic perk flag
-                Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
-                if perkDetail.perkId == "increased_armor_durability" and role == "cop" then
-                    pData.armorModifier = perkDetail.value or Config.PerkEffects.IncreasedArmorDurabilityModifier or 1.25
-                    Log(string.format("Player %s granted increased_armor_durability (modifier: %s).", pIdNum, pData.armorModifier))
-                elseif perkDetail.perkId == "extra_spike_strips" and role == "cop" then
-                    pData.extraSpikeStrips = perkDetail.value or 1
-                    Log(string.format("Player %s granted extra_spike_strips (value: %d).", pIdNum, pData.extraSpikeStrips))
-                elseif perkDetail.perkId == "faster_contraband_collection" and role == "robber" then
-                     pData.contrabandCollectionModifier = perkDetail.value or 0.8
-                     Log(string.format("Player %s granted faster_contraband_collection (modifier: %s).", pIdNum, pData.contrabandCollectionModifier))
+            if type(levelUnlocksTable) == "table" then -- Ensure levelUnlocksTable is a table
+                for _, perkDetail in ipairs(levelUnlocksTable) do
+                    if type(perkDetail) == "table" then -- Ensure perkDetail is a table
+                        -- Only try to set pData.perks if it's actually a perk and perkId is valid
+                        if perkDetail.type == "passive_perk" and perkDetail.perkId then
+                            pData.perks[perkDetail.perkId] = true
+                            Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey))
+                        -- else
+                            -- Log for non-passive_perk types if needed for debugging, e.g.:
+                            -- if perkDetail.type ~= "passive_perk" then
+                            --     Log(string.format("ApplyPerks: Skipping non-passive_perk type '%s' for player %s at level %d.", tostring(perkDetail.type), pIdNum, levelKey))
+                            -- end
+                        end
+
+                        -- Handle specific perk values (existing logic, ensure perkDetail.type matches and perkId is valid)
+                        if perkDetail.type == "passive_perk" and perkDetail.perkId then
+                            if perkDetail.perkId == "increased_armor_durability" and role == "cop" then
+                                pData.armorModifier = perkDetail.value or Config.PerkEffects.IncreasedArmorDurabilityModifier or 1.25
+                                Log(string.format("Player %s granted increased_armor_durability (modifier: %s).", pIdNum, pData.armorModifier))
+                            elseif perkDetail.perkId == "extra_spike_strips" and role == "cop" then
+                                pData.extraSpikeStrips = perkDetail.value or 1
+                                Log(string.format("Player %s granted extra_spike_strips (value: %d).", pIdNum, pData.extraSpikeStrips))
+                            elseif perkDetail.perkId == "faster_contraband_collection" and role == "robber" then
+                                 pData.contrabandCollectionModifier = perkDetail.value or 0.8
+                                 Log(string.format("Player %s granted faster_contraband_collection (modifier: %s).", pIdNum, pData.contrabandCollectionModifier))
+                            end
+                        end
+                    else
+                        Log(string.format("ApplyPerks: perkDetail at levelKey %s for role %s is not a table. Skipping.", levelKey, role), "warn")
+                    end
                 end
+            else
+                 Log(string.format("ApplyPerks: levelUnlocksTable at levelKey %s for role %s is not a table. Skipping.", levelKey, role), "warn")
             end
         end
     end
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pData)
+    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pData) -- This was already here, ensure it stays
 end
 
 
@@ -956,6 +1008,81 @@ end)
 -- =================================================================================================
 -- ITEMS, SHOPS, AND INVENTORY (Functions like CanPlayerAffordAndAccessItem, cnr:buyItem, etc.)
 -- =================================================================================================
+RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName)
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    if not pData then
+        Log("cops_and_robbers:getItemList - Player data not found for source: " .. src, "error")
+        return
+    end
+
+    local itemsForStore = {}
+    local itemsToProcess = {}
+
+    if storeType == 'AmmuNation' then
+        -- For AmmuNation, consider all general items from Config.Items
+        for _, itemConfig in ipairs(Config.Items) do
+            table.insert(itemsToProcess, itemConfig)
+        end
+    elseif storeType == 'Vendor' and vendorItemIds and type(vendorItemIds) == "table" then
+        -- For specific vendors, use the item IDs provided by that vendor's config
+        for _, itemIdFromVendor in ipairs(vendorItemIds) do
+            for _, itemConfig in ipairs(Config.Items) do
+                if itemConfig.itemId == itemIdFromVendor then
+                    table.insert(itemsToProcess, itemConfig)
+                    break -- Found the item in Config.Items
+                end
+            end
+        end
+    else
+        Log("cops_and_robbers:getItemList - Invalid storeType or missing vendorItemIds for store: " .. storeName, "warn")
+        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Store data missing or invalid.") -- Generic failure message
+        return
+    end
+
+    -- Filter items based on player role, level, and other restrictions
+    for _, itemConfig in ipairs(itemsToProcess) do
+        local canAccess = true
+        -- Cop Only Restriction Check
+        if itemConfig.forCop and pData.role ~= "cop" then
+            canAccess = false
+        end
+
+        -- Robber Only Restriction Check (if a future flag 'forRobber' is added)
+        -- if itemConfig.forRobber and pData.role ~= "robber" then
+        -- canAccess = false
+        -- end
+
+        -- Level Restriction Check
+        if canAccess and pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
+            canAccess = false
+        end
+        if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
+            canAccess = false
+        end
+
+        -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
+
+        if canAccess then
+            -- Calculate dynamic price
+            local dynamicPrice = CalculateDynamicPrice(itemConfig.itemId, itemConfig.basePrice)
+            table.insert(itemsForStore, {
+                itemId = itemConfig.itemId,
+                name = itemConfig.name,
+                basePrice = itemConfig.basePrice, -- Keep base for reference if needed
+                price = dynamicPrice, -- Actual selling price
+                category = itemConfig.category,
+                forCop = itemConfig.forCop,
+                minLevelCop = itemConfig.minLevelCop,
+                minLevelRobber = itemConfig.minLevelRobber
+                -- Add any other properties the NUI might need
+            })
+        end
+    end
+
+    Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
+    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
+end)
 -- ... (Code from previous version, ensuring playerIds used as keys are numeric) ...
 
 -- =================================================================================================
@@ -1508,21 +1635,21 @@ end)
 
 AddEventHandler('playerConnecting', function(playerName, setKickReason, deferrals)
     deferrals.defer()
-    Wait(250) -- Allow identifiers to load, can be adjusted.
+    Citizen.Wait(250) -- Allow identifiers to load, can be adjusted.
 
     local playerSrcString = source -- This is the temporary server ID for the connecting player
-    local identifiers = nil
     local pName = nil
+    local identifiers = nil
 
     if playerSrcString then
         pName = GetPlayerName(playerSrcString) -- Get name early for logging if possible
-        if pName then
+        if pName and pName ~= "" then
             identifiers = GetPlayerIdentifiers(playerSrcString)
         end
     end
 
-    if not playerSrcString or not pName or not identifiers or #identifiers == 0 then
-        Log(string.format("playerConnecting: Could not reliably get identifiers for %s (Source ID: %s, Name: %s) at this stage. Allowing connection, subsequent checks in LoadPlayerData will be critical.", playerName, tostring(playerSrcString), pName or "N/A"), "warn")
+    if not playerSrcString or not pName or pName == "" or not identifiers or #identifiers == 0 then
+        Log(string.format("playerConnecting: Could not reliably get identifiers for %s (Source ID: %s, Name: %s) at this stage. Allowing connection, subsequent checks will be critical.", playerName, tostring(playerSrcString), pName or "N/A"), "warn")
         -- Allow the player to connect; ban checks or data loading might use PID fallback if license isn't found later.
         -- The critical logging in LoadPlayerData will flag if license is still missing.
         deferrals.done()
@@ -1548,7 +1675,7 @@ AddEventHandler('playerConnecting', function(playerName, setKickReason, deferral
         deferrals.done(reason)
         Log(string.format("Banned player %s (Name: %s, ID: %s) attempted connect. Identifier: %s. Reason: %s", playerName, pName, tostring(playerSrcString), bannedIdentifier, banInfo.reason), "warn")
     else
-        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found during initial check.", playerName, pName, tostring(playerSrcString)))
+        Log(string.format("Player %s (Name: %s, ID: %s) allowed to connect. No bans found during initial check. Identifiers: %s", playerName, pName, tostring(playerSrcString), json.encode(identifiers)))
         deferrals.done()
     end
 end)
@@ -1582,15 +1709,42 @@ AddEventHandler('cnr:requestMyInventory', function()
                 local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
 
                 nuiInventory[itemId] = {
-                    itemId = itemId, -- NUI might need this explicitly
-                    name = itemData.name,
-                    count = itemData.count,
-                    category = itemData.category,
-                    sellPrice = sellPrice -- Add sell price here
-                    -- Add other relevant details for NUI if needed (e.g., item.label)
+                    itemId = tostring(itemId),
+                    name = tostring(itemData.name or itemConfig.name or "Unknown Item"), -- Ensure string
+                    count = tonumber(itemData.count or 0), -- Ensure number
+                    category = tostring(itemData.category or itemConfig.category or "Misc"), -- Ensure string
+                    sellPrice = tonumber(sellPrice or 0) -- Ensure number
+                    -- DO NOT add itemConfig directly or other potentially complex fields
                 }
             end
         end
+
+        Log(string.format("[CNR_SERVER_INVENTORY] Preparing to send inventory to player %s. Number of unique items: %d", src, tablelength(nuiInventory)), "info")
+
+        local sampleCount = 0
+        local nuiInventorySampleForLog = {}
+        for k, v in pairs(nuiInventory) do
+            if sampleCount < 5 then -- Log details for up to 5 items
+                nuiInventorySampleForLog[k] = v
+                sampleCount = sampleCount + 1
+            else
+                break
+            end
+        end
+        Log(string.format("[CNR_SERVER_INVENTORY] Inventory sample being sent to player %s: %s", src, json.encode(nuiInventorySampleForLog)), "info")
+
+        -- Attempt to encode the full inventory to check for size issues (log only, don't send this encoded string unless necessary for extreme debugging)
+        local encodedFullInventory, encodeError = pcall(json.encode, nuiInventory)
+        if not encodedFullInventory then
+            Log(string.format("[CNR_SERVER_INVENTORY] CRITICAL: Failed to json.encode full nuiInventory for player %s before sending. Error: %s", src, tostring(encodeError)), "error")
+            -- Potentially send an empty inventory or an error message to client here instead of triggering the unsafe event
+            -- For now, we'll let it proceed to hit the 'not safe for net' if this is the root cause of that error itself
+        else
+            Log(string.format("[CNR_SERVER_INVENTORY] Successfully json.encoded full nuiInventory for player %s. Approx size: %d bytes.", src, string.len(encodedFullInventory)), "info")
+            -- If string.len is very large (e.g., > 60KB), it might be a size issue.
+        end
+
+        -- The original TriggerClientEvent call:
         TriggerClientEvent('cnr:receiveMyInventory', src, nuiInventory)
     else
         TriggerClientEvent('cnr:receiveMyInventory', src, {}) -- Send empty if no inventory
