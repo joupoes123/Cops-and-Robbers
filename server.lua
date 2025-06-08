@@ -855,14 +855,14 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     if newStars > 0 and robberCoords then -- Only proceed if player has stars and valid coordinates
         -- NPC Police Response Logic (now explicitly server-triggered and configurable)
         if Config.WantedSettings.enableNPCResponse then
-            -- TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
-            -- Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggered cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars)", pIdNum, newStars), "info")
-            Log(string.format("UpdatePlayerWantedLevel: NPC Response Trigger Suppressed (Aggressive Disable). Would have triggered for player %s (%d stars)", pIdNum, newStars), "warn")
-            -- TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords) -- Re-added based on subtask
+            if robberCoords then -- Ensure robberCoords is not nil before logging its components
+                Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED. Triggering cops_and_robbers:wantedLevelResponseUpdate for player %s (%d stars) at Coords: X:%.2f, Y:%.2f, Z:%.2f", pIdNum, newStars, robberCoords.x, robberCoords.y, robberCoords.z), "info")
+            else
+                Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED for player %s (%d stars), but robberCoords are nil. Event will still be triggered.", pIdNum, newStars), "warn")
+            end
+            TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
         else
-            Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars).", pIdNum, newStars), "info")
-            -- Optionally, if there's any fallback or alternative notification needed when NPC response is off, it could go here.
-            -- For now, we just prevent the client event that spawns NPCs.
+            Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars). Not triggering event.", pIdNum, newStars), "info")
         end
 
         -- Alert Human Cops (existing logic)
