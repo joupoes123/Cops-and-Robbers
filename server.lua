@@ -844,6 +844,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
 
     Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
+    print(string.format('[CNR_SERVER_DEBUG] Triggering cops_and_robbers:updateWantedDisplay for player %s with Stars: %d, Points: %d', pIdNum, newStars, currentWanted.wantedLevel))
     TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
     TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Wanted", string.format("Wanted level increased! (%d Stars)", newStars)} })
 
