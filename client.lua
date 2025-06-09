@@ -533,126 +533,56 @@ Citizen.CreateThread(function()
         end
 
         -- Only run if player has a wanted level
-        if currentWantedStarsClient > 0 then -- Using the client-side 'currentWantedStarsClient' variable
+        if currentWantedStarsClient > 0 then
             local playerCoords = GetEntityCoords(playerPed)
-            local clearRadius = 150.0
+            local clearRadius = Config.PoliceClearRadius or 100.0 -- Use config value or default
+            local pedsDeletedThisTick = 0
 
-            -- Pasted ambient ped clearing logic starts here
-            -- Ensure ShowNotification is used appropriately (maybe only for debug, or less frequently)
-            -- For example, you might remove ShowNotifications or make them conditional on a debug flag.
-            -- For now, I will keep them for debugging visibility during this change.
-
-            -- Get all peds in the radius
-            local allPedsInRadius = {}
-            -- Debug: Confirm this section is reached when player is wanted
-            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Player %s has %d stars. Attempting FindFirstPed.", GetPlayerName(PlayerId()), currentWantedStarsClient)) -- Ensure PlayerId() is used if playerId variable is not in this scope, or pass playerId if available. Assuming currentWantedStarsClient is accessible.
+            -- More efficient ped enumeration: GetHostilePedsInRadius (experimental, may need fallback)
+            -- For simplicity and reliability, sticking with FindFirstPed/FindNextPed for now,
+            -- but with reduced internal logging.
 
             local findPedHandle, foundPed = FindFirstPed()
-            -- Debug: Log the immediate result of FindFirstPed
-            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: FindFirstPed immediate result - Handle=%s, FoundPed=%s", tostring(findPedHandle), tostring(foundPed)))
-
-            local pedsChecked = 0 -- Debug counter
-            local maxPedsToConsider = 500
-
-            if foundPed and foundPed ~= 0 then -- Added check for foundPed ~= 0
+            if foundPed and foundPed ~= 0 then
                 repeat
-                    pedsChecked = pedsChecked + 1
-                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then -- playerPed should be PlayerPedId() defined at the start of the thread
-                        local currentPedCoords = GetEntityCoords(foundPed)
-                        if #(playerCoords - currentPedCoords) < clearRadius then -- playerCoords should be GetEntityCoords(PlayerPedId())
-                            local pedModel = GetEntityModel(foundPed)
-                            local isPoliceNative = IsPedAPoliceman(foundPed)
-                            local pedType = GetPedType(foundPed)
-                            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear - Nearby Ped: Handle=%s, Model=%s, IsPolicemanNative=%s, PedType=%s, Coords=%s", foundPed, pedModel, tostring(isPoliceNative), pedType, json.encode(currentPedCoords)))
+                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
+                        if IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP") then
+                            local currentPedCoords = GetEntityCoords(foundPed)
+                            if #(playerCoords - currentPedCoords) < clearRadius then
+                                -- Ped is a police NPC within radius
+                                local vehicle = GetVehiclePedIsIn(foundPed, false)
 
-                            table.insert(allPedsInRadius, foundPed)
-                        end
-                    end
-                    if pedsChecked > maxPedsToConsider then
-                        print("[CNR_CLIENT_WARN] Ambient Police Ped Clearing: Exceeded maxPedsToConsider (" .. maxPedsToConsider .. "). Breaking ped find loop.")
-                        break
-                    end
-                    -- Important: Get the next ped using the original handle from FindFirstPed
-                    foundPed = FindNextPed(findPedHandle)
-                until not foundPed or foundPed == 0 -- Added check for foundPed == 0
-            else
-                -- Debug: Log if FindFirstPed didn't find any ped initially
-                print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: FindFirstPed did not find any initial ped or result was 0. Handle=%s, FoundPed=%s", tostring(findPedHandle), tostring(foundPed)))
-            end
-            EndFindPed(findPedHandle) -- Correctly end with the handle from FindFirstPed
+                                if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                                    -- NPC is in a vehicle
+                                    -- print(string.format("[CNR_CLIENT_CLEAR] Police NPC %s in vehicle %s. Deleting.", foundPed, vehicle))
+                                    SetEntityAsMissionEntity(foundPed, false, true) -- Set ped as no longer needed
+                                    ClearPedTasksImmediately(foundPed)
+                                    DeletePed(foundPed) -- Delete ped
 
-            local pedsDeletedThisTick = 0
-            local policeCarHashes = { -- Standard police cars/bikes
-                GetHashKey("police"), GetHashKey("police2"), GetHashKey("police3"), GetHashKey("police4"),
-                GetHashKey("policet"), GetHashKey("policeb"), GetHashKey("sheriff"), GetHashKey("sheriff2"),
-                GetHashKey("fbi"), GetHashKey("fbi2")
-            }
-            local policeHeliHashes = { -- Police helicopters
-                GetHashKey("polmav")
-                -- Add other known police heli models if necessary, e.g., GetHashKey("buzzard2") if it's used as police
-            }
-
-            for _, pedToClear in ipairs(allPedsInRadius) do
-                if DoesEntityExist(pedToClear) and (IsPedAPoliceman(pedToClear) or GetPedRelationshipGroupHash(pedToClear) == GetHashKey("COP")) then
-                    local pedModelName = GetEntityModel(pedToClear) -- For logging
-                    print(string.format("[CNR_CLIENT_GENERAL_CLEAR] Identified police NPC (Handle: %s, Model: %s). Evaluating...", pedToClear, pedModelName))
-
-                    local vehicle = GetVehiclePedIsIn(pedToClear, false)
-
-                    if vehicle ~= 0 and DoesEntityExist(vehicle) then
-                        local vehicleModel = GetEntityModel(vehicle)
-                        local isPoliceCar = false
-                        for _, hash in ipairs(policeCarHashes) do
-                            if vehicleModel == hash then isPoliceCar = true; break end
-                        end
-                        local isPoliceHeli = false
-                        for _, hash in ipairs(policeHeliHashes) do
-                            if vehicleModel == hash then isPoliceHeli = true; break end
-                        end
-
-                        if isPoliceCar and GetPedInVehicleSeat(vehicle, -1) == pedToClear then -- Is driver of a police car/bike
-                            print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is DRIVER of police car/bike (Veh: %s). Tasking leave.", pedToClear, vehicle))
-                            TaskLeaveVehicle(pedToClear, vehicle, 0)
-                            Citizen.Wait(750) -- Wait for exit
-                            if DoesEntityExist(pedToClear) then
-                                print(string.format("[CNR_CLIENT_GENERAL_CLEAR] Post-leave for %s from car. Setting no longer mission, clearing tasks, deleting.", pedToClear))
-                                SetEntityAsMissionEntity(pedToClear, false, true)
-                                ClearPedTasksImmediately(pedToClear)
-                                DeletePed(pedToClear)
-                                pedsDeletedThisTick = pedsDeletedThisTick + 1
+                                    SetEntityAsMissionEntity(vehicle, false, true) -- Set vehicle as no longer needed
+                                    -- DeleteVehicle(vehicle) -- Preferred for vehicles
+                                    DeleteEntity(vehicle) -- Fallback if DeleteVehicle fails or for broader use
+                                    pedsDeletedThisTick = pedsDeletedThisTick + 1
+                                else
+                                    -- NPC is on foot
+                                    -- print(string.format("[CNR_CLIENT_CLEAR] Police NPC %s on foot. Deleting.", foundPed))
+                                    SetEntityAsMissionEntity(foundPed, false, true)
+                                    ClearPedTasksImmediately(foundPed)
+                                    DeletePed(foundPed)
+                                    pedsDeletedThisTick = pedsDeletedThisTick + 1
+                                end
                             end
-                        elseif isPoliceHeli then -- Is in a police helicopter (driver or passenger)
-                            print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is in police HELI (Veh: %s). Neutralizing and attempting delete.", pedToClear, vehicle))
-                            SetEntityAsMissionEntity(pedToClear, false, true)
-                            ClearPedTasksImmediately(pedToClear)
-                            SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
-                            SetEntityInvincible(pedToClear, true)
-                            SetBlockingOfNonTemporaryEvents(pedToClear, true)
-                            DeletePed(pedToClear) -- Attempt delete
-                            pedsDeletedThisTick = pedsDeletedThisTick + 1
-                        else -- Is police, but passenger in police car, or in a non-police/non-heli vehicle
-                             print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is passenger or in non-priority vehicle. Neutralizing/Deleting.", pedToClear))
-                             SetEntityAsMissionEntity(pedToClear, false, true)
-                             ClearPedTasksImmediately(pedToClear)
-                             SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
-                             DeletePed(pedToClear)
-                             pedsDeletedThisTick = pedsDeletedThisTick + 1
                         end
-                    else -- Ped is on foot
-                        print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is ON FOOT. Neutralizing/Deleting.", pedToClear))
-                        SetEntityAsMissionEntity(pedToClear, false, true)
-                        ClearPedTasksImmediately(pedToClear)
-                        SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
-                        DeletePed(pedToClear)
-                        pedsDeletedThisTick = pedsDeletedThisTick + 1
                     end
-                end
+                    foundPed = FindNextPed(findPedHandle)
+                until not foundPed or foundPed == 0
             end
+            EndFindPed(findPedHandle)
 
             if pedsDeletedThisTick > 0 then
-                print(string.format("[CNR_CLIENT_GENERAL_CLEAR] %d total NPC police processed/deleted this tick.", pedsDeletedThisTick))
+                -- This print can be kept if a summary is desired, or removed for ultra-clean logs
+                print(string.format("[CNR_CLIENT_CLEAR] Cleared %d ambient police entities this tick.", pedsDeletedThisTick))
             end
-            -- Pasted ambient ped clearing logic ends here
         end
         ::continue_ambient_clear_loop::
     end
