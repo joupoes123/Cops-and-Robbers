@@ -581,53 +581,76 @@ Citizen.CreateThread(function()
             end
             EndFindPed(findPedHandle) -- Correctly end with the handle from FindFirstPed
 
-            local clearedTargetedNPCDrivers = 0
-            local policeVehicleHashes = {
+            local pedsDeletedThisTick = 0
+            local policeCarHashes = { -- Standard police cars/bikes
                 GetHashKey("police"), GetHashKey("police2"), GetHashKey("police3"), GetHashKey("police4"),
                 GetHashKey("policet"), GetHashKey("policeb"), GetHashKey("sheriff"), GetHashKey("sheriff2"),
                 GetHashKey("fbi"), GetHashKey("fbi2")
             }
+            local policeHeliHashes = { -- Police helicopters
+                GetHashKey("polmav")
+                -- Add other known police heli models if necessary, e.g., GetHashKey("buzzard2") if it's used as police
+            }
 
-            for _, pedToEvaluate in ipairs(allPedsInRadius) do
-                if DoesEntityExist(pedToEvaluate) and (IsPedAPoliceman(pedToEvaluate) or GetPedRelationshipGroupHash(pedToEvaluate) == GetHashKey("COP")) then
-                    if IsPedInAnyVehicle(pedToEvaluate, false) then
-                        local vehicle = GetVehiclePedIsIn(pedToEvaluate, false)
-                        if DoesEntityExist(vehicle) and GetPedInVehicleSeat(vehicle, -1) == pedToEvaluate then -- Is the ped the driver?
-                            local vehicleModel = GetEntityModel(vehicle)
-                            local isPoliceVehicle = false
-                            for _, policeHash in ipairs(policeVehicleHashes) do
-                                if vehicleModel == policeHash then
-                                    isPoliceVehicle = true
-                                    break
-                                end
-                            end
+            for _, pedToClear in ipairs(allPedsInRadius) do
+                if DoesEntityExist(pedToClear) and (IsPedAPoliceman(pedToClear) or GetPedRelationshipGroupHash(pedToClear) == GetHashKey("COP")) then
+                    local pedModelName = GetEntityModel(pedToClear) -- For logging
+                    print(string.format("[CNR_CLIENT_GENERAL_CLEAR] Identified police NPC (Handle: %s, Model: %s). Evaluating...", pedToClear, pedModelName))
 
-                            if isPoliceVehicle then
-                                print(string.format("[CNR_CLIENT_TARGETED_CLEAR] Police NPC (Handle: %s, Model: %s) detected driving police vehicle (Handle: %s, Model: %s). Attempting removal.", pedToEvaluate, GetEntityModel(pedToEvaluate), vehicle, vehicleModel))
+                    local vehicle = GetVehiclePedIsIn(pedToClear, false)
 
-                                TaskLeaveVehicle(pedToEvaluate, vehicle, 0) -- Task to leave, flag 0 for normal exit
-
-                                -- Give some time for the ped to exit. This might need to be a loop or a longer wait.
-                                Citizen.Wait(750) -- Increased wait time slightly
-
-                                if DoesEntityExist(pedToEvaluate) then
-                                    print(string.format("[CNR_CLIENT_TARGETED_CLEAR] Setting NPC %s as not mission entity.", pedToEvaluate))
-                                    SetEntityAsMissionEntity(pedToEvaluate, false, true)
-                                    ClearPedTasksImmediately(pedToEvaluate)
-                                    DeletePed(pedToEvaluate)
-                                    clearedTargetedNPCDrivers = clearedTargetedNPCDrivers + 1
-                                    print(string.format("[CNR_CLIENT_TARGETED_CLEAR] Deleted NPC driver %s.", pedToEvaluate))
-                                else
-                                    print(string.format("[CNR_CLIENT_TARGETED_CLEAR] NPC driver %s no longer exists after TaskLeaveVehicle, possibly already deleted or despawned.", pedToEvaluate))
-                                end
-                            end
+                    if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                        local vehicleModel = GetEntityModel(vehicle)
+                        local isPoliceCar = false
+                        for _, hash in ipairs(policeCarHashes) do
+                            if vehicleModel == hash then isPoliceCar = true; break end
                         end
+                        local isPoliceHeli = false
+                        for _, hash in ipairs(policeHeliHashes) do
+                            if vehicleModel == hash then isPoliceHeli = true; break end
+                        end
+
+                        if isPoliceCar and GetPedInVehicleSeat(vehicle, -1) == pedToClear then -- Is driver of a police car/bike
+                            print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is DRIVER of police car/bike (Veh: %s). Tasking leave.", pedToClear, vehicle))
+                            TaskLeaveVehicle(pedToClear, vehicle, 0)
+                            Citizen.Wait(750) -- Wait for exit
+                            if DoesEntityExist(pedToClear) then
+                                print(string.format("[CNR_CLIENT_GENERAL_CLEAR] Post-leave for %s from car. Setting no longer mission, clearing tasks, deleting.", pedToClear))
+                                SetEntityAsMissionEntity(pedToClear, false, true)
+                                ClearPedTasksImmediately(pedToClear)
+                                DeletePed(pedToClear)
+                                pedsDeletedThisTick = pedsDeletedThisTick + 1
+                            end
+                        elseif isPoliceHeli then -- Is in a police helicopter (driver or passenger)
+                            print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is in police HELI (Veh: %s). Neutralizing and attempting delete.", pedToClear, vehicle))
+                            SetEntityAsMissionEntity(pedToClear, false, true)
+                            ClearPedTasksImmediately(pedToClear)
+                            SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
+                            SetEntityInvincible(pedToClear, true)
+                            SetBlockingOfNonTemporaryEvents(pedToClear, true)
+                            DeletePed(pedToClear) -- Attempt delete
+                            pedsDeletedThisTick = pedsDeletedThisTick + 1
+                        else -- Is police, but passenger in police car, or in a non-police/non-heli vehicle
+                             print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is passenger or in non-priority vehicle. Neutralizing/Deleting.", pedToClear))
+                             SetEntityAsMissionEntity(pedToClear, false, true)
+                             ClearPedTasksImmediately(pedToClear)
+                             SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
+                             DeletePed(pedToClear)
+                             pedsDeletedThisTick = pedsDeletedThisTick + 1
+                        end
+                    else -- Ped is on foot
+                        print(string.format("[CNR_CLIENT_GENERAL_CLEAR] NPC %s is ON FOOT. Neutralizing/Deleting.", pedToClear))
+                        SetEntityAsMissionEntity(pedToClear, false, true)
+                        ClearPedTasksImmediately(pedToClear)
+                        SetPedToRagdoll(pedToClear, 1000, 1000, 0, false, false, false)
+                        DeletePed(pedToClear)
+                        pedsDeletedThisTick = pedsDeletedThisTick + 1
                     end
                 end
             end
 
-            if clearedTargetedNPCDrivers > 0 then
-                print(string.format("[CNR_CLIENT_TARGETED_CLEAR] %d NPC police drivers removed from vehicles.", clearedTargetedNPCDrivers))
+            if pedsDeletedThisTick > 0 then
+                print(string.format("[CNR_CLIENT_GENERAL_CLEAR] %d total NPC police processed/deleted this tick.", pedsDeletedThisTick))
             end
             -- Pasted ambient ped clearing logic ends here
         end
