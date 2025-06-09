@@ -1,6 +1,6 @@
 -- client.lua
 -- Cops & Robbers FiveM Game Mode - Client Script
--- Version: 1.1.0 | Date: <current date>
+-- Version: 1.2 | Date: <current date>
 -- Ped readiness flag and guards implemented.
 
 -- _G.cnrSetDispatchServiceErrorLogged = false -- Removed as part of subtask
@@ -599,8 +599,8 @@ Citizen.CreateThread(function()
                                 -- Wait a brief moment for ped to exit before deletion. This might need adjustment.
                                 Citizen.Wait(500) -- Wait 500ms
                                 if DoesEntityExist(pedToClear) then -- Check if ped still exists (might have been deleted by other means or despawned)
-                                    print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before deletion.", pedToClear))
-                                    SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                                    print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before deletion from vehicle.", pedToClear))
+                                    SetEntityAsMissionEntity(pedToClear, false, true)
                                     ClearPedTasksImmediately(pedToClear)
                                     DeletePed(pedToClear)
                                     clearedPedCount = clearedPedCount + 1
@@ -610,8 +610,8 @@ Citizen.CreateThread(function()
                                 -- Ped is in a non-police vehicle, or we don't want to handle this case.
                                 -- For now, let's just delete them directly as before if they are a policeman.
                                 print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Police ped (Model: %s) is in a NON-POLICE vehicle or unhandled vehicle. Deleting ped directly.", GetEntityModel(pedToClear)))
-                                print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion.", pedToClear))
-                                SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                                print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion from non-police vehicle.", pedToClear))
+                                SetEntityAsMissionEntity(pedToClear, false, true)
                                 ClearPedTasksImmediately(pedToClear) -- Ensure tasks are cleared just before delete as well
                                 DeletePed(pedToClear)
                                 clearedPedCount = clearedPedCount + 1
@@ -619,8 +619,8 @@ Citizen.CreateThread(function()
                         else
                             -- Ped is not in any vehicle
                             print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Police ped (Model: %s) is on foot. Deleting ped directly.", GetEntityModel(pedToClear)))
-                            print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion.", pedToClear))
-                            SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                            print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion (on foot).", pedToClear))
+                            SetEntityAsMissionEntity(pedToClear, false, true)
                             ClearPedTasksImmediately(pedToClear) -- Ensure tasks are cleared just before delete as well
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
