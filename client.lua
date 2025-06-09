@@ -411,6 +411,7 @@ end)
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
 AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     currentWantedStarsClient = stars
+    print(string.format("[CNR_CLIENT_DEBUG_EVENT] updateWantedDisplay: currentWantedStarsClient is NOW: %d, Stars received: %d", currentWantedStarsClient, stars))
     currentWantedPointsClient = points
     local newUiLabel = ""
     if stars > 0 then
