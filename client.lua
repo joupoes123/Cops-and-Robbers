@@ -512,10 +512,17 @@ Citizen.CreateThread(function()
 end)
 
 Citizen.CreateThread(function()
-    local clearCheckInterval = 2500 -- milliseconds (e.g., every 2.5 seconds as per refined subtask)
+    local clearCheckInterval = 500 -- milliseconds (e.g., every 0.5 seconds as per refined subtask)
     print("[CNR_CLIENT] Ambient Police Ped Clearing Thread Started. Interval: " .. clearCheckInterval .. "ms")
 
     while true do
+        -- Add this block for verification logging
+        if not ambientClearTick then ambientClearTick = 0 end
+        ambientClearTick = ambientClearTick + 1
+        if ambientClearTick % 20 == 0 then -- Log every 20 iterations (20 * 500ms = 10 seconds)
+            print(string.format("[CNR_CLIENT_VERIFY] Ambient Clear Thread RUNNING. Iteration: %d. Current Wanted Stars: %d", ambientClearTick, currentWantedStarsClient))
+            if ambientClearTick > 1000 then ambientClearTick = 0 end -- Reset counter to prevent overflow
+        end
         Citizen.Wait(clearCheckInterval)
 
         local playerId = PlayerId()
@@ -528,7 +535,7 @@ Citizen.CreateThread(function()
         -- Only run if player has a wanted level
         if currentWantedStarsClient > 0 then -- Using the client-side 'currentWantedStarsClient' variable
             local playerCoords = GetEntityCoords(playerPed)
-            local clearRadius = 1000.0
+            local clearRadius = 150.0
 
             -- Pasted ambient ped clearing logic starts here
             -- Ensure ShowNotification is used appropriately (maybe only for debug, or less frequently)
@@ -578,17 +585,43 @@ Citizen.CreateThread(function()
             for _, pedToClear in ipairs(allPedsInRadius) do
                 -- Double check entity existence before operating
                 if DoesEntityExist(pedToClear) then
-                    if IsPedAPoliceman(pedToClear) then
+                    if IsPedAPoliceman(pedToClear) or GetPedRelationshipGroupHash(pedToClear) == GetHashKey("COP") then
                         -- Ped is identified as a policeman by the game native
                         local pedModel = GetEntityModel(pedToClear) -- Get model for debug print
-                        print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Found police ped (Model: %s, IsPedAPoliceman: true). Attempting to clear.", pedModel))
+                        print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Found police ped (Model: %s, IsPedAPoliceman: true or RelGroup COP). Attempting to clear.", pedModel))
 
-                        if IsPedInAnyVehicle(pedToClear, false) then
-                            ClearPedTasksImmediately(pedToClear)
-                            DeletePed(pedToClear)
-                            clearedPedCount = clearedPedCount + 1
+                        local vehicle = GetVehiclePedIsIn(pedToClear, false)
+                        if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                            -- Check if the vehicle itself is a police vehicle to be more targeted
+                            if IsVehicleModel(vehicle, GetHashKey("police")) or IsVehicleModel(vehicle, GetHashKey("police2")) or IsVehicleModel(vehicle, GetHashKey("police3")) or IsVehicleModel(vehicle, GetHashKey("police4")) or IsVehicleModel(vehicle, GetHashKey("policet")) or IsVehicleModel(vehicle, GetHashKey("policeb")) or IsVehicleModel(vehicle, GetHashKey("sheriff")) or IsVehicleModel(vehicle, GetHashKey("sheriff2")) or IsVehicleModel(vehicle, GetHashKey("fbi")) or IsVehicleModel(vehicle, GetHashKey("fbi2")) then
+                                print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Police ped (Model: %s) is in a police vehicle (Handle: %s). Making them leave.", GetEntityModel(pedToClear), vehicle))
+                                TaskLeaveVehicle(pedToClear, vehicle, 0) -- Flag 0 means normal exit
+                                -- Wait a brief moment for ped to exit before deletion. This might need adjustment.
+                                Citizen.Wait(500) -- Wait 500ms
+                                if DoesEntityExist(pedToClear) then -- Check if ped still exists (might have been deleted by other means or despawned)
+                                    print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before deletion.", pedToClear))
+                                    SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                                    ClearPedTasksImmediately(pedToClear)
+                                    DeletePed(pedToClear)
+                                    clearedPedCount = clearedPedCount + 1
+                                    print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Deleted police ped after exiting vehicle."))
+                                end
+                            else
+                                -- Ped is in a non-police vehicle, or we don't want to handle this case.
+                                -- For now, let's just delete them directly as before if they are a policeman.
+                                print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Police ped (Model: %s) is in a NON-POLICE vehicle or unhandled vehicle. Deleting ped directly.", GetEntityModel(pedToClear)))
+                                print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion.", pedToClear))
+                                SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                                ClearPedTasksImmediately(pedToClear) -- Ensure tasks are cleared just before delete as well
+                                DeletePed(pedToClear)
+                                clearedPedCount = clearedPedCount + 1
+                            end
                         else
-                            ClearPedTasksImmediately(pedToClear)
+                            -- Ped is not in any vehicle
+                            print(string.format("[CNR_CLIENT_DEBUG] Ambient Clear: Police ped (Model: %s) is on foot. Deleting ped directly.", GetEntityModel(pedToClear)))
+                            print(string.format("[CNR_CLIENT_DEBUG] Attempting to set ped %s as not a mission entity before direct deletion.", pedToClear))
+                            SetEntityAsMissionEntity(pedToClear, false, true) -- Attempt to remove mission entity status
+                            ClearPedTasksImmediately(pedToClear) -- Ensure tasks are cleared just before delete as well
                             DeletePed(pedToClear)
                             clearedPedCount = clearedPedCount + 1
                         end
@@ -1304,10 +1337,17 @@ Citizen.CreateThread(function()
     if not _G.SetDispatchServiceActive then
         print("[CNR_CLIENT_WARN] The native 'SetDispatchServiceActive' is not available in this environment. Default police dispatch services cannot be programmatically disabled by this script. Alternative suppression methods are active.")
     end
-    local policeDisableInterval = 5000 -- 5 seconds
+    local policeDisableInterval = 1000 -- 1 second
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
 
     while true do
+        -- Add this block for verification logging
+        if not policeDisableTick then policeDisableTick = 0 end
+        policeDisableTick = policeDisableTick + 1
+        if policeDisableTick % 10 == 0 then -- Log every 10 iterations (10 * 1000ms = 10 seconds)
+            print(string.format("[CNR_CLIENT_VERIFY] Default Police Disabler Thread RUNNING. Iteration: %d. PlayerId: %s", policeDisableTick, PlayerId()))
+            if policeDisableTick > 1000 then policeDisableTick = 0 end -- Reset counter
+        end
         Citizen.Wait(policeDisableInterval)
 
         local playerId = PlayerId()
@@ -1320,6 +1360,7 @@ Citizen.CreateThread(function()
             -- Disable various dispatch services
             -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
             -- It's important to do this repeatedly as the game might re-enable them.
+            -- Reverted to 1-6 from 1-20.
             for i = 1, 6 do
                 if _G.SetDispatchServiceActive then
                     SetDispatchServiceActive(i, false)
@@ -1330,8 +1371,12 @@ Citizen.CreateThread(function()
             if GetPlayerWantedLevel(playerId) > 0 then
                 SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
                 RemoveShockingEvent(-1) -- Clear any existing shocking events
-                SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0) -- Added line: Try to move wanted center far away and underground
-                -- print("[CNR_CLIENT_DEBUG] Applied wanted level suppression measures.") -- Optional: add a debug print
+                SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
+
+                -- Aggressively nullify wanted level dispatch
+                SetPlayerWantedLevel(playerId, GetPlayerWantedLevel(playerId), false)
+                SetPlayerWantedLevelNow(playerId, false)
+                print(string.format("[CNR_CLIENT_DEBUG] Aggressively re-applied wanted level suppression for player %s with %d stars.", playerId, GetPlayerWantedLevel(playerId))) -- Log this action
             end
         end
     end
