@@ -1,6 +1,6 @@
 -- client.lua
 -- Cops & Robbers FiveM Game Mode - Client Script
--- Version: 1.2 | Date: <current date>
+-- Version: 1.1.0 | Date: <current date>
 -- Ped readiness flag and guards implemented.
 
 -- _G.cnrSetDispatchServiceErrorLogged = false -- Removed as part of subtask
