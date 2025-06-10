@@ -411,7 +411,6 @@ end)
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
 AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     currentWantedStarsClient = stars
-    print(string.format("[CNR_CLIENT_DEBUG_EVENT] updateWantedDisplay: currentWantedStarsClient is NOW: %d, Stars received: %d", currentWantedStarsClient, stars))
     currentWantedPointsClient = points
     local newUiLabel = ""
     if stars > 0 then
@@ -419,11 +418,7 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
         if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", stars) end
     end
     wantedUiLabel = newUiLabel
-    local playerId = PlayerId()
-    if playerId and playerId ~= -1 then -- Guard for PlayerId()
-        SetPlayerWantedLevel(playerId, stars, false)
-        SetPlayerWantedLevelNow(playerId, false)
-    end
+    SetWantedLevelForPlayerRole(stars, points)
 end)
 
 RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
@@ -1410,172 +1405,50 @@ Citizen.CreateThread(function()
     end
 end)
 
--- AGGRESSIVE NPC POLICE SUPPRESSION THREAD
+-- AGGRESSIVE NPC POLICE SUPPRESSION
 Citizen.CreateThread(function()
-    local policeDisableInterval = 500 -- Run twice per second for maximum suppression
-    print("[CNR_CLIENT_DEBUG] Aggressive Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
+    local policeDisableInterval = 500 -- ms
     while true do
         Citizen.Wait(policeDisableInterval)
-        local playerId = PlayerId()
         local playerPed = PlayerPedId()
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
-            SetPoliceIgnorePlayer(playerId, true)
-            SetEveryoneIgnorePlayer(playerPed, true)
-            for i = 1, 20 do
-                if _G.SetDispatchServiceActive then
-                    SetDispatchServiceActive(i, false)
-                end
-            end
-            SetPlayerWantedLevel(playerId, 0, false)
-            SetPlayerWantedLevelNow(playerId, false)
-            SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
-            SuppressShockingEventsNextFrame()
-            RemoveShockingEvent(-1)
-            -- Only delete police peds and their vehicles (if occupied)
-            local playerCoords = GetEntityCoords(playerPed)
-            local clearRadius = 300.0
-            local findPedHandle, foundPed = FindFirstPed()
-            local pedsDeleted = 0
-            if foundPed and foundPed ~= 0 then
-                repeat
-                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
-                        if IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP") then
-                            local pedCoords = GetEntityCoords(foundPed)
-                            if #(playerCoords - pedCoords) < clearRadius then
-                                local vehicle = GetVehiclePedIsIn(foundPed, false)
-                                SetEntityAsMissionEntity(foundPed, false, true)
-                                ClearPedTasksImmediately(foundPed)
-                                DeletePed(foundPed)
-                                if vehicle ~= 0 and DoesEntityExist(vehicle) then
-                                    SetEntityAsMissionEntity(vehicle, false, true)
-                                    DeleteEntity(vehicle)
-                                end
-                                pedsDeleted = pedsDeleted + 1
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_police_disable end
+        -- Remove all NPC police peds (on foot or in vehicles)
+        local findPedHandle, foundPed = FindFirstPed()
+        if foundPed and foundPed ~= 0 then
+            repeat
+                if DoesEntityExist(foundPed) and foundPed ~= playerPed then
+                    local isCopPed = IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP")
+                    if isCopPed then
+                        local vehicle = GetVehiclePedIsIn(foundPed, false)
+                        SetEntityAsMissionEntity(foundPed, false, true)
+                        ClearPedTasksImmediately(foundPed)
+                        DeletePed(foundPed)
+                        if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                            -- Only delete the vehicle if the cop ped is driving it
+                            if GetPedInVehicleSeat(vehicle, -1) == foundPed then
+                                SetEntityAsMissionEntity(vehicle, false, true)
+                                DeleteEntity(vehicle)
                             end
                         end
                     end
-                    foundPed = FindNextPed(findPedHandle)
-                until not foundPed or foundPed == 0
-            end
-            EndFindPed(findPedHandle)
-            if pedsDeleted > 0 then
-                print(string.format("[CNR_CLIENT_AGGRESSIVE_CLEAR] Cleared %d police peds (and their vehicles if occupied) this tick.", pedsDeleted))
-            end
-        end
-    end
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Admin/Bounty Keybinds now starting its main loop.")
-    while true do
-        Citizen.Wait(0)
-        local toggleAdminPanelKey = (Config.Keybinds and Config.Keybinds.toggleAdminPanel) or 289
-        if IsControlJustPressed(0, toggleAdminPanelKey) then
-            if not isAdminPanelOpen then ShowNotification("~b~Requesting Admin Panel..."); TriggerServerEvent('cops_and_robbers:requestAdminDataForUI')
-            else SendNUIMessage({ action = 'hideAdminPanel' }); isAdminPanelOpen = false; ShowNotification("~y~Admin Panel closed.") end
-        end
-        local toggleBountyBoardKey = (Config.Keybinds and Config.Keybinds.toggleBountyBoard) or 168
-        if IsControlJustPressed(0, toggleBountyBoardKey) then
-            if playerData.role == 'cop' then
-                isBountyBoardOpen = not isBountyBoardOpen
-                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetCurrentResourceName()}); ShowNotification("~g~Bounty Board opened.")
-                else SendNUIMessage({action = "hideBountyBoard"}); ShowNotification("~y~Bounty Board closed.") end
-            else ShowNotification("~r~Only Cops can access Bounty Board.") end
-        end
-    end
-end)
-
-RegisterNetEvent('cops_and_robbers:bountyListUpdate')
-AddEventHandler('cops_and_robbers:bountyListUpdate', function(bountiesFromServer)
-    currentBounties = bountiesFromServer
-    if isBountyBoardOpen and playerData.role == 'cop' then SendNUIMessage({action="updateBountyList", bounties=currentBounties}) end
-end)
-
-RegisterNUICallback('closeBountyNUI', function(data, cb)
-    isBountyBoardOpen = false; ShowNotification("~y~Bounty Board closed by NUI button."); cb('ok')
-end)
-
-RegisterNetEvent('cops_and_robbers:showAdminUI')
-AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
-    if not isAdminFlag then ShowNotification("~r~Admin Panel access denied."); isAdminPanelOpen = false; return end
-    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetCurrentResourceName() }); ShowNotification("~g~Admin Panel opened.")
-    elseif isAdminPanelOpen and playerList then SendNUIMessage({ action = 'refreshAdminPanelPlayers', players = playerList }); ShowNotification("~b~Admin Panel refreshed.") end
-end)
-
-RegisterNetEvent('cops_and_robbers:teleportToPlayerAdminUI')
-AddEventHandler('cops_and_robbers:teleportToPlayerAdminUI', function(targetCoordsTable)
-    local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
-    local targetCoords = vector3(targetCoordsTable.x, targetCoordsTable.y, targetCoordsTable.z)
-    SetEntityCoords(playerPed, targetCoords.x, targetCoords.y, targetCoords.z, false, false, false, true)
-    ShowNotification("~b~Teleported by Admin UI.")
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Player Position Update now starting its main loop.")
-    while true do
-        Citizen.Wait(Config.ClientPositionUpdateInterval or 5000)
-        local playerPed = PlayerPedId()
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) and playerData.role and playerData.role ~= "citizen" then
-            TriggerServerEvent('cops_and_robbers:updatePosition', GetEntityCoords(playerPed), currentWantedStarsClient)
-        end
-    end
-end)
-
--- Helper: Give all inventory items to player (weapons, ammo, utility)
-local function RestoreInventoryItemsToPlayer()
-    local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
-    if not playerData or not playerData.inventory then return end
-    playerWeapons = {}; playerAmmo = {}
-    for itemId, item in pairs(playerData.inventory) do
-        -- Find item config
-        local itemConfig = nil
-        if Config.Items and type(Config.Items) == "table" then
-            for _, def in ipairs(Config.Items) do
-                if def.itemId == itemId then itemConfig = def; break end
-            end
-        end
-        if itemConfig then
-            if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
-                local weaponHash = GetHashKey(itemId)
-                if weaponHash ~= 0 and weaponHash ~= -1 then
-                    GiveWeaponToPed(playerPed, weaponHash, item.count or 1, false, false)
-                    playerWeapons[itemId] = true
-                    playerAmmo[itemId] = item.count or 1
                 end
-            elseif itemConfig.category == "Ammunition" and itemConfig.weaponLink and itemConfig.ammoAmount then
-                local weaponHash = GetHashKey(itemConfig.weaponLink)
-                if weaponHash ~= 0 and weaponHash ~= -1 then
-                    AddAmmoToPed(playerPed, weaponHash, (item.count or 1) * itemConfig.ammoAmount)
-                    playerAmmo[itemConfig.weaponLink] = (playerAmmo[itemConfig.weaponLink] or 0) + ((item.count or 1) * itemConfig.ammoAmount)
-                end
-            elseif itemConfig.category == "Armor" then
-                TriggerEvent('cops_and_robbers:applyArmor', itemId)
-            end
-            -- Utility/other items can be handled here if needed
+                foundPed = FindNextPed(findPedHandle)
+            until not foundPed or foundPed == 0
         end
+        EndFindPed(findPedHandle)
+        ::continue_police_disable::
     end
-end
+end)
 
--- Patch: Restore inventory on player data update (login/spawn/role change)
-local _old_updatePlayerData = AddEventHandler
-AddEventHandler = function(event, handler)
-    if event == 'cnr:updatePlayerData' then
-        _old_updatePlayerData(event, function(newPlayerData)
-            handler(newPlayerData)
-            RestoreInventoryItemsToPlayer()
-        end)
-    else
-        _old_updatePlayerData(event, handler)
+-- WANTED LEVEL LOGIC: Only robbers get wanted levels, cops never do
+local function SetWantedLevelForPlayerRole(stars, points)
+    local playerId = PlayerId()
+    if role == 'cop' then
+        -- Always clear wanted level for cops
+        SetPlayerWantedLevel(playerId, 0, false)
+        SetPlayerWantedLevelNow(playerId, false)
+    elseif role == 'robber' then
+        SetPlayerWantedLevel(playerId, stars, false)
+        SetPlayerWantedLevelNow(playerId, false)
     end
-end
-
--- Also restore inventory after jail release and respawn
-local _old_spawnPlayer = spawnPlayer
-spawnPlayer = function(playerRole)
-    _old_spawnPlayer(playerRole)
-    RestoreInventoryItemsToPlayer()
 end
