@@ -684,9 +684,6 @@ Citizen.CreateThread(function()
             -- However, the native takes a single integer for flags.
             -- Let's use a simpler setup first: ignore playerPed, check for peds.
             -- The integer 2 represents flag for considering peds.
-            -- The integer 4 represents flag for considering vehicles.
-            -- The integer 8 represents flag for considering objects.
-            -- So, 2 is for peds.
             -- The 4th argument is entities to ignore. The 5th is bitmask for types of entities.
             -- Let's try with flag 2 for peds, ignoring playerPed.
             
@@ -1453,13 +1450,6 @@ Citizen.CreateThread(function()
     print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
 
     while true do
-        -- Add this block for verification logging
-        if not policeDisableTick then policeDisableTick = 0 end
-        policeDisableTick = policeDisableTick + 1
-        if policeDisableTick % 10 == 0 then -- Log every 10 iterations (10 * 1000ms = 10 seconds)
-            print(string.format("[CNR_CLIENT_VERIFY] Default Police Disabler Thread RUNNING. Iteration: %d. PlayerId: %s", policeDisableTick, PlayerId()))
-            if policeDisableTick > 1000 then policeDisableTick = 0 end -- Reset counter
-        end
         Citizen.Wait(policeDisableInterval)
 
         local playerId = PlayerId()
@@ -1494,165 +1484,66 @@ Citizen.CreateThread(function()
     end
 end)
 
-function GetClosestPlayerPed(coords, radius, excludeSelf)
-    local closestPed, closestDist = nil, -1; local selfPlayerId = PlayerId()
-    for _, pId in ipairs(GetActivePlayers()) do
-        if not (excludeSelf and pId == selfPlayerId) then
-            local targetPed = GetPlayerPed(pId)
-            if DoesEntityExist(targetPed) then local dist = #(coords - GetEntityCoords(targetPed)); if dist < radius and (not closestPed or dist < closestDist) then closestPed = targetPed; closestDist = dist end end
-        end
-    end; return closestPed, closestDist
-end
-
-local currentStoreRobbery = nil
+-- AGGRESSIVE NPC POLICE SUPPRESSION THREAD
 Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Store Robbery Proximity now starting its main loop.")
+    local policeDisableInterval = 500 -- Run twice per second for maximum suppression
+    print("[CNR_CLIENT_DEBUG] Aggressive Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
     while true do
-        Citizen.Wait(1000)
+        Citizen.Wait(policeDisableInterval)
+        local playerId = PlayerId()
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_robbery_prox_loop end
-        if role == 'robber' then
-            local playerCoords = GetEntityCoords(playerPed)
-            for i, store_loc in ipairs(Config.RobbableStores) do
-                if #(playerCoords - store_loc.location) < store_loc.radius + 5.0 then
-                    if #(playerCoords - store_loc.location) < store_loc.radius then
-                        DisplayHelpText(string.format("Press ~INPUT_CONTEXT~ to rob %s.", store_loc.name))
-                        if IsControlJustPressed(0, 51) then if not currentStoreRobbery then TriggerServerEvent('cops_and_robbers:startStoreRobbery', i) else ShowNotification("~r~Already in a robbery.") end end
-                    end; break
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            -- Make police ignore the player
+            SetPoliceIgnorePlayer(playerId, true)
+            SetEveryoneIgnorePlayer(playerPed, true)
+            -- Disable all dispatch services (IDs 1-20)
+            for i = 1, 20 do
+                if _G.SetDispatchServiceActive then
+                    SetDispatchServiceActive(i, false)
                 end
             end
-        end
-        ::continue_store_robbery_prox_loop::
-    end
-end)
-
-RegisterNetEvent('cops_and_robbers:beginStoreRobberySequence')
-AddEventHandler('cops_and_robbers:beginStoreRobberySequence', function(store_data, duration)
-    ShowNotification(string.format("~y~Robbing %s! Stay for %ds.", store_data.name, duration / 1000))
-    currentStoreRobbery = { store = store_data, duration = duration, startTime = GetGameTimer() }
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Store Robbery Monitoring now starting its main loop.")
-    while true do
-        Citizen.Wait(1000)
-        local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_store_robbery_monitor_loop end
-
-        if currentStoreRobbery and role == 'robber' then
+            -- Suppress wanted level and shocking events
+            SetPlayerWantedLevel(playerId, 0, false)
+            SetPlayerWantedLevelNow(playerId, false)
+            SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
+            SuppressShockingEventsNextFrame()
+            RemoveShockingEvent(-1)
+            -- Aggressively clear all police peds and vehicles nearby
             local playerCoords = GetEntityCoords(playerPed)
-            local distToStore = #(playerCoords - currentStoreRobbery.store.location)
-            local timeElapsed = GetGameTimer() - currentStoreRobbery.startTime
-            if distToStore > currentStoreRobbery.store.radius + 2.0 then ShowNotification("~r~Fled store! Robbery failed."); TriggerServerEvent('cops_and_robbers:storeRobberyUpdate', "fled"); currentStoreRobbery = nil
-            elseif timeElapsed >= currentStoreRobbery.duration then ShowNotification("~g~Robbery complete. Waiting server."); currentStoreRobbery = nil
-            else DisplayHelpText(string.format("Robbing %s... Time left: %ds", currentStoreRobbery.store.name, math.ceil((currentStoreRobbery.duration - timeElapsed) / 1000))) end
-        end
-        ::continue_store_robbery_monitor_loop::
-    end
-end)
-
-local armoredCarBlip = nil; local armoredCarNetIdClient = nil; local armoredCarClientData = { lastHealth = 0 }
-RegisterNetEvent('cops_and_robbers:armoredCarSpawned')
-AddEventHandler('cops_and_robbers:armoredCarSpawned', function(vehicleNetId, initialCoords)
-    ShowNotification("~y~An armored car is on the move!"); armoredCarNetIdClient = vehicleNetId
-    local vehicle = NetToVeh(vehicleNetId)
-    if DoesEntityExist(vehicle) then
-        if armoredCarBlip then RemoveBlip(armoredCarBlip) end
-        armoredCarBlip = AddBlipForEntity(vehicle); SetBlipSprite(armoredCarBlip, 427); SetBlipColour(armoredCarBlip, 5); SetBlipAsShortRange(armoredCarBlip, false)
-        BeginTextCommandSetBlipName("STRING"); AddTextComponentSubstringPlayerName("Armored Car"); EndTextCommandSetBlipName(armoredCarBlip)
-        armoredCarClientData.lastHealth = GetEntityHealth(vehicle)
-    else print("Armored car entity not found client-side for NetID: " .. vehicleNetId) end
-end)
-
-RegisterNetEvent('cops_and_robbers:armoredCarDestroyed')
-AddEventHandler('cops_and_robbers:armoredCarDestroyed', function(vehicleNetId)
-    ShowNotification("~g~Armored car looted!"); if armoredCarBlip then RemoveBlip(armoredCarBlip); armoredCarBlip = nil end
-    armoredCarNetIdClient = nil; armoredCarClientData.lastHealth = 0
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Armored Car Damage now starting its main loop.")
-    local damageCheckInterval = 1000
-    while true do
-        Citizen.Wait(damageCheckInterval)
-        if role == 'robber' and armoredCarNetIdClient and NetworkDoesNetworkIdExist(armoredCarNetIdClient) then
-            local carEntity = NetToVeh(armoredCarNetIdClient)
-            if DoesEntityExist(carEntity) then
-                local currentHealth = GetEntityHealth(carEntity)
-                if armoredCarClientData.lastHealth == 0 then armoredCarClientData.lastHealth = GetMaxHealth(carEntity) end
-                if currentHealth < armoredCarClientData.lastHealth then local damageDone = armoredCarClientData.lastHealth - currentHealth; if damageDone > 0 then TriggerServerEvent('cops_and_robbers:damageArmoredCar', armoredCarNetIdClient, damageDone) end end
-                armoredCarClientData.lastHealth = currentHealth
-            else armoredCarNetIdClient = nil; armoredCarClientData.lastHealth = 0 end
-        end
-    end
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for EMP Device now starting its main loop.")
-    while true do
-        local frameWait = 500
-        local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then Citizen.Wait(1000); goto continue_emp_loop end
-        if playerData.role == 'robber' then
-            frameWait = 100
-            if IsControlJustPressed(0, (Config.Keybinds and Config.Keybinds.activateEMP) or 121) then
-                local empDeviceConfig = Config.Items["emp_device"]; if empDeviceConfig and playerData.level >= (empDeviceConfig.minLevelRobber or 1) then ShowNotification("~b~Activating EMP..."); TriggerServerEvent('cops_and_robbers:activateEMP') else ShowNotification(string.format("~r~EMP Device requires Level %d Robber.", (empDeviceConfig and empDeviceConfig.minLevelRobber or 1))) end
+            local clearRadius = 300.0 -- Large radius for aggressive clearing
+            local findPedHandle, foundPed = FindFirstPed()
+            local pedsDeleted = 0
+            if foundPed and foundPed ~= 0 then
+                repeat
+                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
+                        if IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP") then
+                            local pedCoords = GetEntityCoords(foundPed)
+                            if #(playerCoords - pedCoords) < clearRadius then
+                                local vehicle = GetVehiclePedIsIn(foundPed, false)
+                                SetEntityAsMissionEntity(foundPed, false, true)
+                                ClearPedTasksImmediately(foundPed)
+                                DeletePed(foundPed)
+                                if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                                    SetEntityAsMissionEntity(vehicle, false, true)
+                                    DeleteEntity(vehicle)
+                                end
+                                pedsDeleted = pedsDeleted + 1
+                            end
+                        end
+                    end
+                    foundPed = FindNextPed(findPedHandle)
+                until not foundPed or foundPed == 0
+            end
+            EndFindPed(findPedHandle)
+            if pedsDeleted > 0 then
+                print(string.format("[CNR_CLIENT_AGGRESSIVE_CLEAR] Cleared %d police peds/vehicles this tick.", pedsDeleted))
             end
         end
-        Citizen.Wait(frameWait)
-        ::continue_emp_loop::
     end
 end)
 
-RegisterNetEvent('cops_and_robbers:vehicleEMPed')
-AddEventHandler('cops_and_robbers:vehicleEMPed', function(vehicleNetIdToEMP, durationMs)
-    local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
-    local currentVehicle = GetVehiclePedIsIn(playerPed, false)
-    local targetVehicle = NetToVeh(vehicleNetIdToEMP)
-    if DoesEntityExist(targetVehicle) and currentVehicle == targetVehicle then
-        ShowNotification("~r~Vehicle EMPed!"); SetVehicleEngineOn(targetVehicle, false, true, true); SetVehicleUndriveable(targetVehicle, true)
-        SetTimeout(durationMs, function() if DoesEntityExist(targetVehicle) then SetVehicleUndriveable(targetVehicle, false); if GetPedInVehicleSeat(targetVehicle, -1) == playerPed then SetVehicleEngineOn(targetVehicle, true, true, false) end; ShowNotification("~g~Vehicle systems recovering.") end end)
-    end
-end)
-
-local activePowerOutages = {}
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Power Grid Sabotage now starting its main loop.")
-    while true do
-        Citizen.Wait(1000)
-        local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_power_grid_loop end
-        if playerData.role == 'robber' then
-            local playerCoords = GetEntityCoords(playerPed)
-            for i, grid in ipairs(Config.PowerGrids) do
-                if #(playerCoords - grid.location) < 10.0 then
-                    DisplayHelpText(string.format("Press ~INPUT_CONTEXT~ to sabotage %s.", grid.name))
-                    if IsControlJustPressed(0, 51) then local sabotageToolConfig = Config.Items["emp_device"]; if sabotageToolConfig and playerData.level >= (sabotageToolConfig.minLevelRobber or 1) then ShowNotification("~b~Attempting sabotage..."); TriggerServerEvent('cops_and_robbers:sabotagePowerGrid', i); TriggerServerEvent('cops_and_robbers:reportCrime', 'power_grid_sabotaged_crime') else ShowNotification(string.format("~r~Sabotage requires Level %d Robber and gear.", (sabotageToolConfig and sabotageToolConfig.minLevelRobber or 1))) end end
-                    break
-                end
-            end
-        end
-        ::continue_power_grid_loop::
-    end
-end)
-
-RegisterNetEvent('cops_and_robbers:powerGridStateChanged')
-AddEventHandler('cops_and_robbers:powerGridStateChanged', function(gridIndex, isOutage, duration)
-    local grid = Config.PowerGrids[gridIndex]; if not grid then return end
-    activePowerOutages[gridIndex] = isOutage
-    if isOutage then ShowNotification(string.format("~r~Power outage at %s!", grid.name)); SetArtificialLightsState(true); print("Simplified power outage for grid: " .. grid.name)
-    else ShowNotification(string.format("~g~Power restored at %s.", grid.name)); local anyOutageActive = false; for _, status in pairs(activePowerOutages) do if status then anyOutageActive = true; break end end; if not anyOutageActive then SetArtificialLightsState(false); print("All power outages resolved.") else print("Power restored for " .. grid.name .. ", but others may be active.") end end
-end)
-
-local isAdminPanelOpen = false; local currentBounties = {}; local isBountyBoardOpen = false
-Citizen.CreateThread(function()
-    -- No g_isPlayerPedReady needed for keybinds themselves, but actions triggered might need it.
     print("[CNR_CLIENT] Thread for Admin/Bounty Keybinds now starting its main loop.")
     while true do
         Citizen.Wait(0)
