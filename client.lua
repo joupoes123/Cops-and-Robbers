@@ -1273,7 +1273,7 @@ Citizen.CreateThread(function()
                     local targetServerId = GetPlayerServerId(closestPlayerId)
                     if targetServerId ~= -1 then ShowNotification("~b~Attempting to tackle..."); TriggerServerEvent('cops_and_robbers:startSubdue', targetServerId); isSubduing = true; SetTimeout((Config.SubdueTimeMs or 3000) + 500, function() isSubduing = false end)
                     else ShowNotification("~r~Could not get target server ID.") end
-                elseif closestPlayerId ~= -1 then Show Notification(string.format("~r~Target too far (%.1fm). Required: %.1fm", closestDistance, (Config.TackleDistance or 2.0)))
+                elseif closestPlayerId ~= -1 then ShowNotification(string.format("~r~Target too far (%.1fm). Required: %.1fm", closestDistance, (Config.TackleDistance or 2.0)))
                 else ShowNotification("~y~No player nearby to tackle.") end
             end
         end
