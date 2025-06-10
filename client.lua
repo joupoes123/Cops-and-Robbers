@@ -539,10 +539,6 @@ Citizen.CreateThread(function()
             local clearRadius = Config.PoliceClearRadius or 100.0 -- Use config value or default
             local pedsDeletedThisTick = 0
 
-            -- More efficient ped enumeration: GetHostilePedsInRadius (experimental, may need fallback)
-            -- For simplicity and reliability, sticking with FindFirstPed/FindNextPed for now,
-            -- but with reduced internal logging.
-
             local findPedHandle, foundPed = FindFirstPed()
             if foundPed and foundPed ~= 0 then
                 repeat
@@ -550,23 +546,9 @@ Citizen.CreateThread(function()
                         if IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP") then
                             local currentPedCoords = GetEntityCoords(foundPed)
                             if #(playerCoords - currentPedCoords) < clearRadius then
-                                -- Ped is a police NPC within radius
+                                -- Only delete the ped if it's not in a vehicle
                                 local vehicle = GetVehiclePedIsIn(foundPed, false)
-
-                                if vehicle ~= 0 and DoesEntityExist(vehicle) then
-                                    -- NPC is in a vehicle
-                                    -- print(string.format("[CNR_CLIENT_CLEAR] Police NPC %s in vehicle %s. Deleting.", foundPed, vehicle))
-                                    SetEntityAsMissionEntity(foundPed, false, true) -- Set ped as no longer needed
-                                    ClearPedTasksImmediately(foundPed)
-                                    DeletePed(foundPed) -- Delete ped
-
-                                    SetEntityAsMissionEntity(vehicle, false, true) -- Set vehicle as no longer needed
-                                    -- DeleteVehicle(vehicle) -- Preferred for vehicles
-                                    DeleteEntity(vehicle) -- Fallback if DeleteVehicle fails or for broader use
-                                    pedsDeletedThisTick = pedsDeletedThisTick + 1
-                                else
-                                    -- NPC is on foot
-                                    -- print(string.format("[CNR_CLIENT_CLEAR] Police NPC %s on foot. Deleting.", foundPed))
+                                if vehicle == 0 then
                                     SetEntityAsMissionEntity(foundPed, false, true)
                                     ClearPedTasksImmediately(foundPed)
                                     DeletePed(foundPed)
@@ -581,11 +563,47 @@ Citizen.CreateThread(function()
             EndFindPed(findPedHandle)
 
             if pedsDeletedThisTick > 0 then
-                -- This print can be kept if a summary is desired, or removed for ultra-clean logs
-                print(string.format("[CNR_CLIENT_CLEAR] Cleared %d ambient police entities this tick.", pedsDeletedThisTick))
+                print(string.format("[CNR_CLIENT_CLEAR] Cleared %d ambient police peds this tick.", pedsDeletedThisTick))
             end
         end
         ::continue_ambient_clear_loop::
+    end
+end)
+
+-- Default Police Disabler Thread
+Citizen.CreateThread(function()
+    if not _G.SetDispatchServiceActive then
+        print("[CNR_CLIENT_WARN] The native 'SetDispatchServiceActive' is not available in this environment. Default police dispatch services cannot be programmatically disabled by this script. Alternative suppression methods are active.")
+    end
+    local policeDisableInterval = 1000 -- 1 second
+    print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
+
+    while true do
+        Citizen.Wait(policeDisableInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            -- Make police ignore the player (less likely to engage directly)
+            SetPoliceIgnorePlayer(playerId, true)
+
+            -- Disable various dispatch services
+            for i = 1, 6 do
+                if _G.SetDispatchServiceActive then
+                    SetDispatchServiceActive(i, false)
+                end
+            end
+            
+            -- Maintain wanted level but prevent NPC response
+            if GetPlayerWantedLevel(playerId) > 0 then
+                SuppressShockingEventsNextFrame()
+                RemoveShockingEvent(-1)
+                -- Keep wanted level but prevent NPC response
+                SetPlayerWantedLevel(playerId, GetPlayerWantedLevel(playerId), false)
+                SetPlayerWantedLevelNow(playerId, false)
+            end
+        end
     end
 end)
 
@@ -1363,104 +1381,6 @@ AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServer
         if targetRobberPed and DoesEntityExist(targetRobberPed) then
             if commandType == "attack" then ClearPedTasks(k9Ped); TaskCombatPed(k9Ped, targetRobberPed, 0, 16)
             elseif commandType == "follow" then local playerPed = PlayerPedId(); if playerPed and playerPed ~=0 and playerPed ~=-1 and DoesEntityExist(playerPed) then TaskFollowToOffsetOfEntity(k9Ped, playerPed, vector3(0.0, -Config.K9FollowDistance, 0.0), 1.5, -1, Config.K9FollowDistance - 1.0, true) end end
-        end
-    end
-end)
-
--- Thread to disable default FiveM police responses
-Citizen.CreateThread(function()
-    if not _G.SetDispatchServiceActive then
-        print("[CNR_CLIENT_WARN] The native 'SetDispatchServiceActive' is not available in this environment. Default police dispatch services cannot be programmatically disabled by this script. Alternative suppression methods are active.")
-    end
-    local policeDisableInterval = 1000 -- 1 second
-    print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
-
-    while true do
-        Citizen.Wait(policeDisableInterval)
-
-        local playerId = PlayerId()
-        local playerPed = PlayerPedId()
-
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
-            -- Make police ignore the player (less likely to engage directly)
-            SetPoliceIgnorePlayer(playerId, true)
-
-            -- Disable various dispatch services
-            -- IDs 1-6 cover common police car, bike, heli, boat, swat, riot responses
-            -- It's important to do this repeatedly as the game might re-enable them.
-            -- Reverted to 1-6 from 1-20.
-            for i = 1, 6 do
-                if _G.SetDispatchServiceActive then
-                    SetDispatchServiceActive(i, false)
-                end
-            end
-            
-            -- As an extra measure, disable wanted level related ambient spawns if player has a wanted level
-            if GetPlayerWantedLevel(playerId) > 0 then
-                SuppressShockingEventsNextFrame() -- May help reduce ambient panic/police calls by peds
-                RemoveShockingEvent(-1) -- Clear any existing shocking events
-                SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
-
-                -- Aggressively nullify wanted level dispatch
-                SetPlayerWantedLevel(playerId, GetPlayerWantedLevel(playerId), false)
-                SetPlayerWantedLevelNow(playerId, false)
-                print(string.format("[CNR_CLIENT_DEBUG] Aggressively re-applied wanted level suppression for player %s with %d stars.", playerId, GetPlayerWantedLevel(playerId))) -- Log this action
-            end
-        end
-    end
-end)
-
--- AGGRESSIVE NPC POLICE SUPPRESSION THREAD
-Citizen.CreateThread(function()
-    local policeDisableInterval = 500 -- Run twice per second for maximum suppression
-    print("[CNR_CLIENT_DEBUG] Aggressive Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
-    while true do
-        Citizen.Wait(policeDisableInterval)
-        local playerId = PlayerId()
-        local playerPed = PlayerPedId()
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
-            SetPoliceIgnorePlayer(playerId, true)
-            SetEveryoneIgnorePlayer(playerPed, true)
-            for i = 1, 20 do
-                if _G.SetDispatchServiceActive then
-                    SetDispatchServiceActive(i, false)
-                end
-            end
-            SetPlayerWantedLevel(playerId, 0, false)
-            SetPlayerWantedLevelNow(playerId, false)
-            SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
-            SuppressShockingEventsNextFrame()
-            RemoveShockingEvent(-1)
-            -- Only delete police peds and their vehicles (if occupied)
-            local playerCoords = GetEntityCoords(playerPed)
-            local clearRadius = 300.0
-            local findPedHandle, foundPed = FindFirstPed()
-            local pedsDeleted = 0
-            if foundPed and foundPed ~= 0 then
-                repeat
-                    if DoesEntityExist(foundPed) and foundPed ~= playerPed then
-                        if IsPedAPoliceman(foundPed) or GetPedRelationshipGroupHash(foundPed) == GetHashKey("COP") then
-                            local pedCoords = GetEntityCoords(foundPed)
-                            if #(playerCoords - pedCoords) < clearRadius then
-                                local vehicle = GetVehiclePedIsIn(foundPed, false)
-                                SetEntityAsMissionEntity(foundPed, false, true)
-                                ClearPedTasksImmediately(foundPed)
-                                DeletePed(foundPed)
-                                if vehicle ~= 0 and DoesEntityExist(vehicle) then
-                                    SetEntityAsMissionEntity(vehicle, false, true)
-                                    DeleteEntity(vehicle)
-                                end
-                                pedsDeleted = pedsDeleted + 1
-                            end
-                        end
-                    end
-                    foundPed = FindNextPed(findPedHandle)
-                until not foundPed or foundPed == 0
-            end
-            EndFindPed(findPedHandle)
-            if pedsDeleted > 0 then
-                print(string.format("[CNR_CLIENT_AGGRESSIVE_CLEAR] Cleared %d police peds (and their vehicles if occupied) this tick.", pedsDeleted))
-            end
         end
     end
 end)
