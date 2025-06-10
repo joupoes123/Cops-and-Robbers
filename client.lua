@@ -647,7 +647,9 @@ Citizen.CreateThread(function()
         if currentVehicle ~= 0 and currentVehicle ~= lastPlayerVehicle then
             local driver = GetPedInVehicleSeat(currentVehicle, -1)
             if driver == playerPed and DoesEntityExist(lastVehicleDriver) and lastVehicleDriver ~= playerPed and not IsPedAPlayer(lastVehicleDriver) and IsPedHuman(lastVehicleDriver) then
-                ShowNotification("~r~Grand Theft Auto!"); TriggerServerEvent('cops_and_robbers:reportCrime', 'grand_theft_auto', GetVehicleNumberPlateText(currentVehicle))
+                ShowNotification("~r~Grand Theft Auto!")
+                print(string.format('[CNR_CLIENT_CRIME_DETECT] GTA detected. Current Role: %s. Triggering cnr:reportCrime for GTA.', role or 'nil'))
+                TriggerServerEvent('cnr:reportCrime', 'grand_theft_auto', GetVehicleNumberPlateText(currentVehicle))
             end
         end
         if currentVehicle ~= 0 then lastVehicleDriver = GetPedInVehicleSeat(currentVehicle, -1) else lastVehicleDriver = 0 end
@@ -658,7 +660,10 @@ Citizen.CreateThread(function()
             if DoesEntityExist(targetPed) and not IsPedAPlayer(targetPed) and IsPedHuman(targetPed) then
                 local targetModel = GetEntityModel(targetPed)
                 if targetModel ~= GetHashKey("s_m_y_cop_01") and targetModel ~= GetHashKey("s_f_y_cop_01") and targetModel ~= GetHashKey("s_m_y_swat_01") and GetPedRelationshipGroupHash(targetPed) ~= GetHashKey("COP") then
-                    ShowNotification("~r~Civilian Assaulted!"); TriggerServerEvent('cops_and_robbers:reportCrime', 'assault_civilian'); lastAssaultReportTime = GetGameTimer()
+                    ShowNotification("~r~Civilian Assaulted!")
+                    print(string.format('[CNR_CLIENT_CRIME_DETECT] Assault detected. Current Role: %s. Target ped: %s. Triggering cnr:reportCrime for assault.', role or 'nil', targetPed))
+                    TriggerServerEvent('cnr:reportCrime', 'assault_civilian')
+                    lastAssaultReportTime = GetGameTimer()
                 end
             end
         end
