@@ -1523,3 +1523,59 @@ Citizen.CreateThread(function()
         end
     end
 end)
+
+-- Helper: Give all inventory items to player (weapons, ammo, utility)
+local function RestoreInventoryItemsToPlayer()
+    local playerPed = PlayerPedId()
+    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
+    if not playerData or not playerData.inventory then return end
+    playerWeapons = {}; playerAmmo = {}
+    for itemId, item in pairs(playerData.inventory) do
+        -- Find item config
+        local itemConfig = nil
+        if Config.Items and type(Config.Items) == "table" then
+            for _, def in ipairs(Config.Items) do
+                if def.itemId == itemId then itemConfig = def; break end
+            end
+        end
+        if itemConfig then
+            if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
+                local weaponHash = GetHashKey(itemId)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    GiveWeaponToPed(playerPed, weaponHash, item.count or 1, false, false)
+                    playerWeapons[itemId] = true
+                    playerAmmo[itemId] = item.count or 1
+                end
+            elseif itemConfig.category == "Ammunition" and itemConfig.weaponLink and itemConfig.ammoAmount then
+                local weaponHash = GetHashKey(itemConfig.weaponLink)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    AddAmmoToPed(playerPed, weaponHash, (item.count or 1) * itemConfig.ammoAmount)
+                    playerAmmo[itemConfig.weaponLink] = (playerAmmo[itemConfig.weaponLink] or 0) + ((item.count or 1) * itemConfig.ammoAmount)
+                end
+            elseif itemConfig.category == "Armor" then
+                TriggerEvent('cops_and_robbers:applyArmor', itemId)
+            end
+            -- Utility/other items can be handled here if needed
+        end
+    end
+end
+
+-- Patch: Restore inventory on player data update (login/spawn/role change)
+local _old_updatePlayerData = AddEventHandler
+AddEventHandler = function(event, handler)
+    if event == 'cnr:updatePlayerData' then
+        _old_updatePlayerData(event, function(newPlayerData)
+            handler(newPlayerData)
+            RestoreInventoryItemsToPlayer()
+        end)
+    else
+        _old_updatePlayerData(event, handler)
+    end
+end
+
+-- Also restore inventory after jail release and respawn
+local _old_spawnPlayer = spawnPlayer
+spawnPlayer = function(playerRole)
+    _old_spawnPlayer(playerRole)
+    RestoreInventoryItemsToPlayer()
+end
