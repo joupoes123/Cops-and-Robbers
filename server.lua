@@ -808,10 +808,13 @@ end)
 -- WANTED SYSTEM
 -- =================================================================================================
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
+    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
     local pIdNum = tonumber(playerId)
+    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
     if GetPlayerName(pIdNum) == nil or not IsPlayerRobber(pIdNum) then return end -- Check player online using GetPlayerName
 
     local crimeConfig = Config.WantedSettings.crimes[crimeKey]
+    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
     if not crimeConfig then Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error"); return end
 
     if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
@@ -841,10 +844,11 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
         end
     end
     currentWanted.stars = newStars
+    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Wanted calculation complete. pID: %s, Stars: %d, Points: %d', pIdNum, newStars, currentWanted.wantedLevel))
 
     Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
-    print(string.format('[CNR_SERVER_DEBUG] Triggering cops_and_robbers:updateWantedDisplay for player %s with Stars: %d, Points: %d', pIdNum, newStars, currentWanted.wantedLevel))
+    -- The [CNR_SERVER_DEBUG] print previously here is now covered by the TRACE print above.
     TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
     TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Wanted", string.format("Wanted level increased! (%d Stars)", newStars)} })
 
@@ -1474,6 +1478,7 @@ RegisterNetEvent('cnr:requestRoleChange', function(role)
 end)
 
 RegisterNetEvent('cnr:reportCrime', function(crimeKey, details) -- Removed victimPosition as it's not used
+    print(string.format('[CNR_SERVER_TRACE] cnr:reportCrime event - Source: %s, CrimeKey: %s, Details: %s', source, crimeKey, json.encode(details)))
     local src = tonumber(source)
     if GetPlayerName(src) == nil or not IsPlayerRobber(src) then return end
 
