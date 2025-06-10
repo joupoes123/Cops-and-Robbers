@@ -641,12 +641,19 @@ Citizen.CreateThread(function()
     while true do
         Citizen.Wait(1000)
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) or not role or role == 'cop' then Citizen.Wait(5000); goto continue_crime_detection_loop end
+        print(string.format('[CNR_CD_TRACE] In Crime Detection Loop. PlayerPed: %s, Role: %s, g_isPlayerPedReady: %s', playerPed, role or 'nil', tostring(g_isPlayerPedReady)))
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) or not role or role == 'cop' then
+            print(string.format('[CNR_CD_TRACE] Crime Detection PRE-CONDITION FAILED or SKIPPED FOR COP. PlayerPed: %s (%s), role: %s', playerPed, DoesEntityExist(playerPed), role or 'nil'))
+            Citizen.Wait(2500); goto continue_crime_detection_loop
+        end
 
+        print(string.format('[CNR_CD_TRACE_GTA] Checking for GTA. currentVehicle: %s, lastPlayerVehicle: %s', currentVehicle, lastPlayerVehicle))
         local currentVehicle = GetVehiclePedIsIn(playerPed, false)
         if currentVehicle ~= 0 and currentVehicle ~= lastPlayerVehicle then
+            print('[CNR_CD_TRACE_GTA] Vehicle changed since last check.')
             local driver = GetPedInVehicleSeat(currentVehicle, -1)
             if driver == playerPed and DoesEntityExist(lastVehicleDriver) and lastVehicleDriver ~= playerPed and not IsPedAPlayer(lastVehicleDriver) and IsPedHuman(lastVehicleDriver) then
+                print(string.format('[CNR_CD_TRACE_GTA] GTA Confirmed! Driver: %s, PlayerPed: %s, LastDriver: %s, LastDriverIsPlayer: %s, LastDriverIsHuman: %s', driver, playerPed, lastVehicleDriver, tostring(IsPedAPlayer(lastVehicleDriver)), tostring(IsPedHuman(lastVehicleDriver))))
                 ShowNotification("~r~Grand Theft Auto!")
                 print(string.format('[CNR_CLIENT_CRIME_DETECT] GTA detected. Current Role: %s. Triggering cnr:reportCrime for GTA.', role or 'nil'))
                 TriggerServerEvent('cnr:reportCrime', 'grand_theft_auto', GetVehicleNumberPlateText(currentVehicle))
@@ -655,11 +662,15 @@ Citizen.CreateThread(function()
         if currentVehicle ~= 0 then lastVehicleDriver = GetPedInVehicleSeat(currentVehicle, -1) else lastVehicleDriver = 0 end
         lastPlayerVehicle = currentVehicle
 
+        print(string.format('[CNR_CD_TRACE_ASSault] Checking for Assault. InMeleeCombat: %s, TimeSinceLastReport: %s, Cooldown: %s', tostring(IsPedInMeleeCombat(playerPed)), (GetGameTimer() - lastAssaultReportTime), assaultReportCooldown))
         if IsPedInMeleeCombat(playerPed) and (GetGameTimer() - lastAssaultReportTime) > assaultReportCooldown then
+            print('[CNR_CD_TRACE_ASSault] Melee combat and cooldown conditions met.')
             local _, targetPed = GetMeleeTargetForPed(playerPed) -- Corrected function name
             if DoesEntityExist(targetPed) and not IsPedAPlayer(targetPed) and IsPedHuman(targetPed) then
+                print(string.format('[CNR_CD_TRACE_ASSault] Target ped exists, is not player, and is human. TargetPed: %s', targetPed))
                 local targetModel = GetEntityModel(targetPed)
                 if targetModel ~= GetHashKey("s_m_y_cop_01") and targetModel ~= GetHashKey("s_f_y_cop_01") and targetModel ~= GetHashKey("s_m_y_swat_01") and GetPedRelationshipGroupHash(targetPed) ~= GetHashKey("COP") then
+                    print(string.format('[CNR_CD_TRACE_ASSault] Assault on non-cop civilian confirmed! TargetModel: %s', targetModel))
                     ShowNotification("~r~Civilian Assaulted!")
                     print(string.format('[CNR_CLIENT_CRIME_DETECT] Assault detected. Current Role: %s. Target ped: %s. Triggering cnr:reportCrime for assault.', role or 'nil', targetPed))
                     TriggerServerEvent('cnr:reportCrime', 'assault_civilian')
