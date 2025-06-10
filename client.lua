@@ -514,16 +514,8 @@ end)
 
 Citizen.CreateThread(function()
     local clearCheckInterval = 500 -- milliseconds (e.g., every 0.5 seconds as per refined subtask)
-    print("[CNR_CLIENT] Ambient Police Ped Clearing Thread Started. Interval: " .. clearCheckInterval .. "ms")
 
     while true do
-        -- Add this block for verification logging
-        if not ambientClearTick then ambientClearTick = 0 end
-        ambientClearTick = ambientClearTick + 1
-        if ambientClearTick % 20 == 0 then -- Log every 20 iterations (20 * 500ms = 10 seconds)
-            print(string.format("[CNR_CLIENT_VERIFY] Ambient Clear Thread RUNNING. Iteration: %d. Current Wanted Stars: %d", ambientClearTick, currentWantedStarsClient))
-            if ambientClearTick > 1000 then ambientClearTick = 0 end -- Reset counter to prevent overflow
-        end
         Citizen.Wait(clearCheckInterval)
 
         local playerId = PlayerId()
@@ -561,10 +553,6 @@ Citizen.CreateThread(function()
                 until not foundPed or foundPed == 0
             end
             EndFindPed(findPedHandle)
-
-            if pedsDeletedThisTick > 0 then
-                print(string.format("[CNR_CLIENT_CLEAR] Cleared %d ambient police peds this tick.", pedsDeletedThisTick))
-            end
         end
         ::continue_ambient_clear_loop::
     end
@@ -572,11 +560,7 @@ end)
 
 -- Default Police Disabler Thread
 Citizen.CreateThread(function()
-    if not _G.SetDispatchServiceActive then
-        print("[CNR_CLIENT_WARN] The native 'SetDispatchServiceActive' is not available in this environment. Default police dispatch services cannot be programmatically disabled by this script. Alternative suppression methods are active.")
-    end
     local policeDisableInterval = 1000 -- 1 second
-    print("[CNR_CLIENT_DEBUG] Default Police Disabler Thread Started. Interval: " .. policeDisableInterval .. "ms")
 
     while true do
         Citizen.Wait(policeDisableInterval)
