@@ -524,7 +524,6 @@ Citizen.CreateThread(function()
         if currentWantedStarsClient > 0 then
             local playerCoords = GetEntityCoords(playerPed)
             local clearRadius = Config.PoliceClearRadius or 100.0 -- Use config value or default
-            local pedsDeletedThisTick = 0
 
             local findPedHandle, foundPed = FindFirstPed()
             if foundPed and foundPed ~= 0 then
@@ -539,7 +538,6 @@ Citizen.CreateThread(function()
                                     SetEntityAsMissionEntity(foundPed, false, true)
                                     ClearPedTasksImmediately(foundPed)
                                     DeletePed(foundPed)
-                                    pedsDeletedThisTick = pedsDeletedThisTick + 1
                                 end
                             end
                         end
@@ -1163,7 +1161,7 @@ Citizen.CreateThread(function()
                 end
                 if IsControlJustPressed(0, fineSpeederKey) then
                     local bestTargetKey = nil; local mostRecentTime = 0
-                    for key, data in pairs(detectedSpeeders) do if data.timestamp and data.timestamp > mostRecentTime and DoesEntityExist(GetPlayerPed(GetPlayerFromServerId(data.playerId))) then mostRecentTime = data.timestamp; bestTargetKey = key else detectedSpeeders[key] = nil end end
+                    for key, data in pairs(detectedSpeeders) do if data.timestamp and data.timestamp > mostRecentTime and DoesEntityExist(GetPlayerPed(GetPlayerFromServerId(data.playerId))) then mostRecentTime = data.timestamp; bestTargetKey = key end end
                     if bestTargetKey and detectedSpeeders[bestTargetKey] then local speederData = detectedSpeeders[bestTargetKey]; TriggerServerEvent('cops_and_robbers:vehicleSpeeding', speederData.playerId, speederData.vehicleName, speederData.speed); ShowNotification(string.format("~b~Fine issued to %s for speeding at %.0f km/h.", speederData.playerName, speederData.speed)); detectedSpeeders[bestTargetKey].timestamp = GetGameTimer() - (cooldownTime - (Config.SpeedRadarFineGracePeriodMs or 5000))
                     else ShowNotification("~y~No recent speeder targeted, or target no longer valid.") end
                 end
@@ -1270,7 +1268,7 @@ Citizen.CreateThread(function()
                     local targetServerId = GetPlayerServerId(closestPlayerId)
                     if targetServerId ~= -1 then ShowNotification("~b~Attempting to tackle..."); TriggerServerEvent('cops_and_robbers:startSubdue', targetServerId); isSubduing = true; SetTimeout((Config.SubdueTimeMs or 3000) + 500, function() isSubduing = false end)
                     else ShowNotification("~r~Could not get target server ID.") end
-                elseif closestPlayerId ~= -1 then ShowNotification(string.format("~r~Target too far (%.1fm). Required: %.1fm", closestDistance, (Config.TackleDistance or 2.0)))
+                elseif closestPlayerId ~= -1 then Show Notification(string.format("~r~Target too far (%.1fm). Required: %.1fm", closestDistance, (Config.TackleDistance or 2.0)))
                 else ShowNotification("~y~No player nearby to tackle.") end
             end
         end
@@ -1364,7 +1362,6 @@ AddEventHandler('cops_and_robbers:k9ProcessCommand', function(targetRobberServer
     end
 end)
 
-<<<<<<< HEAD
 -- Thread to disable default FiveM police responses
 Citizen.CreateThread(function()
     if not _G.SetDispatchServiceActive then
@@ -1404,30 +1401,10 @@ Citizen.CreateThread(function()
                 SetPlayerWantedLevelNow(playerId, false)
                 print(string.format("[CNR_CLIENT_DEBUG] Aggressively re-applied wanted level suppression for player %s with %d stars.", playerId, GetPlayerWantedLevel(playerId))) -- Log this action
             end
-=======
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Admin/Bounty Keybinds now starting its main loop.")
-    while true do
-        Citizen.Wait(0)
-        local toggleAdminPanelKey = (Config.Keybinds and Config.Keybinds.toggleAdminPanel) or 289
-        if IsControlJustPressed(0, toggleAdminPanelKey) then
-            if not isAdminPanelOpen then ShowNotification("~b~Requesting Admin Panel..."); TriggerServerEvent('cops_and_robbers:requestAdminDataForUI')
-            else SendNUIMessage({ action = 'hideAdminPanel' }); isAdminPanelOpen = false; ShowNotification("~y~Admin Panel closed.") end
-        end
-        local toggleBountyBoardKey = (Config.Keybinds and Config.Keybinds.toggleBountyBoard) or 168
-        if IsControlJustPressed(0, toggleBountyBoardKey) then
-            if playerData.role == 'cop' then
-                isBountyBoardOpen = not isBountyBoardOpen
-                if isBountyBoardOpen then SendNUIMessage({action = "showBountyBoard", bounties = currentBounties, resourceName = GetCurrentResourceName()}); ShowNotification("~g~Bounty Board opened.")
-                else SendNUIMessage({action = "hideBountyBoard"}); ShowNotification("~y~Bounty Board closed.") end
-            else ShowNotification("~r~Only Cops can access Bounty Board.") end
->>>>>>> 83e447d56374578ad0411f411d9459c74709ba84
         end
     end
 end)
 
-<<<<<<< HEAD
 -- AGGRESSIVE NPC POLICE SUPPRESSION
 Citizen.CreateThread(function()
     local policeDisableInterval = 500 -- ms
@@ -1454,67 +1431,6 @@ Citizen.CreateThread(function()
                             end
                         end
                     end
-=======
-RegisterNetEvent('cops_and_robbers:bountyListUpdate')
-AddEventHandler('cops_and_robbers:bountyListUpdate', function(bountiesFromServer)
-    currentBounties = bountiesFromServer
-    if isBountyBoardOpen and playerData.role == 'cop' then SendNUIMessage({action="updateBountyList", bounties=currentBounties}) end
-end)
-
-RegisterNUICallback('closeBountyNUI', function(data, cb)
-    isBountyBoardOpen = false; ShowNotification("~y~Bounty Board closed by NUI button."); cb('ok')
-end)
-
-RegisterNetEvent('cops_and_robbers:showAdminUI')
-AddEventHandler('cops_and_robbers:showAdminUI', function(playerList, isAdminFlag)
-    if not isAdminFlag then ShowNotification("~r~Admin Panel access denied."); isAdminPanelOpen = false; return end
-    if not isAdminPanelOpen then isAdminPanelOpen = true; SendNUIMessage({ action = 'showAdminPanel', players = playerList, resourceName = GetCurrentResourceName() }); ShowNotification("~g~Admin Panel opened.")
-    elseif isAdminPanelOpen and playerList then SendNUIMessage({ action = 'refreshAdminPanelPlayers', players = playerList }); ShowNotification("~b~Admin Panel refreshed.") end
-end)
-
-RegisterNetEvent('cops_and_robbers:teleportToPlayerAdminUI')
-AddEventHandler('cops_and_robbers:teleportToPlayerAdminUI', function(targetCoordsTable)
-    local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
-    local targetCoords = vector3(targetCoordsTable.x, targetCoordsTable.y, targetCoordsTable.z)
-    SetEntityCoords(playerPed, targetCoords.x, targetCoords.y, targetCoords.z, false, false, false, true)
-    ShowNotification("~b~Teleported by Admin UI.")
-end)
-
-Citizen.CreateThread(function()
-    while not g_isPlayerPedReady do Citizen.Wait(500) end
-    print("[CNR_CLIENT] Thread for Player Position Update now starting its main loop.")
-    while true do
-        Citizen.Wait(Config.ClientPositionUpdateInterval or 5000)
-        local playerPed = PlayerPedId()
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) and playerData.role and playerData.role ~= "citizen" then
-            TriggerServerEvent('cops_and_robbers:updatePosition', GetEntityCoords(playerPed), currentWantedStarsClient)
-        end
-    end
-end)
-
--- Helper: Give all inventory items to player (weapons, ammo, utility)
-local function RestoreInventoryItemsToPlayer()
-    local playerPed = PlayerPedId()
-    if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then return end
-    if not playerData or not playerData.inventory then return end
-    playerWeapons = {}; playerAmmo = {}
-    for itemId, item in pairs(playerData.inventory) do
-        -- Find item config
-        local itemConfig = nil
-        if Config.Items and type(Config.Items) == "table" then
-            for _, def in ipairs(Config.Items) do
-                if def.itemId == itemId then itemConfig = def; break end
-            end
-        end
-        if itemConfig then
-            if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
-                local weaponHash = GetHashKey(itemId)
-                if weaponHash ~= 0 and weaponHash ~= -1 then
-                    GiveWeaponToPed(playerPed, weaponHash, item.count or 1, false, false)
-                    playerWeapons[itemId] = true
-                    playerAmmo[itemId] = item.count or 1
->>>>>>> 83e447d56374578ad0411f411d9459c74709ba84
                 end
                 foundPed = FindNextPed(findPedHandle)
             until not foundPed or foundPed == 0
