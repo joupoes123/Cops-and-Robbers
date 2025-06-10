@@ -353,6 +353,7 @@ end
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('cnr:playerSpawned') -- Corrected event name
     SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
+    SetNuiFocus(true, true) -- Ensure mouse pointer appears for role selection
 end)
 
 RegisterNetEvent('cnr:updatePlayerData')
