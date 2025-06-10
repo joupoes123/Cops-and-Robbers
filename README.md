@@ -199,8 +199,3 @@ This project is licensed under the **GNU General Public License v3.0**. See the 
 - **[Wiki Documentation](https://github.com/Indom-hub/Cops-and-Robbers/wiki)**: Detailed guides and information.
 - **[Issue Tracker](https://github.com/Indom-hub/Cops-and-Robbers/issues)**: Report bugs or suggest features.
 - **[Discord Community](https://discord.gg/Kw5ndrWXfT)**: Join our community for support and discussion.
-
----
-
-## Code Review
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Indom-hub/Cops-and-Robbers?utm_source=oss&utm_medium=github&utm_campaign=Indom-hub%2FCops-and-Robbers&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
