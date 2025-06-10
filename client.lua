@@ -733,9 +733,41 @@ Citizen.CreateThread(function()
                     ClearEntityLastDamageEntity(targetPed) 
                     print(string.format('[CNR_CD_TRACE_ASSault_Ray] Entity %s was damaged by player but failed other validation. Damage flag cleared.', targetPed))
                 end
+            else
+                -- This block runs if the raycast didn't hit, or hit entity was nil/0
+                -- Fallback: Check for nearby peds that might have been damaged by the player if the ray missed
+                if IsPedPerformingMeleeAction(playerPed) then -- Only do this broader check if player is actively swinging
+                    -- print('[CNR_CD_TRACE_Raycast] Initial raycast reported no hit. Performing broader nearby damage check because player is performing melee.')
+                    local allPeds = GetGamePool('CPed')
+                    local pCoords = GetEntityCoords(playerPed)
+                    for _, pedHandleInPool in ipairs(allPeds) do
+                        if DoesEntityExist(pedHandleInPool) and pedHandleInPool ~= playerPed and not IsPedAPlayer(pedHandleInPool) and IsPedHuman(pedHandleInPool) then
+                            if #(GetEntityCoords(pedHandleInPool) - pCoords) < 3.0 then 
+                                if HasEntityBeenDamagedBy(pedHandleInPool, playerPed, true) then
+                                    print(string.format('[CNR_CD_TRACE_DAMAGE_FALLBACK] Nearby NPC %s (Dist: %.2fm) WAS damaged by player. Ray missed or entityHit was 0. Validating this as target and clearing damage flag.', pedHandleInPool, #(GetEntityCoords(pedHandleInPool) - pCoords)))
+                                    local targetPedFallback = pedHandleInPool
+                                    local targetModelFallback = GetEntityModel(targetPedFallback)
+                                    local targetRelGroupFallback = GetPedRelationshipGroupHash(targetPedFallback)
+                                    print(string.format('[CNR_CD_TRACE_ASSault_Ray_Fallback] Target Model: %s, RelGroup: %s', targetModelFallback, targetRelGroupFallback))
+
+                                    if targetModelFallback ~= GetHashKey("s_m_y_cop_01") and targetModelFallback ~= GetHashKey("s_f_y_cop_01") and targetModelFallback ~= GetHashKey("s_m_y_swat_01") and targetRelGroupFallback ~= GetHashKey("COP") then
+                                        ShowNotification("~r~Civilian Assaulted! (Fallback)")
+                                        print(string.format('[CNR_CLIENT_CRIME_DETECT] Assault (Fallback) on %s (Model: %s). Triggering cnr:reportCrime.', targetPedFallback, targetModelFallback))
+                                        TriggerServerEvent('cnr:reportCrime', 'assault_civilian')
+                                        lastAssaultReportTime = GetGameTimer()
+                                        ClearEntityLastDamageEntity(targetPedFallback)
+                                        break -- Found and processed a fallback target
+                                    else
+                                        print(string.format('[CNR_CD_TRACE_ASSault_Ray_Fallback] Fallback target ped %s is a cop model or in COP group. No crime reported. Clearing damage flag.', targetPedFallback))
+                                        ClearEntityLastDamageEntity(targetPedFallback)
+                                    end                                   
+                                end
+                            end
+                        end
+                    end
+                end
             end
-        end
---]]
+        end --]]
             -- Assault Logic (New Raycasting Method)
             if IsPedInMeleeCombat(playerPed) and (GetGameTimer() - lastAssaultReportTime) > assaultReportCooldown then
                 print(string.format('[CNR_CD_TRACE_ASSault] Checking for Assault. InMeleeCombat: %s, IsPedPerformingMeleeAction: %s, TimeSinceLastReport: %s, Cooldown: %s', tostring(IsPedInMeleeCombat(playerPed)), tostring(IsPedPerformingMeleeAction(playerPed)), (GetGameTimer() - lastAssaultReportTime), assaultReportCooldown))
@@ -1493,24 +1525,21 @@ Citizen.CreateThread(function()
         local playerId = PlayerId()
         local playerPed = PlayerPedId()
         if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
-            -- Make police ignore the player
             SetPoliceIgnorePlayer(playerId, true)
             SetEveryoneIgnorePlayer(playerPed, true)
-            -- Disable all dispatch services (IDs 1-20)
             for i = 1, 20 do
                 if _G.SetDispatchServiceActive then
                     SetDispatchServiceActive(i, false)
                 end
             end
-            -- Suppress wanted level and shocking events
             SetPlayerWantedLevel(playerId, 0, false)
             SetPlayerWantedLevelNow(playerId, false)
             SetPlayerWantedCentrePosition(playerId, 0.0, 0.0, -2000.0)
             SuppressShockingEventsNextFrame()
             RemoveShockingEvent(-1)
-            -- Aggressively clear all police peds and vehicles nearby
+            -- Only delete police peds and their vehicles (if occupied)
             local playerCoords = GetEntityCoords(playerPed)
-            local clearRadius = 300.0 -- Large radius for aggressive clearing
+            local clearRadius = 300.0
             local findPedHandle, foundPed = FindFirstPed()
             local pedsDeleted = 0
             if foundPed and foundPed ~= 0 then
@@ -1536,7 +1565,7 @@ Citizen.CreateThread(function()
             end
             EndFindPed(findPedHandle)
             if pedsDeleted > 0 then
-                print(string.format("[CNR_CLIENT_AGGRESSIVE_CLEAR] Cleared %d police peds/vehicles this tick.", pedsDeleted))
+                print(string.format("[CNR_CLIENT_AGGRESSIVE_CLEAR] Cleared %d police peds (and their vehicles if occupied) this tick.", pedsDeleted))
             end
         end
     end
