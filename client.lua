@@ -989,8 +989,13 @@ end)
 
 RegisterNUICallback('selectRole', function(data, cb)
     local selectedRole = data.role
-    if selectedRole == 'cop' or selectedRole == 'robber' then TriggerServerEvent('cops_and_robbers:setPlayerRole', selectedRole); cb('ok')
-    else ShowNotification("Invalid role selected."); cb('error')
+    if selectedRole == 'cop' or selectedRole == 'robber' then
+        TriggerServerEvent('cops_and_robbers:setPlayerRole', selectedRole)
+        cb('ok')
+    else
+        ShowNotification("Invalid role selected.")
+        cb('error')
+    end
 end)
 
 RegisterNUICallback('getPlayerInventory', function(data, cb)
