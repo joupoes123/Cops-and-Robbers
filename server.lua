@@ -1463,8 +1463,7 @@ RegisterNetEvent('cops_and_robbers:subdueCancelled', function(reason) -- If clie
     end
 end)
 
-
-RegisterNetEvent('cnr:requestRoleChange', function(role)
+RegisterNetEvent('cnr:selectRole', function(role)
     local src = tonumber(source)
     if role == "cop" or role == "robber" or role == "citizen" then
         if role == "cop" and Config.MaxCops > 0 and tablelength(copsOnDuty) >= Config.MaxCops then
@@ -1475,75 +1474,6 @@ RegisterNetEvent('cnr:requestRoleChange', function(role)
     else
         TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Invalid role selected."} })
     end
-end)
-
-RegisterNetEvent('cnr:reportCrime', function(crimeKey, details) -- Removed victimPosition as it's not used
-    print(string.format('[CNR_SERVER_TRACE] cnr:reportCrime event - Source: %s, CrimeKey: %s, Details: %s', source, crimeKey, json.encode(details)))
-    local src = tonumber(source)
-    if GetPlayerName(src) == nil or not IsPlayerRobber(src) then return end
-
-    local pData = GetCnrPlayerData(src)
-    if not pData then return end -- Should not happen if previous checks pass
-
-    Log(string.format("Client Crime Report: '%s' by %s. Details: %s", crimeKey, src, json.encode(details)))
-
-    -- Initialize cooldown table for player if not present
-    if not clientReportCooldowns[src] then
-        clientReportCooldowns[src] = {}
-    end
-
-    -- Define cooldowns for specific crimes (in seconds)
-    local crimeSpecificCooldown = 0
-    if crimeKey == 'assault_civilian' then
-        crimeSpecificCooldown = 30 -- 30 seconds cooldown for reporting civilian assault
-    elseif crimeKey == 'grand_theft_auto' then
-        crimeSpecificCooldown = 60 -- 60 seconds cooldown for reporting GTA
-    end
-
-    if crimeSpecificCooldown > 0 then
-        local lastReportTime = clientReportCooldowns[src][crimeKey] or 0
-        if (os.time() - lastReportTime) < crimeSpecificCooldown then
-            Log(string.format("Client Crime Report for '%s' by %s IGNORED due to cooldown. Last report: %s, Cooldown: %s", crimeKey, src, lastReportTime, crimeSpecificCooldown))
-            TriggerClientEvent('chat:addMessage', src, { args = {"^3System", "Your report is too soon after a previous one."} })
-            return -- Ignore report if it's within cooldown
-        end
-    end
-
-    -- If report is not on cooldown or doesn't have a specific cooldown, proceed
-    UpdatePlayerWantedLevel(src, crimeKey, nil) -- Pass nil for officerId for client-reported crimes
-
-    -- Update the last report time for this crime
-    if crimeSpecificCooldown > 0 then
-        clientReportCooldowns[src][crimeKey] = os.time()
-    end
-
-    -- XP Award logic is handled within UpdatePlayerWantedLevel
-    -- local crimeConfig = Config.WantedSettings.crimes[crimeKey]
-    -- if crimeConfig and crimeConfig.xpForRobber and crimeConfig.xpForRobber > 0 then AddXP(src, crimeConfig.xpForRobber, "robber") end
-    -- This was the original line here, but UpdatePlayerWantedLevel already contains similar logic.
-end)
-
-RegisterNetEvent('cnr:k9EngagedTarget', function(targetRobberServerId)
-    local src = tonumber(source)
-    local targetRobberNumId = tonumber(targetRobberServerId)
-    if not IsPlayerCop(src) then Log(string.format("Warning: Non-cop %s tried K9 engage.", src), "warn"); return end
-    if GetPlayerName(targetRobberNumId) == nil or not IsPlayerRobber(targetRobberNumId) then  -- Check target online
-        Log(string.format("Warning: Cop %s K9 engage invalid or offline target %s.", src, targetRobberServerId), "warn")
-        return
-    end
-    k9Engagements[targetRobberNumId] = { copId = src, time = os.time() }
-    Log(string.format("K9 Engagement: Cop %s K9 engaged Robber %s.", src, targetRobberServerId))
-end)
-
-RegisterNetEvent('cops_and_robbers:setPlayerRole')
-AddEventHandler('cops_and_robbers:setPlayerRole', function(selectedRole)
-    local src = source
-    local playerName = GetPlayerName(src) or "Unknown"
-    Log(string.format("NetEvent 'cops_and_robbers:setPlayerRole' received. Player: %s (ID: %s), Role: %s", playerName, src, selectedRole), "info")
-
-    -- Call the main SetPlayerRole function
-    -- The 'false' for skipNotify means they WILL get a chat message like "You are now a Cop."
-    SetPlayerRole(src, selectedRole, false)
 end)
 
 RegisterNetEvent("cops_and_robbers:banPlayer", function(targetId, reason)

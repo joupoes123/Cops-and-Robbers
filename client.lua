@@ -595,3 +595,16 @@ function CalculateXpForNextLevelClient(currentLevel, playerRole)
     if Config.XPTable and Config.XPTable[currentLevel] then return Config.XPTable[currentLevel]
     else print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn"); return 999999 end
 end
+
+-- Handle role selection from NUI
+RegisterNUICallback("selectRole", function(data, cb)
+    local selectedRole = data.role
+    if selectedRole == "cop" or selectedRole == "robber" then
+        TriggerServerEvent("cnr:selectRole", selectedRole)
+        SetNuiFocus(false, false)
+        SendNUIMessage({ action = "hideRoleSelection" })
+        cb({ success = true })
+    else
+        cb({ success = false, error = "Invalid role" })
+    end
+end)
