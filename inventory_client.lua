@@ -25,17 +25,18 @@ end)
 
 function RequestInventoryForNUI(callback)
     local promise = {}
-    local activeHandler = nil -- Declare activeHandler
-    local handlerExecuted = false -- New flag
+    local activeHandler = nil
+    local handlerExecuted = false
 
-    -- Define the actual handler function
     local function originalHandleReceiveMyInventory(inventoryData)
-        if handlerExecuted then return end -- Prevent re-entry
-        handlerExecuted = true -- Mark as executed
+        if handlerExecuted then return end
+        handlerExecuted = true
 
-        -- if activeHandler then -- Check if handler is still active -- No longer needed to check activeHandler for removal
-        activeHandler = nil -- Mark as inactive/cleaned up by clearing our reference
-        -- end
+        if activeHandler then
+            RemoveEventHandler(activeHandler)
+            activeHandler = nil
+        end
+
         localPlayerInventory = inventoryData or {}
         if callback then
             callback(localPlayerInventory)
@@ -43,37 +44,22 @@ function RequestInventoryForNUI(callback)
         promise.resolved = true
     end
 
-    activeHandler = originalHandleReceiveMyInventory -- Assign the function to activeHandler
-
-    AddEventHandler('cnr:receiveMyInventory', activeHandler) -- Register with the activeHandler reference
+    activeHandler = AddEventHandler('cnr:receiveMyInventory', originalHandleReceiveMyInventory)
 
     TriggerServerEvent('cnr:requestMyInventory')
     Log("Requested inventory from server for NUI.")
 
     SetTimeout(5000, function()
         if not promise.resolved then
-            if activeHandler and not handlerExecuted then -- Check flag here too
-                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
-                activeHandler = nil -- Mark as cleaned up
+            if activeHandler and not handlerExecuted then
+                RemoveEventHandler(activeHandler)
+                activeHandler = nil
             end
-            if callback and not handlerExecuted then -- Only call error callback if main logic didn't run
-                -- Ensure callback is still valid if it was tied to the handler context (though less likely here)
+            if callback and not handlerExecuted then
                 callback({ error = "Failed to get inventory: Timeout" })
             end
-            if not handlerExecuted then -- Only log timeout if main logic didn't run
+            if not handlerExecuted then
                 Log("RequestInventoryForNUI timed out.", "warn")
-            end
-        else
-            -- If promise was resolved (meaning originalHandleReceiveMyInventory ran and set handlerExecuted to true)
-            -- but timeout still runs, activeHandler might have already been set to nil.
-            -- The original logic here for cleanup if activeHandler is still set is probably fine,
-            -- as handlerExecuted would be true.
-            if activeHandler then
-                 -- This case should ideally not be hit if promise.resolved = true means originalHandleReceiveMyInventory ran.
-                 -- However, to be absolutely safe and prevent future issues if logic changes:
-                Log("RequestInventoryForNUI: Promise resolved but timeout ran with activeHandler still set. Cleaning up.", "warn")
-                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
-                activeHandler = nil
             end
         end
     end)

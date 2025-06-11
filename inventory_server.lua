@@ -39,27 +39,20 @@ end
 -- Accepts pData directly. playerId (4th arg) is for logging & events.
 function AddItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
-
     if not pData then Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error"); return false end
-    -- Ensure inventory table exists on pData
     if not pData.inventory then InitializePlayerInventory(pData, playerId) end
-
     local itemConfig = nil
     for _, cfgItem in ipairs(Config.Items) do
-        if cfgItem.itemId == itemId then
-            itemConfig = cfgItem
-            break
-        end
+        if cfgItem.itemId == itemId then itemConfig = cfgItem; break end
     end
-
     if not itemConfig then Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn"); return false end
-
     if not pData.inventory[itemId] then
-        pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
+        pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category }
     end
     pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
     Log(string.format("Added %dx %s to player %s's inventory. New count: %d", quantity, itemId, playerId or "Unknown", pData.inventory[itemId].count))
-    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
+    local target = tonumber(playerId)
+    if target then TriggerClientEvent('cnr:inventoryUpdated', target, pData.inventory) end
     return true
 end
 
@@ -67,33 +60,25 @@ end
 -- Accepts pData directly. playerId (4th arg) is for logging & events.
 function RemoveItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
-
     if not pData or not pData.inventory then Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error"); return false end
-
     if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
-        Log(string.format("RemoveItem: Player %s does not have %dx %s. Has: %d", playerId or "Unknown", quantity, itemId, (pData.inventory[itemId] and pData.inventory[itemId].count or 0)), "warn")
+        Log("RemoveItem: Not enough of item " .. itemId .. " to remove for player " .. (playerId or "Unknown"), "warn")
         return false
     end
-
     pData.inventory[itemId].count = pData.inventory[itemId].count - quantity
-    if pData.inventory[itemId].count <= 0 then
-        pData.inventory[itemId] = nil -- Remove item if count is zero
-    end
+    if pData.inventory[itemId].count <= 0 then pData.inventory[itemId] = nil end
     Log(string.format("Removed %dx %s from player %s's inventory.", quantity, itemId, playerId or "Unknown"))
-    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
+    local target = tonumber(playerId)
+    if target then TriggerClientEvent('cnr:inventoryUpdated', target, pData.inventory) end
     return true
 end
 
 -- GetInventory: Returns a player's inventory (or specific item count)
 -- Accepts pData directly. playerId (3rd arg) is for potential future logging.
 function GetInventory(pData, specificItemId, playerId)
-    if not pData or not pData.inventory then
-        Log(string.format("GetInventory: Player data (pData) or inventory not provided for player %s.", playerId or "Unknown"), "warn")
-        return specificItemId and 0 or {}
-    end
-
+    if not pData or not pData.inventory then return {} end
     if specificItemId then
-        return (pData.inventory[specificItemId] and pData.inventory[specificItemId].count) or 0
+        return pData.inventory[specificItemId] and pData.inventory[specificItemId].count or 0
     end
     return pData.inventory
 end

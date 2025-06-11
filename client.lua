@@ -282,12 +282,8 @@ local function SetWantedLevelForPlayerRole(stars, points)
 end
 
 function UpdateCopStoreBlips()
-    if not Config.NPCVendors then
-        print("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Config.NPCVendors not found.")
-        return
-    end
-    if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
-        print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+    if not Config or not Config.NPCVendors or type(Config.NPCVendors) ~= "table" then
+        print("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Config.NPCVendors not found or invalid.")
         return
     end
     for i, vendor in ipairs(Config.NPCVendors) do
