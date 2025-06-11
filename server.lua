@@ -147,6 +147,7 @@ end
 
 _G.GetCnrPlayerData = GetCnrPlayerData
 _G.LoadPlayerData = LoadPlayerData
+_G.InitializePlayerInventory = InitializePlayerInventory
 
 local function GetCnrPlayerData(playerId)
     return playersData[tonumber(playerId)]

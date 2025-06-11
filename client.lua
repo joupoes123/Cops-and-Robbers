@@ -740,21 +740,14 @@ end)
 
 -- Handle getPlayerInventory for Sell tab (fetches real inventory)
 RegisterNUICallback("getPlayerInventory", function(data, cb)
-    local responded = false
-    local handler
-    handler = AddEventHandler('cops_and_robbers:sendPlayerInventory', function(inv)
-        if responded then return end
-        responded = true
-        RemoveEventHandler(handler)
-        cb({ inventory = inv or {} })
-    end)
-    TriggerServerEvent('cops_and_robbers:getPlayerInventory')
-    Citizen.SetTimeout(2000, function()
-        if not responded then
-            RemoveEventHandler(handler)
-            cb({ inventory = {} })
-        end
-    end)
+    -- Use the new inventory system from inventory_client.lua
+    if RequestInventoryForNUI then
+        RequestInventoryForNUI(function(inv)
+            cb({ inventory = inv or {} })
+        end)
+    else
+        cb({ inventory = {} })
+    end
 end)
 
 -- Handle buyItem from NUI
