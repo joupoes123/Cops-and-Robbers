@@ -740,13 +740,27 @@ end)
 
 -- Handle getPlayerInventory for Sell tab (fetches real inventory)
 RegisterNUICallback("getPlayerInventory", function(data, cb)
-    -- Use the new inventory system from inventory_client.lua
+    local responded = false
+    local timeout = Citizen.SetTimeout(2000, function()
+        if not responded then
+            responded = true
+            cb({ inventory = {} })
+        end
+    end)
     if RequestInventoryForNUI then
         RequestInventoryForNUI(function(inv)
-            cb({ inventory = inv or {} })
+            if not responded then
+                responded = true
+                Citizen.ClearTimeout(timeout)
+                cb({ inventory = inv or {} })
+            end
         end)
     else
-        cb({ inventory = {} })
+        if not responded then
+            responded = true
+            Citizen.ClearTimeout(timeout)
+            cb({ inventory = {} })
+        end
     end
 end)
 
