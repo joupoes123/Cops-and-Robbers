@@ -211,40 +211,45 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         return
     end
     print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: newRole=%s, oldRole=%s", newRole, oldRole or "nil"))
+    RemoveAllPedWeapons(playerPed, true)
     playerWeapons = {}
     playerAmmo = {}
-    RemoveAllPedWeapons(playerPed, true)
     print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: All weapons removed.")
     local modelToLoad = nil
     local modelHash = nil
-    modelToLoad = "a_m_m_farmer_01" -- Default model
     if newRole == "cop" then
         modelToLoad = "s_m_y_cop_01"
     elseif newRole == "robber" then
         modelToLoad = "a_m_m_farmer_01"
+    else
+        modelToLoad = "a_m_m_farmer_01"
     end
     modelHash = GetHashKey(modelToLoad)
-    if not modelHash or modelHash == 0 or modelHash == -1 then
-        print(string.format("[CNR_CLIENT_ERROR] Invalid model hash for model: %s", tostring(modelToLoad)))
-        return
+    print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Attempting to load model: %s (Hash: %s)", modelToLoad, modelHash))
+    if modelHash and modelHash ~= 0 and modelHash ~= -1 then
+        RequestModel(modelHash)
+        local attempts = 0
+        while not HasModelLoaded(modelHash) and attempts < 100 do
+            Citizen.Wait(50)
+            attempts = attempts + 1
+        end
+        if HasModelLoaded(modelHash) then
+            print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Model %s loaded. Setting player model.", modelToLoad))
+            SetPlayerModel(PlayerId(), modelHash)
+            Citizen.Wait(10)
+            SetPedDefaultComponentVariation(playerPed)
+            if modelToLoad == "mp_m_freemode_01" then
+                print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization for mp_m_freemode_01.")
+                SetPedRandomComponentVariation(playerPed, 0)
+            end
+            SetModelAsNoLongerNeeded(modelHash)
+        else
+            print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
+        end
+    else
+        print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
     end
-    RequestModel(modelHash)
-    local attempts = 0
-    while not HasModelLoaded(modelHash) and attempts < 100 do
-        Citizen.Wait(50)
-        attempts = attempts + 1
-    end
-    if not HasModelLoaded(modelHash) then
-        print(string.format("[CNR_CLIENT_WARN] Model %s failed to load after 100 attempts.", modelToLoad))
-        return
-    end
-    SetPlayerModel(PlayerId(), modelHash)
-    Citizen.Wait(10)
-    SetPedDefaultComponentVariation(playerPed)
-    if modelToLoad == "mp_m_freemode_01" then
-        SetPedRandomComponentVariation(playerPed, 0)
-    end
-    SetModelAsNoLongerNeeded(modelHash)
+    Citizen.Wait(500)
     playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
@@ -253,18 +258,15 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if newRole == "cop" then
         local taserHash = GetHashKey("weapon_stungun")
         GiveWeaponToPed(playerPed, taserHash, 5, false, true)
-        playerWeapons["weapon_stungun"] = true
-        playerAmmo["weapon_stungun"] = 5
+        playerWeapons["weapon_stungun"] = true; playerAmmo["weapon_stungun"] = 5
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
-        ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
         GiveWeaponToPed(playerPed, batHash, 1, false, true)
-        playerWeapons["weapon_bat"] = true
-        playerAmmo["weapon_bat"] = 1
+        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
-        ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
     end
+    ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
 end
 
 -- Ensure SetWantedLevelForPlayerRole is defined before all uses
