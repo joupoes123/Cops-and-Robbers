@@ -106,4 +106,28 @@ function HasItem(pData, itemId, quantity, playerId)
     return currentCount >= quantity
 end
 
+RegisterNetEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local src = source
+    local pIdNum = tonumber(src)
+    -- Try to get player data from global table (should be loaded by server.lua)
+    local pData = nil
+    if GetCnrPlayerData then
+        pData = GetCnrPlayerData(pIdNum)
+    elseif _G.playersData then
+        pData = _G.playersData[pIdNum]
+    end
+    if not pData then
+        -- Fallback: try to load from file (optional, but usually not needed)
+        if LoadPlayerData then LoadPlayerData(pIdNum) end
+        if GetCnrPlayerData then
+            pData = GetCnrPlayerData(pIdNum)
+        elseif _G.playersData then
+            pData = _G.playersData[pIdNum]
+        end
+    end
+    local inventory = (pData and pData.inventory) or {}
+    TriggerClientEvent('cnr:receiveMyInventory', src, inventory)
+end)
+
 Log("Custom Inventory System (server-side) loaded.")

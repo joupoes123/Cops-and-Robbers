@@ -145,6 +145,9 @@ local function GetPlayerLicense(playerId)
     return nil
 end
 
+_G.GetCnrPlayerData = GetCnrPlayerData
+_G.LoadPlayerData = LoadPlayerData
+
 local function GetCnrPlayerData(playerId)
     return playersData[tonumber(playerId)]
 end
