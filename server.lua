@@ -800,3 +800,23 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     -- Confirm to client
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
+
+-- Cop Store: Debug prints for item list request
+RegisterNetEvent('cops_and_robbers:getItemList')
+AddEventHandler('cops_and_robbers:getItemList', function(storeType, itemList, storeName)
+    local src = source
+    print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
+    if not storeName then
+        print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
+        return
+    end
+    if not itemList or type(itemList) ~= 'table' then
+        print('[CNR_SERVER_ERROR] Item list missing or not a table for store', storeName, 'from', src)
+        return
+    end
+    -- Optionally, print the item list length
+    print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #itemList, 'items')
+    -- Send item list to client
+    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemList)
+    print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName)
+end)

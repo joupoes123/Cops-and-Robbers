@@ -33,6 +33,9 @@ files {
     'html/main_ui.html',     -- Main HTML file for the NUI.
     'html/styles.css',       -- CSS styles for the NUI.
     'html/scripts.js',       -- JavaScript for NUI interactions.
+    'html/bounties.html',
+    'html/bounties.css',
+    'html/bounties.js',
     'purchase_history.json', -- For dynamic pricing persistence (ensure write access for server).
     'player_data/*',         -- Wildcard for player save files (ensure server has write access to this conceptual path).
     'bans.json'

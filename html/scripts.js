@@ -3,9 +3,9 @@
 
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
 
-// ====================================================================
+// =================================================================---
 // NUI Message Handling & Security
-// ====================================================================
+// =================================================================---
 
 // Allowed origins: include your resource's NUI origin and any other trusted domains.
 // Note: Using a dynamic value for allowedOrigins based on window.cnrResourceName here can be tricky
@@ -167,7 +167,7 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// ====================================================================
+// =================================================================---
 // NUI Focus Helper Function
 // ====================================================================
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
@@ -791,74 +791,108 @@ function hideAdminPanel() {
     fetchSetNuiFocus(false, false);
 }
 
-// Bounty Board UI logic (migrated from bounties.js)
-const bountyBoard = document.getElementById('bounty-board');
-const bountyList = document.getElementById('bounty-list');
-const closeBountyBtn = document.getElementById('close-bounty-btn');
-
-function updateBountyListUI(bounties) {
-    if (!bountyList) return;
-    bountyList.innerHTML = '';
-    if (!bounties || Object.keys(bounties).length === 0) {
-        const li = document.createElement('li');
-        li.className = 'no-bounties';
-        li.textContent = 'No active bounties.';
-        bountyList.appendChild(li);
-        return;
-    }
-    for (const playerId in bounties) {
-        if (bounties.hasOwnProperty(playerId)) {
-            const data = bounties[playerId];
-            const li = document.createElement('li');
-            const currentTimeSeconds = Math.floor(Date.now() / 1000);
-            const expiresInSeconds = data.expiresAt - currentTimeSeconds;
-            let formattedTimeRemaining = "Expired";
-            if (expiresInSeconds > 0) {
-                const mins = Math.floor(expiresInSeconds / 60);
-                const secs = expiresInSeconds % 60;
-                formattedTimeRemaining = `${mins}m ${secs}s`;
-            }
-            li.innerHTML = `<span class="bounty-text-content">${escapeHtml(data.name)} - <span class="bounty-amount-${data.amount >= 10000 ? 'high' : data.amount >= 5000 ? 'medium' : 'low'}">$${formatNumber(data.amount)}</span> <span style='font-size:0.9em;color:#aaa;'>(Expires in: ${formattedTimeRemaining})</span></span>`;
-            bountyList.appendChild(li);
-        }
-    }
-}
-
+// Added missing UI functions for bounty board based on NUI messages
 function showBountyBoardUI(bounties) {
-    const container = document.getElementById('bounty-board-container');
-    if (container && bountyBoard) {
-        container.style.display = '';
-        bountyBoard.style.display = '';
-        updateBountyListUI(bounties);
+    // Placeholder: Implement actual UI display logic for bounty board
+    console.log("Attempting to show bounty board UI with bounties:", bounties);
+    const bountyBoardElement = document.getElementById('bounty-board'); // Assuming an element with this ID exists
+    if (bountyBoardElement) {
+        bountyBoardElement.style.display = 'block'; // Or 'flex', etc.
+        updateBountyListUI(bounties); // Populate it
+        fetchSetNuiFocus(true, true);
+    } else {
+        console.warn("Bounty board UI element not found.");
     }
 }
 
 function hideBountyBoardUI() {
-    const container = document.getElementById('bounty-board-container');
-    if (container && bountyBoard) {
-        bountyBoard.style.display = 'none';
-        container.style.display = 'none';
+    // Placeholder: Implement actual UI hiding logic
+    console.log("Attempting to hide bounty board UI.");
+    const bountyBoardElement = document.getElementById('bounty-board');
+    if (bountyBoardElement) {
+        bountyBoardElement.style.display = 'none';
+        fetchSetNuiFocus(false, false);
     }
 }
 
-if (closeBountyBtn) {
-    closeBountyBtn.addEventListener('click', function () {
-        fetch(`https://${window.cnrResourceName}/closeBountyNUI`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: JSON.stringify({})
-        }).catch(err => console.error("NUI callback error: " + err));
-    });
+function updateBountyListUI(bounties) {
+    console.log("Updating bounty list UI with:", bounties);
+    const bountyListUL = document.getElementById('bounty-list'); // Target the UL element
+
+    if (bountyListUL) {
+        bountyListUL.innerHTML = ''; // Clear old bounties
+        if (Object.keys(bounties).length === 0) {
+            const noBountiesLi = document.createElement('li');
+            noBountiesLi.className = 'no-bounties'; // From bounties.css for styling this message
+            noBountiesLi.textContent = 'No active bounties.';
+            bountyListUL.appendChild(noBountiesLi);
+            return;
+        }
+
+        for (const targetId in bounties) {
+            const data = bounties[targetId]; // 'data' is more consistent with issue description
+            const li = document.createElement('li');
+
+            // Avatar
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'bounty-target-avatar';
+            const nameInitial = data.name ? data.name.charAt(0).toUpperCase() : '?';
+            avatarDiv.textContent = nameInitial;
+            li.appendChild(avatarDiv);
+
+            // Text Content Container
+            const textContainer = document.createElement('div');
+            textContainer.className = 'bounty-text-content';
+
+            // Bounty Amount (Color Coded)
+            let amountClass = 'bounty-amount-low';
+            if (data.amount > 50000) amountClass = 'bounty-amount-high';
+            else if (data.amount > 10000) amountClass = 'bounty-amount-medium';
+
+            // Simplified formatNumber, actual implementation might be more robust
+            const formatNumber = (num) => num.toLocaleString();
+            const bountyAmountHTML = `<span class="${amountClass}">$${formatNumber(data.amount || 0)}</span>`;
+
+            // Bounty Details
+            // Using textContent for safety against XSS, then innerHTML for the part with the span
+            const targetInfo = document.createElement('div');
+            targetInfo.textContent = `Target: ${data.name || 'Unknown'} (ID: ${targetId})`;
+
+            const rewardInfo = document.createElement('div');
+            rewardInfo.innerHTML = `Reward: ${bountyAmountHTML}`; // Use innerHTML here for the span
+
+            textContainer.appendChild(targetInfo);
+            textContainer.appendChild(rewardInfo);
+            // Add more details to textContainer if needed
+
+            li.appendChild(textContainer);
+            bountyListUL.appendChild(li);
+
+            // Animation for new item
+            li.classList.add('new-item-animation');
+            setTimeout(() => {
+                li.classList.remove('new-item-animation');
+            }, 300); // Match CSS animation duration
+        }
+    } else {
+        console.warn("Bounty list UL element ('bounty-list') not found for UI update.");
+    }
 }
 
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return String(unsafe);
-    return unsafe.replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+// Safe wrappers for table assignments by player ID
+function safeSetTableByPlayerId(tbl, playerId, value) {
+    if (tbl && typeof tbl === 'object' && playerId !== undefined && playerId !== null && (typeof playerId === 'string' || typeof playerId === 'number')) {
+        tbl[playerId] = value;
+        return true;
+    }
+    return false;
 }
-function formatNumber(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+function safeGetTableByPlayerId(tbl, playerId) {
+    if (tbl && typeof tbl === 'object' && playerId !== undefined && playerId !== null && (typeof playerId === 'string' || typeof playerId === 'number')) {
+        return tbl[playerId];
+    }
+    return undefined;
 }
+
+// Replace all direct table assignments by player ID with safeSetTableByPlayerId and safeGetTableByPlayerId where applicable.
