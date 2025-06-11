@@ -813,3 +813,9 @@ RegisterNUICallback("sellItem", function(data, cb)
         end
     end)
 end)
+
+-- Explicitly load inventory_client.lua to ensure inventory functions are available
+if not RequestInventoryForNUI then
+    local chunk, err = load(LoadResourceFile(GetCurrentResourceName(), 'inventory_client.lua'))
+    if chunk then chunk() else print('[CNR_CLIENT_ERROR] Failed to load inventory_client.lua:', err) end
+end
