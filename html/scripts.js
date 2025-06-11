@@ -157,6 +157,11 @@ window.addEventListener('message', function(event) {
             if (roleMenu) roleMenu.style.display = 'none';
             // Optionally clear NUI focus here if needed
             break;
+        case 'roleSelectionFailed':
+            // Show error message to user when role selection fails
+            showToast(data.error || 'Failed to select role. Please try again.', 'error', 4000);
+            showRoleSelection(); // Optionally re-show the role selection UI
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
