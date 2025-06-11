@@ -267,10 +267,12 @@ end
 -- =================================================================================================
 
 LoadPlayerData = function(playerId)
+    -- Log(string.format("LoadPlayerData: Called for player ID %s.", playerId), "info")
     local pIdNum = tonumber(playerId)
     -- local player = GetPlayerFromServerId(pIdNum) -- Example of framework-specific code removed
     -- if not player then Log("LoadPlayerData: Player " .. pIdNum .. " not found on server.", "error"); return end
 
+    -- Log(string.format("LoadPlayerData: Attempting to get license for player %s.", pIdNum), "info")
     local license = GetPlayerLicense(pIdNum) -- Use helper to get license
 
     local filename = nil
@@ -286,10 +288,13 @@ LoadPlayerData = function(playerId)
         filename = "player_data/pid_" .. pIdNum .. ".json"
     end
 
+    -- Log(string.format("LoadPlayerData: Using filename %s for player %s.", filename, pIdNum), "info")
+    -- Log(string.format("LoadPlayerData: Attempting to load data from file %s for player %s.", filename, pIdNum), "info")
     local fileData = LoadResourceFile(GetCurrentResourceName(), filename)
     local loadedMoney = 0 -- Default money if not in save file or new player
 
     if fileData then
+        -- Log(string.format("LoadPlayerData: File %s found for player %s. Attempting to decode JSON.", filename, pIdNum), "info")
         local success, data = pcall(json.decode, fileData)
         if success and type(data) == "table" then
             playersData[pIdNum] = data
@@ -305,6 +310,7 @@ LoadPlayerData = function(playerId)
     end
 
     if not playersData[pIdNum] then
+        -- Log(string.format("LoadPlayerData: Initializing new default data structure for player %s.", pIdNum), "info")
         local playerPed = GetPlayerPed(pIdNum)
         local initialCoords = playerPed and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
 
@@ -320,15 +326,29 @@ LoadPlayerData = function(playerId)
         playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartMoney or 5000
     end
 
+    -- NEW PLACEMENT FOR isDataLoaded
+    if playersData[pIdNum] then
+        playersData[pIdNum].isDataLoaded = true
+        Log("LoadPlayerData: Player data structure populated and isDataLoaded set to true for " .. pIdNum .. ".") -- Combined log
+    else
+        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] is nil AFTER data load/init attempt for " .. pIdNum .. ". Cannot set isDataLoaded or proceed.", "error")
+        return -- Cannot proceed if playersData[pIdNum] is still nil here
+    end
+
+    -- Now call functions that might rely on isDataLoaded or a fully ready player object
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
     ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role)
-    if playersData[pIdNum] then -- Ensure pData exists before passing
-        InitializePlayerInventory(playersData[pIdNum], pIdNum) -- Initialize inventory after player data is loaded/created
+
+    -- Log(string.format("LoadPlayerData: About to call InitializePlayerInventory for player %s.", pIdNum), "info")
+    if playersData[pIdNum] then -- Re-check pData as ApplyPerks or SetPlayerRole might have side effects (though unlikely to nil it)
+        InitializePlayerInventory(playersData[pIdNum], pIdNum)
     else
-        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] is nil before InitializePlayerInventory for " .. pIdNum, "error")
+        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] became nil before InitializePlayerInventory for " .. pIdNum, "error")
     end
+
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
+    -- Original position of isDataLoaded setting is now removed.
 end
 
 SavePlayerData = function(playerId)
@@ -362,17 +382,19 @@ SetPlayerRole = function(playerId, role, skipNotify)
     -- local player = GetPlayerFromServerId(pIdNum) -- Example placeholder for framework code
     -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
     local playerName = GetPlayerName(pIdNum) or "Unknown"
-    Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
-    if not playersData[pIdNum] then
-        Log(string.format("SetPlayerRole: CRITICAL - Player data for %s (Name: %s) not found when trying to set role to '%s'. Role selection aborted. Data should have been loaded on spawn.", pIdNum, playerName, role), "error")
-        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Your player data is not loaded correctly. Cannot set role."} })
-        return -- Abort role change
+    local pData = playersData[pIdNum] -- Get pData directly
+    if not pData or not pData.isDataLoaded then -- Check both for robustness
+        Log(string.format("SetPlayerRole: Attempted to set role for %s (Name: %s) but data not loaded/ready. Role: %s. pData exists: %s, isDataLoaded: %s. This should have been caught by the caller.", pIdNum, playerName, role, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded)), "warn")
+        -- Do NOT trigger 'cnr:roleSelected' here, as the caller handles it.
+        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Role change failed: Player data integrity issue."} })
+        return
     end
 
-    Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
-    playersData[pIdNum].role = role
-    Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
+    pData.role = role
+    -- Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
@@ -399,7 +421,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.")
     end
     ApplyPerks(pIdNum, playersData[pIdNum].level, role) -- Re-apply/update perks based on new role
-    Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
 end
 
@@ -772,15 +794,28 @@ CreateThread(function() -- Jail time update loop
     end
 end)
 
+RegisterNetEvent('cnr:playerSpawned')
+AddEventHandler('cnr:playerSpawned', function()
+    local src = source
+    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
+    LoadPlayerData(src)
+end)
+
 RegisterNetEvent('cnr:selectRole')
 AddEventHandler('cnr:selectRole', function(selectedRole)
     local src = source
     local pIdNum = tonumber(src)
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then
-        TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found.")
+
+    -- Check if player data is loaded
+    if not pData or not pData.isDataLoaded then
+        Log(string.format("cnr:selectRole: Player data not ready for %s. pData exists: %s, isDataLoaded: %s", pIdNum, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded or false)), "warn")
+        TriggerClientEvent('cnr:roleSelected', src, false, "Player data is not ready. Please wait a moment and try again.")
         return
     end
+
+    -- No need for the old `if not pData then` check as the above condition covers it.
+
     if selectedRole ~= "cop" and selectedRole ~= "robber" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
