@@ -800,3 +800,9 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     -- Confirm to client
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
+
+RegisterNetEvent('cnr:playerSpawned')
+AddEventHandler('cnr:playerSpawned', function()
+    local src = source
+    LoadPlayerData(src)
+end)
