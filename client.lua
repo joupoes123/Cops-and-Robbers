@@ -658,6 +658,24 @@ AddEventHandler("cnr:roleSelected", function(success, message)
     end
 end)
 
+RegisterNetEvent('cnr:spawnPlayerAt')
+AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
+    local playerPed = PlayerPedId()
+    if location and type(location) == "table" and location.x and location.y and location.z then
+        SetEntityCoords(playerPed, location.x, location.y, location.z, false, false, false, true)
+        if heading then
+            SetEntityHeading(playerPed, heading)
+        end
+        ShowNotification("Spawned as " .. tostring(role or "unknown"))
+    else
+        ShowNotification("~r~Error: Could not determine spawn point for your role.")
+    end
+    -- Apply visuals and loadout for the new role
+    if role then
+        ApplyRoleVisualsAndLoadout(role, nil)
+    end
+end)
+
 -- Track if Cop Store UI is open
 local isCopStoreUiOpen = false
 

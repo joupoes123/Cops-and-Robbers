@@ -28,6 +28,24 @@ local function Log(message, level)
     end
 end
 
+-- Safe table assignment wrapper for player IDs
+local function SafeSetByPlayerId(tbl, playerId, value)
+    if tbl and playerId and type(playerId) == "number" and playerId > 0 then
+        tbl[playerId] = value
+    end
+end
+local function SafeRemoveByPlayerId(tbl, playerId)
+    if tbl and playerId and type(playerId) == "number" and playerId > 0 then
+        tbl[playerId] = nil
+    end
+end
+local function SafeGetByPlayerId(tbl, playerId)
+    if tbl and playerId and type(playerId) == "number" and playerId > 0 then
+        return tbl[playerId]
+    end
+    return nil
+end
+
 -- Global state tables
 local playersData = {}
 local copsOnDuty = {}
@@ -518,327 +536,6 @@ RegisterNetEvent('cnr:requestVehicleSpawn', function(vehicleModelName)
 end)
 
 -- =================================================================================================
--- ITEMS, SHOPS, AND INVENTORY (Functions like CanPlayerAffordAndAccessItem, cnr:buyItem, etc.)
--- =================================================================================================
-RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    if not pData then
-        Log("cops_and_robbers:getItemList - Player data not found for source: " .. src, "error")
-        return
-    end
-
-    local itemsForStore = {}
-    local itemsToProcess = {}
-
-    if storeType == 'AmmuNation' then
-        -- For AmmuNation, consider all general items from Config.Items
-        for _, itemConfig in ipairs(Config.Items) do
-            table.insert(itemsToProcess, itemConfig)
-        end
-    elseif storeType == 'Vendor' and vendorItemIds and type(vendorItemIds) == "table" then
-        -- For specific vendors, use the item IDs provided by that vendor's config
-        for _, itemIdFromVendor in ipairs(vendorItemIds) do
-            for _, itemConfig in ipairs(Config.Items) do
-                if itemConfig.itemId == itemIdFromVendor then
-                    table.insert(itemsToProcess, itemConfig)
-                    break -- Found the item in Config.Items
-                end
-            end
-        end
-    else
-        Log("cops_and_robbers:getItemList - Invalid storeType or missing vendorItemIds for store: " .. storeName, "warn")
-        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Store data missing or invalid.") -- Generic failure message
-        return
-    end
-
-    -- Filter items based on player role, level, and other restrictions
-    for _, itemConfig in ipairs(itemsToProcess) do
-        local canAccess = true
-        -- Cop Only Restriction Check
-        if itemConfig.forCop and pData.role ~= "cop" then
-            canAccess = false
-        end
-
-        -- Robber Only Restriction Check (if a future flag 'forRobber' is added)
-        -- if itemConfig.forRobber and pData.role ~= "robber" then
-        -- canAccess = false
-        -- end
-
-        -- Level Restriction Check
-        if canAccess and pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-            canAccess = false
-        end
-        if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-            canAccess = false
-        end
-
-        -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
-
-        if canAccess then
-            -- Calculate dynamic price
-            local dynamicPrice = CalculateDynamicPrice(itemConfig.itemId, itemConfig.basePrice)
-            table.insert(itemsForStore, {
-                itemId = itemConfig.itemId,
-                name = itemConfig.name,
-                basePrice = itemConfig.basePrice, -- Keep base for reference if needed
-                price = dynamicPrice, -- Actual selling price
-                category = itemConfig.category,
-                forCop = itemConfig.forCop,
-                minLevelCop = itemConfig.minLevelCop,
-                minLevelRobber = itemConfig.minLevelRobber
-                -- Add any other properties the NUI might need
-            })
-        end
-    end
-
-    Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
-    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
-end)
-
--- Cop Store/Inventory NUI: Get Player Inventory for Sell Tab
-RegisterNetEvent('cops_and_robbers:getPlayerInventory')
-AddEventHandler('cops_and_robbers:getPlayerInventory', function()
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    if not pData or not pData.inventory then
-        TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {})
-        return
-    end
-    local nuiInventory = {}
-    for itemId, itemData in pairs(pData.inventory) do
-        local itemConfig = nil
-        for _, cfgItem in ipairs(Config.Items) do
-            if cfgItem.itemId == itemId then itemConfig = cfgItem; break end
-        end
-        if itemConfig then
-            local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
-            local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice or 0)
-            local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
-            nuiInventory[itemId] = {
-                itemId = tostring(itemId),
-                name = tostring(itemData.name or itemConfig.name or "Unknown Item"),
-                count = tonumber(itemData.count or 0),
-                category = tostring(itemConfig.category or "Other"),
-                sellPrice = tonumber(sellPrice or 0)
-            }
-        end
-    end
-    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, nuiInventory)
-end)
-
--- Cop Store NUI: Buy Item
-RegisterNetEvent('cops_and_robbers:buyItem')
-AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-    if not pData then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Player data not found.")
-        return
-    end
-    local itemConfig = nil
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then itemConfig = item; break end
-    end
-    if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Item not found in config.")
-        return
-    end
-
-    -- Level Restriction Check
-    if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "You are not high enough level for this item. (Required Cop Lvl: " .. itemConfig.minLevelCop .. ")")
-        return
-    elseif pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "You are not high enough level for this item. (Required Robber Lvl: " .. itemConfig.minLevelRobber .. ")")
-        return
-    end
-
-    -- Cop Only Restriction Check
-    if itemConfig.forCop and pData.role ~= "cop" then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "This item is restricted to Cops only.")
-        return
-    end
-
-    local itemPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-    Log("cnr:buyItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Dynamic Price: " .. itemPrice)
-    local totalCost = itemPrice * quantity
-
-    if not RemovePlayerMoney(src, totalCost, 'cash') then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Not enough cash or payment failed.")
-        return
-    end
-
-    -- Successfully removed money, now add item
-    local added = AddItem(pData, itemId, quantity, src) -- Use custom AddItem, pass pData and src
-    if added then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, true, "Purchase successful!")
-        TriggerClientEvent('cnr:inventoryUpdated', src, pData.inventory)
-    else
-        AddPlayerMoney(src, totalCost, 'cash') -- Refund
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Could not add item to inventory. Purchase reversed.")
-    end
-end)
-
--- Cop Store NUI: Sell Item
-RegisterNetEvent('cops_and_robbers:sellItem')
-AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-    if not pData then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Player data not found.")
-        return
-    end
-    local itemConfig = nil
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then itemConfig = item; break end
-    end
-    if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item not found in config.")
-        return
-    end
-    if not itemConfig.basePrice then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item cannot be sold (no price defined).")
-        return
-    end
-    local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
-    local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-    local sellPricePerItem = math.floor(currentMarketPrice * sellPriceFactor)
-    local totalGain = sellPricePerItem * quantity
-    local removed = RemoveItem(pData, itemId, quantity, src)
-    if removed then
-        if AddPlayerMoney(src, totalGain, 'cash') then
-            TriggerClientEvent('cops_and_robbers:sellResult', src, true, "Sold successfully!")
-            TriggerClientEvent('cnr:inventoryUpdated', src, pData.inventory)
-        else
-            AddItem(pData, itemId, quantity, src) -- Refund item
-            TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Payment processing error for sale. Item may have been refunded.")
-        end
-    else
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Could not remove item from inventory.")
-    end
-end)
-
--- K9 System Events
-RegisterNetEvent('cops_and_robbers:spawnK9', function()
-    local src = tonumber(source)
-    local pData = GetCnrPlayerData(src)
-
-    if not pData then
-        Log("cops_and_robbers:spawnK9 - Player data not found for source: " .. src, "error")
-        return
-    end
-
-    if pData.role ~= "cop" then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Only Cops can use the K9 whistle."} })
-        return
-    end
-
-    local k9WhistleConfig = nil
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == "k9whistle" then -- Assuming "k9whistle" is the itemId in Config.Items
-            k9WhistleConfig = item
-            break
-        end
-    end
-
-    if not k9WhistleConfig then
-        Log("K9 Whistle item config not found in Config.Items!", "error")
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "K9 Whistle item not configured."} })
-        return
-    end
-
-    if k9WhistleConfig.minLevelCop and pData.level < k9WhistleConfig.minLevelCop then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You are not high enough level to use the K9 Whistle. (Required Cop Lvl: " .. k9WhistleConfig.minLevelCop .. ")"} })
-        return
-    end
-
-    -- Check for K9 whistle item in inventory
-    if not HasItem(pData, 'k9whistle', 1, src) then -- Use custom HasItem, pass pData and src
-         TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You do not have a K9 Whistle."} })
-         return
-    end
-
-    -- Potentially consume the whistle or have a cooldown managed by the item itself if it's not reusable.
-    -- For now, just checking possession.
-
-    TriggerClientEvent('cops_and_robbers:clientSpawnK9Authorized', src)
-    Log("Authorized K9 spawn for Cop: " .. src)
-end)
-
--- Basic dismiss and command relays (assuming they exist or are simple)
-RegisterNetEvent('cops_and_robbers:dismissK9', function()
-    local src = tonumber(source)
-    if GetCnrPlayerData(src) and GetCnrPlayerData(src).role == "cop" then
-        TriggerClientEvent('cops_and_robbers:clientDismissK9', src)
-        Log("Cop " .. src .. " dismissed K9.")
-    end
-end)
-
-RegisterNetEvent('cops_and_robbers:commandK9', function(targetRobberServerId, commandType)
-    local src = tonumber(source)
-    if GetCnrPlayerData(src) and GetCnrPlayerData(src).role == "cop" then
-        -- Server could do more validation here if needed (e.g., target is valid robber)
-        TriggerClientEvent('cops_and_robbers:k9ProcessCommand', src, tonumber(targetRobberServerId), commandType)
-        Log(string.format("Cop %s commanded K9 (%s) for target %s", src, commandType, targetRobberServerId))
-    end
-end)
-
--- Vehicle Access Logic (Example: Called by a vehicle shop)
-RegisterNetEvent('cnr:requestVehicleSpawn', function(vehicleModelName)
-    local src = tonumber(source)
-    local pData = GetCnrPlayerData(src)
-
-    if not pData then
-        Log("cnr:requestVehicleSpawn - Player data not found for source: " .. src, "error")
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Your player data could not be found."} })
-        return
-    end
-
-    local vehicleKey = vehicleModelName:lower() -- Assuming vehicleModelName is a string like "police"
-    local foundUnlock = false
-    local canAccess = false
-    local requiredLevel = 0
-
-    if Config.LevelUnlocks and Config.LevelUnlocks[pData.role] then
-        for level, unlocks in pairs(Config.LevelUnlocks[pData.role]) do
-            for _, unlockDetail in ipairs(unlocks) do
-                if unlockDetail.type == "vehicle_access" and unlockDetail.vehicleHash:lower() == vehicleKey then
-                    foundUnlock = true
-                    requiredLevel = level
-                    if pData.level >= level then
-                        canAccess = true
-                    end
-                    goto check_done -- Found the specific vehicle unlock, no need to check further
-                end
-            end
-        end
-    end
-    ::check_done::
-
-    if not foundUnlock then
-        -- If not found in level unlocks, assume it's a default vehicle accessible by anyone in the role (if applicable)
-        -- or a vehicle not managed by level unlocks. For this example, we'll assume it's accessible if not explicitly restricted.
-        -- A more robust system might have a base list of allowed vehicles per role.
-        Log(string.format("cnr:requestVehicleSpawn - Vehicle %s not found in LevelUnlocks for role %s. Assuming default access.", vehicleModelName, pData.role))
-        canAccess = true -- Defaulting to accessible if not in unlock list; adjust if default should be restricted.
-    end
-
-    if canAccess then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^2Access", string.format("Access GRANTED for %s.", vehicleModelName)} })
-        Log(string.format("Player %s (Lvl %d) GRANTED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
-        -- TODO: Actual vehicle spawning logic would go here, e.g.,
-        -- CreateVehicle(vehicleModelName, coords, heading, true, true)
-        -- Note: Spawning vehicles requires using FiveM natives and potentially a garage system.
-    else
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Access", string.format("Access DENIED for %s. Required Level: %d.", vehicleModelName, requiredLevel)} })
-        Log(string.format("Player %s (Lvl %d) DENIED access to vehicle %s (Required Lvl: %d for role %s).", src, pData.level, vehicleModelName, requiredLevel, pData.role))
-    end
-end)
-
--- =================================================================================================
 -- PLAYER DATA MANAGEMENT (XP, LEVELS, SAVING/LOADING)
 -- =================================================================================================
 
@@ -952,20 +649,23 @@ SetPlayerRole = function(playerId, role, skipNotify)
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
-        copsOnDuty[pIdNum] = true; robbersActive[pIdNum] = nil
+        SafeSetByPlayerId(copsOnDuty, pIdNum, true)
+        SafeRemoveByPlayerId(robbersActive, pIdNum)
         -- player.Functions.SetJob("leo", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "cop")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Cop."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Cop role.")
         TriggerClientEvent('cops_and_robbers:bountyListUpdate', pIdNum, activeBounties)
     elseif role == "robber" then
-        robbersActive[pIdNum] = true; copsOnDuty[pIdNum] = nil
+        SafeSetByPlayerId(robbersActive, pIdNum, true)
+        SafeRemoveByPlayerId(copsOnDuty, pIdNum)
         -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "robber")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Robber."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Robber role.")
     else
-        copsOnDuty[pIdNum] = nil; robbersActive[pIdNum] = nil
+        SafeRemoveByPlayerId(copsOnDuty, pIdNum)
+        SafeRemoveByPlayerId(robbersActive, pIdNum)
         -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
         TriggerClientEvent('cnr:setPlayerRole', pIdNum, "citizen")
         if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Citizen."} }) end
@@ -1345,206 +1045,31 @@ CreateThread(function() -- Jail time update loop
     end
 end)
 
--- =================================================================================================
--- ITEMS, SHOPS, AND INVENTORY (Functions like CanPlayerAffordAndAccessItem, cnr:buyItem, etc.)
--- =================================================================================================
-RegisterNetEvent('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName)
+RegisterNetEvent('cnr:selectRole')
+AddEventHandler('cnr:selectRole', function(selectedRole)
     local src = source
-    local pData = GetCnrPlayerData(src)
+    local pIdNum = tonumber(src)
+    local pData = GetCnrPlayerData(pIdNum)
     if not pData then
-        Log("cops_and_robbers:getItemList - Player data not found for source: " .. src, "error")
+        TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found.")
         return
     end
-
-    local itemsForStore = {}
-    local itemsToProcess = {}
-
-    if storeType == 'AmmuNation' then
-        -- For AmmuNation, consider all general items from Config.Items
-        for _, itemConfig in ipairs(Config.Items) do
-            table.insert(itemsToProcess, itemConfig)
-        end
-    elseif storeType == 'Vendor' and vendorItemIds and type(vendorItemIds) == "table" then
-        -- For specific vendors, use the item IDs provided by that vendor's config
-        for _, itemIdFromVendor in ipairs(vendorItemIds) do
-            for _, itemConfig in ipairs(Config.Items) do
-                if itemConfig.itemId == itemIdFromVendor then
-                    table.insert(itemsToProcess, itemConfig)
-                    break -- Found the item in Config.Items
-                end
-            end
-        end
-    else
-        Log("cops_and_robbers:getItemList - Invalid storeType or missing vendorItemIds for store: " .. storeName, "warn")
-        TriggerClientEvent('cops_and_robbers:purchaseFailed', src, "Store data missing or invalid.") -- Generic failure message
+    if selectedRole ~= "cop" and selectedRole ~= "robber" then
+        TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
     end
-
-    -- Filter items based on player role, level, and other restrictions
-    for _, itemConfig in ipairs(itemsToProcess) do
-        local canAccess = true
-        -- Cop Only Restriction Check
-        if itemConfig.forCop and pData.role ~= "cop" then
-            canAccess = false
-        end
-
-        -- Robber Only Restriction Check (if a future flag 'forRobber' is added)
-        -- if itemConfig.forRobber and pData.role ~= "robber" then
-        -- canAccess = false
-        -- end
-
-        -- Level Restriction Check
-        if canAccess and pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-            canAccess = false
-        end
-        if canAccess and pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-            canAccess = false
-        end
-
-        -- Add other general level restrictions if any (e.g., itemConfig.minLevel and pData.level < itemConfig.minLevel)
-
-        if canAccess then
-            -- Calculate dynamic price
-            local dynamicPrice = CalculateDynamicPrice(itemConfig.itemId, itemConfig.basePrice)
-            table.insert(itemsForStore, {
-                itemId = itemConfig.itemId,
-                name = itemConfig.name,
-                basePrice = itemConfig.basePrice, -- Keep base for reference if needed
-                price = dynamicPrice, -- Actual selling price
-                category = itemConfig.category,
-                forCop = itemConfig.forCop,
-                minLevelCop = itemConfig.minLevelCop,
-                minLevelRobber = itemConfig.minLevelRobber
-                -- Add any other properties the NUI might need
-            })
-        end
+    -- Set role server-side
+    SetPlayerRole(pIdNum, selectedRole)
+    -- Teleport to spawn and set ped model (client will handle visuals, but send spawn info)
+    local spawnPoint = nil
+    if selectedRole == "cop" and Config.CopSpawnPoints and #Config.CopSpawnPoints > 0 then
+        spawnPoint = Config.CopSpawnPoints[1] -- Use first cop spawn for now
+    elseif selectedRole == "robber" and Config.RobberSpawnPoints and #Config.RobberSpawnPoints > 0 then
+        spawnPoint = Config.RobberSpawnPoints[1]
     end
-
-    Log(string.format("Player %s (Role: %s, Level: %d) requesting item list for store: %s (%s). Sending %d items.", src, pData.role, pData.level, storeName, storeType, #itemsForStore))
-    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemsForStore)
-end)
-
--- Cop Store/Inventory NUI: Get Player Inventory for Sell Tab
-RegisterNetEvent('cops_and_robbers:getPlayerInventory')
-AddEventHandler('cops_and_robbers:getPlayerInventory', function()
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    if not pData or not pData.inventory then
-        TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {})
-        return
+    if spawnPoint then
+        TriggerClientEvent('cnr:spawnPlayerAt', src, spawnPoint.location, spawnPoint.heading, selectedRole)
     end
-    local nuiInventory = {}
-    for itemId, itemData in pairs(pData.inventory) do
-        local itemConfig = nil
-        for _, cfgItem in ipairs(Config.Items) do
-            if cfgItem.itemId == itemId then itemConfig = cfgItem; break end
-        end
-        if itemConfig then
-            local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
-            local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice or 0)
-            local sellPrice = math.floor(currentMarketPrice * sellPriceFactor)
-            nuiInventory[itemId] = {
-                itemId = tostring(itemId),
-                name = tostring(itemData.name or itemConfig.name or "Unknown Item"),
-                count = tonumber(itemData.count or 0),
-                category = tostring(itemConfig.category or "Other"),
-                sellPrice = tonumber(sellPrice or 0)
-            }
-        end
-    end
-    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, nuiInventory)
-end)
-
--- Cop Store NUI: Buy Item
-RegisterNetEvent('cops_and_robbers:buyItem')
-AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-    if not pData then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Player data not found.")
-        return
-    end
-    local itemConfig = nil
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then itemConfig = item; break end
-    end
-    if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Item not found in config.")
-        return
-    end
-
-    -- Level Restriction Check
-    if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "You are not high enough level for this item. (Required Cop Lvl: " .. itemConfig.minLevelCop .. ")")
-        return
-    elseif pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "You are not high enough level for this item. (Required Robber Lvl: " .. itemConfig.minLevelRobber .. ")")
-        return
-    end
-
-    -- Cop Only Restriction Check
-    if itemConfig.forCop and pData.role ~= "cop" then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "This item is restricted to Cops only.")
-        return
-    end
-
-    local itemPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-    Log("cnr:buyItem - Item: " .. itemId .. ", Base Price: " .. itemConfig.basePrice .. ", Dynamic Price: " .. itemPrice)
-    local totalCost = itemPrice * quantity
-
-    if not RemovePlayerMoney(src, totalCost, 'cash') then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Not enough cash or payment failed.")
-        return
-    end
-
-    -- Successfully removed money, now add item
-    local added = AddItem(pData, itemId, quantity, src) -- Use custom AddItem, pass pData and src
-    if added then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, true, "Purchase successful!")
-        TriggerClientEvent('cnr:inventoryUpdated', src, pData.inventory)
-    else
-        AddPlayerMoney(src, totalCost, 'cash') -- Refund
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Could not add item to inventory. Purchase reversed.")
-    end
-end)
-
--- Cop Store NUI: Sell Item
-RegisterNetEvent('cops_and_robbers:sellItem')
-AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-    if not pData then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Player data not found.")
-        return
-    end
-    local itemConfig = nil
-    for _, item in ipairs(Config.Items) do
-        if item.itemId == itemId then itemConfig = item; break end
-    end
-    if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item not found in config.")
-        return
-    end
-    if not itemConfig.basePrice then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item cannot be sold (no price defined).")
-        return
-    end
-    local sellPriceFactor = (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor) or 0.5
-    local currentMarketPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-    local sellPricePerItem = math.floor(currentMarketPrice * sellPriceFactor)
-    local totalGain = sellPricePerItem * quantity
-    local removed = RemoveItem(pData, itemId, quantity, src)
-    if removed then
-        if AddPlayerMoney(src, totalGain, 'cash') then
-            TriggerClientEvent('cops_and_robbers:sellResult', src, true, "Sold successfully!")
-            TriggerClientEvent('cnr:inventoryUpdated', src, pData.inventory)
-        else
-            AddItem(pData, itemId, quantity, src) -- Refund item
-            TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Payment processing error for sale. Item may have been refunded.")
-        end
-    else
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Could not remove item from inventory.")
-    end
+    -- Confirm to client
+    TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
