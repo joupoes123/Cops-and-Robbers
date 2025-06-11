@@ -778,8 +778,13 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     local pIdNum = tonumber(src)
     local pData = GetCnrPlayerData(pIdNum)
     if not pData then
-        TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found.")
-        return
+        -- Attempt to load player data if missing
+        LoadPlayerData(pIdNum)
+        pData = GetCnrPlayerData(pIdNum)
+        if not pData then
+            TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found. Please try again in a moment.")
+            return
+        end
     end
     if selectedRole ~= "cop" and selectedRole ~= "robber" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
