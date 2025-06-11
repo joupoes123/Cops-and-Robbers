@@ -687,7 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-
 // Global Escape key handler
 window.addEventListener('keydown', function(event) {
     console.log('[CNR_NUI_ESCAPE] Keydown event:', event.key);
@@ -874,3 +873,21 @@ function updateBountyListUI(bounties) {
         console.warn("Bounty list UL element ('bounty-list') not found for UI update.");
     }
 }
+
+// Safe wrappers for table assignments by player ID
+function safeSetTableByPlayerId(tbl, playerId, value) {
+    if (tbl && typeof tbl === 'object' && playerId !== undefined && playerId !== null && (typeof playerId === 'string' || typeof playerId === 'number')) {
+        tbl[playerId] = value;
+        return true;
+    }
+    return false;
+}
+
+function safeGetTableByPlayerId(tbl, playerId) {
+    if (tbl && typeof tbl === 'object' && playerId !== undefined && playerId !== null && (typeof playerId === 'string' || typeof playerId === 'number')) {
+        return tbl[playerId];
+    }
+    return undefined;
+}
+
+// Replace all direct table assignments by player ID with safeSetTableByPlayerId and safeGetTableByPlayerId where applicable.
