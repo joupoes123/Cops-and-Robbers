@@ -151,12 +151,6 @@ window.addEventListener('message', function(event) {
                 console.warn("updateBountyListUI function not implemented in JS yet.");
             }
             break;
-        case 'hideRoleSelection':
-            // Hide the role selection UI
-            const roleMenu = document.getElementById('roleSelectionMenu');
-            if (roleMenu) roleMenu.style.display = 'none';
-            // Optionally clear NUI focus here if needed
-            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
@@ -164,7 +158,7 @@ window.addEventListener('message', function(event) {
 
 // =================================================================---
 // NUI Focus Helper Function
-// ====================================================================
+// =================================================================---
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
     try {
         console.log('[CNR_NUI] Inside fetchSetNuiFocus. window.cnrResourceName:', window.cnrResourceName);
@@ -185,9 +179,9 @@ async function fetchSetNuiFocus(hasFocus, hasCursor) {
     }
 }
 
-// ====================================================================
+// =================================================================---
 // XP Level Display Functions
-// ====================================================================
+// =================================================================---
 function updateXPDisplayElements(xp, level, nextLvlXp) {
     const levelTextElement = document.getElementById('level-text');
     const xpTextElement = document.getElementById('xp-text');
@@ -258,9 +252,9 @@ function updateCashDisplay(currentCash) {
     }
 }
 
-// ====================================================================
+// =================================================================---
 // UI Visibility Functions (Role Selection & Store)
-// ====================================================================
+// =================================================================---
 function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
@@ -327,9 +321,9 @@ function closeStoreMenu() {
     }
 }
 
-// ====================================================================
+// =================================================================---
 // Store: Tab and Category Management & Item Creation/Interaction
-// ====================================================================
+// =================================================================---
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -564,23 +558,18 @@ function selectRole(selectedRole) {
         return resp.json();
     })
     .then(response => {
-        // Handler for role selection NUI callback response
-        function handleRoleSelectionResponse(response) {
-          console.log("Response from selectRole NUI callback:", response);
-          if (response && response.success) {
-            // Success: close UI, show success, etc.
-            hideRoleSelection(); // Use the correct function name
-          } else if (response && response.error) {
-            console.error("Role selection failed: " + response.error);
-            showRoleSelectionError(response.error); // Or your function to show error to user
-            // Optionally re-enable UI for another attempt
-          } else {
-            console.error("Role selection failed: Unexpected server response", response);
-            showRoleSelectionError("Unexpected server response");
-          }
-        }
+        console.log('[CNR_NUI] Response from selectRole NUI callback:', response); // Log the actual response
 
-        handleRoleSelectionResponse(response);
+        // Check for various forms of success, including the simple string "ok"
+        if (response === 'ok' || (response && response.status === 'success') || (response && response.ok === true)) {
+            // alert("NUI SAYS: Role selection processed.");
+            hideRoleSelection();
+        } else {
+            // Ensure response is an object before trying to access response.message
+            const message = (response && typeof response === 'object' && response.message) ? response.message : 'Unexpected server response';
+            // alert(`Role selection failed: ${message}`);
+            console.error(`Role selection failed: ${message}`, response);
+        }
     })
     .catch(error => {
         // Update the error log for clarity
@@ -742,9 +731,9 @@ function formatTime(seconds) {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-// ====================================================================
+// =================================================================---
 // Admin Panel Functions
-// ====================================================================
+// =================================================================---
 let currentAdminTargetPlayerId = null;
 function showAdminPanel(playerList) {
     const adminPanel = document.getElementById('admin-panel');
