@@ -145,9 +145,6 @@ local function GetPlayerLicense(playerId)
     return nil
 end
 
-_G.GetCnrPlayerData = GetCnrPlayerData
-_G.LoadPlayerData = LoadPlayerData
-
 local function GetCnrPlayerData(playerId)
     return playersData[tonumber(playerId)]
 end
@@ -781,13 +778,8 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     local pIdNum = tonumber(src)
     local pData = GetCnrPlayerData(pIdNum)
     if not pData then
-        -- Attempt to load player data if missing
-        LoadPlayerData(pIdNum)
-        pData = GetCnrPlayerData(pIdNum)
-        if not pData then
-            TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found. Please try again in a moment.")
-            return
-        end
+        TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found.")
+        return
     end
     if selectedRole ~= "cop" and selectedRole ~= "robber" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
@@ -808,5 +800,3 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     -- Confirm to client
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
-
-_G.InitializePlayerInventory = InitializePlayerInventory

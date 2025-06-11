@@ -61,8 +61,6 @@
         <p id="timer-text"></p>
     </div>
 
-    <script src="scripts.js"></script>
-
     <!-- Admin Panel Section -->
     <section id="admin-panel" class="hidden" role="dialog" aria-labelledby="adminPanelTitle" aria-modal="true">
         <h1 id="adminPanelTitle">Admin Panel</h1>
@@ -101,5 +99,18 @@
 
     <!-- Toast Notification Container -->
     <div id="toast" class="toast-notification" style="display:none;"></div>
+
+    <!-- Bounty Board Section (migrated from bounties.html) -->
+    <div id="bounty-board-container" style="display:none;">
+        <section id="bounty-board" class="menu" style="display: none;">
+            <h2>Active Bounties</h2>
+            <ul id="bounty-list">
+                <!-- Bounties will be listed here by JavaScript -->
+            </ul>
+            <button id="close-bounty-btn" class="close-btn"><span class="icon">❌</span>Close</button>
+        </section>
+    </div>
+
+    <script src="scripts.js"></script>
 </body>
 </html>

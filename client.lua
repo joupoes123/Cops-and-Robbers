@@ -741,27 +741,20 @@ end)
 -- Handle getPlayerInventory for Sell tab (fetches real inventory)
 RegisterNUICallback("getPlayerInventory", function(data, cb)
     local responded = false
-    local timeout = Citizen.SetTimeout(2000, function()
+    local handler
+    handler = AddEventHandler('cops_and_robbers:sendPlayerInventory', function(inv)
+        if responded then return end
+        responded = true
+        RemoveEventHandler(handler)
+        cb({ inventory = inv or {} })
+    end)
+    TriggerServerEvent('cops_and_robbers:getPlayerInventory')
+    Citizen.SetTimeout(2000, function()
         if not responded then
-            responded = true
+            RemoveEventHandler(handler)
             cb({ inventory = {} })
         end
     end)
-    if RequestInventoryForNUI then
-        RequestInventoryForNUI(function(inv)
-            if not responded then
-                responded = true
-                Citizen.ClearTimeout(timeout)
-                cb({ inventory = inv or {} })
-            end
-        end)
-    else
-        if not responded then
-            responded = true
-            Citizen.ClearTimeout(timeout)
-            cb({ inventory = {} })
-        end
-    end
 end)
 
 -- Handle buyItem from NUI
@@ -813,9 +806,3 @@ RegisterNUICallback("sellItem", function(data, cb)
         end
     end)
 end)
-
--- Explicitly load inventory_client.lua to ensure inventory functions are available
-if not RequestInventoryForNUI then
-    local chunk, err = load(LoadResourceFile(GetCurrentResourceName(), 'inventory_client.lua'))
-    if chunk then chunk() else print('[CNR_CLIENT_ERROR] Failed to load inventory_client.lua:', err) end
-end
