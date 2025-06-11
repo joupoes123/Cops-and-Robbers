@@ -63,6 +63,14 @@ local corruptOfficialNPCs = {}
 local copStoreBlips = {}
 local currentHelpTextTarget = nil -- Moved to top level for broader access
 
+-- Table to store protected peds (e.g., Cop Store ped)
+local g_protectedPolicePeds = {}
+
+-- Patch: Exclude protected peds from police suppression
+local function IsPedProtected(ped)
+    return g_protectedPolicePeds[ped] == true
+end
+
 -- =========================
 --   NPC POLICE SUPPRESSION
 -- =========================
@@ -111,7 +119,7 @@ Citizen.CreateThread(function()
         local handle, ped = FindFirstPed()
         local success, nextPed = true, ped
         repeat
-            if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) then
+            if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) and not IsPedProtected(ped) then
                 local vehicle = GetVehiclePedIsIn(ped, false)
                 SetEntityAsMissionEntity(ped, false, true)
                 ClearPedTasksImmediately(ped)
@@ -345,6 +353,37 @@ function tablelength(T)
   for _ in pairs(T) do count = count + 1 end
   return count
 end
+
+-- Helper to spawn the Cop Store ped and protect it from suppression
+function SpawnCopStorePed()
+    local vendor = nil
+    if Config and Config.NPCVendors then
+        for _, v in ipairs(Config.NPCVendors) do
+            if v.name == "Cop Store" then vendor = v; break end
+        end
+    end
+    if not vendor then print("[CNR_CLIENT_ERROR] Cop Store vendor not found in Config.NPCVendors"); return end
+    local model = GetHashKey("s_m_m_ciasec_01") -- Use a unique cop-like model not used by NPC police
+    RequestModel(model)
+    while not HasModelLoaded(model) do Citizen.Wait(10) end
+    local ped = CreatePed(4, model, vendor.location.x, vendor.location.y, vendor.location.z - 1.0, vendor.heading or 0.0, false, true)
+    SetEntityAsMissionEntity(ped, true, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    SetPedFleeAttributes(ped, 0, false) -- Corrected: use boolean false
+    SetPedCombatAttributes(ped, 17, true) -- Corrected: use boolean true
+    SetPedCanRagdoll(ped, false)
+    SetPedDiesWhenInjured(ped, false)
+    SetEntityInvincible(ped, true)
+    FreezeEntityPosition(ped, true)
+    g_protectedPolicePeds[ped] = true
+    print("[CNR_CLIENT_DEBUG] Spawned and protected Cop Store ped at PD.")
+end
+
+-- Call this on resource start and when player spawns
+Citizen.CreateThread(function()
+    Citizen.Wait(2000)
+    SpawnCopStorePed()
+end)
 
 -- =====================================
 --           NETWORK EVENTS
@@ -599,12 +638,723 @@ end
 -- Handle role selection from NUI
 RegisterNUICallback("selectRole", function(data, cb)
     local selectedRole = data.role
+    print("[CNR_CLIENT_DEBUG] NUI selectRole callback received. Role:", selectedRole) -- DEBUG
     if selectedRole == "cop" or selectedRole == "robber" then
         TriggerServerEvent("cnr:selectRole", selectedRole)
-        SetNuiFocus(false, false)
-        SendNUIMessage({ action = "hideRoleSelection" })
-        cb({ success = true })
+        -- UI will be hidden once the server confirms
+        cb({ success = true, pending = true })
     else
         cb({ success = false, error = "Invalid role" })
     end
+end)
+
+RegisterNetEvent("cnr:roleSelected")
+AddEventHandler("cnr:roleSelected", function(success, message)
+    print("[CNR_CLIENT_DEBUG] cnr:roleSelected event received. Success:", success, "Message:", message or "") -- DEBUG
+    if success then
+        SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
+        SendNUIMessage({ action = "hideRoleSelection" })
+        -- Failsafe: force focus release after 1s
+        Citizen.SetTimeout(1000, function()
+            SetNuiFocus(false, false)
+            SetNuiFocusKeepInput(false)
+        end)
+    else
+        -- Re-enable UI and show error message
+        SendNUIMessage({ action = "roleSelectionFailed", error = message or "Role selection failed." })
+    end
+end)
+
+RegisterNetEvent('cnr:updatePlayerData')
+AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    print("[CNR_CLIENT_DEBUG] cnr:updatePlayerData event received. Data:", json.encode(newPlayerData)) -- DEBUG
+    if not newPlayerData then
+        print("Error: 'cnr:updatePlayerData' received nil data.")
+        ShowNotification("~r~Error: Failed to load player data.")
+        return
+    end
+    local oldRole = playerData.role
+    playerData = newPlayerData
+    playerCash = newPlayerData.money or 0
+    role = playerData.role
+    local playerPedOnUpdate = PlayerPedId()
+    if role and oldRole ~= role then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during role change spawn.")
+        end
+    elseif not oldRole and role and role ~= "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial role spawn.")
+        end
+    elseif not oldRole and role and role == "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial citizen spawn.")
+        end
+    end
+
+    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    UpdateCopStoreBlips() -- removed argument
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role)
+    })
+    ShowNotification(string.format("Data Synced: Lvl %d, XP %d, Role %s", playerData.level, playerData.xp, playerData.role))
+    if newPlayerData.weapons and type(newPlayerData.weapons) == "table" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            playerWeapons = {}
+            playerAmmo = {}
+            for weaponName, ammoCount in pairs(newPlayerData.weapons) do
+                local weaponHash = GetHashKey(weaponName)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    GiveWeaponToPed(playerPedOnUpdate, weaponHash, ammoCount or 0, false, false)
+                    playerWeapons[weaponName] = true
+                    playerAmmo[weaponName] = ammoCount or 0
+                else
+                    print("Warning: Invalid weaponName received in newPlayerData: " .. tostring(weaponName))
+                end
+            end
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid, cannot give weapons.")
+        end
+    end
+    if not g_isPlayerPedReady and role and role ~= "citizen" then
+        Citizen.CreateThread(function()
+            Citizen.Wait(1500)
+            g_isPlayerPedReady = true
+            print("[CNR_CLIENT] Player Ped is now considered READY (g_isPlayerPedReady = true). Role: " .. role)
+        end)
+    elseif role == "citizen" and g_isPlayerPedReady then
+        g_isPlayerPedReady = false
+        print("[CNR_CLIENT] Player Ped is NO LONGER READY (g_isPlayerPedReady = false) due to role change to citizen.")
+    end
+end)
+
+RegisterNetEvent('cnr:xpGained')
+AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
+    playerData.xp = newTotalXp
+    ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cnr:levelUp')
+AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    playerData.level = newLevel
+    playerData.xp = newTotalXp
+    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
+AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
+    currentWantedStarsClient = stars
+    currentWantedPointsClient = points
+    local newUiLabel = ""
+    if stars > 0 then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do if levelData.stars == stars then newUiLabel = levelData.uiLabel; break end end
+        if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", stars) end
+    end
+    wantedUiLabel = newUiLabel
+    SetWantedLevelForPlayerRole(stars, points)
+end)
+
+RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
+AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
+    -- This event handler is currently not responsible for spawning custom NPC police responses.
+    -- Ambient ped clearing is handled by a separate periodic thread.
+    -- Default police dispatch is suppressed by the 'Default Police Disabler Thread'.
+    -- Log if needed for debugging that this event was received.
+    print(string.format("[CNR_CLIENT] Event cops_and_robbers:wantedLevelResponseUpdate received for player %s. Stars: %d. Currently, this event does not spawn custom NPCs.", targetPlayerId, stars))
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
+AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, location, itemName, itemModelHash)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]) end
+    local blip = AddBlipForCoord(location.x, location.y, location.z)
+    SetBlipSprite(blip, 1); SetBlipColour(blip, 2); SetBlipScale(blip, 1.5); SetBlipAsShortRange(blip, true)
+    BeginTextCommandSetBlipName("STRING"); AddTextComponentSubstringPlayerName("Contraband: " .. itemName); EndTextCommandSetBlipName(blip)
+    activeDropBlips[dropId] = blip
+    local propEntity = nil
+    if itemModelHash then
+        local model = (type(itemModelHash) == "number" and itemModelHash) or GetHashKey(itemModelHash)
+        RequestModel(model)
+        CreateThread(function()
+             while not g_isPlayerPedReady do Citizen.Wait(500) end
+            local attempts = 0; while not HasModelLoaded(model) and attempts < 100 do Citizen.Wait(100); attempts = attempts + 1 end
+            if HasModelLoaded(model) then
+                propEntity = CreateObject(model, location.x, location.y, location.z - 0.9, false, true, true)
+                PlaceObjectOnGroundProperly(propEntity)
+                if clientActiveContrabandDrops[dropId] then clientActiveContrabandDrops[dropId].propEntity = propEntity else DeleteEntity(propEntity) end
+            end
+            SetModelAsNoLongerNeeded(model)
+        end)
+    end
+    clientActiveContrabandDrops[dropId] = { id = dropId, location = location, name = itemName, modelHash = itemModelHash, propEntity = propEntity }
+    ShowNotification("~y~A new contraband drop has appeared: " .. itemName)
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
+AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]); activeDropBlips[dropId] = nil end
+    if clientActiveContrabandDrops[dropId] then
+        if clientActiveContrabandDrops[dropId].propEntity and DoesEntityExist(clientActiveContrabandDrops[dropId].propEntity) then DeleteEntity(clientActiveContrabandDrops[dropId].propEntity) end
+        clientActiveContrabandDrops[dropId] = nil
+    end
+    if isCollectingFromDrop == dropId then isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+    ShowNotification("~g~Contraband '" .. itemName .. "' was collected by " .. collectorName .. ".")
+end)
+
+RegisterNetEvent('cops_and_robbers:collectingContrabandStarted')
+AddEventHandler('cops_and_robbers:collectingContrabandStarted', function(dropId, collectionTime)
+    isCollectingFromDrop = dropId; collectionTimerEnd = GetGameTimer() + collectionTime
+    ShowNotification("~b~Collecting contraband... Hold position.")
+end)
+
+Citizen.CreateThread(function()
+    while not g_isPlayerPedReady do Citizen.Wait(500) end
+    print("[CNR_CLIENT] Thread for Contraband Interaction now starting its main loop.")
+    local lastInteractionCheck = 0; local interactionCheckInterval = 250; local activeCollectionWait = 50
+    while true do
+        local loopWait = interactionCheckInterval
+        local playerPed = PlayerPedId()
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then Citizen.Wait(1000); goto continue_contraband_loop end
+        if role == 'robber' then
+            local playerCoords = GetEntityCoords(playerPed)
+            if not isCollectingFromDrop then
+                if (GetGameTimer() - lastInteractionCheck) > interactionCheckInterval then
+                    for dropId, dropData in pairs(clientActiveContrabandDrops) do
+                        if dropData.location and #(playerCoords - dropData.location) < 3.0 then
+                            DisplayHelpText("Press ~INPUT_CONTEXT~ to collect contraband (" .. dropData.name .. ")")
+                            if IsControlJustReleased(0, 51) then TriggerServerEvent('cops_and_robbers:startCollectingContraband', dropId) end
+                            loopWait = activeCollectionWait; break
+                        end
+                    end; lastInteractionCheck = GetGameTimer()
+                end
+            else
+                loopWait = activeCollectionWait
+                local currentDropData = clientActiveContrabandDrops[isCollectingFromDrop]
+                if currentDropData and currentDropData.location then
+                    if #(playerCoords - currentDropData.location) > 5.0 then ShowNotification("~r~Contraband collection cancelled: Moved too far."); isCollectingFromDrop = nil; collectionTimerEnd = 0
+                    elseif GetGameTimer() >= collectionTimerEnd then ShowNotification("~g~Collection complete! Verifying with server..."); TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop); isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+                else isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+            end
+        end
+        Citizen.Wait(loopWait)
+        ::continue_contraband_loop::
+    end
+end)
+
+Citizen.CreateThread(function()
+    local clearCheckInterval = 500 -- milliseconds (e.g., every 0.5 seconds as per refined subtask)
+
+    while true do
+        Citizen.Wait(clearCheckInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+            goto continue_ambient_clear_loop -- Skip if player ped is not valid
+        end
+
+        -- Only run if player has a wanted level
+        if currentWantedStarsClient > 0 then
+            local playerCoords = GetEntityCoords(playerPed)
+            local clearRadius = Config.PoliceClearRadius or 100.0 -- Use config value or default
+
+            local handle, ped = FindFirstPed()
+            local success, nextPed = true, ped
+            repeat
+                if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) then
+                    local currentPedCoords = GetEntityCoords(ped)
+                    if #(playerCoords - currentPedCoords) < clearRadius then
+                        -- Only delete the ped if it's not in a vehicle
+                        local vehicle = GetVehiclePedIsIn(ped, false)
+                        if vehicle == 0 then
+                            SetEntityAsMissionEntity(ped, false, true)
+                            ClearPedTasksImmediately(ped)
+                            DeletePed(ped)
+                        end
+                    end
+                end
+                success, nextPed = FindNextPed(handle)
+                ped = nextPed
+            until not success
+            EndFindPed(handle)
+        end
+        ::continue_ambient_clear_loop::
+    end
+end)
+
+-- Ensure CalculateXpForNextLevelClient is defined before use
+function CalculateXpForNextLevelClient(currentLevel, playerRole)
+    if not Config.LevelingSystemEnabled then return 999999 end
+    local maxLvl = Config.MaxLevel or 10
+    if currentLevel >= maxLvl then return playerData.xp end
+    if Config.XPTable and Config.XPTable[currentLevel] then return Config.XPTable[currentLevel]
+    else print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn"); return 999999 end
+end
+
+-- Handle role selection from NUI
+RegisterNUICallback("selectRole", function(data, cb)
+    local selectedRole = data.role
+    print("[CNR_CLIENT_DEBUG] NUI selectRole callback received. Role:", selectedRole) -- DEBUG
+    if selectedRole == "cop" or selectedRole == "robber" then
+        TriggerServerEvent("cnr:selectRole", selectedRole)
+        -- UI will be hidden once the server confirms
+        cb({ success = true, pending = true })
+    else
+        cb({ success = false, error = "Invalid role" })
+    end
+end)
+
+RegisterNetEvent("cnr:roleSelected")
+AddEventHandler("cnr:roleSelected", function(success, message)
+    print("[CNR_CLIENT_DEBUG] cnr:roleSelected event received. Success:", success, "Message:", message or "") -- DEBUG
+    if success then
+        SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
+        SendNUIMessage({ action = "hideRoleSelection" })
+        -- Failsafe: force focus release after 1s
+        Citizen.SetTimeout(1000, function()
+            SetNuiFocus(false, false)
+            SetNuiFocusKeepInput(false)
+        end)
+    else
+        -- Re-enable UI and show error message
+        SendNUIMessage({ action = "roleSelectionFailed", error = message or "Role selection failed." })
+    end
+end)
+
+RegisterNetEvent('cnr:updatePlayerData')
+AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    print("[CNR_CLIENT_DEBUG] cnr:updatePlayerData event received. Data:", json.encode(newPlayerData)) -- DEBUG
+    if not newPlayerData then
+        print("Error: 'cnr:updatePlayerData' received nil data.")
+        ShowNotification("~r~Error: Failed to load player data.")
+        return
+    end
+    local oldRole = playerData.role
+    playerData = newPlayerData
+    playerCash = newPlayerData.money or 0
+    role = playerData.role
+    local playerPedOnUpdate = PlayerPedId()
+    if role and oldRole ~= role then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during role change spawn.")
+        end
+    elseif not oldRole and role and role ~= "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial role spawn.")
+        end
+    elseif not oldRole and role and role == "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial citizen spawn.")
+        end
+    end
+    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    UpdateCopStoreBlips() -- removed argument
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role)
+    })
+    ShowNotification(string.format("Data Synced: Lvl %d, XP %d, Role %s", playerData.level, playerData.xp, playerData.role))
+    if newPlayerData.weapons and type(newPlayerData.weapons) == "table" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            playerWeapons = {}
+            playerAmmo = {}
+            for weaponName, ammoCount in pairs(newPlayerData.weapons) do
+                local weaponHash = GetHashKey(weaponName)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    GiveWeaponToPed(playerPedOnUpdate, weaponHash, ammoCount or 0, false, false)
+                    playerWeapons[weaponName] = true
+                    playerAmmo[weaponName] = ammoCount or 0
+                else
+                    print("Warning: Invalid weaponName received in newPlayerData: " .. tostring(weaponName))
+                end
+            end
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid, cannot give weapons.")
+        end
+    end
+    if not g_isPlayerPedReady and role and role ~= "citizen" then
+        Citizen.CreateThread(function()
+            Citizen.Wait(1500)
+            g_isPlayerPedReady = true
+            print("[CNR_CLIENT] Player Ped is now considered READY (g_isPlayerPedReady = true). Role: " .. role)
+        end)
+    elseif role == "citizen" and g_isPlayerPedReady then
+        g_isPlayerPedReady = false
+        print("[CNR_CLIENT] Player Ped is NO LONGER READY (g_isPlayerPedReady = false) due to role change to citizen.")
+    end
+end)
+
+RegisterNetEvent('cnr:xpGained')
+AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
+    playerData.xp = newTotalXp
+    ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cnr:levelUp')
+AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    playerData.level = newLevel
+    playerData.xp = newTotalXp
+    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
+AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
+    currentWantedStarsClient = stars
+    currentWantedPointsClient = points
+    local newUiLabel = ""
+    if stars > 0 then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do if levelData.stars == stars then newUiLabel = levelData.uiLabel; break end end
+        if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", stars) end
+    end
+    wantedUiLabel = newUiLabel
+    SetWantedLevelForPlayerRole(stars, points)
+end)
+
+RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
+AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
+    -- This event handler is currently not responsible for spawning custom NPC police responses.
+    -- Ambient ped clearing is handled by a separate periodic thread.
+    -- Default police dispatch is suppressed by the 'Default Police Disabler Thread'.
+    -- Log if needed for debugging that this event was received.
+    print(string.format("[CNR_CLIENT] Event cops_and_robbers:wantedLevelResponseUpdate received for player %s. Stars: %d. Currently, this event does not spawn custom NPCs.", targetPlayerId, stars))
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
+AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, location, itemName, itemModelHash)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]) end
+    local blip = AddBlipForCoord(location.x, location.y, location.z)
+    SetBlipSprite(blip, 1); SetBlipColour(blip, 2); SetBlipScale(blip, 1.5); SetBlipAsShortRange(blip, true)
+    BeginTextCommandSetBlipName("STRING"); AddTextComponentSubstringPlayerName("Contraband: " .. itemName); EndTextCommandSetBlipName(blip)
+    activeDropBlips[dropId] = blip
+    local propEntity = nil
+    if itemModelHash then
+        local model = (type(itemModelHash) == "number" and itemModelHash) or GetHashKey(itemModelHash)
+        RequestModel(model)
+        CreateThread(function()
+             while not g_isPlayerPedReady do Citizen.Wait(500) end
+            local attempts = 0; while not HasModelLoaded(model) and attempts < 100 do Citizen.Wait(100); attempts = attempts + 1 end
+            if HasModelLoaded(model) then
+                propEntity = CreateObject(model, location.x, location.y, location.z - 0.9, false, true, true)
+                PlaceObjectOnGroundProperly(propEntity)
+                if clientActiveContrabandDrops[dropId] then clientActiveContrabandDrops[dropId].propEntity = propEntity else DeleteEntity(propEntity) end
+            end
+            SetModelAsNoLongerNeeded(model)
+        end)
+    end
+    clientActiveContrabandDrops[dropId] = { id = dropId, location = location, name = itemName, modelHash = itemModelHash, propEntity = propEntity }
+    ShowNotification("~y~A new contraband drop has appeared: " .. itemName)
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
+AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]); activeDropBlips[dropId] = nil end
+    if clientActiveContrabandDrops[dropId] then
+        if clientActiveContrabandDrops[dropId].propEntity and DoesEntityExist(clientActiveContrabandDrops[dropId].propEntity) then DeleteEntity(clientActiveContrabandDrops[dropId].propEntity) end
+        clientActiveContrabandDrops[dropId] = nil
+    end
+    if isCollectingFromDrop == dropId then isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+    ShowNotification("~g~Contraband '" .. itemName .. "' was collected by " .. collectorName .. ".")
+end)
+
+RegisterNetEvent('cops_and_robbers:collectingContrabandStarted')
+AddEventHandler('cops_and_robbers:collectingContrabandStarted', function(dropId, collectionTime)
+    isCollectingFromDrop = dropId; collectionTimerEnd = GetGameTimer() + collectionTime
+    ShowNotification("~b~Collecting contraband... Hold position.")
+end)
+
+Citizen.CreateThread(function()
+    while not g_isPlayerPedReady do Citizen.Wait(500) end
+    print("[CNR_CLIENT] Thread for Contraband Interaction now starting its main loop.")
+    local lastInteractionCheck = 0; local interactionCheckInterval = 250; local activeCollectionWait = 50
+    while true do
+        local loopWait = interactionCheckInterval
+        local playerPed = PlayerPedId()
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then Citizen.Wait(1000); goto continue_contraband_loop end
+        if role == 'robber' then
+            local playerCoords = GetEntityCoords(playerPed)
+            if not isCollectingFromDrop then
+                if (GetGameTimer() - lastInteractionCheck) > interactionCheckInterval then
+                    for dropId, dropData in pairs(clientActiveContrabandDrops) do
+                        if dropData.location and #(playerCoords - dropData.location) < 3.0 then
+                            DisplayHelpText("Press ~INPUT_CONTEXT~ to collect contraband (" .. dropData.name .. ")")
+                            if IsControlJustReleased(0, 51) then TriggerServerEvent('cops_and_robbers:startCollectingContraband', dropId) end
+                            loopWait = activeCollectionWait; break
+                        end
+                    end; lastInteractionCheck = GetGameTimer()
+                end
+            else
+                loopWait = activeCollectionWait
+                local currentDropData = clientActiveContrabandDrops[isCollectingFromDrop]
+                if currentDropData and currentDropData.location then
+                    if #(playerCoords - currentDropData.location) > 5.0 then ShowNotification("~r~Contraband collection cancelled: Moved too far."); isCollectingFromDrop = nil; collectionTimerEnd = 0
+                    elseif GetGameTimer() >= collectionTimerEnd then ShowNotification("~g~Collection complete! Verifying with server..."); TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop); isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+                else isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+            end
+        end
+        Citizen.Wait(loopWait)
+        ::continue_contraband_loop::
+    end
+end)
+
+Citizen.CreateThread(function()
+    local clearCheckInterval = 500 -- milliseconds (e.g., every 0.5 seconds as per refined subtask)
+
+    while true do
+        Citizen.Wait(clearCheckInterval)
+
+        local playerId = PlayerId()
+        local playerPed = PlayerPedId()
+
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
+            goto continue_ambient_clear_loop -- Skip if player ped is not valid
+        end
+
+        -- Only run if player has a wanted level
+        if currentWantedStarsClient > 0 then
+            local playerCoords = GetEntityCoords(playerPed)
+            local clearRadius = Config.PoliceClearRadius or 100.0 -- Use config value or default
+
+            local handle, ped = FindFirstPed()
+            local success, nextPed = true, ped
+            repeat
+                if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) then
+                    local currentPedCoords = GetEntityCoords(ped)
+                    if #(playerCoords - currentPedCoords) < clearRadius then
+                        -- Only delete the ped if it's not in a vehicle
+                        local vehicle = GetVehiclePedIsIn(ped, false)
+                        if vehicle == 0 then
+                            SetEntityAsMissionEntity(ped, false, true)
+                            ClearPedTasksImmediately(ped)
+                            DeletePed(ped)
+                        end
+                    end
+                end
+                success, nextPed = FindNextPed(handle)
+                ped = nextPed
+            until not success
+            EndFindPed(handle)
+        end
+        ::continue_ambient_clear_loop::
+    end
+end)
+
+-- Ensure CalculateXpForNextLevelClient is defined before use
+function CalculateXpForNextLevelClient(currentLevel, playerRole)
+    if not Config.LevelingSystemEnabled then return 999999 end
+    local maxLvl = Config.MaxLevel or 10
+    if currentLevel >= maxLvl then return playerData.xp end
+    if Config.XPTable and Config.XPTable[currentLevel] then return Config.XPTable[currentLevel]
+    else print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn"); return 999999 end
+end
+
+-- Handle role selection from NUI
+RegisterNUICallback("selectRole", function(data, cb)
+    local selectedRole = data.role
+    print("[CNR_CLIENT_DEBUG] NUI selectRole callback received. Role:", selectedRole) -- DEBUG
+    if selectedRole == "cop" or selectedRole == "robber" then
+        TriggerServerEvent("cnr:selectRole", selectedRole)
+        -- UI will be hidden once the server confirms
+        cb({ success = true, pending = true })
+    else
+        cb({ success = false, error = "Invalid role" })
+    end
+end)
+
+RegisterNetEvent("cnr:roleSelected")
+AddEventHandler("cnr:roleSelected", function(success, message)
+    print("[CNR_CLIENT_DEBUG] cnr:roleSelected event received. Success:", success, "Message:", message or "") -- DEBUG
+    if success then
+        SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
+        SendNUIMessage({ action = "hideRoleSelection" })
+        -- Failsafe: force focus release after 1s
+        Citizen.SetTimeout(1000, function()
+            SetNuiFocus(false, false)
+            SetNuiFocusKeepInput(false)
+        end)
+    else
+        -- Re-enable UI and show error message
+        SendNUIMessage({ action = "roleSelectionFailed", error = message or "Role selection failed." })
+    end
+end)
+
+RegisterNetEvent('cnr:updatePlayerData')
+AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    print("[CNR_CLIENT_DEBUG] cnr:updatePlayerData event received. Data:", json.encode(newPlayerData)) -- DEBUG
+    if not newPlayerData then
+        print("Error: 'cnr:updatePlayerData' received nil data.")
+        ShowNotification("~r~Error: Failed to load player data.")
+        return
+    end
+    local oldRole = playerData.role
+    playerData = newPlayerData
+    playerCash = newPlayerData.money or 0
+    role = playerData.role
+    local playerPedOnUpdate = PlayerPedId()
+    if role and oldRole ~= role then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during role change spawn.")
+        end
+    elseif not oldRole and role and role ~= "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            ApplyRoleVisualsAndLoadout(role, oldRole)
+            Citizen.Wait(100)
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial role spawn.")
+        end
+    elseif not oldRole and role and role == "citizen" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            spawnPlayer(role)
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial citizen spawn.")
+        end
+    end
+    SendNUIMessage({ action = 'updateMoney', cash = playerCash })
+    UpdateCopStoreBlips() -- removed argument
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role)
+    })
+    ShowNotification(string.format("Data Synced: Lvl %d, XP %d, Role %s", playerData.level, playerData.xp, playerData.role))
+    if newPlayerData.weapons and type(newPlayerData.weapons) == "table" then
+        if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
+            playerWeapons = {}
+            playerAmmo = {}
+            for weaponName, ammoCount in pairs(newPlayerData.weapons) do
+                local weaponHash = GetHashKey(weaponName)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    GiveWeaponToPed(playerPedOnUpdate, weaponHash, ammoCount or 0, false, false)
+                    playerWeapons[weaponName] = true
+                    playerAmmo[weaponName] = ammoCount or 0
+                else
+                    print("Warning: Invalid weaponName received in newPlayerData: " .. tostring(weaponName))
+                end
+            end
+        else
+            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid, cannot give weapons.")
+        end
+    end
+    if not g_isPlayerPedReady and role and role ~= "citizen" then
+        Citizen.CreateThread(function()
+            Citizen.Wait(1500)
+            g_isPlayerPedReady = true
+            print("[CNR_CLIENT] Player Ped is now considered READY (g_isPlayerPedReady = true). Role: " .. role)
+        end)
+    elseif role == "citizen" and g_isPlayerPedReady then
+        g_isPlayerPedReady = false
+        print("[CNR_CLIENT] Player Ped is NO LONGER READY (g_isPlayerPedReady = false) due to role change to citizen.")
+    end
+end)
+
+RegisterNetEvent('cnr:xpGained')
+AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
+    playerData.xp = newTotalXp
+    ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cnr:levelUp')
+AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    playerData.level = newLevel
+    playerData.xp = newTotalXp
+    ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
+    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+end)
+
+RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
+AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
+    currentWantedStarsClient = stars
+    currentWantedPointsClient = points
+    local newUiLabel = ""
+    if stars > 0 then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do if levelData.stars == stars then newUiLabel = levelData.uiLabel; break end end
+        if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", stars) end
+    end
+    wantedUiLabel = newUiLabel
+    SetWantedLevelForPlayerRole(stars, points)
+end)
+
+RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
+AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
+    -- This event handler is currently not responsible for spawning custom NPC police responses.
+    -- Ambient ped clearing is handled by a separate periodic thread.
+    -- Default police dispatch is suppressed by the 'Default Police Disabler Thread'.
+    -- Log if needed for debugging that this event was received.
+    print(string.format("[CNR_CLIENT] Event cops_and_robbers:wantedLevelResponseUpdate received for player %s. Stars: %d. Currently, this event does not spawn custom NPCs.", targetPlayerId, stars))
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
+AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, location, itemName, itemModelHash)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]) end
+    local blip = AddBlipForCoord(location.x, location.y, location.z)
+    SetBlipSprite(blip, 1); SetBlipColour(blip, 2); SetBlipScale(blip, 1.5); SetBlipAsShortRange(blip, true)
+    BeginTextCommandSetBlipName("STRING"); AddTextComponentSubstringPlayerName("Contraband: " .. itemName); EndTextCommandSetBlipName(blip)
+    activeDropBlips[dropId] = blip
+    local propEntity = nil
+    if itemModelHash then
+        local model = (type(itemModelHash) == "number" and itemModelHash) or GetHashKey(itemModelHash)
+        RequestModel(model)
+        CreateThread(function()
+             while not g_isPlayerPedReady do Citizen.Wait(500) end
+            local attempts = 0; while not HasModelLoaded(model) and attempts < 100 do Citizen.Wait(100); attempts = attempts + 1 end
+            if HasModelLoaded(model) then
+                propEntity = CreateObject(model, location.x, location.y, location.z - 0.9, false, true, true)
+                PlaceObjectOnGroundProperly(propEntity)
+                if clientActiveContrabandDrops[dropId] then clientActiveContrabandDrops[dropId].propEntity = propEntity else DeleteEntity(propEntity) end
+            end
+            SetModelAsNoLongerNeeded(model)
+        end)
+    end
+    clientActiveContrabandDrops[dropId] = { id = dropId, location = location, name = itemName, modelHash = itemModelHash, propEntity = propEntity }
+    ShowNotification("~y~A new contraband drop has appeared: " .. itemName)
+end)
+
+RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
+AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
+    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]); activeDropBlips[dropId] = nil end
+    if clientActiveContrabandDrops[dropId] then
+        if clientActiveContrabandDrops[dropId].propEntity then
+            DeleteEntity(clientActiveContrabandDrops[dropId].propEntity)
+        end
+        clientActiveContrabandDrops[dropId] = nil
+    end
+    ShowNotification("~g~" .. collectorName .. " collected contraband: " .. itemName)
 end)
