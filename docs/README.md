@@ -1,8 +1,8 @@
-# Cops & Robbers - FiveM GTA V Roleplay Gamemode
+# Cops & Robbers - FiveM GTA V Roleplay Game Mode
 
 **IMPORTANT NOTE:** This game mode has undergone significant refactoring to improve stability and make it standalone. While major issues have been addressed, it's still recommended to test thoroughly before deploying to a live production environment. Community contributions and feedback are welcome!
 
-**Cops & Robbers** is an open-source gamemode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements. This project invites community contributions, encouraging developers to collaborate on creating dynamic gameplay with high-stakes chases, heists, and investigations.
+**Cops & Robbers** is an open-source game mode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements. This project invites community contributions, encouraging developers to collaborate on creating dynamic gameplay with high-stakes chases, heists, and investigations.
 
 ---
 
