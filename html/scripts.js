@@ -319,7 +319,7 @@ function loadSellItems() {
         const fragment = document.createDocumentFragment();
         minimalInventory.forEach(minItem => {
             let itemDetails = null;
-            for (const cfgItem of Object.values(fullItemConfig)) {
+            for (const cfgItem of fullItemConfig) {
                 if (cfgItem.itemId === minItem.itemId) {
                     itemDetails = cfgItem;
                     break;

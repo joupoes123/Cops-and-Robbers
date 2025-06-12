@@ -162,7 +162,18 @@ function EquipInventoryWeapons()
                         end
                     end
                     GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true) -- equipNow = true
-                    Log(string.format("  Equipped: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name, itemId, weaponHash, ammoCount), "info")
+                    Log(string.format("  Equipped: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info") -- Adjusted original log slightly for clarity
+
+                    -- New lines to add:
+                    SetPedAmmo(playerPed, weaponHash, ammoCount)
+                    Citizen.Wait(0)
+                    local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                    -- Using GetPlayerServerId(PlayerId()) might be redundant if playerPed itself is enough context,
+                    -- but adding more info to logs is fine for debugging.
+                    Log(string.format("  CHECK_HAS_WEAPON: Player %s has weapon %s (Hash: %s) after Give/SetAmmo: %s", GetPlayerServerId(PlayerId()), itemId, weaponHash, tostring(hasWeapon)), "info")
+                    if not hasWeapon then
+                        Log(string.format("  WARNING_EQUIP: HasPedGotWeapon returned false for item %s (Hash: %s) immediately after giving it to player %s.", itemId, weaponHash, GetPlayerServerId(PlayerId())), "warn")
+                    end
                 else
                     Log(string.format("  WARNING: Invalid hash for itemId: %s (Name: %s).", itemId, itemData.name), "warn")
                 end

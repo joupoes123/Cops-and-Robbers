@@ -1042,6 +1042,8 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
         end
     end
 
+    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src)) -- Using print
+
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
