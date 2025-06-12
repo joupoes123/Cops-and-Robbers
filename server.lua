@@ -266,11 +266,61 @@ end
 -- PLAYER DATA MANAGEMENT (XP, LEVELS, SAVING/LOADING)
 -- =================================================================================================
 
+-- Simple (or placeholder) inventory interaction functions
+-- In a full system, these would likely call exports from inventory_server.lua
+
+function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return false, "Player data not found" end
+    
+    pData.inventory = pData.inventory or {} -- Ensure inventory table exists
+    
+    if not pData.inventory[itemId] then
+        pData.inventory[itemId] = { count = 0 }
+        -- If you store more than just count, like name/category directly in inventory:
+        -- pData.inventory[itemId].name = itemDetails.name 
+        -- pData.inventory[itemId].category = itemDetails.category
+    end
+    
+    pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
+    TriggerClientEvent('cnr:updatePlayerData', playerId, pData) -- Sync inventory change
+    Log(string.format("Added %d of %s to player %s inventory. New count: %d", quantity, itemId, playerId, pData.inventory[itemId].count))
+    return true, "Item added"
+end
+
+function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory or not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
+        return false, "Item not found or insufficient quantity"
+    end
+    
+    pData.inventory[itemId].count = pData.inventory[itemId].count - quantity
+    
+    if pData.inventory[itemId].count <= 0 then
+        pData.inventory[itemId] = nil -- Remove item entry if count is zero or less
+    end
+    TriggerClientEvent('cnr:updatePlayerData', playerId, pData) -- Sync inventory change
+    Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
+    return true, "Item removed"
+end
+
+-- Ensure InitializePlayerInventory is defined (even if simple)
+function InitializePlayerInventory(pData, playerId)
+    if not pData then 
+        Log("InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"), "error")
+        return 
+    end
+    pData.inventory = pData.inventory or {}
+    -- Log("InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"), "info")
+end
+
 LoadPlayerData = function(playerId)
+    -- Log(string.format("LoadPlayerData: Called for player ID %s.", playerId), "info")
     local pIdNum = tonumber(playerId)
     -- local player = GetPlayerFromServerId(pIdNum) -- Example of framework-specific code removed
     -- if not player then Log("LoadPlayerData: Player " .. pIdNum .. " not found on server.", "error"); return end
 
+    -- Log(string.format("LoadPlayerData: Attempting to get license for player %s.", pIdNum), "info")
     local license = GetPlayerLicense(pIdNum) -- Use helper to get license
 
     local filename = nil
@@ -286,10 +336,13 @@ LoadPlayerData = function(playerId)
         filename = "player_data/pid_" .. pIdNum .. ".json"
     end
 
+    -- Log(string.format("LoadPlayerData: Using filename %s for player %s.", filename, pIdNum), "info")
+    -- Log(string.format("LoadPlayerData: Attempting to load data from file %s for player %s.", filename, pIdNum), "info")
     local fileData = LoadResourceFile(GetCurrentResourceName(), filename)
     local loadedMoney = 0 -- Default money if not in save file or new player
 
     if fileData then
+        -- Log(string.format("LoadPlayerData: File %s found for player %s. Attempting to decode JSON.", filename, pIdNum), "info")
         local success, data = pcall(json.decode, fileData)
         if success and type(data) == "table" then
             playersData[pIdNum] = data
@@ -305,6 +358,7 @@ LoadPlayerData = function(playerId)
     end
 
     if not playersData[pIdNum] then
+        -- Log(string.format("LoadPlayerData: Initializing new default data structure for player %s.", pIdNum), "info")
         local playerPed = GetPlayerPed(pIdNum)
         local initialCoords = playerPed and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
 
@@ -320,15 +374,29 @@ LoadPlayerData = function(playerId)
         playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartMoney or 5000
     end
 
+    -- NEW PLACEMENT FOR isDataLoaded
+    if playersData[pIdNum] then
+        playersData[pIdNum].isDataLoaded = true
+        Log("LoadPlayerData: Player data structure populated and isDataLoaded set to true for " .. pIdNum .. ".") -- Combined log
+    else
+        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] is nil AFTER data load/init attempt for " .. pIdNum .. ". Cannot set isDataLoaded or proceed.", "error")
+        return -- Cannot proceed if playersData[pIdNum] is still nil here
+    end
+
+    -- Now call functions that might rely on isDataLoaded or a fully ready player object
     SetPlayerRole(pIdNum, playersData[pIdNum].role, true)
     ApplyPerks(pIdNum, playersData[pIdNum].level, playersData[pIdNum].role)
-    if playersData[pIdNum] then -- Ensure pData exists before passing
-        InitializePlayerInventory(playersData[pIdNum], pIdNum) -- Initialize inventory after player data is loaded/created
+
+    -- Log(string.format("LoadPlayerData: About to call InitializePlayerInventory for player %s.", pIdNum), "info")
+    if playersData[pIdNum] then -- Re-check pData as ApplyPerks or SetPlayerRole might have side effects (though unlikely to nil it)
+        InitializePlayerInventory(playersData[pIdNum], pIdNum)
     else
-        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] is nil before InitializePlayerInventory for " .. pIdNum, "error")
+        Log("LoadPlayerData: CRITICAL - playersData[pIdNum] became nil before InitializePlayerInventory for " .. pIdNum, "error")
     end
+
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
+    -- Original position of isDataLoaded setting is now removed.
 end
 
 SavePlayerData = function(playerId)
@@ -362,17 +430,19 @@ SetPlayerRole = function(playerId, role, skipNotify)
     -- local player = GetPlayerFromServerId(pIdNum) -- Example placeholder for framework code
     -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
     local playerName = GetPlayerName(pIdNum) or "Unknown"
-    Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
-    if not playersData[pIdNum] then
-        Log(string.format("SetPlayerRole: CRITICAL - Player data for %s (Name: %s) not found when trying to set role to '%s'. Role selection aborted. Data should have been loaded on spawn.", pIdNum, playerName, role), "error")
-        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Your player data is not loaded correctly. Cannot set role."} })
-        return -- Abort role change
+    local pData = playersData[pIdNum] -- Get pData directly
+    if not pData or not pData.isDataLoaded then -- Check both for robustness
+        Log(string.format("SetPlayerRole: Attempted to set role for %s (Name: %s) but data not loaded/ready. Role: %s. pData exists: %s, isDataLoaded: %s. This should have been caught by the caller.", pIdNum, playerName, role, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded)), "warn")
+        -- Do NOT trigger 'cnr:roleSelected' here, as the caller handles it.
+        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Role change failed: Player data integrity issue."} })
+        return
     end
 
-    Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
-    playersData[pIdNum].role = role
-    Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
+    pData.role = role
+    -- Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
@@ -399,7 +469,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.")
     end
     ApplyPerks(pIdNum, playersData[pIdNum].level, role) -- Re-apply/update perks based on new role
-    Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
+    -- Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, playersData[pIdNum])
 end
 
@@ -772,15 +842,28 @@ CreateThread(function() -- Jail time update loop
     end
 end)
 
+RegisterNetEvent('cnr:playerSpawned')
+AddEventHandler('cnr:playerSpawned', function()
+    local src = source
+    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
+    LoadPlayerData(src)
+end)
+
 RegisterNetEvent('cnr:selectRole')
 AddEventHandler('cnr:selectRole', function(selectedRole)
     local src = source
     local pIdNum = tonumber(src)
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then
-        TriggerClientEvent('cnr:roleSelected', src, false, "Player data not found.")
+
+    -- Check if player data is loaded
+    if not pData or not pData.isDataLoaded then
+        Log(string.format("cnr:selectRole: Player data not ready for %s. pData exists: %s, isDataLoaded: %s", pIdNum, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded or false)), "warn")
+        TriggerClientEvent('cnr:roleSelected', src, false, "Player data is not ready. Please wait a moment and try again.")
         return
     end
+
+    -- No need for the old `if not pData then` check as the above condition covers it.
+
     if selectedRole ~= "cop" and selectedRole ~= "robber" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
@@ -801,22 +884,241 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
 
--- Cop Store: Debug prints for item list request
 RegisterNetEvent('cops_and_robbers:getItemList')
-AddEventHandler('cops_and_robbers:getItemList', function(storeType, itemList, storeName)
+AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName) -- Renamed itemList to vendorItemIds for clarity
     local src = source
-    print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
+    -- print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
+
     if not storeName then
         print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
         return
     end
-    if not itemList or type(itemList) ~= 'table' then
-        print('[CNR_SERVER_ERROR] Item list missing or not a table for store', storeName, 'from', src)
+
+    -- The vendorItemIds from client (originating from Config.NPCVendors[storeName].items) is a list of strings.
+    -- We need to transform this into a list of full item objects using Config.Items.
+    if not vendorItemIds or type(vendorItemIds) ~= 'table' then
+        print('[CNR_SERVER_ERROR] Item ID list missing or not a table for store', storeName, 'from', src)
+        TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list on error
         return
     end
-    -- Optionally, print the item list length
-    print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #itemList, 'items')
-    -- Send item list to client
-    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, itemList)
-    print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName)
+
+    local fullItemDetailsList = {}
+    if Config.Items and type(Config.Items) == 'table' then
+        for _, itemIdFromVendor in ipairs(vendorItemIds) do
+            local foundItem = nil
+            for _, configItem in ipairs(Config.Items) do
+                if configItem.itemId == itemIdFromVendor then
+                    -- Create a new table for the item to send, ensuring all necessary fields are present
+                    foundItem = {
+                        itemId = configItem.itemId,
+                        name = configItem.name,
+                        basePrice = configItem.basePrice, -- NUI will use this as 'price'
+                        price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
+                        category = configItem.category,
+                        forCop = configItem.forCop,
+                        minLevelCop = configItem.minLevelCop,
+                        minLevelRobber = configItem.minLevelRobber,
+                        -- Add any other fields the NUI might need, like description, weight, etc.
+                        -- e.g., description = configItem.description or "" 
+                    }
+                    -- Apply dynamic pricing if enabled
+                    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+                        foundItem.price = CalculateDynamicPrice(foundItem.itemId, foundItem.basePrice)
+                        -- If NUI also needs basePrice separately, keep it, otherwise price is now dynamic price
+                    end
+                    table.insert(fullItemDetailsList, foundItem)
+                    break -- Found the item in Config.Items, move to next itemIdFromVendor
+                end
+            end
+            if not foundItem then
+                print(string.format("[CNR_SERVER_WARN] Item ID '%s' specified for vendor '%s' not found in Config.Items. Skipping.", itemIdFromVendor, storeName))
+            end
+        end
+    else
+        print("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.")
+        TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
+        return
+    end
+
+    -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    -- Send the constructed list of full item details to the client
+    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList)
+    -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')
+end)
+
+RegisterNetEvent('cops_and_robbers:getPlayerInventory')
+AddEventHandler('cops_and_robbers:getPlayerInventory', function()
+    local src = source
+    local pData = GetCnrPlayerData(src)
+
+    if not pData or not pData.inventory then
+        print(string.format("[CNR_SERVER_ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
+        TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
+        return
+    end
+
+    local processedInventory = {}
+    if Config.Items and type(Config.Items) == 'table' then
+        for itemId, invItemData in pairs(pData.inventory) do
+            if invItemData and invItemData.count and invItemData.count > 0 then
+                local configItemDetails = nil
+                for _, cItem in ipairs(Config.Items) do
+                    if cItem.itemId == itemId then
+                        configItemDetails = cItem
+                        break
+                    end
+                end
+
+                if configItemDetails then
+                    local sellPrice = math.floor(configItemDetails.basePrice * (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor or 0.5))
+                    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+                         -- If we want sell price to be based on current dynamic buy price instead of basePrice
+                         local currentDynamicBuyPrice = CalculateDynamicPrice(itemId, configItemDetails.basePrice)
+                         sellPrice = math.floor(currentDynamicBuyPrice * (Config.DynamicEconomy.sellPriceFactor or 0.5))
+                    end
+
+                    table.insert(processedInventory, {
+                        itemId = itemId,
+                        name = configItemDetails.name or itemId,
+                        count = invItemData.count,
+                        sellPrice = sellPrice
+                        -- Category removed for now to reduce data size
+                    })
+                else
+                    print(string.format("[CNR_SERVER_WARN] Item ID '%s' from player %s's inventory not found in Config.Items. Cannot determine sell details.", itemId, src))
+                end
+            end
+        end
+    else
+        print("[CNR_SERVER_ERROR] Config.Items not defined or not a table. Cannot process player inventory for selling.")
+        TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty on critical config error
+        return
+    end
+    
+    -- print(string.format("[CNR_SERVER_DEBUG] Sending processed inventory to src %s. Item count: %d", src, #processedInventory))
+    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventory)
+end)
+
+RegisterNetEvent('cops_and_robbers:buyItem')
+AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    quantity = tonumber(quantity) or 1
+
+    if not pData then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Player data not found.")
+        return
+    end
+    if quantity <= 0 then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Invalid quantity.")
+        return
+    end
+
+    local itemConfig = nil
+    for _, cfgItem in ipairs(Config.Items) do
+        if cfgItem.itemId == itemId then
+            itemConfig = cfgItem
+            break
+        end
+    end
+
+    if not itemConfig then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Item not found in config.")
+        return
+    end
+
+    -- Role/Level Checks
+    if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, string.format("Cops require level %d for this item.", itemConfig.minLevelCop))
+        return
+    end
+    if pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, string.format("Robbers require level %d for this item.", itemConfig.minLevelRobber))
+        return
+    end
+    if itemConfig.forCop and pData.role ~= "cop" then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "This item is restricted to Cops.")
+        return
+    end
+    -- Add similar check for 'forRobber' if you implement that flag in Config.Items
+
+    local price = itemConfig.basePrice
+    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+        price = CalculateDynamicPrice(itemId, itemConfig.basePrice)
+    end
+    local totalCost = price * quantity
+
+    if GetPlayerMoney(src) < totalCost then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Not enough money. Cost: $" .. totalCost)
+        return
+    end
+
+    if RemovePlayerMoney(src, totalCost) then
+        local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
+        if success then
+            -- Record purchase for dynamic economy
+            if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+                table.insert(purchaseHistory, { playerId = src, itemId = itemId, quantity = quantity, pricePaid = totalCost, timestamp = os.time() })
+                -- Optional: Prune purchaseHistory if it gets too large, or do it in SavePurchaseHistory
+            end
+            TriggerClientEvent('cops_and_robbers:buyResult', src, true, string.format("Purchased %d x %s for $%d.", quantity, itemConfig.name, totalCost))
+            Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
+        else
+            AddPlayerMoney(src, totalCost) -- Refund money if adding item failed
+            TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Purchase failed: Could not add item to inventory. " .. msg)
+            Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
+        end
+    else
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Purchase failed: Could not deduct money.")
+    end
+end)
+
+RegisterNetEvent('cops_and_robbers:sellItem')
+AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    quantity = tonumber(quantity) or 1
+
+    if not pData or not pData.inventory then
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Player data or inventory not found.")
+        return
+    end
+    if quantity <= 0 then
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Invalid quantity.")
+        return
+    end
+    if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "You don't have enough of this item to sell.")
+        return
+    end
+
+    local itemConfig = nil
+    for _, cfgItem in ipairs(Config.Items) do
+        if cfgItem.itemId == itemId then
+            itemConfig = cfgItem
+            break
+        end
+    end
+
+    if not itemConfig then
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item details not found in config. Cannot determine sell price.")
+        return
+    end
+
+    local sellPricePerItem = math.floor(itemConfig.basePrice * (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor or 0.5))
+    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+         local currentDynamicBuyPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
+         sellPricePerItem = math.floor(currentDynamicBuyPrice * (Config.DynamicEconomy.sellPriceFactor or 0.5))
+    end
+    local totalGain = sellPricePerItem * quantity
+
+    local success, msg = RemoveItemFromPlayerInventory(src, itemId, quantity)
+    if success then
+        AddPlayerMoney(src, totalGain)
+        TriggerClientEvent('cops_and_robbers:sellResult', src, true, string.format("Sold %d x %s for $%d.", quantity, itemConfig.name, totalGain))
+        Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalGain))
+    else
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Sell failed: " .. msg)
+        Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
+    end
 end)

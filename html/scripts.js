@@ -396,17 +396,13 @@ function loadItems() {
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
 
-    console.log('[CNR_NUI_PERF] Original filteredItems count:', filteredItems.length);
-    const itemsToRender = filteredItems.slice(0, 5); // Limit to 5 items for testing
-    console.log('[CNR_NUI_PERF] Rendering only first 5 items for performance test. Count:', itemsToRender.length);
-
-    if (itemsToRender.length === 0) { // Check itemsToRender instead of filteredItems
+    if (filteredItems.length === 0) { 
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
         // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
-    itemsToRender.forEach(item => fragment.appendChild(createItemElement(item, 'buy'))); // Use itemsToRender
+    filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
     itemList.appendChild(fragment);
     // console.log('[CNR_NUI_STORE] loadItems finished.');
 }

@@ -267,6 +267,16 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
+
+   -- Equip weapons from inventory after role visuals and loadout are applied
+   Citizen.Wait(50) -- Optional small delay to ensure ped model is fully set and previous weapons are processed.
+   local currentResourceName = GetCurrentResourceName()
+   if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
+       print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Calling %s:EquipInventoryWeapons to restore owned weapons.", currentResourceName))
+       exports[currentResourceName]:EquipInventoryWeapons()
+   else
+       print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Could not find export EquipInventoryWeapons in resource %s.", currentResourceName))
+   end
 end
 
 -- Ensure SetWantedLevelForPlayerRole is defined before all uses
@@ -408,6 +418,24 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     playerCash = newPlayerData.money or 0
     role = playerData.role
     local playerPedOnUpdate = PlayerPedId()
+    -- Update full inventory if present in newPlayerData
+    if newPlayerData.inventory then
+        local currentResourceName = GetCurrentResourceName()
+        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
+            exports[currentResourceName]:UpdateFullInventory(newPlayerData.inventory)
+        else
+            -- Error case: export not found. Original print removed. Consider if error logging is still needed here, perhaps less verbose.
+        end
+    else
+        -- Inventory is nil case. Original print removed.
+        local currentResourceName = GetCurrentResourceName()
+        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
+            exports[currentResourceName]:UpdateFullInventory(nil) -- Explicitly pass nil
+        else
+            -- Error case: export not found for nil sync. Original print removed.
+        end
+    end
+
     if role and oldRole ~= role then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
             ApplyRoleVisualsAndLoadout(role, oldRole)
@@ -645,6 +673,21 @@ RegisterNUICallback("selectRole", function(data, cb)
     else
         cb({ success = false, error = "Invalid role" })
     end
+end)
+
+RegisterNUICallback("setNuiFocus", function(data, cb)
+    local hasFocus = data.hasFocus
+    local hasCursor = data.hasCursor
+
+    -- Log the received values for debugging
+    -- print(string.format("[CNR_CLIENT_NUI] setNuiFocus callback received: hasFocus=%s, hasCursor=%s", tostring(hasFocus), tostring(hasCursor)))
+
+    SetNuiFocus(hasFocus, hasCursor)
+    SetNuiFocusKeepInput(false) -- Typically you want input to go to the game or UI, not both. Set to true if specific cases need it.
+
+    -- It's good practice to send a callback response if the NUI script expects one,
+    -- even if it's just a simple acknowledgment.
+    cb({ success = true, message = "NUI focus updated" })
 end)
 
 RegisterNetEvent("cnr:roleSelected")

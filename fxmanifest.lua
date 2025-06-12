@@ -41,3 +41,6 @@ files {
 -- Declare resource dependencies.
 dependencies {
 }
+
+export 'UpdateFullInventory'
+export 'EquipInventoryWeapons'
