@@ -1,82 +1,120 @@
 -- inventory_client.lua
 -- Handles client-side custom inventory logic and NUI interaction.
 
+local clientConfigItems = nil -- Will store Config.Items from server
+
+-- Function to get the items, accessible by other parts of this script
+function GetClientConfigItems()
+    return clientConfigItems
+end
+
+-- Export for other client scripts if necessary
+-- exports('GetClientConfigItems', GetClientConfigItems)
+
 -- Helper function
 function Log(message, level)
     level = level or "info"
-    -- Basic print logging for client, can be expanded
     print("[CNR_INV_CLIENT] [" .. string.upper(level) .. "] " .. message)
 end
 
 RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to receive this event from server
-
-local localPlayerInventory = {}
+local localPlayerInventory = {} -- This will store the RECONSTRUCTED rich inventory
 
 RegisterNetEvent('cnr:inventoryUpdated')
-AddEventHandler('cnr:inventoryUpdated', function(updatedInventory)
-    localPlayerInventory = updatedInventory or {}
-    -- If NUI store is open and on 'sell' tab, refresh it
-    SendNUIMessage({
-        action = 'refreshSellListIfNeeded', -- NUI needs to implement this
-        inventory = localPlayerInventory
-    })
-    Log("Client inventory updated.")
+AddEventHandler('cnr:inventoryUpdated', function(updatedMinimalInventory)
+    Log("Received cnr:inventoryUpdated. This event might need review if cnr:syncInventory is primary.", "warn")
+    UpdateFullInventory(updatedMinimalInventory)
 end)
 
-function RequestInventoryForNUI(callback)
-    local promise = {}
-    local activeHandler = nil -- Declare activeHandler
-    local handlerExecuted = false -- New flag
+RegisterNetEvent('cnr:receiveConfigItems')
+AddEventHandler('cnr:receiveConfigItems', function(receivedConfigItems)
+    clientConfigItems = receivedConfigItems
+    Log("Received Config.Items from server. Item count: " .. tablelength(clientConfigItems or {}), "info")
 
-    -- Define the actual handler function
-    local function originalHandleReceiveMyInventory(inventoryData)
-        if handlerExecuted then return end -- Prevent re-entry
-        handlerExecuted = true -- Mark as executed
+    SendNUIMessage({
+        action = 'storeFullItemConfig',
+        itemConfig = clientConfigItems
+    })
+    Log("Sent Config.Items to NUI via SendNUIMessage.", "info")
 
-        -- if activeHandler then -- Check if handler is still active -- No longer needed to check activeHandler for removal
-        activeHandler = nil -- Mark as inactive/cleaned up by clearing our reference
-        -- end
-        localPlayerInventory = inventoryData or {}
-        if callback then
-            callback(localPlayerInventory)
+    -- Check if localPlayerInventory currently holds minimal data (e.g. from an early sync before config arrived)
+    -- A simple heuristic: if an item exists and its 'name' field is the same as its 'itemId', it's likely minimal.
+    if localPlayerInventory and next(localPlayerInventory) then
+        local firstItemId = next(localPlayerInventory)
+        if localPlayerInventory[firstItemId] and localPlayerInventory[firstItemId].name == firstItemId then
+             Log("Config.Items received after minimal inventory was stored. Attempting full reconstruction.", "info")
+             UpdateFullInventory(localPlayerInventory) -- Re-process with the now available config
         end
-        promise.resolved = true
+    end
+end)
+
+function UpdateFullInventory(minimalInventoryData)
+    Log("UpdateFullInventory received data. Attempting reconstruction...", "info")
+    local reconstructedInventory = {}
+    local configItems = GetClientConfigItems()
+
+    if not configItems then
+        Log("UpdateFullInventory: clientConfigItems not yet available. Storing minimal inventory. EquipInventoryWeapons may not work fully.", "error")
+        localPlayerInventory = minimalInventoryData or {}
+        EquipInventoryWeapons()
+        return
     end
 
-    activeHandler = originalHandleReceiveMyInventory -- Assign the function to activeHandler
+    if minimalInventoryData and type(minimalInventoryData) == 'table' then
+        for itemId, minItemData in pairs(minimalInventoryData) do
+            if minItemData and minItemData.count and minItemData.count > 0 then
+                local itemDetails = nil
+                -- Find the item in the local Config.Items (assuming configItems is an array as per typical Config.Items structure)
+                for _, cfgItem in ipairs(configItems) do
+                    if cfgItem.itemId == itemId then
+                        itemDetails = cfgItem
+                        break
+                    end
+                end
 
-    AddEventHandler('cnr:receiveMyInventory', activeHandler) -- Register with the activeHandler reference
-
-    TriggerServerEvent('cnr:requestMyInventory')
-    Log("Requested inventory from server for NUI.")
-
-    SetTimeout(5000, function()
-        if not promise.resolved then
-            if activeHandler and not handlerExecuted then -- Check flag here too
-                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
-                activeHandler = nil -- Mark as cleaned up
-            end
-            if callback and not handlerExecuted then -- Only call error callback if main logic didn't run
-                -- Ensure callback is still valid if it was tied to the handler context (though less likely here)
-                callback({ error = "Failed to get inventory: Timeout" })
-            end
-            if not handlerExecuted then -- Only log timeout if main logic didn't run
-                Log("RequestInventoryForNUI timed out.", "warn")
-            end
-        else
-            -- If promise was resolved (meaning originalHandleReceiveMyInventory ran and set handlerExecuted to true)
-            -- but timeout still runs, activeHandler might have already been set to nil.
-            -- The original logic here for cleanup if activeHandler is still set is probably fine,
-            -- as handlerExecuted would be true.
-            if activeHandler then
-                 -- This case should ideally not be hit if promise.resolved = true means originalHandleReceiveMyInventory ran.
-                 -- However, to be absolutely safe and prevent future issues if logic changes:
-                Log("RequestInventoryForNUI: Promise resolved but timeout ran with activeHandler still set. Cleaning up.", "warn")
-                -- RemoveEventHandler('cnr:receiveMyInventory', activeHandler) -- Removed
-                activeHandler = nil
+                if itemDetails then
+                    reconstructedInventory[itemId] = {
+                        itemId = itemId,
+                        name = itemDetails.name,
+                        category = itemDetails.category,
+                        count = minItemData.count,
+                        basePrice = itemDetails.basePrice -- Store other useful info if needed
+                    }
+                else
+                    Log(string.format("UpdateFullInventory: ItemId '%s' not found in local clientConfigItems. Storing with minimal details.", itemId), "warn")
+                    reconstructedInventory[itemId] = { -- Fallback if item not in config (should be rare)
+                        itemId = itemId,
+                        name = itemId,
+                        category = "Unknown",
+                        count = minItemData.count
+                    }
+                end
             end
         end
-    end)
+    end
+
+    localPlayerInventory = reconstructedInventory
+    Log("Full inventory reconstructed. Item count: " .. tablelength(localPlayerInventory), "info")
+
+    -- NUI is now primarily responsible for using its own fullItemConfig for the Sell tab.
+    -- This message just signals that an update happened.
+    SendNUIMessage({
+        action = 'refreshSellListIfNeeded'
+    })
+
+    EquipInventoryWeapons()
+    Log("UpdateFullInventory: Called EquipInventoryWeapons() after inventory reconstruction.", "info")
+end
+
+
+function RequestInventoryForNUI(callback)
+    -- This function is now simplified. It returns the current client-side reconstructed inventory.
+    -- The NUI should rely on `refreshSellListIfNeeded` (triggered by `cnr:syncInventory -> UpdateFullInventory`)
+    -- for knowing when to re-fetch/re-render its sell list by calling the NUI callback `getPlayerInventory`.
+    if callback then
+        callback(GetLocalInventory())
+    end
+    Log("RequestInventoryForNUI: Provided current localPlayerInventory to callback.", "info")
 end
 
 function GetLocalInventory()
@@ -85,31 +123,6 @@ end
 
 Log("Custom Inventory System (client-side) loaded.")
 
--- Global diagnostic handler for cnr:receiveMyInventory
--- AddEventHandler('cnr:receiveMyInventory', function(diag_data)
---     print("[CNR_DIAGNOSTIC_PRINT] GLOBAL_HANDLER for cnr:receiveMyInventory received data: " .. (json.encode and json.encode(diag_data) or "RAW_DATA_RECEIVED_BY_GLOBAL_HANDLER"))
---     -- Optionally, try to send a simple NUI message to see if NUI is responsive from this context
---     -- SendNUIMessage({ action = 'globalHandlerDebug', payload = diag_data })
--- end)
-
-function UpdateFullInventory(fullInventoryData)
-    localPlayerInventory = fullInventoryData or {}
-    Log("Full inventory synchronized by UpdateFullInventory. Item count: " .. tablelength(localPlayerInventory), "info") -- Added item count for better logging
-
-    -- If NUI store is open and on 'sell' tab, refresh it, similar to 'cnr:inventoryUpdated'
-    SendNUIMessage({
-        action = 'refreshSellListIfNeeded', -- NUI needs to implement this
-        inventory = localPlayerInventory
-    })
-
-    -- Call EquipInventoryWeapons to reflect changes in the player's loadout
-    EquipInventoryWeapons()
-    Log("UpdateFullInventory: Called EquipInventoryWeapons() after inventory sync.", "info")
-end
-
--- Helper function for tablelength if not already present (it might be global from client.lua)
--- Add this if it's not available globally or defined within this file.
--- For this subtask, assume it might be needed locally.
 local function tablelength(T)
   if type(T) ~= "table" then return 0 end
   local count = 0
@@ -125,35 +138,46 @@ function EquipInventoryWeapons()
         return
     end
 
-    Log("EquipInventoryWeapons: Starting to equip weapons from inventory. Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
+    Log("EquipInventoryWeapons: Starting. Inv count: " .. tablelength(localPlayerInventory), "info")
 
     if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
-        Log("EquipInventoryWeapons: Player inventory is empty or nil. Nothing to equip.", "info")
+        Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
     end
 
     local processedItemCount = 0
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
-
-        if type(itemData) == "table" then
-            if itemData.category and itemData.count then
-                if itemData.category == "Weapons" and itemData.count > 0 then
-                    local weaponHash = GetHashKey(itemId)
-                    if weaponHash ~= 0 and weaponHash ~= -1 then
-                        local defaultAmmo = 30
-                        GiveWeaponToPed(playerPed, weaponHash, defaultAmmo, false, false)
-                        Log(string.format("  SUCCESS: Equipping owned weapon: %s (ID: %s, Hash: %s) with %d ammo.", itemData.name or itemId, itemId, weaponHash, defaultAmmo), "info")
-                    else
-                        Log(string.format("  WARNING: Invalid weapon hash for itemId: %s (Name: %s). Cannot equip.", itemId, itemData.name or "N/A"), "warn")
+        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
+            if itemData.category == "Weapons" and itemData.count > 0 then
+                local weaponHash = GetHashKey(itemId)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    -- Determine ammo: use itemData.ammo if present (e.g. from a previous save), else default
+                    local ammoCount = itemData.ammo
+                    if ammoCount == nil then -- If ammo not part of itemData, use default from Config or a fallback
+                        if Config and Config.DefaultWeaponAmmo and Config.DefaultWeaponAmmo[itemId] then
+                           ammoCount = Config.DefaultWeaponAmmo[itemId]
+                        else
+                           ammoCount = 30 -- Fallback default ammo
+                        end
                     end
+                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true) -- equipNow = true
+                    Log(string.format("  Equipped: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name, itemId, weaponHash, ammoCount), "info")
+                else
+                    Log(string.format("  WARNING: Invalid hash for itemId: %s (Name: %s).", itemId, itemData.name), "warn")
                 end
-            else
-                Log(string.format("  WARNING: Item ID: %s (Name: %s) is missing category or count field. Category: %s, Count: %s.", itemId, itemData.name or "N/A", tostring(itemData.category), tostring(itemData.count)), "warn")
             end
         else
-            Log(string.format("  WARNING: Item ID: %s has malformed itemData (not a table). Type: %s.", itemId, type(itemData)), "warn")
+            Log(string.format("  WARNING: Item ID: %s missing data (Name: %s, Category: %s, Count: %s).", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "warn")
         end
     end
-    Log("EquipInventoryWeapons: Finished processing all " .. processedItemCount .. " inventory items for weapons.", "info")
+    Log("EquipInventoryWeapons: Finished. Processed " .. processedItemCount .. " items.", "info")
 end
+
+-- Request Config.Items when this script loads/player initializes
+Citizen.SetTimeout(1000, function()
+    if not clientConfigItems then
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Requested Config.Items from server.", "info")
+    end
+end)

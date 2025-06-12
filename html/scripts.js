@@ -2,28 +2,18 @@
 // Handles NUI interactions for Cops and Robbers game mode.
 
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
+let fullItemConfig = null; // Will store Config.Items
 
 // =================================================================---
 // NUI Message Handling & Security
 // =================================================================---
-
-// Allowed origins: include your resource's NUI origin and any other trusted domains.
-// Note: Using a dynamic value for allowedOrigins based on window.cnrResourceName here can be tricky
-// because window.cnrResourceName might not be set when this script is initially parsed.
-// For highest security, the origin check should be robust. If needed, re-evaluate this.
-// For now, we'll assume client.lua sends the resource name early.
 const allowedOrigins = [
-    // This will be checked against event.origin. Since event.origin will be literal like 'nui://actual_resource_name',
-    // we might need a more dynamic check or ensure cnrResourceName is set before any critical message processing.
-    // For simplicity in this step, we'll rely on the subsequent data.resourceName to set window.cnrResourceName.
-    `nui://cops-and-robbers`, // Fallback, actual check might need to be more dynamic or use a wildcard if possible (less secure)
-    "http://localhost:3000",
-    "nui://game"
+    `nui://cops-and-robbers`,
+    "http://localhost:3000", // For local development if applicable
+    "nui://game" // General game NUI origin
 ];
 
-
 window.addEventListener('message', function(event) {
-    // Dynamic origin check using the potentially updated cnrResourceName
     const currentResourceOrigin = `nui://${window.cnrResourceName || 'cops-and-robbers'}`;
     if (!allowedOrigins.includes(event.origin) && event.origin !== currentResourceOrigin) {
         console.warn(`Security: Received message from untrusted origin: ${event.origin}. Expected: ${currentResourceOrigin} or predefined. Ignoring.`);
@@ -36,8 +26,6 @@ window.addEventListener('message', function(event) {
         case 'showRoleSelection':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
-                console.log("NUI: Resource name set via showRoleSelection to: " + window.cnrResourceName);
-                // Update allowedOrigins if it needs to be dynamic and if this is the first time setting it
                 if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
                     allowedOrigins.push(`nui://${window.cnrResourceName}`);
                 }
@@ -47,30 +35,15 @@ window.addEventListener('message', function(event) {
         case 'updateMoney':
             updateCashDisplay(data.cash);
             break;
-        case 'showStoreMenu': // Assuming store menu might also be an initial display point for some users
-            if (data.resourceName) { // If Lua sends resourceName with this action
-                window.cnrResourceName = data.resourceName;
-                console.log("NUI: Resource name set via showStoreMenu to: " + window.cnrResourceName);
-                if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
-                }
-            }
-            openStoreMenu(data.storeName, data.items);
-            break;
-        case 'openStore': // New case for the specific 'openStore' action
+        case 'showStoreMenu':
+        case 'openStore':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
-                console.log("NUI: Resource name set via openStore to: " + window.cnrResourceName);
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
                 if (!allowedOrigins.includes(currentResourceOriginDynamic)) {
                     allowedOrigins.push(currentResourceOriginDynamic);
-                    // For debugging, you might want to log the updated allowedOrigins
-                    // console.log("NUI: Updated allowedOrigins: ", allowedOrigins);
                 }
             }
-            // The existing openStoreMenu function is suitable
-            // It expects (storeName, storeItems)
-            // event.data (which is 'data' here) should contain 'storeName' and 'items'
             openStoreMenu(data.storeName, data.items);
             break;
         case 'closeStore':
@@ -83,116 +56,71 @@ window.addEventListener('message', function(event) {
             updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
             break;
         case 'refreshSellListIfNeeded':
+            // console.log("[CNR_NUI] Received refreshSellListIfNeeded. Calling loadSellItems().");
             const storeMenu = document.getElementById('store-menu');
             if (storeMenu && storeMenu.style.display === 'block' && window.currentTab === 'sell') {
-                console.log("Refreshing sell list due to inventory update:", data.inventory);
-                const sellableItems = [];
-                for (const itemId in data.inventory) {
-                    const item = data.inventory[itemId];
-                    sellableItems.push({
-                        itemId: itemId,
-                        name: item.name,
-                        count: item.count,
-                        category: item.category,
-                        sellPrice: item.sellPrice
-                    });
-                }
-                const sellListContainer = document.getElementById('sell-section');
-                if (sellListContainer) {
-                    sellListContainer.innerHTML = '';
-                    if (sellableItems.length === 0) {
-                        sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
-                    } else {
-                        const fragment = document.createDocumentFragment();
-                        sellableItems.forEach(invItem => {
-                            fragment.appendChild(createItemElement(invItem, 'sell'));
-                        });
-                        sellListContainer.appendChild(fragment);
-                    }
-                }
+                loadSellItems();
             }
             break;
         case 'showAdminPanel':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
-                console.log("NUI: Resource name set via showAdminPanel to: " + window.cnrResourceName);
                  if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
                     allowedOrigins.push(`nui://${window.cnrResourceName}`);
                 }
             }
             showAdminPanel(data.players);
             break;
-        case 'showBountyBoard': // Added case for bounty board
+        case 'showBountyBoard':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
-                console.log("NUI: Resource name set via showBountyBoard to: " + window.cnrResourceName);
                 if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
                     allowedOrigins.push(`nui://${window.cnrResourceName}`);
                 }
             }
-            // Assuming a function showBountyBoardUI(bounties) exists or will be created
-            if (typeof showBountyBoardUI === 'function') {
-                showBountyBoardUI(data.bounties);
-            } else {
-                console.warn("showBountyBoardUI function not implemented in JS yet.");
-            }
+            if (typeof showBountyBoardUI === 'function') showBountyBoardUI(data.bounties);
             break;
-        case 'hideBountyBoard': // Added case for bounty board
-             if (typeof hideBountyBoardUI === 'function') {
-                hideBountyBoardUI();
-            } else {
-                console.warn("hideBountyBoardUI function not implemented in JS yet.");
-            }
+        case 'hideBountyBoard':
+             if (typeof hideBountyBoardUI === 'function') hideBountyBoardUI();
             break;
-        case 'updateBountyList': // Added case for bounty board
-             if (typeof updateBountyListUI === 'function') {
-                updateBountyListUI(data.bounties);
-            } else {
-                console.warn("updateBountyListUI function not implemented in JS yet.");
-            }
+        case 'updateBountyList':
+             if (typeof updateBountyListUI === 'function') updateBountyListUI(data.bounties);
             break;
         case 'hideRoleSelection':
-            // Hide the role selection UI
             const roleMenu = document.getElementById('roleSelectionMenu');
             if (roleMenu) roleMenu.style.display = 'none';
-            // Optionally clear NUI focus here if needed
             break;
         case 'roleSelectionFailed':
-            // Show error message to user when role selection fails
             showToast(data.error || 'Failed to select role. Please try again.', 'error', 4000);
-            showRoleSelection(); // Optionally re-show the role selection UI
+            showRoleSelection();
+            break;
+        case 'storeFullItemConfig':
+            if (data.itemConfig) {
+                fullItemConfig = data.itemConfig;
+                console.log('[CNR_NUI] Stored full item config. Item count:', fullItemConfig ? Object.keys(fullItemConfig).length : 0);
+            }
             break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
 });
 
-// =================================================================---
-// NUI Focus Helper Function
-// ====================================================================
+// NUI Focus Helper Function (remains unchanged)
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
     try {
-        console.log('[CNR_NUI] Inside fetchSetNuiFocus. window.cnrResourceName:', window.cnrResourceName);
-        const resName = window.cnrResourceName || 'cops-and-robbers'; // Ensure resName is correctly defined based on window.cnrResourceName
-
-        // Ensure this log uses backticks and resName is defined in this scope
-        console.log(`[CNR_NUI] Attempting to fetchSetNuiFocus. Resource: ${resName}, URL: https://${resName}/setNuiFocus`);
-
-        await fetch(`https://${resName}/setNuiFocus`, { // Ensure this is a template literal with backticks
+        const resName = window.cnrResourceName || 'cops-and-robbers';
+        await fetch(`https://${resName}/setNuiFocus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({ hasFocus: hasFocus, hasCursor: hasCursor })
         });
     } catch (error) {
-        // Update the error log for clarity and ensure it also uses resName if needed for context
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers'; // Recapture for error message just in case
+        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
         console.error(`Error calling setNuiFocus NUI callback (URL attempted: https://${resNameForError}/setNuiFocus):`, error);
     }
 }
 
-// ====================================================================
-// XP Level Display Functions
-// ====================================================================
+// XP, Toast, Cash Display, UI Visibility functions (remain unchanged)
 function updateXPDisplayElements(xp, level, nextLvlXp) {
     const levelTextElement = document.getElementById('level-text');
     const xpTextElement = document.getElementById('xp-text');
@@ -208,48 +136,26 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
             percentage = (xp / nextLvlXp) * 100;
         } else if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
             percentage = 100;
-            // Potentially call showLevelUpConfetti here if level up is detected
-            // For now, this function is just being defined.
-            // Actual call would be triggered by game logic sending a specific NUI event.
         }
         xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
     }
 }
 
-function showLevelUpConfetti() {
-    // Use a simple confetti library or custom canvas animation here
-    // For demo: alert('Level Up! 🎉');
-    // Integrate with XP/level up event
-    alert('Level Up! 🎉'); // Placeholder as per issue description
-    console.log('Level Up! 🎉 (Confetti placeholder)');
-}
-
-function showToast(message, type = 'info', duration = 3000) { // Added type parameter
+function showToast(message, type = 'info', duration = 3000) {
     const toast = document.getElementById('toast');
     if (!toast) return;
     toast.textContent = message;
-    toast.className = 'toast-notification'; // Reset classes, keeps base class
-    if (type === 'success') {
-        toast.classList.add('success');
-    } else if (type === 'error') {
-        toast.classList.add('error');
-    }
-    // else 'info' or default styling (from .toast-notification) will apply
+    toast.className = 'toast-notification';
+    if (type === 'success') toast.classList.add('success');
+    else if (type === 'error') toast.classList.add('error');
 
     toast.style.display = 'block';
-    // Apply animation class using keyframes
-    // The (duration - 500) ensures the fadeOut starts 0.5s before the total duration ends.
-    // Adjust 500ms (0.5s) if your fadeOut animation duration is different.
-    const fadeOutDelay = duration - 500; // Assuming 0.5s fadeOut
-    if (fadeOutDelay < 0) { // Ensure delay isn't negative if duration is too short
-        toast.style.animation = `fadeInNotification 0.5s ease-out forwards`;
-    } else {
-        toast.style.animation = `fadeInNotification 0.5s ease-out, fadeOutNotification 0.5s ease-in ${fadeOutDelay}ms forwards`;
-    }
+    const fadeOutDelay = duration - 500;
+    toast.style.animation = `fadeInNotification 0.5s ease-out, fadeOutNotification 0.5s ease-in ${fadeOutDelay > 0 ? fadeOutDelay : 0}ms forwards`;
 
     setTimeout(() => {
         toast.style.display = 'none';
-        toast.style.animation = ''; // Clear animation styles
+        toast.style.animation = '';
     }, duration);
 }
 
@@ -258,83 +164,50 @@ function updateCashDisplay(currentCash) {
     if (cashDisplayElement) {
         cashDisplayElement.textContent = '$' + (currentCash !== undefined ? currentCash.toLocaleString() : '0');
         cashDisplayElement.style.display = 'block';
-    } else {
-        console.error("Cash display element 'cash-display' not found in HTML.");
     }
 }
-
-// ====================================================================
-// UI Visibility Functions (Role Selection & Store)
-// ====================================================================
 function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.classList.remove('hidden');
-        roleSelectionUI.style.display = ''; // Revert to CSS default display (e.g. block or flex)
-        document.body.style.backgroundColor = ''; // Reset body background
+        roleSelectionUI.style.display = '';
+        document.body.style.backgroundColor = '';
         fetchSetNuiFocus(true, true);
-    } else {
-        console.error("Role selection UI element not found.");
     }
 }
-
 function hideRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         roleSelectionUI.classList.add('hidden');
         roleSelectionUI.style.display = 'none'; 
-        document.body.style.backgroundColor = 'transparent'; // Diagnostic line
-        // Ensure no other UI manipulation happens before fetchSetNuiFocus
         fetchSetNuiFocus(false, false); 
     }
 }
-
 function openStoreMenu(storeName, storeItems) {
-    // console.log('[CNR_NUI_STORE] openStoreMenu called. Name:', storeName);
-    // console.log('[CNR_NUI_STORE] Received items (sample):', JSON.stringify((storeItems || []).slice(0, 2), null, 2));
-    // console.log('[CNR_NUI_STORE] Total items received:', (storeItems || []).length);
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
-    // console.log('[CNR_NUI_STORE] storeMenuUI element:', storeMenuUI);
-    // console.log('[CNR_NUI_STORE] storeTitleEl element:', storeTitleEl);
-
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
         window.currentCategory = null;
-        window.currentTab = 'buy'; // Default to buy tab
-        loadCategories(); // This will also trigger loadItems if categories are present
-        loadItems(); // Initial load for "All" or first category
-
-        // console.log('[CNR_NUI_STORE] Setting storeMenuUI.style.display to block and removing "hidden" class.');
-        storeMenuUI.style.display = 'block'; // Ensure it's block if not handled by CSS removing .hidden
+        window.currentTab = 'buy';
+        loadCategories();
+        loadItems();
+        storeMenuUI.style.display = 'block';
         storeMenuUI.classList.remove('hidden');
-        // console.log('[CNR_NUI_STORE] Removed "hidden" class. classList:', storeMenuUI.classList.toString()); // .toString() for better log
-        // console.log('[CNR_NUI_STORE] storeMenuUI.style.display after set:', storeMenuUI.style.display);
-        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed display style:', window.getComputedStyle(storeMenuUI).display); }
-        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed visibility style:', window.getComputedStyle(storeMenuUI).visibility); }
-        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] Computed opacity style:', window.getComputedStyle(storeMenuUI).opacity); }
-        // if (storeMenuUI) { console.log('[CNR_NUI_STORE] ClientRect:', JSON.stringify(storeMenuUI.getBoundingClientRect())); }
-
         fetchSetNuiFocus(true, true);
-    } else {
-        console.error("Store menu UI or title element not found.");
     }
 }
-
 function closeStoreMenu() {
     const storeMenuUI = document.getElementById('store-menu');
     if (storeMenuUI) {
         storeMenuUI.classList.add('hidden');
-        storeMenuUI.style.display = ''; // Let CSS handle display via .hidden class
-        // console.log('[CNR_NUI_STORE] closeStoreMenu: Added "hidden" class, reset display style. classList:', storeMenuUI.classList.toString());
+        storeMenuUI.style.display = '';
         fetchSetNuiFocus(false, false);
     }
 }
 
-// ====================================================================
-// Store: Tab and Category Management & Item Creation/Interaction
-// ====================================================================
+// Store Tab and Category Management (remains unchanged)
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -347,30 +220,21 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         else loadItems();
     });
 });
-
 function loadCategories() {
-    // console.log('[CNR_NUI_STORE] loadCategories called.');
     const categoryList = document.getElementById('category-list');
-    if (!categoryList) {
-        console.error('[CNR_NUI_STORE] Category list element not found.');
-        return;
-    }
+    if (!categoryList) return;
     const categories = [...new Set((window.items || []).map(item => item.category))];
-    // console.log('[CNR_NUI_STORE] Categories generated:', categories);
-    categoryList.innerHTML = ''; // Clear previous categories
-
-    // Add "All" category button
+    categoryList.innerHTML = '';
     const allBtn = document.createElement('button');
-    allBtn.className = 'category-btn active'; // Active by default
+    allBtn.className = 'category-btn active';
     allBtn.textContent = 'All';
     allBtn.onclick = () => {
-        window.currentCategory = null; // null signifies "All"
+        window.currentCategory = null;
         document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
         allBtn.classList.add('active');
         if (window.currentTab === 'buy') loadItems();
     };
     categoryList.appendChild(allBtn);
-
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -383,80 +247,95 @@ function loadCategories() {
         };
         categoryList.appendChild(btn);
     });
-    // console.log('[CNR_NUI_STORE] loadCategories finished.');
 }
-
 function loadItems() {
-    // console.log('[CNR_NUI_STORE] loadItems called.');
     const itemList = document.getElementById('item-list');
-    if (!itemList) {
-        console.error('[CNR_NUI_STORE] Item list element not found.'); // Corrected log message
-        return;
-    }
+    if (!itemList) return;
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
-
     if (filteredItems.length === 0) {
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
-        // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
     }
     const fragment = document.createDocumentFragment();
     filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
     itemList.appendChild(fragment);
-    // console.log('[CNR_NUI_STORE] loadItems finished.');
 }
 
+// MODIFIED loadSellItems function
 function loadSellItems() {
     const sellListContainer = document.getElementById('sell-section');
     if (!sellListContainer) return;
     sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>';
 
     const resName = window.cnrResourceName || 'cops-and-robbers';
-    const url = `https://${resName}/getPlayerInventory`; // Use backticks for template literal
-    console.log(`[CNR_NUI_FETCH] loadSellItems: Attempting to fetch inventory. resName: ${resName}, URL: ${url}`);
+    const url = `https://${resName}/getPlayerInventory`;
 
     fetch(url, {
-        method: 'POST', // Should match what RegisterNUICallback expects, often POST even for GET-like actions
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}) // Empty body if not needed by callback
+        body: JSON.stringify({})
     })
     .then(resp => {
-        console.log(`[CNR_NUI_FETCH] loadSellItems: Received response. Status: ${resp.status}, StatusText: ${resp.statusText}`);
         if (!resp.ok) {
-            // Try to parse as JSON for an error message, otherwise use statusText
-            return resp.json().then(err => {
-                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with error:', err);
-                return Promise.reject(err.error || err.message || `Failed to load inventory (HTTP ${resp.status})`);
-            }).catch(() => { // Catch if resp.json() itself fails (e.g. not a JSON response)
-                console.error('[CNR_NUI_FETCH] loadSellItems: Server responded with non-JSON error. Status:', resp.status, resp.statusText);
-                return Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status} - ${resp.statusText})` });
-            });
+            return resp.json().then(err => Promise.reject(err.error || err.message || `Failed to load inventory (HTTP ${resp.status})`))
+                       .catch(() => Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status} - ${resp.statusText})` }));
         }
         return resp.json();
     })
-    .then(nuiInventory => {
+    .then(response => {
+        const minimalInventory = response.inventory; // This is now [{itemId, count}, ...]
         sellListContainer.innerHTML = '';
-        const sellableItemsArray = Object.values(nuiInventory);
-        if (!sellableItemsArray || sellableItemsArray.length === 0) {
+
+        if (!fullItemConfig) {
+            console.error('[CNR_NUI_SELL] fullItemConfig not available. Cannot reconstruct sell list details.');
+            sellListContainer.innerHTML = '<p style="text-align: center; color: red;">Error: Item configuration not loaded.</p>';
+            return;
+        }
+        if (!minimalInventory || minimalInventory.length === 0) {
             sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
             return;
         }
+
         const fragment = document.createDocumentFragment();
-        sellableItemsArray.forEach(inventoryItem => fragment.appendChild(createItemElement(inventoryItem, 'sell')));
+        minimalInventory.forEach(minItem => {
+            let itemDetails = null;
+            for (const cfgItem of fullItemConfig) {
+                if (cfgItem.itemId === minItem.itemId) {
+                    itemDetails = cfgItem;
+                    break;
+                }
+            }
+
+            if (itemDetails) {
+                let sellPrice = Math.floor(itemDetails.basePrice * 0.5);
+                if (window.cnrDynamicEconomySettings && window.cnrDynamicEconomySettings.enabled && typeof window.cnrDynamicEconomySettings.sellPriceFactor === 'number') {
+                     sellPrice = Math.floor(itemDetails.basePrice * window.cnrDynamicEconomySettings.sellPriceFactor);
+                }
+                const richItem = {
+                    itemId: minItem.itemId,
+                    name: itemDetails.name,
+                    count: minItem.count,
+                    category: itemDetails.category,
+                    sellPrice: sellPrice
+                };
+                fragment.appendChild(createItemElement(richItem, 'sell'));
+            } else {
+                console.warn(`[CNR_NUI_SELL] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Skipping.`);
+            }
+        });
         sellListContainer.appendChild(fragment);
-        console.log('[CNR_NUI_FETCH] loadSellItems: Successfully fetched and parsed inventory for NUI.', nuiInventory);
     })
     .catch(error => {
-        console.error(`[CNR_NUI_FETCH] Error fetching player inventory (URL: ${url}):`, error); // Log the full error object
-        if (sellListContainer) { // Ensure sellListContainer is still defined (it should be)
-            sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error. Check F8 console.'}</p>`;
+        console.error(`[CNR_NUI_FETCH] Error fetching/reconstructing player inventory for Sell tab:`, error);
+        if (sellListContainer) {
+            sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error.'}</p>`;
         }
     });
 }
 
+// createItemElement remains unchanged
 function createItemElement(item, type = 'buy') {
-    // console.log('[CNR_NUI_STORE] createItemElement called for item:', JSON.stringify(item), 'Type:', type);
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
     itemDiv.dataset.itemId = item.itemId;
@@ -483,40 +362,49 @@ function createItemElement(item, type = 'buy') {
     itemDiv.appendChild(quantityInput);
     const actionBtn = document.createElement('button');
     actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
-    // Add icon to button text
     actionBtn.innerHTML = `<span class="icon">${type === 'buy' ? '🛒' : '💰'}</span> ${type === 'buy' ? 'Buy' : 'Sell'}`;
     actionBtn.dataset.action = type;
     itemDiv.appendChild(actionBtn);
-    // console.log('[CNR_NUI_STORE] Created element for item:', item.itemId);
     return itemDiv;
 }
 
+// MODIFIED handleItemAction function
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
     const resName = window.cnrResourceName || 'cops-and-robbers';
-    const url = `https://${resName}/${endpoint}`; // Correctly use backticks for template literal
-    console.log(`[CNR_NUI_FETCH] handleItemAction: Attempting ${actionType}. resName: ${resName}, URL: ${url}, ItemID: ${itemId}, Quantity: ${quantity}`);
+    const url = `https://${resName}/${endpoint}`;
 
     try {
-        const resp = await fetch(url, { // Use the defined url variable
+        const rawResponse = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: itemId, quantity: quantity })
         });
-        const response = await resp.json();
-        if (!resp.ok) throw new Error(response.message || `HTTP error ${resp.status}`);
-        if (response.status === 'success') {
-            // alert(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} ${quantity} x ${response.itemName || itemId}`);
-            if (actionType === 'sell') loadSellItems();
-        } else {
-            // alert(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed: ${response.message || 'Unknown error'}`);
+
+        const jsonData = await rawResponse.json(); // jsonData is what cb({ success: ... }) sends
+
+        if (!rawResponse.ok) { // HTTP error (e.g. 500, 404)
+            throw new Error(jsonData.error || jsonData.message || `HTTP error ${rawResponse.status}`);
         }
+
+        if (jsonData.success) {
+            showToast(`Successfully ${actionType === 'buy' ? 'purchased' : 'sold'} item.`, 'success');
+            if (actionType === 'sell') {
+                loadSellItems(); // Refresh sell list immediately
+            }
+            // Server-driven refresh via 'refreshSellListIfNeeded' NUI message will handle other cases.
+        } else {
+            showToast(`${actionType === 'buy' ? 'Purchase' : 'Sell'} failed.`, 'error');
+        }
+
     } catch (error) {
-        console.error(`[CNR_NUI_FETCH] Error ${actionType}ing item (URL: ${url}):`, error); // Log the full error object
-        // alert(`Failed to ${actionType} item: ${error.message || 'Network error. Check F8 console (or NUI DevTools if open).'}`);
+        console.error(`[CNR_NUI_FETCH] Error ${actionType}ing item (URL: ${url}):`, error);
+        showToast(`Request to ${actionType} item failed: ${error.message || 'Check F8 console.'}`, 'error');
     }
 }
 
+// Event listeners and other functions (DOMContentLoaded, selectRole, Escape key, Heist Timer, Admin Panel, Bounty Board) remain unchanged from the previous version.
+// ... (assuming the rest of the file content from the last read_files output is here)
 document.addEventListener('click', function(event) {
     const target = event.target;
     const itemDiv = target.closest('.item');
@@ -529,7 +417,6 @@ document.addEventListener('click', function(event) {
         const quantity = parseInt(quantityInput.value);
         const maxQuantity = parseInt(quantityInput.max);
         if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
-            // alert(`Invalid quantity. Must be between 1 and ${maxQuantity}.`);
             console.warn(`[CNR_NUI_INPUT_VALIDATION] Invalid quantity input: ${quantity}. Max allowed: ${maxQuantity}. ItemId: ${itemId}`);
             return;
         }
@@ -537,57 +424,42 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// -------------------------------------------------------------------
-// Role Selection and Initialization
-// -------------------------------------------------------------------
 function selectRole(selectedRole) {
-    console.log('[CNR_NUI] Inside selectRole. window.cnrResourceName:', window.cnrResourceName, 'Selected Role:', selectedRole);
-    const resName = window.cnrResourceName || 'cops-and-robbers'; // Ensure resName is correctly defined
-
-    // Log the URL that will be used for the fetch call
+    const resName = window.cnrResourceName || 'cops-and-robbers';
     const fetchURL = `https://${resName}/selectRole`;
-    console.log(`[CNR_NUI] Attempting to call 'selectRole'. Resource: ${resName}, URL: ${fetchURL}`);
-
-    fetch(fetchURL, { // Ensure this is a template literal with backticks and uses the defined fetchURL
+    fetch(fetchURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: selectedRole })
     })
     .then(resp => {
-        if (!resp.ok) { // Check if response is not OK (status outside 200-299)
-            // Try to get text for more detailed error, then fall back to statusText
+        if (!resp.ok) {
             return resp.text().then(text => {
                 throw new Error(`HTTP error ${resp.status} (${resp.statusText}): ${text}`);
-            }).catch(() => { // Fallback if .text() also fails or if it's not a text response
+            }).catch(() => {
                  throw new Error(`HTTP error ${resp.status} (${resp.statusText})`);
             });
         }
         return resp.json();
     })
     .then(response => {
-        // Handler for role selection NUI callback response
         function handleRoleSelectionResponse(response) {
-          console.log("Response from selectRole NUI callback:", response);
           if (response && response.success) {
-            // Success: close UI, show success, etc.
-            hideRoleSelection(); // Use the correct function name
+            hideRoleSelection();
           } else if (response && response.error) {
             console.error("Role selection failed: " + response.error);
-            showRoleSelectionError(response.error); // Or your function to show error to user
-            // Optionally re-enable UI for another attempt
+            showToast(response.error, 'error');
           } else {
             console.error("Role selection failed: Unexpected server response", response);
-            showRoleSelectionError("Unexpected server response");
+            showToast("Unexpected server response", 'error');
           }
         }
-
         handleRoleSelectionResponse(response);
     })
     .catch(error => {
-        // Update the error log for clarity
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers'; // Recapture for error message
+        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
         console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
-        // alert(`Failed to select role. Error: ${error.message || 'See F8 console for details.'}`);
+        showToast(`Failed to select role: ${error.message || 'See F8 console.'}`, 'error');
     });
 }
 
@@ -614,10 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resName = window.cnrResourceName || 'cops-and-robbers';
                 if (target.classList.contains('admin-kick-btn')) {
                     if (confirm(`Kick player ID ${targetId}?`)) {
-                        fetch(`https://$\{resName}/adminKickPlayer`, {
+                        fetch(`https://${resName}/adminKickPlayer`, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
-                        }).then(resp => resp.json()).then(res => console.log('[CNR_NUI_ADMIN] Kick response:', res.message || (res.status === 'ok' ? 'Kicked.' : 'Failed.')));
+                        }).then(resp => resp.json()).then(res => console.log('[CNR_NUI_ADMIN] Kick response:', res.message || (res.success ? 'Kicked.' : 'Failed.')));
                     }
                 } else if (target.classList.contains('admin-ban-btn')) {
                     currentAdminTargetPlayerId = targetId;
@@ -625,11 +497,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('admin-ban-reason')?.focus();
                 } else if (target.classList.contains('admin-teleport-btn')) {
                     if (confirm(`Teleport to player ID ${targetId}?`)) {
-                         fetch(`https://$\{resName}/teleportToPlayerAdminUI`, {
+                         fetch(`https://${resName}/teleportToPlayerAdminUI`, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ targetId: targetId })
                         }).then(resp => resp.json()).then(res => {
-                            console.log('[CNR_NUI_ADMIN] Teleport response:', res.message || (res.status === 'ok' ? 'Teleporting.' : 'Failed.'));
+                            console.log('[CNR_NUI_ADMIN] Teleport response:', res.message || (res.success ? 'Teleporting.' : 'Failed.'));
                             hideAdminPanel();
                         });
                     }
@@ -643,11 +515,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const reasonInput = document.getElementById('admin-ban-reason');
             const reason = reasonInput ? reasonInput.value.trim() : "Banned by Admin via UI.";
             const resName = window.cnrResourceName || 'cops-and-robbers';
-            fetch(`https://$\{resName}/adminBanPlayer`, {
+            fetch(`https://${resName}/adminBanPlayer`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
             }).then(resp => resp.json()).then(res => {
-                console.log('[CNR_NUI_ADMIN] Ban response:', res.message || (res.status === 'ok' ? 'Banned.' : 'Failed.'));
+                console.log('[CNR_NUI_ADMIN] Ban response:', res.message || (res.success ? 'Banned.' : 'Failed.'));
                 hideAdminPanel();
             });
         }
@@ -661,66 +533,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('admin-close-btn')?.addEventListener('click', hideAdminPanel);
-
-    // document.querySelectorAll('.tab-btn').forEach(btn => {
-    //     btn.addEventListener('click', () => {
-    //         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    //         btn.classList.add('active');
-    //         window.currentTab = btn.dataset.tab;
-    //         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    //         const activeTabContent = document.getElementById(`${window.currentTab}-section`);
-    //         if (activeTabContent) activeTabContent.classList.add('active');
-    //         if (window.currentTab === 'sell') loadSellItems();
-    //         else loadItems();
-    //     });
-    // });
-
-    // Add event listener for the main store close button
     const storeCloseButton = document.getElementById('close-btn');
-    if (storeCloseButton) {
-        storeCloseButton.addEventListener('click', closeStoreMenu);
-    }
-
-    // Add event listener for the bounty board close button if it exists
-    const bountyCloseButton = document.getElementById('bounty-close-btn'); // Assuming this ID for bounty board close
-    if (bountyCloseButton) {
-        bountyCloseButton.addEventListener('click', hideBountyBoardUI);
-    }
+    if (storeCloseButton) storeCloseButton.addEventListener('click', closeStoreMenu);
+    const bountyCloseButton = document.getElementById('bounty-close-btn');
+    if (bountyCloseButton) bountyCloseButton.addEventListener('click', hideBountyBoardUI);
 });
 
-// Global Escape key handler
 window.addEventListener('keydown', function(event) {
-    console.log('[CNR_NUI_ESCAPE] Keydown event:', event.key);
-    const storeMenu = document.getElementById('store-menu');
-    const adminPanel = document.getElementById('admin-panel');
-    const roleSelectionPanel = document.getElementById('role-selection');
-    const bountyBoardPanel = document.getElementById('bounty-board');
-
-
     if (event.key === 'Escape' || event.keyCode === 27) {
-        console.log('[CNR_NUI_ESCAPE] Escape key pressed. Checking for open menus...');
-        if (storeMenu && storeMenu.style.display === 'block') {
-            closeStoreMenu();
-        } else if (adminPanel && adminPanel.style.display !== 'none' && !adminPanel.classList.contains('hidden')) {
-            hideAdminPanel();
-        } else if (bountyBoardPanel && bountyBoardPanel.style.display !== 'none' && !bountyBoardPanel.classList.contains('hidden')){
-            hideBountyBoardUI();
-        // } else if (roleSelectionPanel && roleSelectionPanel.style.display !== 'none' && !roleSelectionPanel.classList.contains('hidden')) {
-            // hideRoleSelection(); // Usually, role selection is modal and shouldn't be escapable without making a choice or specific cancel button.
-        }
+        const storeMenu = document.getElementById('store-menu');
+        const adminPanel = document.getElementById('admin-panel');
+        const bountyBoardPanel = document.getElementById('bounty-board');
+        if (storeMenu && storeMenu.style.display === 'block') closeStoreMenu();
+        else if (adminPanel && adminPanel.style.display !== 'none' && !adminPanel.classList.contains('hidden')) hideAdminPanel();
+        else if (bountyBoardPanel && bountyBoardPanel.style.display !== 'none' && !bountyBoardPanel.classList.contains('hidden')) hideBountyBoardUI();
     }
 });
 
-// -------------------------------------------------------------------
-// Heist Timer Functionality
-// -------------------------------------------------------------------
 let heistTimerInterval = null;
 function startHeistTimer(duration, bankName) {
     const heistTimerEl = document.getElementById('heist-timer');
-    if (!heistTimerEl) { console.warn('#heist-timer element not found.'); return; }
+    if (!heistTimerEl) return;
     heistTimerEl.style.display = 'block';
     const timerTextEl = document.getElementById('timer-text');
-    if (!timerTextEl) { console.warn('#timer-text element not found.'); heistTimerEl.style.display = 'none'; return; }
+    if (!timerTextEl) { heistTimerEl.style.display = 'none'; return; }
     let remainingTime = duration;
     timerTextEl.textContent = `Heist at ${bankName}: ${formatTime(remainingTime)}`;
     if (heistTimerInterval) clearInterval(heistTimerInterval);
@@ -742,14 +578,11 @@ function formatTime(seconds) {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
-// ====================================================================
-// Admin Panel Functions
-// ====================================================================
 let currentAdminTargetPlayerId = null;
 function showAdminPanel(playerList) {
     const adminPanel = document.getElementById('admin-panel');
     const playerListBody = document.getElementById('admin-player-list-body');
-    if (!adminPanel || !playerListBody) { console.error("Admin panel elements not found."); return; }
+    if (!adminPanel || !playerListBody) return;
     playerListBody.innerHTML = '';
     if (playerList && playerList.length > 0) {
         playerList.forEach(player => {
@@ -787,23 +620,16 @@ function hideAdminPanel() {
     fetchSetNuiFocus(false, false);
 }
 
-// Added missing UI functions for bounty board based on NUI messages
 function showBountyBoardUI(bounties) {
-    // Placeholder: Implement actual UI display logic for bounty board
-    console.log("Attempting to show bounty board UI with bounties:", bounties);
-    const bountyBoardElement = document.getElementById('bounty-board'); // Assuming an element with this ID exists
+    const bountyBoardElement = document.getElementById('bounty-board');
     if (bountyBoardElement) {
-        bountyBoardElement.style.display = 'block'; // Or 'flex', etc.
-        updateBountyListUI(bounties); // Populate it
+        bountyBoardElement.style.display = 'block';
+        updateBountyListUI(bounties);
         fetchSetNuiFocus(true, true);
-    } else {
-        console.warn("Bounty board UI element not found.");
     }
 }
 
 function hideBountyBoardUI() {
-    // Placeholder: Implement actual UI hiding logic
-    console.log("Attempting to hide bounty board UI.");
     const bountyBoardElement = document.getElementById('bounty-board');
     if (bountyBoardElement) {
         bountyBoardElement.style.display = 'none';
@@ -812,70 +638,47 @@ function hideBountyBoardUI() {
 }
 
 function updateBountyListUI(bounties) {
-    console.log("Updating bounty list UI with:", bounties);
-    const bountyListUL = document.getElementById('bounty-list'); // Target the UL element
-
+    const bountyListUL = document.getElementById('bounty-list');
     if (bountyListUL) {
-        bountyListUL.innerHTML = ''; // Clear old bounties
+        bountyListUL.innerHTML = '';
         if (Object.keys(bounties).length === 0) {
             const noBountiesLi = document.createElement('li');
-            noBountiesLi.className = 'no-bounties'; // From bounties.css for styling this message
+            noBountiesLi.className = 'no-bounties';
             noBountiesLi.textContent = 'No active bounties.';
             bountyListUL.appendChild(noBountiesLi);
             return;
         }
-
         for (const targetId in bounties) {
-            const data = bounties[targetId]; // 'data' is more consistent with issue description
+            const data = bounties[targetId];
             const li = document.createElement('li');
-
-            // Avatar
             const avatarDiv = document.createElement('div');
             avatarDiv.className = 'bounty-target-avatar';
             const nameInitial = data.name ? data.name.charAt(0).toUpperCase() : '?';
             avatarDiv.textContent = nameInitial;
             li.appendChild(avatarDiv);
-
-            // Text Content Container
             const textContainer = document.createElement('div');
             textContainer.className = 'bounty-text-content';
-
-            // Bounty Amount (Color Coded)
             let amountClass = 'bounty-amount-low';
             if (data.amount > 50000) amountClass = 'bounty-amount-high';
             else if (data.amount > 10000) amountClass = 'bounty-amount-medium';
-
-            // Simplified formatNumber, actual implementation might be more robust
             const formatNumber = (num) => num.toLocaleString();
             const bountyAmountHTML = `<span class="${amountClass}">$${formatNumber(data.amount || 0)}</span>`;
-
-            // Bounty Details
-            // Using textContent for safety against XSS, then innerHTML for the part with the span
             const targetInfo = document.createElement('div');
             targetInfo.textContent = `Target: ${data.name || 'Unknown'} (ID: ${targetId})`;
-
             const rewardInfo = document.createElement('div');
-            rewardInfo.innerHTML = `Reward: ${bountyAmountHTML}`; // Use innerHTML here for the span
-
+            rewardInfo.innerHTML = `Reward: ${bountyAmountHTML}`;
             textContainer.appendChild(targetInfo);
             textContainer.appendChild(rewardInfo);
-            // Add more details to textContainer if needed
-
             li.appendChild(textContainer);
             bountyListUL.appendChild(li);
-
-            // Animation for new item
             li.classList.add('new-item-animation');
             setTimeout(() => {
                 li.classList.remove('new-item-animation');
-            }, 300); // Match CSS animation duration
+            }, 300);
         }
-    } else {
-        console.warn("Bounty list UL element ('bounty-list') not found for UI update.");
     }
 }
 
-// Safe wrappers for table assignments by player ID
 function safeSetTableByPlayerId(tbl, playerId, value) {
     if (tbl && typeof tbl === 'object' && playerId !== undefined && playerId !== null && (typeof playerId === 'string' || typeof playerId === 'number')) {
         tbl[playerId] = value;
@@ -890,5 +693,3 @@ function safeGetTableByPlayerId(tbl, playerId) {
     }
     return undefined;
 }
-
-// Replace all direct table assignments by player ID with safeSetTableByPlayerId and safeGetTableByPlayerId where applicable.

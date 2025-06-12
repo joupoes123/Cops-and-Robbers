@@ -804,11 +804,11 @@ RegisterNUICallback("buyItem", function(data, cb)
     end
     local responded = false
     local handler
-    handler = AddEventHandler('cops_and_robbers:buyResult', function(success, message)
+    handler = AddEventHandler('cops_and_robbers:buyResult', function(success) -- message argument removed
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        cb({ success = success, message = message })
+        cb({ success = success }) -- message property removed
         -- Refresh inventory in UI after buy
         SendNUIMessage({ action = 'refreshInventory' })
     end)
@@ -829,11 +829,11 @@ RegisterNUICallback("sellItem", function(data, cb)
     end
     local responded = false
     local handler
-    handler = AddEventHandler('cops_and_robbers:sellResult', function(success, message)
+    handler = AddEventHandler('cops_and_robbers:sellResult', function(success) -- message argument removed
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        cb({ success = success, message = message })
+        cb({ success = success }) -- message property removed
         -- Refresh inventory in UI after sell
         SendNUIMessage({ action = 'refreshInventory' })
     end)

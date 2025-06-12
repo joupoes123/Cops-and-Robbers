@@ -36,6 +36,17 @@ function shallowcopy(original)
     return copy
 end
 
+function MinimizeInventoryForSync(richInventory)
+    if not richInventory then return {} end
+    local minimalInv = {}
+    for itemId, itemData in pairs(richInventory) do
+        if itemData and itemData.count then
+            minimalInv[itemId] = { count = itemData.count }
+        end
+    end
+    return minimalInv
+end
+
 -- Safe table assignment wrapper for player IDs
 local function SafeSetByPlayerId(tbl, playerId, value)
     if tbl and playerId and type(playerId) == "number" and playerId > 0 then
@@ -328,7 +339,7 @@ function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails) -- it
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil -- Remove inventory for this event
     TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', playerId, pData.inventory) -- Send inventory separately
+    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
     Log(string.format("Added/updated %d of %s to player %s inventory. New count: %d. Name: %s, Category: %s", quantity, itemId, playerId, newCount, itemDetails.name, itemDetails.category))
     return true, "Item added/updated"
 end
@@ -347,7 +358,7 @@ function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil -- Remove inventory for this event
     TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', playerId, pData.inventory) -- Send inventory separately
+    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
     Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
     return true, "Item removed"
 end
@@ -445,7 +456,7 @@ LoadPlayerData = function(playerId)
     local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, playersData[pIdNum].inventory)
+    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
     TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
     -- Original position of isDataLoaded setting is now removed.
 end
@@ -524,7 +535,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
     local pDataForBasicInfo = shallowcopy(playersData[pIdNum])
     pDataForBasicInfo.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, playersData[pIdNum].inventory)
+    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
 end
 
 IsPlayerCop = function(playerId) return GetPlayerRole(playerId) == "cop" end
@@ -572,7 +583,7 @@ AddXP = function(playerId, amount, type)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, pData.inventory)
+    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
 ApplyPerks = function(playerId, level, role)
@@ -632,7 +643,7 @@ ApplyPerks = function(playerId, level, role)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, pData.inventory)
+    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
 
@@ -1018,42 +1029,16 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     end
 
     local processedInventoryForNui = {}
-    if not Config.Items or type(Config.Items) ~= 'table' then
-        print("[CNR_SERVER_ERROR] Config.Items not defined or not a table. Cannot process player inventory for NUI sell prices.")
-        TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty on critical config error
-        return
-    end
+    -- No need to check Config.Items here on server for this specific NUI message,
+    -- as NUI will do the lookup. Server just provides IDs and counts from player's actual inventory.
 
     for itemId, invItemData in pairs(pData.inventory) do
         -- invItemData is now { count = X, name = "Item Name", category = "Category", itemId = "itemId" }
         if invItemData and invItemData.count and invItemData.count > 0 then
-            -- Need to find the original Config.Item entry for basePrice to calculate sellPrice
-            local configItemDetails = nil
-            for _, cItem in ipairs(Config.Items) do
-                if cItem.itemId == itemId then
-                    configItemDetails = cItem
-                    break
-                end
-            end
-
-            if configItemDetails then
-                local sellPrice = math.floor(configItemDetails.basePrice * (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor or 0.5))
-                if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-                     local currentDynamicBuyPrice = CalculateDynamicPrice(itemId, configItemDetails.basePrice)
-                     sellPrice = math.floor(currentDynamicBuyPrice * (Config.DynamicEconomy.sellPriceFactor or 0.5))
-                end
-
-                table.insert(processedInventoryForNui, {
-                    itemId = itemId,
-                    name = invItemData.name, -- Use name directly from pData.inventory
-                    count = invItemData.count,
-                    sellPrice = sellPrice
-                    -- Category was already removed in a previous attempt to make it lean
-                })
-            else
-                -- This case should be less likely if AddItemToPlayerInventory always uses Config.Items
-                print(string.format("[CNR_SERVER_WARN] Item ID '%s' from player %s's inventory (name: %s) not found in Config.Items. Cannot determine sell price for NUI.", itemId, src, invItemData.name or "N/A"))
-            end
+            table.insert(processedInventoryForNui, {
+                itemId = itemId, -- Or invItemData.itemId, they should be the same
+                count = invItemData.count
+            })
         end
     end
 
@@ -1067,11 +1052,11 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     quantity = tonumber(quantity) or 1
 
     if not pData then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Player data not found.")
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     if quantity <= 0 then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Invalid quantity.")
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
 
@@ -1084,21 +1069,21 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     end
 
     if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Item not found in config.")
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
 
     -- Role/Level Checks
     if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, string.format("Cops require level %d for this item.", itemConfig.minLevelCop))
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     if pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, string.format("Robbers require level %d for this item.", itemConfig.minLevelRobber))
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     if itemConfig.forCop and pData.role ~= "cop" then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "This item is restricted to Cops.")
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     -- Add similar check for 'forRobber' if you implement that flag in Config.Items
@@ -1110,7 +1095,7 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     local totalCost = price * quantity
 
     if GetPlayerMoney(src) < totalCost then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Not enough money. Cost: $" .. totalCost)
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
 
@@ -1122,15 +1107,15 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
                 table.insert(purchaseHistory, { playerId = src, itemId = itemId, quantity = quantity, pricePaid = totalCost, timestamp = os.time() })
                 -- Optional: Prune purchaseHistory if it gets too large, or do it in SavePurchaseHistory
             end
-            TriggerClientEvent('cops_and_robbers:buyResult', src, true, string.format("Purchased %d x %s for $%d.", quantity, itemConfig.name, totalCost))
+            TriggerClientEvent('cops_and_robbers:buyResult', src, true) -- No message
             Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
         else
             AddPlayerMoney(src, totalCost) -- Refund money if adding item failed
-            TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Purchase failed: Could not add item to inventory. " .. msg)
+            TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
             Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
         end
     else
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false, "Purchase failed: Could not deduct money.")
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
     end
 end)
 
@@ -1141,15 +1126,15 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     quantity = tonumber(quantity) or 1
 
     if not pData or not pData.inventory then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Player data or inventory not found.")
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
     if quantity <= 0 then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Invalid quantity.")
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
     if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "You don't have enough of this item to sell.")
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
 
@@ -1162,7 +1147,7 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     end
 
     if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Item details not found in config. Cannot determine sell price.")
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
 
@@ -1176,10 +1161,21 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     local success, msg = RemoveItemFromPlayerInventory(src, itemId, quantity)
     if success then
         AddPlayerMoney(src, totalGain)
-        TriggerClientEvent('cops_and_robbers:sellResult', src, true, string.format("Sold %d x %s for $%d.", quantity, itemConfig.name, totalGain))
+        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
         Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalGain))
     else
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false, "Sell failed: " .. msg)
+        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
+    end
+end)
+
+RegisterNetEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local src = source
+    if Config.Items then
+        TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+        -- Log("Sent Config.Items to client " .. src, "info")
+    else
+        Log("Config.Items not available on server to send to client " .. src, "error")
     end
 end)
