@@ -1042,9 +1042,17 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
         end
     end
 
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src)) -- Using print
+    -- print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
+    -- TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 
-    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
+    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s requested inventory. Original unique item stacks: %d. NOW FORCING TEST DATA.", src, #processedInventoryForNui))
+
+    local testInventory = {
+        {itemId = "test_item_sell_1", count = 11},
+        {itemId = "test_item_sell_2", count = 22}
+    }
+    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending HARDCODED test inventory (%d items) to NUI for player %s for event 'cops_and_robbers:sendPlayerInventory'", #testInventory, src))
+    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, testInventory)
 end)
 
 RegisterNetEvent('cops_and_robbers:buyItem')
