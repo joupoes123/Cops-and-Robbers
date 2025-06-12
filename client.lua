@@ -688,11 +688,17 @@ end)
 
 RegisterNetEvent("cnr:roleSelected")
 AddEventHandler("cnr:roleSelected", function(success, message)
+    Log(string.format("[CNR_ROLE_SELECT] cnr:roleSelected event received. Success: %s, Message: %s", tostring(success), tostring(message)), "info")
     if success then
+        Log("[CNR_ROLE_SELECT] Attempting to release NUI focus (SetNuiFocus false, false)...", "info")
         SetNuiFocus(false, false)
+        Log("[CNR_ROLE_SELECT] SetNuiFocus(false, false) called.", "info")
+
+        Log("[CNR_ROLE_SELECT] Attempting to send NUI message hideRoleSelection...", "info")
         SendNUIMessage({ action = "hideRoleSelection" })
+        Log("[CNR_ROLE_SELECT] NUI message hideRoleSelection sent.", "info")
     else
-        -- Re-enable UI and show error message
+        Log("[CNR_ROLE_SELECT] Role selection failed on server. Sending roleSelectionFailed to NUI.", "warn")
         SendNUIMessage({ action = "roleSelectionFailed", error = message or "Role selection failed." })
     end
 end)

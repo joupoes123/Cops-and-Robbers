@@ -176,11 +176,30 @@ function showRoleSelection() {
     }
 }
 function hideRoleSelection() {
+    console.log('[CNR_NUI_ROLE] hideRoleSelection called.');
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
+        // Force blur on any active NUI element
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+            console.log('[CNR_NUI_ROLE] Blurred active NUI element.');
+        }
+
         roleSelectionUI.classList.add('hidden');
         roleSelectionUI.style.display = 'none'; 
-        fetchSetNuiFocus(false, false); 
+        roleSelectionUI.style.visibility = 'hidden'; // Explicitly set visibility
+        console.log('[CNR_NUI_ROLE] roleSelectionUI display set to none and visibility to hidden. Current display:', roleSelectionUI.style.display, 'Visibility:', roleSelectionUI.style.visibility);
+
+        document.body.style.backgroundColor = 'transparent';
+
+        // Temporarily comment out the NUI-side focus call to rely on Lua's SetNuiFocus
+        // console.log('[CNR_NUI_ROLE] Attempting fetchSetNuiFocus(false, false) from hideRoleSelection...');
+        // fetchSetNuiFocus(false, false);
+        // console.log('[CNR_NUI_ROLE] fetchSetNuiFocus(false, false) call from hideRoleSelection TEMPORARILY DISABLED.');
+        console.log('[CNR_NUI_ROLE] NUI part of hideRoleSelection complete. Lua (SetNuiFocus) should now take full effect.');
+
+    } else {
+        console.error('[CNR_NUI_ROLE] role-selection UI element not found in hideRoleSelection.');
     }
 }
 function openStoreMenu(storeName, storeItems) {
@@ -442,19 +461,29 @@ function selectRole(selectedRole) {
         }
         return resp.json();
     })
-    .then(response => {
-        function handleRoleSelectionResponse(response) {
-          if (response && response.success) {
+    .then(response => { // This 'response' is the data from the NUI callback cb({success=true}) in client.lua
+        console.log('[CNR_NUI_ROLE] selectRole NUI callback response from Lua:', response);
+        // The original script called another function: handleRoleSelectionResponse(response)
+        // Let's assume that function is still there or integrate its logic.
+        // For logging, we want to see if hideRoleSelection is called.
+        // Original handleRoleSelectionResponse:
+        // function handleRoleSelectionResponse(response) {
+        //   console.log("Response from selectRole NUI callback:", response);
+        //   if (response && response.success) {
+        //     hideRoleSelection();
+        //   } else if (response && response.error) { ... } else { ... }
+        // }
+        // Directly integrate for clarity or ensure handleRoleSelectionResponse is called:
+        if (response && response.success) {
+            console.log('[CNR_NUI_ROLE] selectRole successful according to Lua. Calling hideRoleSelection().');
             hideRoleSelection();
-          } else if (response && response.error) {
-            console.error("Role selection failed: " + response.error);
-            showToast(response.error, 'error');
-          } else {
-            console.error("Role selection failed: Unexpected server response", response);
-            showToast("Unexpected server response", 'error');
-          }
+        } else if (response && response.error) {
+            console.error("[CNR_NUI_ROLE] Role selection failed via NUI callback: " + response.error);
+            showToast(response.error, 'error'); // Keep toast for user feedback
+        } else {
+            console.error("[CNR_NUI_ROLE] Role selection failed: Unexpected server response from NUI callback", response);
+            showToast("Unexpected server response", 'error'); // Keep toast
         }
-        handleRoleSelectionResponse(response);
     })
     .catch(error => {
         const resNameForError = window.cnrResourceName || 'cops-and-robbers';
