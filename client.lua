@@ -422,21 +422,17 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     if newPlayerData.inventory then
         local currentResourceName = GetCurrentResourceName()
         if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
-            print(string.format("[CNR_CLIENT_DEBUG] cnr:updatePlayerData: Calling %s:UpdateFullInventory", currentResourceName))
             exports[currentResourceName]:UpdateFullInventory(newPlayerData.inventory)
         else
-            print(string.format("[CNR_CLIENT_ERROR] cnr:updatePlayerData: Could not find export UpdateFullInventory in resource %s", currentResourceName))
+            -- Error case: export not found. Original print removed. Consider if error logging is still needed here, perhaps less verbose.
         end
     else
-        print("[CNR_CLIENT_WARN] cnr:updatePlayerData: newPlayerData.inventory is nil. Skipping inventory update call.")
-        -- It might be valid for inventory to be nil (e.g., new player never had items),
-        -- so we should still call UpdateFullInventory with nil to clear it client-side.
+        -- Inventory is nil case. Original print removed.
         local currentResourceName = GetCurrentResourceName()
         if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
-            print(string.format("[CNR_CLIENT_DEBUG] cnr:updatePlayerData: Calling %s:UpdateFullInventory with nil inventory", currentResourceName))
             exports[currentResourceName]:UpdateFullInventory(nil) -- Explicitly pass nil
         else
-            print(string.format("[CNR_CLIENT_ERROR] cnr:updatePlayerData: Could not find export UpdateFullInventory in resource %s for nil sync", currentResourceName))
+            -- Error case: export not found for nil sync. Original print removed.
         end
     end
 

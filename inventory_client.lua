@@ -131,18 +131,8 @@ function EquipInventoryWeapons()
     local processedItemCount = 0
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
-        Log(string.format("EquipInventoryWeapons: Processing item %d: ID = %s", processedItemCount, itemId), "debug")
 
         if type(itemData) == "table" then
-            Log(string.format("  Item ID: %s | Name: %s | Category: %s | Count: %s | Type of Category: %s | Type of Count: %s",
-                itemId,
-                tostring(itemData.name),
-                tostring(itemData.category),
-                tostring(itemData.count),
-                type(itemData.category),
-                type(itemData.count)
-            ), "debug")
-
             if itemData.category and itemData.count then
                 if itemData.category == "Weapons" and itemData.count > 0 then
                     local weaponHash = GetHashKey(itemId)
@@ -153,8 +143,6 @@ function EquipInventoryWeapons()
                     else
                         Log(string.format("  WARNING: Invalid weapon hash for itemId: %s (Name: %s). Cannot equip.", itemId, itemData.name or "N/A"), "warn")
                     end
-                else
-                    Log(string.format("  INFO: Item ID: %s (Name: %s) is not a weapon to equip (Category: '%s', Count: %s).", itemId, itemData.name or "N/A", tostring(itemData.category), tostring(itemData.count)), "debug")
                 end
             else
                 Log(string.format("  WARNING: Item ID: %s (Name: %s) is missing category or count field. Category: %s, Count: %s.", itemId, itemData.name or "N/A", tostring(itemData.category), tostring(itemData.count)), "warn")
