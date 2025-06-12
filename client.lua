@@ -267,6 +267,16 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
+
+   -- Equip weapons from inventory after role visuals and loadout are applied
+   Citizen.Wait(50) -- Optional small delay to ensure ped model is fully set and previous weapons are processed.
+   local currentResourceName = GetCurrentResourceName()
+   if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
+       print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Calling %s:EquipInventoryWeapons to restore owned weapons.", currentResourceName))
+       exports[currentResourceName]:EquipInventoryWeapons()
+   else
+       print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Could not find export EquipInventoryWeapons in resource %s.", currentResourceName))
+   end
 end
 
 -- Ensure SetWantedLevelForPlayerRole is defined before all uses
@@ -408,6 +418,28 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     playerCash = newPlayerData.money or 0
     role = playerData.role
     local playerPedOnUpdate = PlayerPedId()
+    -- Update full inventory if present in newPlayerData
+    if newPlayerData.inventory then
+        local currentResourceName = GetCurrentResourceName()
+        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
+            print(string.format("[CNR_CLIENT_DEBUG] cnr:updatePlayerData: Calling %s:UpdateFullInventory", currentResourceName))
+            exports[currentResourceName]:UpdateFullInventory(newPlayerData.inventory)
+        else
+            print(string.format("[CNR_CLIENT_ERROR] cnr:updatePlayerData: Could not find export UpdateFullInventory in resource %s", currentResourceName))
+        end
+    else
+        print("[CNR_CLIENT_WARN] cnr:updatePlayerData: newPlayerData.inventory is nil. Skipping inventory update call.")
+        -- It might be valid for inventory to be nil (e.g., new player never had items),
+        -- so we should still call UpdateFullInventory with nil to clear it client-side.
+        local currentResourceName = GetCurrentResourceName()
+        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
+            print(string.format("[CNR_CLIENT_DEBUG] cnr:updatePlayerData: Calling %s:UpdateFullInventory with nil inventory", currentResourceName))
+            exports[currentResourceName]:UpdateFullInventory(nil) -- Explicitly pass nil
+        else
+            print(string.format("[CNR_CLIENT_ERROR] cnr:updatePlayerData: Could not find export UpdateFullInventory in resource %s for nil sync", currentResourceName))
+        end
+    end
+
     if role and oldRole ~= role then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
             ApplyRoleVisualsAndLoadout(role, oldRole)

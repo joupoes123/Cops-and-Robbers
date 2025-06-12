@@ -91,3 +91,77 @@ Log("Custom Inventory System (client-side) loaded.")
 --     -- Optionally, try to send a simple NUI message to see if NUI is responsive from this context
 --     -- SendNUIMessage({ action = 'globalHandlerDebug', payload = diag_data })
 -- end)
+
+function UpdateFullInventory(fullInventoryData)
+    localPlayerInventory = fullInventoryData or {}
+    Log("Full inventory synchronized by UpdateFullInventory. Item count: " .. tablelength(localPlayerInventory), "info") -- Added item count for better logging
+
+    -- If NUI store is open and on 'sell' tab, refresh it, similar to 'cnr:inventoryUpdated'
+    SendNUIMessage({
+        action = 'refreshSellListIfNeeded', -- NUI needs to implement this
+        inventory = localPlayerInventory
+    })
+end
+
+-- Helper function for tablelength if not already present (it might be global from client.lua)
+-- Add this if it's not available globally or defined within this file.
+-- For this subtask, assume it might be needed locally.
+local function tablelength(T)
+  if type(T) ~= "table" then return 0 end
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end
+
+function EquipInventoryWeapons()
+    local playerPed = PlayerPedId()
+
+    if not playerPed or playerPed == 0 or playerPed == -1 then
+        Log("EquipInventoryWeapons: Invalid playerPed. Cannot equip weapons.", "error")
+        return
+    end
+
+    Log("EquipInventoryWeapons: Starting to equip weapons from inventory. Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
+
+    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+        Log("EquipInventoryWeapons: Player inventory is empty or nil. Nothing to equip.", "info")
+        return
+    end
+
+    local processedItemCount = 0
+    for itemId, itemData in pairs(localPlayerInventory) do
+        processedItemCount = processedItemCount + 1
+        Log(string.format("EquipInventoryWeapons: Processing item %d: ID = %s", processedItemCount, itemId), "debug")
+
+        if type(itemData) == "table" then
+            Log(string.format("  Item ID: %s | Name: %s | Category: %s | Count: %s | Type of Category: %s | Type of Count: %s",
+                itemId,
+                tostring(itemData.name),
+                tostring(itemData.category),
+                tostring(itemData.count),
+                type(itemData.category),
+                type(itemData.count)
+            ), "debug")
+
+            if itemData.category and itemData.count then
+                if itemData.category == "Weapons" and itemData.count > 0 then
+                    local weaponHash = GetHashKey(itemId)
+                    if weaponHash ~= 0 and weaponHash ~= -1 then
+                        local defaultAmmo = 30
+                        GiveWeaponToPed(playerPed, weaponHash, defaultAmmo, false, false)
+                        Log(string.format("  SUCCESS: Equipping owned weapon: %s (ID: %s, Hash: %s) with %d ammo.", itemData.name or itemId, itemId, weaponHash, defaultAmmo), "info")
+                    else
+                        Log(string.format("  WARNING: Invalid weapon hash for itemId: %s (Name: %s). Cannot equip.", itemId, itemData.name or "N/A"), "warn")
+                    end
+                else
+                    Log(string.format("  INFO: Item ID: %s (Name: %s) is not a weapon to equip (Category: '%s', Count: %s).", itemId, itemData.name or "N/A", tostring(itemData.category), tostring(itemData.count)), "debug")
+                end
+            else
+                Log(string.format("  WARNING: Item ID: %s (Name: %s) is missing category or count field. Category: %s, Count: %s.", itemId, itemData.name or "N/A", tostring(itemData.category), tostring(itemData.count)), "warn")
+            end
+        else
+            Log(string.format("  WARNING: Item ID: %s has malformed itemData (not a table). Type: %s.", itemId, type(itemData)), "warn")
+        end
+    end
+    Log("EquipInventoryWeapons: Finished processing all " .. processedItemCount .. " inventory items for weapons.", "info")
+end
