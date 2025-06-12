@@ -418,23 +418,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     playerCash = newPlayerData.money or 0
     role = playerData.role
     local playerPedOnUpdate = PlayerPedId()
-    -- Update full inventory if present in newPlayerData
-    if newPlayerData.inventory then
-        local currentResourceName = GetCurrentResourceName()
-        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
-            exports[currentResourceName]:UpdateFullInventory(newPlayerData.inventory)
-        else
-            -- Error case: export not found. Original print removed. Consider if error logging is still needed here, perhaps less verbose.
-        end
-    else
-        -- Inventory is nil case. Original print removed.
-        local currentResourceName = GetCurrentResourceName()
-        if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
-            exports[currentResourceName]:UpdateFullInventory(nil) -- Explicitly pass nil
-        else
-            -- Error case: export not found for nil sync. Original print removed.
-        end
-    end
+    -- Inventory is now handled by cnr:syncInventory event
 
     if role and oldRole ~= role then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
@@ -688,6 +672,18 @@ RegisterNUICallback("setNuiFocus", function(data, cb)
     -- It's good practice to send a callback response if the NUI script expects one,
     -- even if it's just a simple acknowledgment.
     cb({ success = true, message = "NUI focus updated" })
+end)
+
+RegisterNetEvent('cnr:syncInventory')
+AddEventHandler('cnr:syncInventory', function(inventoryData)
+    local currentResourceName = GetCurrentResourceName()
+    if exports[currentResourceName] and exports[currentResourceName].UpdateFullInventory then
+        exports[currentResourceName]:UpdateFullInventory(inventoryData)
+        -- Log("cnr:syncInventory: Called UpdateFullInventory.", "info")
+    else
+        -- Log("cnr:syncInventory: Export UpdateFullInventory not found.", "error") -- Use Log if available, otherwise print
+        print("[CNR_CLIENT_ERROR] cnr:syncInventory: Export UpdateFullInventory not found in resource " .. currentResourceName)
+    end
 end)
 
 RegisterNetEvent("cnr:roleSelected")

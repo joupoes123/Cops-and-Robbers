@@ -101,6 +101,10 @@ function UpdateFullInventory(fullInventoryData)
         action = 'refreshSellListIfNeeded', -- NUI needs to implement this
         inventory = localPlayerInventory
     })
+
+    -- Call EquipInventoryWeapons to reflect changes in the player's loadout
+    EquipInventoryWeapons()
+    Log("UpdateFullInventory: Called EquipInventoryWeapons() after inventory sync.", "info")
 end
 
 -- Helper function for tablelength if not already present (it might be global from client.lua)

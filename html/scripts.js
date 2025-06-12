@@ -396,7 +396,7 @@ function loadItems() {
     itemList.innerHTML = '';
     const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
 
-    if (filteredItems.length === 0) { 
+    if (filteredItems.length === 0) {
         itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
         // console.log('[CNR_NUI_STORE] loadItems finished (no items).');
         return;
