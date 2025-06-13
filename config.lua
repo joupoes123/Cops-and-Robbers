@@ -437,6 +437,7 @@ Config.Admins = {
     -- Example: Populate with admin identifiers (steam:xxx, license:xxx, fivem:xxx, discord:xxx)
     -- ["steam:110000100000001"]   = true,
     -- ["license:yourlicenseidhere"] = true,
+    ["license:a423132e944ec34bdb1bfd1c545ed18b10e975c1"] = true, -- Added for testing
 }
 
 

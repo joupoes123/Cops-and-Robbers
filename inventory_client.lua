@@ -158,9 +158,8 @@ function EquipInventoryWeapons()
     local processedItemCount = 0
     local weaponsEquipped = 0
     for itemId, itemData in pairs(localPlayerInventory) do
-        processedItemCount = processedItemCount + 1
-        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
-            if itemData.category == "Weapons" and itemData.count > 0 then
+        processedItemCount = processedItemCount + 1        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
+            if (itemData.category == "Weapons" or itemData.category == "Melee Weapons") and itemData.count > 0 then
                 -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
                 local upperItemId = string.upper(itemId)
                 local weaponHash = GetHashKey(upperItemId)

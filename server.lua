@@ -1070,18 +1070,19 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     if not itemConfig then
         TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
-    end
-
-    -- Role/Level Checks
+    end    -- Role/Level Checks
     if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
+        Log(string.format("Player %s (Level: %d) tried to buy %s but needs cop level %d", src, pData.level, itemConfig.name, itemConfig.minLevelCop), "warn")
         TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     if pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
+        Log(string.format("Player %s (Level: %d) tried to buy %s but needs robber level %d", src, pData.level, itemConfig.name, itemConfig.minLevelRobber), "warn")
         TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
     if itemConfig.forCop and pData.role ~= "cop" then
+        Log(string.format("Player %s (Role: %s) tried to buy %s but it's cop-only", src, pData.role, itemConfig.name), "warn")
         TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
         return
     end
