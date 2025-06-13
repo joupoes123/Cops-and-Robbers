@@ -958,6 +958,7 @@ end)
 RegisterNetEvent('cops_and_robbers:getItemList')
 AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName) -- Renamed itemList to vendorItemIds for clarity
     local src = source
+    local pData = GetCnrPlayerData(src)
     -- print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
 
     if not storeName then
@@ -1011,9 +1012,15 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         return
     end
 
+    -- Include player level and role information for UI to check restrictions
+    local playerInfo = {
+        level = pData and pData.level or 1,
+        role = pData and pData.role or "citizen"
+    }
+
     -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
     -- Send the constructed list of full item details to the client
-    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList)
+    TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
     -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')
 end)
 

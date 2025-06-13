@@ -153,12 +153,16 @@ function EquipInventoryWeapons()
     -- First, remove all weapons from the player to ensure clean state
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
     RemoveAllPedWeapons(playerPed, true)
-    Citizen.Wait(100) -- Short wait to ensure weapons are removed
+    Citizen.Wait(200) -- Longer wait to ensure weapons are removed
 
     local processedItemCount = 0
     local weaponsEquipped = 0
+    
+    -- Process each inventory item once
     for itemId, itemData in pairs(localPlayerInventory) do
-        processedItemCount = processedItemCount + 1        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
+        processedItemCount = processedItemCount + 1
+        
+        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
             if (itemData.category == "Weapons" or itemData.category == "Melee Weapons") and itemData.count > 0 then
                 -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
                 local upperItemId = string.upper(itemId)
@@ -182,9 +186,9 @@ function EquipInventoryWeapons()
                         end
                     end
                     
-                    -- Give weapon with ammo
-                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
-                    Citizen.Wait(50) -- Small wait between weapons
+                    -- Give weapon with ammo (without immediately equipping)
+                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
+                    Citizen.Wait(100) -- Wait between weapons
                     
                     -- Ensure ammo is set correctly
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
@@ -210,6 +214,29 @@ function EquipInventoryWeapons()
     
     Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons.", processedItemCount, weaponsEquipped), "info")
     
+    -- Select the first weapon if any weapons were equipped
+    if weaponsEquipped > 0 then
+        Citizen.Wait(200)
+        -- Try to select the first weapon we found
+        for itemId, itemData in pairs(localPlayerInventory) do
+            if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
+                if (itemData.category == "Weapons" or itemData.category == "Melee Weapons") and itemData.count > 0 then
+                    local upperItemId = string.upper(itemId)
+                    local weaponHash = GetHashKey(upperItemId)
+                    if weaponHash == 0 or weaponHash == -1 then
+                        weaponHash = GetHashKey(itemId)
+                    end
+                    if weaponHash ~= 0 and weaponHash ~= -1 then
+                        -- Select this weapon to make it visible in the weapon wheel
+                        SetCurrentPedWeapon(playerPed, weaponHash, true)
+                        Log(string.format("  SELECTED: %s as current weapon", itemData.name or itemId), "info")
+                        break -- Only select the first weapon
+                    end
+                end
+            end
+        end
+    end
+    
     -- Final verification - list all weapons the player currently has
     Citizen.Wait(100)
     Log("EquipInventoryWeapons: Final weapon check:", "info")
@@ -230,10 +257,9 @@ function EquipInventoryWeapons()
     end
 end
 
--- Request Config.Items when this script loads/player initializes
-Citizen.SetTimeout(1000, function()
-    if not clientConfigItems then
-        TriggerServerEvent('cnr:requestConfigItems')
-        Log("Requested Config.Items from server.", "info")
-    end
+-- Add test event handler for testing weapon equipping from client.lua
+RegisterNetEvent('cnr:testEquipWeapons')
+AddEventHandler('cnr:testEquipWeapons', function()
+    Log("Test equip weapons event received", "info")
+    EquipInventoryWeapons()
 end)

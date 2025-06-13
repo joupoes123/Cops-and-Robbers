@@ -767,12 +767,12 @@ end)
 
 -- Handle item list from server and open Cop Store NUI
 RegisterNetEvent('cops_and_robbers:sendItemList')
-AddEventHandler('cops_and_robbers:sendItemList', function(storeName, items)
+AddEventHandler('cops_and_robbers:sendItemList', function(storeName, items, playerInfo)
     if storeName == "Cop Store" then
         print("[CNR_CLIENT_DEBUG] Received item list for Cop Store. Setting isCopStoreUiOpen to true")
         isCopStoreUiOpen = true
         SetNuiFocus(true, true)
-        SendNUIMessage({ action = 'openStore', storeName = storeName, items = items })
+        SendNUIMessage({ action = 'openStore', storeName = storeName, items = items, playerInfo = playerInfo })
     end
 end)
 
@@ -877,3 +877,21 @@ AddEventHandler('cnr:forceEquipWeapons', function()
         TriggerServerEvent('cnr:requestPlayerInventory')
     end
 end)
+
+-- Add a client command to manually test weapon equipping
+RegisterCommand("testequip", function()
+    if exports and exports['inventory_client'] and exports['inventory_client'].EquipInventoryWeapons then
+        exports['inventory_client'].EquipInventoryWeapons()
+    else
+        -- Call the function directly if it exists in this scope
+        if EquipInventoryWeapons then
+            EquipInventoryWeapons()
+        else
+            TriggerServerEvent('cnr:requestConfigItems') -- Request config items first
+            Citizen.Wait(1000) -- Wait a bit
+            -- Try to call inventory client function
+            TriggerEvent('cnr:testEquipWeapons')
+        end
+    end
+    print("[CNR_CLIENT_DEBUG] Manual weapon equip test triggered")
+end, false)

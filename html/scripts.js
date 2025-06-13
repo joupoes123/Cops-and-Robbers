@@ -34,8 +34,7 @@ window.addEventListener('message', function(event) {
             break;
         case 'updateMoney':
             updateCashDisplay(data.cash);
-            break;
-        case 'showStoreMenu':
+            break;        case 'showStoreMenu':
         case 'openStore':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
@@ -44,7 +43,7 @@ window.addEventListener('message', function(event) {
                     allowedOrigins.push(currentResourceOriginDynamic);
                 }
             }
-            openStoreMenu(data.storeName, data.items);
+            openStoreMenu(data.storeName, data.items, data.playerInfo);
             break;
         case 'closeStore':
             closeStoreMenu();
@@ -207,12 +206,13 @@ function hideRoleSelection() {
         console.error('[CNR_NUI_ROLE] role-selection UI element not found in hideRoleSelection.');
     }
 }
-function openStoreMenu(storeName, storeItems) {
+function openStoreMenu(storeName, storeItems, playerInfo) {
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
+        window.playerInfo = playerInfo || { level: 1, role: "citizen" };
         window.currentCategory = null;
         window.currentTab = 'buy';
         loadCategories();
@@ -369,36 +369,77 @@ function loadSellItems() {
     });
 }
 
-// createItemElement remains unchanged
+// createItemElement with level restriction handling
 function createItemElement(item, type = 'buy') {
     const itemDiv = document.createElement('div');
     itemDiv.className = 'item';
     itemDiv.dataset.itemId = item.itemId;
+    
     const nameDiv = document.createElement('div');
     nameDiv.className = 'item-name';
     nameDiv.textContent = item.name;
+    
+    // Check if item is level-locked for buy tab
+    let isLocked = false;
+    let lockReason = '';
+    
+    if (type === 'buy' && window.playerInfo) {
+        const playerLevel = window.playerInfo.level || 1;
+        const playerRole = window.playerInfo.role || 'citizen';
+        
+        if (playerRole === 'cop' && item.minLevelCop && playerLevel < item.minLevelCop) {
+            isLocked = true;
+            lockReason = ` (Requires Level ${item.minLevelCop})`;
+        } else if (playerRole === 'robber' && item.minLevelRobber && playerLevel < item.minLevelRobber) {
+            isLocked = true;
+            lockReason = ` (Requires Level ${item.minLevelRobber})`;
+        }
+    }
+    
+    // Add lock indicator to name if needed
+    if (isLocked) {
+        nameDiv.innerHTML = `${item.name}<span style="color: #ff6b6b; font-size: 0.9em;">${lockReason}</span>`;
+        itemDiv.classList.add('locked-item');
+    }
+    
     itemDiv.appendChild(nameDiv);
+    
     if (type === 'sell' && item.count !== undefined) {
         const quantityDiv = document.createElement('div');
         quantityDiv.className = 'item-quantity';
         quantityDiv.textContent = `x${item.count}`;
         itemDiv.appendChild(quantityDiv);
     }
+    
     const priceDiv = document.createElement('div');
     priceDiv.className = 'item-price';
     priceDiv.textContent = `$${(type === 'buy' ? item.price : item.sellPrice)}`;
     itemDiv.appendChild(priceDiv);
+    
     const quantityInput = document.createElement('input');
     quantityInput.type = 'number';
     quantityInput.className = 'quantity-input';
     quantityInput.min = '1';
     quantityInput.max = (type === 'buy') ? '100' : (item.count ? item.count.toString() : '1');
     quantityInput.value = '1';
+    
+    if (isLocked) {
+        quantityInput.disabled = true;
+    }
+    
     itemDiv.appendChild(quantityInput);
+    
     const actionBtn = document.createElement('button');
     actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
     actionBtn.innerHTML = `<span class="icon">${type === 'buy' ? '🛒' : '💰'}</span> ${type === 'buy' ? 'Buy' : 'Sell'}`;
     actionBtn.dataset.action = type;
+    
+    if (isLocked) {
+        actionBtn.disabled = true;
+        actionBtn.style.opacity = '0.5';
+        actionBtn.style.cursor = 'not-allowed';
+    }
+    
     itemDiv.appendChild(actionBtn);
     return itemDiv;
 }
@@ -444,6 +485,13 @@ document.addEventListener('click', function(event) {
     const target = event.target;
     const itemDiv = target.closest('.item');
     if (!itemDiv) return;
+    
+    // Check if this is a locked item
+    if (itemDiv.classList.contains('locked-item') && target.dataset.action === 'buy') {
+        showToast('This item is locked. You need a higher level to purchase it.', 'error');
+        return;
+    }
+    
     const itemId = itemDiv.dataset.itemId;
     const actionType = target.dataset.action;
     if (itemId && (actionType === 'buy' || actionType === 'sell')) {

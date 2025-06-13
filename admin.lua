@@ -159,30 +159,7 @@ RegisterCommand("removecash", function(source, args, rawCommand)
     end
 end, false)
 
--- Give weapon command
-RegisterCommand("giveweapon", function(source, args, rawCommand)
-    if not IsAdmin(source) then
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
-        return
-    end
 
-    local targetIdStr = args[1]
-    local targetId = tonumber(targetIdStr)
-    local weaponName = args[2]
-
-    if targetId and IsValidPlayer(targetId) and weaponName then
-        -- local weaponHash = GetHashKey(weaponName) -- Line removed by subtask
-        if weaponName and string.len(weaponName) > 0 then -- Modified by subtask: Basic check for non-empty weaponName
-            TriggerServerEvent('cops_and_robbers:logAdminCommand', GetPlayerName(source), source, rawCommand) -- Log before action
-            TriggerServerEvent('cops_and_robbers:giveWeapon', targetId, weaponName) -- Changed to server event
-            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Gave weapon " .. weaponName .. " to " .. GetPlayerName(targetId) } })
-        else
-            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid weapon name: " .. weaponName } })
-        end
-    else
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /giveweapon <playerId> <weaponName>" } })
-    end
-end, false)
 
 -- Remove weapon command
 RegisterCommand("removeweapon", function(source, args, rawCommand)

@@ -329,6 +329,36 @@ button:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Locked Item Styles */
+.locked-item {
+    opacity: 0.6;
+    background-color: rgba(100, 100, 100, 0.05); /* Grayed out background */
+}
+
+.locked-item:hover {
+    background-color: rgba(100, 100, 100, 0.1); /* Slightly darker on hover but still disabled-looking */
+    transform: none; /* No lift effect for locked items */
+}
+
+.locked-item .buy-btn:disabled,
+.locked-item .sell-btn:disabled {
+    background: linear-gradient(to right, #666666, #555555) !important; /* Gray gradient for disabled buttons */
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
+}
+
+.locked-item .buy-btn:disabled:hover,
+.locked-item .sell-btn:disabled:hover {
+    transform: none !important; /* No hover effects for disabled buttons */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important; /* Keep original shadow */
+}
+
+.locked-item .quantity-input:disabled {
+    background-color: #2a2a2a;
+    color: #888;
+    cursor: not-allowed;
+}
+
 /* Store Close Button */
 #close-btn {
     position: absolute;
