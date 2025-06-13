@@ -1040,19 +1040,8 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
                 count = invItemData.count
             })
         end
-    end
-
-    -- print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
-    -- TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
-
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s requested inventory. Original unique item stacks: %d. NOW FORCING TEST DATA.", src, #processedInventoryForNui))
-
-    local testInventory = {
-        {itemId = "test_item_sell_1", count = 11},
-        {itemId = "test_item_sell_2", count = 22}
-    }
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending HARDCODED test inventory (%d items) to NUI for player %s for event 'cops_and_robbers:sendPlayerInventory'", #testInventory, src))
-    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, testInventory)
+    end    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
+    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
 RegisterNetEvent('cops_and_robbers:buyItem')
@@ -1116,8 +1105,9 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
             if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
                 table.insert(purchaseHistory, { playerId = src, itemId = itemId, quantity = quantity, pricePaid = totalCost, timestamp = os.time() })
                 -- Optional: Prune purchaseHistory if it gets too large, or do it in SavePurchaseHistory
-            end
-            TriggerClientEvent('cops_and_robbers:buyResult', src, true) -- No message
+            end            TriggerClientEvent('cops_and_robbers:buyResult', src, true) -- No message
+            -- Trigger refresh of sell list if needed
+            TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
             Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
         else
             AddPlayerMoney(src, totalCost) -- Refund money if adding item failed
@@ -1170,8 +1160,9 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
 
     local success, msg = RemoveItemFromPlayerInventory(src, itemId, quantity)
     if success then
-        AddPlayerMoney(src, totalGain)
-        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
+        AddPlayerMoney(src, totalGain)        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
+        -- Trigger refresh of sell list after successful sell
+        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalGain))
     else
         TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message

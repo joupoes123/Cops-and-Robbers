@@ -851,3 +851,15 @@ RegisterNUICallback("sellItem", function(data, cb)
         end
     end)
 end)
+
+-- Register client events that server sends
+RegisterNetEvent('cops_and_robbers:sendPlayerInventory')
+RegisterNetEvent('cops_and_robbers:buyResult')
+RegisterNetEvent('cops_and_robbers:sellResult')
+RegisterNetEvent('cops_and_robbers:refreshSellListIfNeeded')
+
+-- Handle refresh sell list request from server
+AddEventHandler('cops_and_robbers:refreshSellListIfNeeded', function()
+    -- Send refresh message to NUI if store is open and on sell tab
+    SendNUIMessage({ action = 'refreshSellListIfNeeded' })
+end)
