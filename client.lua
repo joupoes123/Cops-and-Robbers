@@ -728,8 +728,7 @@ local isCopStoreUiOpen = false
 Citizen.CreateThread(function()
     local copStorePromptActive = false
     while true do
-        Citizen.Wait(100)
-        if role == "cop" and Config and Config.NPCVendors and not isCopStoreUiOpen then
+        Citizen.Wait(100)        if role == "cop" and Config and Config.NPCVendors and not isCopStoreUiOpen then
             local shown = false
             for _, vendor in ipairs(Config.NPCVendors) do
                 if vendor.name == "Cop Store" and vendor.location then
@@ -744,6 +743,7 @@ Citizen.CreateThread(function()
                             end
                             shown = true
                             if IsControlJustReleased(0, 51) then -- INPUT_CONTEXT (E)
+                                print("[CNR_CLIENT_DEBUG] Opening Cop Store. Current isCopStoreUiOpen:", isCopStoreUiOpen)
                                 TriggerServerEvent('cops_and_robbers:getItemList', 'Vendor', vendor.items, vendor.name)
                                 Citizen.Wait(500) -- Prevent double-trigger
                             end
@@ -769,6 +769,7 @@ end)
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, items)
     if storeName == "Cop Store" then
+        print("[CNR_CLIENT_DEBUG] Received item list for Cop Store. Setting isCopStoreUiOpen to true")
         isCopStoreUiOpen = true
         SetNuiFocus(true, true)
         SendNUIMessage({ action = 'openStore', storeName = storeName, items = items })
@@ -777,6 +778,7 @@ end)
 
 -- Handle closing the Cop Store UI from NUI
 RegisterNUICallback("closeStore", function(_, cb)
+    print("[CNR_CLIENT_DEBUG] Closing Cop Store. Setting isCopStoreUiOpen to false")
     isCopStoreUiOpen = false
     SetNuiFocus(false, false)
     SetNuiFocusKeepInput(false) -- Extra safety to fully release focus
@@ -862,4 +864,16 @@ RegisterNetEvent('cops_and_robbers:refreshSellListIfNeeded')
 AddEventHandler('cops_and_robbers:refreshSellListIfNeeded', function()
     -- Send refresh message to NUI if store is open and on sell tab
     SendNUIMessage({ action = 'refreshSellListIfNeeded' })
+end)
+
+-- Debug event to force re-equip weapons
+RegisterNetEvent('cnr:forceEquipWeapons')
+AddEventHandler('cnr:forceEquipWeapons', function()
+    -- Force call the inventory client function to re-equip weapons
+    if exports['Cops-and-Robbers'] then
+        -- If the function is exported, call it
+        -- exports['Cops-and-Robbers']:EquipInventoryWeapons()
+        -- For now, we'll trigger the inventory update which should call EquipInventoryWeapons
+        TriggerServerEvent('cnr:requestPlayerInventory')
+    end
 end)

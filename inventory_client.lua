@@ -145,44 +145,90 @@ function EquipInventoryWeapons()
         return
     end
 
+    -- Debug: Log all items in inventory
+    for itemId, itemData in pairs(localPlayerInventory) do
+        Log(string.format("  DEBUG_INVENTORY: Item %s - Name: %s, Category: %s, Count: %s", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "info")
+    end
+
+    -- First, remove all weapons from the player to ensure clean state
+    Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
+    RemoveAllPedWeapons(playerPed, true)
+    Citizen.Wait(100) -- Short wait to ensure weapons are removed
+
     local processedItemCount = 0
+    local weaponsEquipped = 0
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
         if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
             if itemData.category == "Weapons" and itemData.count > 0 then
-                local weaponHash = GetHashKey(itemId)
+                -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
+                local upperItemId = string.upper(itemId)
+                local weaponHash = GetHashKey(upperItemId)
+                
+                -- Also try the original itemId if uppercase doesn't work
+                if weaponHash == 0 or weaponHash == -1 then
+                    weaponHash = GetHashKey(itemId)
+                end
+                
+                Log(string.format("  DEBUG_HASH: ItemId: %s, UpperCase: %s, Hash: %s", itemId, upperItemId, weaponHash), "info")
+                
                 if weaponHash ~= 0 and weaponHash ~= -1 then
-                    -- Determine ammo: use itemData.ammo if present (e.g. from a previous save), else default
+                    -- Determine ammo: use itemData.ammo if present, else default
                     local ammoCount = itemData.ammo
-                    if ammoCount == nil then -- If ammo not part of itemData, use default from Config or a fallback
+                    if ammoCount == nil then
                         if Config and Config.DefaultWeaponAmmo and Config.DefaultWeaponAmmo[itemId] then
                            ammoCount = Config.DefaultWeaponAmmo[itemId]
                         else
-                           ammoCount = 30 -- Fallback default ammo
+                           ammoCount = 150 -- Increased default ammo for better testing
                         end
                     end
-                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true) -- equipNow = true
-                    Log(string.format("  Equipped: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info") -- Adjusted original log slightly for clarity
-
-                    -- New lines to add:
+                    
+                    -- Give weapon with ammo
+                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
+                    Citizen.Wait(50) -- Small wait between weapons
+                    
+                    -- Ensure ammo is set correctly
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
-                    Citizen.Wait(0)
+                    
+                    -- Verify the weapon was equipped
                     local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
-                    -- Using GetPlayerServerId(PlayerId()) might be redundant if playerPed itself is enough context,
-                    -- but adding more info to logs is fine for debugging.
-                    Log(string.format("  CHECK_HAS_WEAPON: Player %s has weapon %s (Hash: %s) after Give/SetAmmo: %s", GetPlayerServerId(PlayerId()), itemId, weaponHash, tostring(hasWeapon)), "info")
-                    if not hasWeapon then
-                        Log(string.format("  WARNING_EQUIP: HasPedGotWeapon returned false for item %s (Hash: %s) immediately after giving it to player %s.", itemId, weaponHash, GetPlayerServerId(PlayerId())), "warn")
+                    if hasWeapon then
+                        weaponsEquipped = weaponsEquipped + 1
+                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info")
+                    else
+                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false", itemData.name or itemId, itemId, weaponHash), "error")
                     end
                 else
-                    Log(string.format("  WARNING: Invalid hash for itemId: %s (Name: %s).", itemId, itemData.name), "warn")
+                    Log(string.format("  ✗ INVALID_HASH: ItemId: %s (Name: %s) - Could not get valid weapon hash", itemId, itemData.name), "error")
                 end
+            else
+                Log(string.format("  SKIPPED: Item %s (Name: %s) - Category: %s, Count: %s", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "info")
             end
         else
             Log(string.format("  WARNING: Item ID: %s missing data (Name: %s, Category: %s, Count: %s).", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "warn")
         end
     end
-    Log("EquipInventoryWeapons: Finished. Processed " .. processedItemCount .. " items.", "info")
+    
+    Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons.", processedItemCount, weaponsEquipped), "info")
+    
+    -- Final verification - list all weapons the player currently has
+    Citizen.Wait(100)
+    Log("EquipInventoryWeapons: Final weapon check:", "info")
+    local configItems = GetClientConfigItems()
+    if configItems then
+        for _, cfgItem in ipairs(configItems) do
+            if cfgItem.category == "Weapons" then
+                local weaponHash = GetHashKey(cfgItem.itemId)
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                    if hasWeapon then
+                        local ammoCount = GetAmmoInPedWeapon(playerPed, weaponHash)
+                        Log(string.format("  FINAL_CHECK: Player has %s (%s) with %d ammo", cfgItem.name, cfgItem.itemId, ammoCount), "info")
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- Request Config.Items when this script loads/player initializes

@@ -93,11 +93,16 @@ window.addEventListener('message', function(event) {
         case 'roleSelectionFailed':
             showToast(data.error || 'Failed to select role. Please try again.', 'error', 4000);
             showRoleSelection();
-            break;
-        case 'storeFullItemConfig':
+            break;        case 'storeFullItemConfig':
             if (data.itemConfig) {
                 fullItemConfig = data.itemConfig;
                 console.log('[CNR_NUI] Stored full item config. Item count:', fullItemConfig ? Object.keys(fullItemConfig).length : 0);
+            }
+            break;        case 'refreshInventory':
+            // Refresh the sell tab if it's currently active
+            const storeMenuElement = document.getElementById('store-menu');
+            if (storeMenuElement && storeMenuElement.style.display === 'block' && window.currentTab === 'sell') {
+                loadSellItems();
             }
             break;
         default:
@@ -222,6 +227,17 @@ function closeStoreMenu() {
     if (storeMenuUI) {
         storeMenuUI.classList.add('hidden');
         storeMenuUI.style.display = '';
+        
+        // Notify Lua client that store is closing
+        const resName = window.cnrResourceName || 'cops-and-robbers';
+        fetch(`https://${resName}/closeStore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        }).catch(error => {
+            console.error('Error calling closeStore callback:', error);
+        });
+        
         fetchSetNuiFocus(false, false);
     }
 }

@@ -1180,3 +1180,98 @@ AddEventHandler('cnr:requestConfigItems', function()
         Log("Config.Items not available on server to send to client " .. src, "error")
     end
 end)
+
+RegisterNetEvent('cnr:requestPlayerInventory')
+AddEventHandler('cnr:requestPlayerInventory', function()
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    
+    if pData and pData.inventory then
+        -- Send the minimal inventory to trigger re-equipping
+        TriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
+        Log(string.format("Player %s requested inventory sync for re-equipping weapons.", src))
+    end
+end)
+
+-- =================================================================================================
+-- DEBUG/TESTING COMMANDS (Remove in production)
+-- =================================================================================================
+
+-- Temporary admin command to set player level for testing
+RegisterCommand('setlevel', function(source, args, rawCommand)
+    local src = source
+    if not IsAdmin(src) then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have permission to use this command."} })
+        return
+    end
+
+    local targetId = tonumber(args[1])
+    local newLevel = tonumber(args[2])
+    
+    if not targetId or not newLevel then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^3Usage", "/setlevel [playerId] [level]"} })
+        return
+    end
+    
+    local pData = GetCnrPlayerData(targetId)
+    if not pData then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Player data not found for ID: " .. targetId} })
+        return
+    end
+    
+    pData.level = math.max(1, math.min(newLevel, Config.MaxLevel or 10))
+    ApplyPerks(targetId, pData.level, pData.role)
+    
+    local targetName = GetPlayerName(targetId) or "Unknown"
+    TriggerClientEvent('chat:addMessage', src, { args = {"^2Admin", string.format("Set %s (ID: %d) to level %d", targetName, targetId, pData.level)} })
+    TriggerClientEvent('chat:addMessage', targetId, { args = {"^2Admin", string.format("Your level has been set to %d by an admin", pData.level)} })
+    
+    Log(string.format("Admin %s set player %s (%s) to level %d", src, targetId, targetName, pData.level))
+end, false)
+
+-- Command to force equip all weapons in inventory
+RegisterCommand('equipweapons', function(source, args, rawCommand)
+    local src = source
+    TriggerClientEvent('cnr:forceEquipWeapons', src)
+    TriggerClientEvent('chat:addMessage', src, { args = {"^2Debug", "Attempting to re-equip all weapons from inventory."} })
+end, false)
+
+-- Test command to give a few weapons for testing
+RegisterCommand('giveweapons', function(source, args, rawCommand)
+    local src = source
+    if not IsAdmin(src) then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have permission to use this command."} })
+        return
+    end
+
+    local pData = GetCnrPlayerData(src)
+    if not pData then
+        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Player data not found."} })
+        return
+    end
+
+    -- Add some test weapons to inventory
+    local testWeapons = {
+        { itemId = "weapon_pistol", name = "Pistol" },
+        { itemId = "weapon_pumpshotgun", name = "Pump Shotgun" },
+        { itemId = "weapon_assaultrifle", name = "Assault Rifle" },
+        { itemId = "weapon_carbinerifle", name = "Carbine Rifle" }
+    }
+
+    for _, weapon in ipairs(testWeapons) do
+        local weaponConfig = nil
+        for _, cfgItem in ipairs(Config.Items) do
+            if cfgItem.itemId == weapon.itemId then
+                weaponConfig = cfgItem
+                break
+            end
+        end
+        
+        if weaponConfig then
+            AddItemToPlayerInventory(src, weapon.itemId, 1, weaponConfig)
+            Log(string.format("Admin gave %s to player %s", weapon.name, src))
+        end
+    end
+
+    TriggerClientEvent('chat:addMessage', src, { args = {"^2Admin", "Test weapons added to inventory. Use /equipweapons to equip them."} })
+end, false)
