@@ -1182,8 +1182,13 @@ RegisterNetEvent('cnr:requestConfigItems')
 AddEventHandler('cnr:requestConfigItems', function()
     local src = source
     if Config.Items then
+        local itemCount = 0
+        if type(Config.Items) == "table" then
+            for _ in pairs(Config.Items) do itemCount = itemCount + 1 end
+        end
+        
         TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
-        -- Log("Sent Config.Items to client " .. src, "info")
+        Log("Sent Config.Items to client " .. src .. " (items: " .. itemCount .. ")", "info")
     else
         Log("Config.Items not available on server to send to client " .. src, "error")
     end

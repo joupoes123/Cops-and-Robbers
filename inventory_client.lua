@@ -20,6 +20,13 @@ end
 RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to receive this event from server
 local localPlayerInventory = {} -- This will store the RECONSTRUCTED rich inventory
 
+-- Add the missing cnr:syncInventory event handler
+RegisterNetEvent('cnr:syncInventory')
+AddEventHandler('cnr:syncInventory', function(minimalInventoryData)
+    Log("Received cnr:syncInventory event. Processing inventory data...", "info")
+    UpdateFullInventory(minimalInventoryData)
+end)
+
 RegisterNetEvent('cnr:inventoryUpdated')
 AddEventHandler('cnr:inventoryUpdated', function(updatedMinimalInventory)
     Log("Received cnr:inventoryUpdated. This event might need review if cnr:syncInventory is primary.", "warn")
@@ -36,15 +43,47 @@ AddEventHandler('cnr:receiveConfigItems', function(receivedConfigItems)
         itemConfig = clientConfigItems
     })
     Log("Sent Config.Items to NUI via SendNUIMessage.", "info")
-
+    
     -- Check if localPlayerInventory currently holds minimal data (e.g. from an early sync before config arrived)
     -- A simple heuristic: if an item exists and its 'name' field is the same as its 'itemId', it's likely minimal.
     if localPlayerInventory and next(localPlayerInventory) then
         local firstItemId = next(localPlayerInventory)
-        if localPlayerInventory[firstItemId] and localPlayerInventory[firstItemId].name == firstItemId then
+        if localPlayerInventory[firstItemId] and (localPlayerInventory[firstItemId].name == firstItemId or localPlayerInventory[firstItemId].name == nil) then
              Log("Config.Items received after minimal inventory was stored. Attempting full reconstruction.", "info")
              UpdateFullInventory(localPlayerInventory) -- Re-process with the now available config
+        else
+             -- Config arrived but inventory seems already processed, just re-equip to be safe
+             Log("Config.Items received, inventory appears processed. Re-equipping weapons to ensure visibility.", "info")
+             EquipInventoryWeapons()
         end
+    else
+        Log("Config.Items received but no pending inventory to reconstruct.", "info")
+    end
+end)
+
+-- Request Config.Items when this script loads/player initializes
+Citizen.CreateThread(function()
+    -- Wait for player to be fully spawned
+    while not NetworkIsPlayerActive(PlayerId()) do
+        Citizen.Wait(500)
+    end
+    
+    Citizen.Wait(3000) -- Wait 3 seconds after player is active
+    
+    local attempts = 0
+    local maxAttempts = 10
+    
+    while not clientConfigItems and attempts < maxAttempts do
+        attempts = attempts + 1
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Requested Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "info")
+        
+        -- Wait 3 seconds for response
+        Citizen.Wait(3000)
+    end
+    
+    if not clientConfigItems then
+        Log("Failed to receive Config.Items from server after " .. maxAttempts .. " attempts", "error")
     end
 end)
 
@@ -54,11 +93,38 @@ function UpdateFullInventory(minimalInventoryData)
     local configItems = GetClientConfigItems()
 
     if not configItems then
-        Log("UpdateFullInventory: clientConfigItems not yet available. Storing minimal inventory. EquipInventoryWeapons may not work fully.", "error")
+        Log("UpdateFullInventory: clientConfigItems not yet available. Requesting from server and storing minimal inventory.", "error")
         localPlayerInventory = minimalInventoryData or {}
-        EquipInventoryWeapons()
+        
+        -- Request config items from server with retry logic
+        local attempts = 0
+        local maxAttempts = 5
+        
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Requested Config.Items from server due to missing data.", "info")
+        
+        -- Set up a timer to retry if needed
+        Citizen.CreateThread(function()
+            while not GetClientConfigItems() and attempts < maxAttempts do
+                Citizen.Wait(2000)
+                attempts = attempts + 1
+                if not GetClientConfigItems() then
+                    TriggerServerEvent('cnr:requestConfigItems')
+                    Log("Retry requesting Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "warn")
+                end
+            end
+            
+            -- If we got the config items, try to update inventory again
+            if GetClientConfigItems() and localPlayerInventory and next(localPlayerInventory) then
+                Log("Config.Items received after retry, attempting inventory reconstruction again", "info")
+                UpdateFullInventory(localPlayerInventory)
+            end
+        end)
+        
         return
     end
+
+    Log("Config.Items available, proceeding with inventory reconstruction. Config items count: " .. tablelength(configItems), "info")
 
     if minimalInventoryData and type(minimalInventoryData) == 'table' then
         for itemId, minItemData in pairs(minimalInventoryData) do
@@ -263,3 +329,31 @@ AddEventHandler('cnr:testEquipWeapons', function()
     Log("Test equip weapons event received", "info")
     EquipInventoryWeapons()
 end)
+
+-- Debug command to manually request config items
+RegisterCommand('requestconfig', function()
+    if clientConfigItems then
+        Log("Config.Items already available. Item count: " .. tablelength(clientConfigItems), "info")
+    else
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Manually requested Config.Items from server", "info")
+    end
+end, false)
+
+-- Debug command to check current config status
+RegisterCommand('checkconfig', function()
+    if clientConfigItems then
+        Log("Config.Items available. Item count: " .. tablelength(clientConfigItems), "info")
+        Log("Sample items:", "info")
+        local count = 0
+        for _, item in ipairs(clientConfigItems) do
+            count = count + 1
+            Log("  " .. count .. ". " .. (item.name or "NO_NAME") .. " (" .. (item.itemId or "NO_ID") .. ") - " .. (item.category or "NO_CATEGORY"), "info")
+            if count >= 5 then break end -- Show only first 5 items
+        end
+    else
+        Log("Config.Items NOT available!", "error")
+    end
+    
+    Log("Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
+end, false)
