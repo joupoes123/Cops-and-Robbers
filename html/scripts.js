@@ -307,14 +307,22 @@ function hideRoleSelection() {
 function openStoreMenu(storeName, storeItems, playerInfo) {
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
+    const playerCashEl = document.getElementById('player-cash-amount');
+    const playerLevelEl = document.getElementById('player-level-text');
+    
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
-        window.playerInfo = playerInfo || { level: 1, role: "citizen" };
+        window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
+        
+        // Update player info display
+        if (playerCashEl) playerCashEl.textContent = `$${window.playerInfo.cash || 0}`;
+        if (playerLevelEl) playerLevelEl.textContent = `Level ${window.playerInfo.level || 1}`;
+        
         window.currentCategory = null;
         window.currentTab = 'buy';
         loadCategories();
-        loadItems();
+        loadGridItems();
         storeMenuUI.style.display = 'block';
         storeMenuUI.classList.remove('hidden');
         fetchSetNuiFocus(true, true);
@@ -340,7 +348,7 @@ function closeStoreMenu() {
     }
 }
 
-// Store Tab and Category Management (remains unchanged)
+// Store Tab and Category Management
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -349,15 +357,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
         const activeTabContent = document.getElementById(`${window.currentTab}-section`);
         if (activeTabContent) activeTabContent.classList.add('active');
-        if (window.currentTab === 'sell') loadSellItems();
-        else loadItems();
+        if (window.currentTab === 'sell') loadSellGridItems();
+        else loadGridItems();
     });
 });
+
 function loadCategories() {
     const categoryList = document.getElementById('category-list');
     if (!categoryList) return;
     const categories = [...new Set((window.items || []).map(item => item.category))];
     categoryList.innerHTML = '';
+    
     const allBtn = document.createElement('button');
     allBtn.className = 'category-btn active';
     allBtn.textContent = 'All';
@@ -365,9 +375,10 @@ function loadCategories() {
         window.currentCategory = null;
         document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
         allBtn.classList.add('active');
-        if (window.currentTab === 'buy') loadItems();
+        if (window.currentTab === 'buy') loadGridItems();
     };
     categoryList.appendChild(allBtn);
+    
     categories.forEach(category => {
         const btn = document.createElement('button');
         btn.className = 'category-btn';
@@ -376,106 +387,85 @@ function loadCategories() {
             window.currentCategory = category;
             document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            if (window.currentTab === 'buy') loadItems();
+            if (window.currentTab === 'buy') loadGridItems();
         };
         categoryList.appendChild(btn);
     });
 }
-function loadItems() {
-    const itemList = document.getElementById('item-list');
-    if (!itemList) return;
-    itemList.innerHTML = '';
-    const filteredItems = (window.items || []).filter(item => !window.currentCategory || item.category === window.currentCategory);
+
+// New Grid-Based Item Loading
+function loadGridItems() {
+    const inventoryGrid = document.getElementById('inventory-grid');
+    if (!inventoryGrid) return;
+    inventoryGrid.innerHTML = '';
+    
+    const filteredItems = (window.items || []).filter(item => 
+        !window.currentCategory || item.category === window.currentCategory);
+    
     if (filteredItems.length === 0) {
-        itemList.innerHTML = '<p style="text-align: center;">No items in this category.</p>';
+        inventoryGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No items in this category.</div>';
         return;
     }
+    
     const fragment = document.createDocumentFragment();
-    filteredItems.forEach(item => fragment.appendChild(createItemElement(item, 'buy')));
-    itemList.appendChild(fragment);
+    filteredItems.forEach(item => fragment.appendChild(createInventorySlot(item, 'buy')));
+    inventoryGrid.appendChild(fragment);
 }
 
-// MODIFIED loadSellItems function
-function loadSellItems() {
-    const sellListContainer = document.getElementById('sell-section');
-    if (!sellListContainer) return;
-    sellListContainer.innerHTML = '<p style="text-align: center;">Loading inventory...</p>';
-
+function loadSellGridItems() {
+    const sellGrid = document.getElementById('sell-inventory-grid');
+    if (!sellGrid) return;
+    
+    // Fetch player inventory from server
     const resName = window.cnrResourceName || 'cops-and-robbers';
-    const url = `https://${resName}/getPlayerInventory`;
-
-    fetch(url, {
+    fetch(`https://${resName}/getPlayerInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
-    })
-    .then(resp => {
-        if (!resp.ok) {
-            return resp.json().then(err => Promise.reject(err.error || err.message || `Failed to load inventory (HTTP ${resp.status})`))
-                       .catch(() => Promise.reject({ message: `Failed to load inventory (HTTP ${resp.status} - ${resp.statusText})` }));
-        }
-        return resp.json();
-    })
-    .then(response => {
-        const minimalInventory = response.inventory; // This is now [{itemId, count}, ...]
-        sellListContainer.innerHTML = '';
-
-        if (!fullItemConfig) {
-            console.error('[CNR_NUI_SELL] fullItemConfig not available. Cannot reconstruct sell list details.');
-            sellListContainer.innerHTML = '<p style="text-align: center; color: red;">Error: Item configuration not loaded.</p>';
+    }).then(response => response.json())
+    .then(data => {
+        sellGrid.innerHTML = '';
+        const playerItems = data.items || [];
+        
+        if (playerItems.length === 0) {
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Your inventory is empty.</div>';
             return;
         }
-        if (!minimalInventory || minimalInventory.length === 0) {
-            sellListContainer.innerHTML = '<p style="text-align: center;">Your inventory is empty.</p>';
-            return;
-        }
-
+        
         const fragment = document.createDocumentFragment();
-        minimalInventory.forEach(minItem => {
-            let itemDetails = null;
-            for (const cfgItem of fullItemConfig) {
-                if (cfgItem.itemId === minItem.itemId) {
-                    itemDetails = cfgItem;
-                    break;
-                }
-            }
-
-            if (itemDetails) {
-                let sellPrice = Math.floor(itemDetails.basePrice * 0.5);
-                if (window.cnrDynamicEconomySettings && window.cnrDynamicEconomySettings.enabled && typeof window.cnrDynamicEconomySettings.sellPriceFactor === 'number') {
-                     sellPrice = Math.floor(itemDetails.basePrice * window.cnrDynamicEconomySettings.sellPriceFactor);
-                }
-                const richItem = {
-                    itemId: minItem.itemId,
-                    name: itemDetails.name,
-                    count: minItem.count,
-                    category: itemDetails.category,
-                    sellPrice: sellPrice
-                };
-                fragment.appendChild(createItemElement(richItem, 'sell'));
-            } else {
-                console.warn(`[CNR_NUI_SELL] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Skipping.`);
-            }
-        });
-        sellListContainer.appendChild(fragment);
-    })
-    .catch(error => {
-        console.error(`[CNR_NUI_FETCH] Error fetching/reconstructing player inventory for Sell tab:`, error);
-        if (sellListContainer) {
-            sellListContainer.innerHTML = `<p style="text-align: center; color: red;">Error loading inventory: ${error.message || 'Unknown error.'}</p>`;
-        }
+        playerItems.forEach(item => {
+            if (item.count > 0) {
+                fragment.appendChild(createInventorySlot(item, 'sell'));
+            }        });
+        sellGrid.appendChild(fragment);
+    }).catch(error => {
+        console.error('Error loading sell inventory:', error);
+        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error loading inventory.</div>';
     });
 }
 
-// createItemElement with level restriction handling
+// Legacy Support Functions (for backward compatibility)
+function loadItems() {
+    console.log('[CNR_NUI] loadItems() called - redirecting to loadGridItems()');
+    loadGridItems();
+}
+
+function loadSellItems() {
+    console.log('[CNR_NUI] loadSellItems() called - redirecting to loadSellGridItems()');
+    loadSellGridItems();
+}
+
+// Legacy createItemElement function for backward compatibility
 function createItemElement(item, type = 'buy') {
-    const itemDiv = document.createElement('div');
-    itemDiv.className = 'item';
-    itemDiv.dataset.itemId = item.itemId;
-    
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'item-name';
-    nameDiv.textContent = item.name;
+    console.log('[CNR_NUI] createItemElement() called - redirecting to createInventorySlot()');
+    return createInventorySlot(item, type);
+}
+
+// Modern Grid-Based Inventory Slot Creation
+function createInventorySlot(item, type = 'buy') {
+    const slot = document.createElement('div');
+    slot.className = 'inventory-slot';
+    slot.dataset.itemId = item.itemId;
     
     // Check if item is level-locked for buy tab
     let isLocked = false;
@@ -487,59 +477,138 @@ function createItemElement(item, type = 'buy') {
         
         if (playerRole === 'cop' && item.minLevelCop && playerLevel < item.minLevelCop) {
             isLocked = true;
-            lockReason = ` (Requires Level ${item.minLevelCop})`;
+            lockReason = `Level ${item.minLevelCop}`;
         } else if (playerRole === 'robber' && item.minLevelRobber && playerLevel < item.minLevelRobber) {
             isLocked = true;
-            lockReason = ` (Requires Level ${item.minLevelRobber})`;
+            lockReason = `Level ${item.minLevelRobber}`;
         }
     }
     
-    // Add lock indicator to name if needed
     if (isLocked) {
-        nameDiv.innerHTML = `${item.name}<span style="color: #ff6b6b; font-size: 0.9em;">${lockReason}</span>`;
-        itemDiv.classList.add('locked-item');
+        slot.classList.add('locked');
     }
     
-    itemDiv.appendChild(nameDiv);
+    // Item Icon Container
+    const iconContainer = document.createElement('div');
+    iconContainer.className = 'item-icon-container';
     
-    if (type === 'sell' && item.count !== undefined) {
-        const quantityDiv = document.createElement('div');
-        quantityDiv.className = 'item-quantity';
-        quantityDiv.textContent = `x${item.count}`;
-        itemDiv.appendChild(quantityDiv);
-    }
+    const itemIcon = document.createElement('div');
+    itemIcon.className = 'item-icon';
+    itemIcon.textContent = getItemIcon(item.category, item.name);
     
-    const priceDiv = document.createElement('div');
-    priceDiv.className = 'item-price';
-    priceDiv.textContent = `$${(type === 'buy' ? item.price : item.sellPrice)}`;
-    itemDiv.appendChild(priceDiv);
+    iconContainer.appendChild(itemIcon);
     
-    const quantityInput = document.createElement('input');
-    quantityInput.type = 'number';
-    quantityInput.className = 'quantity-input';
-    quantityInput.min = '1';
-    quantityInput.max = (type === 'buy') ? '100' : (item.count ? item.count.toString() : '1');
-    quantityInput.value = '1';
-    
+    // Add level requirement badge if locked
     if (isLocked) {
-        quantityInput.disabled = true;
+        const levelBadge = document.createElement('div');
+        levelBadge.className = 'level-requirement';
+        levelBadge.textContent = lockReason;
+        iconContainer.appendChild(levelBadge);
     }
     
-    itemDiv.appendChild(quantityInput);
-    
-    const actionBtn = document.createElement('button');
-    actionBtn.className = (type === 'buy') ? 'buy-btn' : 'sell-btn';
-    actionBtn.innerHTML = `<span class="icon">${type === 'buy' ? '🛒' : '💰'}</span> ${type === 'buy' ? 'Buy' : 'Sell'}`;
-    actionBtn.dataset.action = type;
-    
-    if (isLocked) {
-        actionBtn.disabled = true;
-        actionBtn.style.opacity = '0.5';
-        actionBtn.style.cursor = 'not-allowed';
+    // Add quantity badge for sell items
+    if (type === 'sell' && item.count !== undefined && item.count > 1) {
+        const quantityBadge = document.createElement('div');
+        quantityBadge.className = 'quantity-badge';
+        quantityBadge.textContent = `x${item.count}`;
+        iconContainer.appendChild(quantityBadge);
     }
     
-    itemDiv.appendChild(actionBtn);
-    return itemDiv;
+    slot.appendChild(iconContainer);
+    
+    // Item Info
+    const itemInfo = document.createElement('div');
+    itemInfo.className = 'item-info';
+    
+    const itemName = document.createElement('div');
+    itemName.className = 'item-name';
+    itemName.textContent = item.name;
+    itemInfo.appendChild(itemName);
+    
+    const itemPrice = document.createElement('div');
+    itemPrice.className = 'item-price';
+    itemPrice.textContent = `$${(type === 'buy' ? item.price : item.sellPrice)}`;
+    itemInfo.appendChild(itemPrice);
+    
+    slot.appendChild(itemInfo);
+    
+    // Action Overlay (only show on hover for unlocked items)
+    if (!isLocked) {
+        const actionOverlay = document.createElement('div');
+        actionOverlay.className = 'action-overlay';
+        
+        const quantityInput = document.createElement('input');
+        quantityInput.type = 'number';
+        quantityInput.className = 'quantity-input';
+        quantityInput.min = '1';
+        quantityInput.max = (type === 'buy') ? '100' : (item.count ? item.count.toString() : '1');
+        quantityInput.value = '1';
+        actionOverlay.appendChild(quantityInput);
+        
+        const actionBtn = document.createElement('button');
+        actionBtn.className = 'action-btn';
+        actionBtn.textContent = type === 'buy' ? 'Buy' : 'Sell';
+        actionBtn.onclick = (e) => {
+            e.stopPropagation();
+            const quantity = parseInt(quantityInput.value) || 1;
+            handleItemAction(item.itemId, quantity, type);
+        };
+        actionOverlay.appendChild(actionBtn);
+        
+        slot.appendChild(actionOverlay);
+    }
+    
+    return slot;
+}
+
+// Get appropriate icon for item based on category and name
+function getItemIcon(category, itemName) {
+    const icons = {
+        'Weapons': {
+            'Pistol': '🔫',
+            'SMG': '💥',
+            'Assault Rifle': '🔫',
+            'Sniper': '🎯',
+            'Shotgun': '💥',
+            'Heavy Weapon': '💥',
+            'Melee': '🗡️',
+            'Thrown': '💣'
+        },
+        'Equipment': {
+            'Armor': '🛡️',
+            'Parachute': '🪂',
+            'Health': '❤️',
+            'Radio': '📻'
+        },
+        'Vehicles': {
+            'Car': '🚗',
+            'Motorcycle': '🏍️',
+            'Boat': '🚤',
+            'Aircraft': '✈️'
+        },
+        'Tools': {
+            'Lockpick': '🗝️',
+            'Drill': '🔧',
+            'Hacking': '💻',
+            'Explosive': '💣'
+        }
+    };
+    
+    // Try to find specific item first
+    if (icons[category] && icons[category][itemName]) {
+        return icons[category][itemName];
+    }
+    
+    // Fallback to category icons
+    const categoryIcons = {
+        'Weapons': '🔫',
+        'Equipment': '🎒',
+        'Vehicles': '🚗',
+        'Tools': '🔧',
+        'Consumables': '💊',
+        'Ammo': '📦'    };
+    
+    return categoryIcons[category] || '📦';
 }
 
 // MODIFIED handleItemAction function

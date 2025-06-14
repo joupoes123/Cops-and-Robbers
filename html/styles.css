@@ -138,249 +138,282 @@ button:hover {
 }
 
 /* ==========================================================================
-   Store UI Styles (main_ui.html, store.html)
+   Modern Store UI Styles - Grid-Based Inventory Interface
    ========================================================================== */
 
 /* Store Container */
 #store-menu {
-    position: absolute; /* Changed */
-    top: 50%; /* Added */
-    left: 50%; /* Added */
-    /* transform: translate(-50%, -50%); */ /* This will be handled by the animation's 'to' state */
-    width: 600px;
-    max-width: 90%;
-    /* margin: 50px auto; */ /* Removed */
-    background-color: #16213e; /* New Secondary Background */
-    padding: 30px; /* Further Increased padding */
-    border-radius: 12px; /* Slightly larger border-radius */
-    border: 1px solid #0f3460; /* New Accent Color 2 for border */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* New Box Shadow */
-    animation: fadeInMenu 0.4s ease-out forwards; /* Slightly longer for larger menu */
-    max-height: 90vh; /* Added/Ensure */
-    overflow-y: auto; /* Added/Ensure */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    max-width: 95vw;
+    height: 700px;
+    max-height: 90vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 20px;
+    border: 2px solid #0f3460;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    animation: fadeInMenu 0.5s ease-out forwards;    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+}
+
+/* Store Header */
+.store-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: linear-gradient(90deg, #0f3460 0%, #1f4e79 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 #store-title {
-    text-align: center;
-    margin-top: 0; /* Added for consistency */
-    margin-bottom: 25px; /* Further Increased spacing */
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 1px;
 }
 
-/* Store Tab Menu */
+.store-close-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+}
+
+.store-close-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 12px rgba(233, 69, 96, 0.5);
+}
+
+.close-icon {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Tab Menu */
 #tab-menu {
     display: flex;
-    justify-content: center;
-    margin-bottom: 25px; /* Increased margin */
+    padding: 0 30px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tab-btn {
-    margin: 0 8px; /* Increased margin */
-    padding: 12px 18px; /* Further Increased padding */
-    background-color: #0f3460; /* New Accent Color 2 */
-    border: none;
-    color: #ffffff; /* New Text Color */
-    cursor: pointer;
     flex: 1;
-    border-radius: 8px; /* New border-radius */
-    font-weight: bold; /* New font-weight */
-    transition: background 0.3s ease, transform 0.2s ease; /* New transition */
+    padding: 15px 20px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    position: relative;
+}
+
+.tab-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e94560, #ff7675);
+    transition: width 0.3s ease;
 }
 
 .tab-btn:hover {
-    background-color: #e94560; /* New Accent Color 1 on hover */
-    transform: translateY(-1px);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
-    background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient for active */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Enhanced shadow for active tab */
-    transform: translateY(-2px); /* Further lift active tab */
-    border-bottom: 3px solid #ff7675; /* Prominent bottom border */
-    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease, border-bottom 0.3s ease; /* Added transition */
+    color: #ffffff;
+    background: rgba(233, 69, 96, 0.1);
 }
 
-/* Store Category List */
-#category-list {
+.tab-btn.active::after {
+    width: 80%;
+}
+
+.tab-icon {
+    font-size: 20px;
+}
+
+/* Player Info Bar */
+.player-info-bar {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-cash, .player-level {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.cash-icon, .level-icon {
+    font-size: 16px;
+}
+
+/* Category Filter */
+.category-filter {
+    padding: 15px 30px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.category-list {
+    display: flex;
+    gap: 10px;
     flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 25px; /* Increased margin */
 }
 
 .category-btn {
-    margin: 8px; /* Increased margin */
-    padding: 12px 18px; /* Further Increased padding */
-    background-color: #0f3460; /* New Accent Color 2 */
-    border: none;
-    color: #ffffff; /* New Text Color */
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    flex: 1 1 100px; /* Allow wrapping and flexible sizing */
-    border-radius: 8px; /* New border-radius */
-    font-weight: 500; /* New font-weight */
-    transition: background 0.3s ease, transform 0.2s ease; /* New transition */
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .category-btn:hover {
-    background-color: #e94560; /* New Accent Color 1 on hover */
+    background: rgba(255, 255, 255, 0.15);
     transform: translateY(-1px);
 }
 
 .category-btn.active {
-    background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient for active */
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25); /* Enhanced shadow for active category */
-    transform: scale(1.08); /* Further enlarge active category button */
-    border: 1px solid #ff7675; /* Add a border to make it pop */
-    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease, border 0.3s ease; /* Added transition */
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-color: #e94560;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
 }
 
-/* Store Tab Content Area */
+/* Tab Content */
 .tab-content {
-    display: none; /* Hidden by default */
+    display: none;
+    flex: 1;
+    overflow: hidden;
 }
 
 .tab-content.active {
-    display: block; /* Shown when active */
+    display: flex;
+    flex-direction: column;
 }
 
-/* Store Item List */
-#item-list { /* This ID is used in both buy and potentially sell sections if structured similarly */
+/* Inventory Grid */
+.inventory-grid {
+    flex: 1;
+    padding: 20px 30px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    align-content: start;
+}
+
+/* Custom Scrollbar for Grid */
+.inventory-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.inventory-grid::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.inventory-grid::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #e94560, #ff7675);
+    border-radius: 10px;
+}
+
+.inventory-grid::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #d63384, #e94560);
+}
+
+/* Store Category List - Legacy Support */
+.category-btn {
+    margin: 8px;
+    padding: 12px 18px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.category-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.category-btn.active {
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-color: #e94560;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+}
+
+/* Legacy Item List Support (fallback) */
+#item-list {
     max-height: 400px;
     overflow-y: auto;
     margin-bottom: 20px;
-    padding-right: 10px; /* Added padding for scrollbar */
+    padding-right: 10px;
 }
 
-/* Webkit Scrollbar Styling for #item-list */
 #item-list::-webkit-scrollbar {
     width: 8px;
 }
 #item-list::-webkit-scrollbar-track {
-    background: #1a1a2e; /* Primary background for track */
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
 }
 #item-list::-webkit-scrollbar-thumb {
-    background: #0f3460; /* Accent Color 2 for thumb */
+    background: linear-gradient(135deg, #e94560, #ff7675);
     border-radius: 10px;
 }
 #item-list::-webkit-scrollbar-thumb:hover {
-    background: #1f4e79; /* Darker Accent Color 2 for thumb hover */
-}
-
-
-/* Individual Item Styling */
-.item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center; /* Vertically align items */
-    margin: 0 0 16px 0; /* Standardized margin, increased bottom margin */
-    padding: 16px; /* Increased padding */
-    background-color: rgba(255, 255, 255, 0.05); /* Theme-aligned subtle background */
-    border-radius: 8px; /* New border-radius */
-    transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out; /* Added transition */
-}
-
-.item:hover {
-    background-color: rgba(15, 52, 96, 0.4); /* Theme-aligned accent color with low opacity on hover */
-    transform: translateY(-2px); /* Slight lift on hover */
-}
-
-.item-name {
-    flex: 1; /* Takes available space */
-}
-
-.item-price {
-    flex: 0 0 80px; /* Fixed width */
-    text-align: right;
-}
-
-.item-quantity { /* Used in sell section, likely */
-    flex: 0 0 50px; /* Fixed width */
-    text-align: right;
-}
-
-.quantity-input { /* Used with buy/sell actions */
-    width: 50px; /* Keep specific width for quantity input */
-    margin-right: 10px;
-    padding: 8px 10px; /* Adjusted padding */
-    border-radius: 6px; /* Consistent with other smaller inputs */
-    border: 1px solid #0f3460; /* New Accent Color 2 for border */
-    background-color: #1a1a2e; /* New Primary Background */
-    color: #ffffff; /* New Text Color */
-}
-
-/* Item Action Buttons (Buy/Sell) */
-.buy-btn, .sell-btn {
-    flex: 0 0 70px; /* Adjusted width */
-    padding: 10px 12px; /* Adjusted padding */
-    font-size: 14px;
-    border-radius: 8px; /* New border-radius */
-    background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient */
-    color: #ffffff; /* New Text Color */
-    border: none;
-    font-weight: bold; /* New font-weight */
-    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease; /* New transition */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
-    margin-left: 5px; /* Added margin */
-}
-
-.buy-btn:hover, .sell-btn:hover {
-    background: linear-gradient(to right, #ff7675, #e94560); /* Gradient shifts on hover */
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* Locked Item Styles */
-.locked-item {
-    opacity: 0.6;
-    background-color: rgba(100, 100, 100, 0.05); /* Grayed out background */
-}
-
-.locked-item:hover {
-    background-color: rgba(100, 100, 100, 0.1); /* Slightly darker on hover but still disabled-looking */
-    transform: none; /* No lift effect for locked items */
-}
-
-.locked-item .buy-btn:disabled,
-.locked-item .sell-btn:disabled {
-    background: linear-gradient(to right, #666666, #555555) !important; /* Gray gradient for disabled buttons */
-    cursor: not-allowed !important;
-    opacity: 0.5 !important;
-}
-
-.locked-item .buy-btn:disabled:hover,
-.locked-item .sell-btn:disabled:hover {
-    transform: none !important; /* No hover effects for disabled buttons */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important; /* Keep original shadow */
-}
-
-.locked-item .quantity-input:disabled {
-    background-color: #2a2a2a;
-    color: #888;
-    cursor: not-allowed;
-}
-
-/* Store Close Button */
-#close-btn {
-    position: absolute;
-    top: 15px; /* Adjusted position */
-    right: 15px; /* Adjusted position */
-    padding: 8px 12px; /* Adjusted padding */
-    background: #e94560; /* New Accent Color 1 */
-    color: white;
-    border: none;
-    border-radius: 50%; /* Circular button */
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    width: 35px; /* Fixed width */
-    height: 35px; /* Fixed height */
-    text-align: center;
-    transition: background 0.3s ease, transform 0.2s ease;
-}
-
-#close-btn:hover {
-    background: #ff7675; /* Lighter shade on hover */
-    transform: scale(1.1); /* Slightly enlarge on hover */
+    background: linear-gradient(135deg, #d63384, #e94560);
 }
 
 /* ==========================================================================
@@ -836,4 +869,229 @@ button:hover {
 
 .toast-hidden {
     display: none;
+}
+
+/* Inventory Item Slots - Modern Grid Design */
+.inventory-slot {
+    aspect-ratio: 1;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.inventory-slot:hover {
+    transform: translateY(-4px);
+    border-color: #e94560;
+    box-shadow: 
+        0 8px 16px rgba(233, 69, 96, 0.2),
+        0 0 20px rgba(233, 69, 96, 0.1),
+        inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    background: linear-gradient(145deg, rgba(233, 69, 96, 0.1) 0%, rgba(255, 118, 117, 0.05) 100%);
+}
+
+.inventory-slot.locked {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: linear-gradient(145deg, rgba(128, 128, 128, 0.1) 0%, rgba(64, 64, 64, 0.05) 100%);
+    border-color: rgba(128, 128, 128, 0.3);
+}
+
+.inventory-slot.locked:hover {
+    transform: none;
+    box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Item Icon Container */
+.item-icon-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.item-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.inventory-slot:hover .item-icon {
+    background: rgba(233, 69, 96, 0.2);
+    border-color: rgba(233, 69, 96, 0.5);
+    transform: scale(1.05);
+}
+
+/* Level Requirement Badge */
+.level-requirement {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: linear-gradient(45deg, #ff6b6b, #ff5252);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(255, 107, 107, 0.4);
+    z-index: 2;
+}
+
+/* Item Info */
+.item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.item-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    text-align: center;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.item-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: #4CAF50;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.inventory-slot.locked .item-price {
+    color: #999999;
+}
+
+/* Quantity Badge */
+.quantity-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Purchase/Action Overlay */
+.action-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(233, 69, 96, 0.9), rgba(255, 118, 117, 0.9));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.3s ease;    border-radius: 12px;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.inventory-slot:hover .action-overlay {
+    opacity: 1;
+}
+
+.inventory-slot.locked:hover .action-overlay {
+    opacity: 0;
+}
+
+.action-overlay .quantity-input {
+    width: 60px;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333333;
+    font-weight: bold;
+}
+
+.action-overlay .action-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 6px;
+    color: #333333;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-overlay .action-btn:hover {
+    background: #ffffff;
+    transform: scale(1.05);
+}
+
+/* Special Effects */
+@keyframes itemPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+.inventory-slot.new-item {
+    animation: itemPulse 2s ease-in-out infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        padding: 15px 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    #store-menu {
+        width: 95vw;
+        height: 80vh;
+    }
+    
+    .inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px 15px;
+    }
+    
+    .store-header {
+        padding: 15px 20px;
+    }
+    
+    #store-title {
+        font-size: 24px;
+    }
 }

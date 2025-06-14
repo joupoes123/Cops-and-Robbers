@@ -15,31 +15,58 @@
         <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
         <button id="cop-btn" data-role="cop" aria-label="Select Cop Role"><span class="icon">👮</span>Cop</button>
         <button id="robber-btn" data-role="robber" aria-label="Select Robber Role"><span class="icon">💰</span>Robber</button>
-    </section>
-
-    <!-- Store Section -->
+    </section>    <!-- Store Section -->
     <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
-        <h1 id="store-title">Store</h1>
-        <button id="close-btn" aria-label="Close Store Menu"><span class="icon">❌</span></button> <!-- Moved here, changed text to "X" -->
+        <div class="store-header">
+            <h1 id="store-title">Store</h1>
+            <button id="close-btn" class="store-close-btn" aria-label="Close Store Menu">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        
         <!-- Tab Menu -->
         <div id="tab-menu" role="tablist">
-            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section"><span class="icon">🛒</span>Buy</button>
-            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section"><span class="icon">💸</span>Sell</button>
+            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">
+                <span class="tab-icon">🛒</span>
+                <span class="tab-label">Buy</span>
+            </button>
+            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">
+                <span class="tab-icon">💸</span>
+                <span class="tab-label">Sell</span>
+            </button>
         </div>
-        <!-- Category List -->
-        <div id="category-list" aria-label="Item Categories"></div>
-        <!-- Buy Section -->
-        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
-            <div id="item-list">
-                <!-- JS will add icons to .buy-btn, e.g., <span class="icon">🛒</span> Buy -->
+        
+        <!-- Player Info Bar -->
+        <div id="player-info-bar" class="player-info-bar">
+            <div class="player-cash">
+                <span class="cash-icon">💰</span>
+                <span id="player-cash-amount">$0</span>
+            </div>
+            <div class="player-level">
+                <span class="level-icon">🏆</span>
+                <span id="player-level-text">Level 1</span>
             </div>
         </div>
+        
+        <!-- Category Filter -->
+        <div id="category-filter" class="category-filter" aria-label="Item Categories">
+            <div id="category-list" class="category-list"></div>
+        </div>
+        
+        <!-- Buy Section -->
+        <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
+            <div id="inventory-grid" class="inventory-grid">
+                <!-- Grid items will be populated by JavaScript -->
+            </div>
+        </div>
+        
         <!-- Sell Section -->
         <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
-            <!-- Sell section content will be loaded here -->
-            <!-- JS will add icons to .sell-btn, e.g., <span class="icon">💰</span> Sell -->
+            <div id="sell-inventory-grid" class="inventory-grid">
+                <!-- Sell grid items will be populated by JavaScript -->
+            </div>
         </div>
-        <!-- Close Store Button MOVED TO TOP -->
+    </section>
     </section>    <!-- XP and Level Display HUD -->
     <div id="xp-level-container" class="hud-element"> <!-- Initially hidden via CSS -->
         <span id="level-text">LVL 1</span>
