@@ -11,6 +11,11 @@
 -- Helper Functions
 -----------------------------------------------------------
 
+-- Helper function to get player identifiers safely
+local function GetSafePlayerIdentifiers(playerId)
+    return GetPlayerIdentifiers(playerId)
+end
+
 -- Helper function to check if a player is an admin
 local function IsAdmin(playerId)
     local playerIdentifiers = GetSafePlayerIdentifiers(playerId)
@@ -29,11 +34,6 @@ local function IsAdmin(playerId)
         end
     end
     return false
-end
-
--- Helper function to get player identifiers safely
-local function GetSafePlayerIdentifiers(playerId)
-    return GetPlayerIdentifiers(playerId)
 end
 
 -- Helper function to check if a player ID is valid (i.e. currently connected)
@@ -65,7 +65,7 @@ RegisterCommand("kick", function(source, args, rawCommand)
 
     if targetId and IsValidPlayer(targetId) then
         TriggerServerEvent('cops_and_robbers:logAdminCommand', GetPlayerName(source), source, rawCommand) -- Log before action
-        DropPlayer(targetId, "You have been kicked by an admin.")
+        DropPlayer(tostring(targetId), "You have been kicked by an admin.")
         TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", "Player " .. GetPlayerName(targetId) .. " has been kicked." } })
     else
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
