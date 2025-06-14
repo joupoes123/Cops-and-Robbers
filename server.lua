@@ -36,6 +36,13 @@ function shallowcopy(original)
     return copy
 end
 
+function tablelength(T)
+    if not T or type(T) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
+end
+
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
     local minimalInv = {}
@@ -63,6 +70,17 @@ local function SafeGetByPlayerId(tbl, playerId)
         return tbl[playerId]
     end
     return nil
+end
+
+-- Safe wrapper for TriggerClientEvent to prevent nil player ID errors
+local function SafeTriggerClientEvent(eventName, playerId, ...)
+    if playerId and type(playerId) == "number" and playerId > 0 and GetPlayerName(playerId) then
+        TriggerClientEvent(eventName, playerId, ...)
+        return true
+    else
+        Log(string.format("SafeTriggerClientEvent: Invalid or offline player ID %s for event %s", tostring(playerId), eventName), "warn")
+        return false
+    end
 end
 
 -- Global state tables
@@ -180,16 +198,21 @@ end
 local function AddPlayerMoney(playerId, amount, type)
     type = type or 'cash' -- Assuming 'cash' is the primary type. Add handling for 'bank' if needed.
     local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        Log(string.format("AddPlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
+        return false
+    end
+    
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
             pData.money = (pData.money or 0) + amount
             Log(string.format("Added %d to player %s's %s account. New balance: %d", amount, playerId, type, pData.money))
             -- Send a notification to the client
-            TriggerClientEvent('chat:addMessage', pId, { args = {"^2Money", string.format("You received $%d.", amount)} })
+            SafeTriggerClientEvent('chat:addMessage', pId, { args = {"^2Money", string.format("You received $%d.", amount)} })
             local pDataForBasicInfo = shallowcopy(pData)
             pDataForBasicInfo.inventory = nil
-            TriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+            SafeTriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
             -- Inventory is not changed by this function, so no need to send cnr:syncInventory
             return true
         else
@@ -205,6 +228,11 @@ end
 local function RemovePlayerMoney(playerId, amount, type)
     type = type or 'cash'
     local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        Log(string.format("RemovePlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
+        return false
+    end
+    
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
@@ -213,12 +241,12 @@ local function RemovePlayerMoney(playerId, amount, type)
                 Log(string.format("Removed %d from player %s's %s account. New balance: %d", amount, playerId, type, pData.money))
                 local pDataForBasicInfo = shallowcopy(pData)
                 pDataForBasicInfo.inventory = nil
-                TriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+                SafeTriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
                 -- Inventory is not changed by this function, so no need to send cnr:syncInventory
                 return true
             else
                 -- Notify the client about insufficient funds
-                TriggerClientEvent('chat:addMessage', pId, { args = {"^1Error", "You don't have enough money."} })
+                SafeTriggerClientEvent('chat:addMessage', pId, { args = {"^1Error", "You don't have enough money."} })
                 return false
             end
         else
@@ -376,8 +404,16 @@ end
 LoadPlayerData = function(playerId)
     -- Log(string.format("LoadPlayerData: Called for player ID %s.", playerId), "info")
     local pIdNum = tonumber(playerId)
-    -- local player = GetPlayerFromServerId(pIdNum) -- Example of framework-specific code removed
-    -- if not player then Log("LoadPlayerData: Player " .. pIdNum .. " not found on server.", "error"); return end
+    if not pIdNum or pIdNum <= 0 then
+        Log(string.format("LoadPlayerData: Invalid player ID %s", tostring(playerId)), "error")
+        return
+    end
+    
+    -- Check if player is still online
+    if not GetPlayerName(pIdNum) then
+        Log(string.format("LoadPlayerData: Player %s is not online", pIdNum), "warn")
+        return
+    end
 
     -- Log(string.format("LoadPlayerData: Attempting to get license for player %s.", pIdNum), "info")
     local license = GetPlayerLicense(pIdNum) -- Use helper to get license
@@ -451,13 +487,11 @@ LoadPlayerData = function(playerId)
         InitializePlayerInventory(playersData[pIdNum], pIdNum)
     else
         Log("LoadPlayerData: CRITICAL - playersData[pIdNum] became nil before InitializePlayerInventory for " .. pIdNum, "error")
-    end
-
-    local pDataForLoad = shallowcopy(playersData[pIdNum])
+    end    local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
-    TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
+    SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
+    SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
+    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
     -- Original position of isDataLoaded setting is now removed.
 end
 
@@ -489,8 +523,17 @@ end
 
 SetPlayerRole = function(playerId, role, skipNotify)
     local pIdNum = tonumber(playerId)
-    -- local player = GetPlayerFromServerId(pIdNum) -- Example placeholder for framework code
-    -- if not player then Log("SetPlayerRole: Player " .. pIdNum .. " not found.", "error"); return end
+    if not pIdNum or pIdNum <= 0 then
+        Log(string.format("SetPlayerRole: Invalid player ID %s", tostring(playerId)), "error")
+        return
+    end
+    
+    -- Check if player is still online
+    if not GetPlayerName(pIdNum) then
+        Log(string.format("SetPlayerRole: Player %s is not online", pIdNum), "warn")
+        return
+    end
+    
     local playerName = GetPlayerName(pIdNum) or "Unknown"
     -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
@@ -498,7 +541,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
     if not pData or not pData.isDataLoaded then -- Check both for robustness
         Log(string.format("SetPlayerRole: Attempted to set role for %s (Name: %s) but data not loaded/ready. Role: %s. pData exists: %s, isDataLoaded: %s. This should have been caught by the caller.", pIdNum, playerName, role, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded)), "warn")
         -- Do NOT trigger 'cnr:roleSelected' here, as the caller handles it.
-        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Role change failed: Player data integrity issue."} })
+        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Error", "Role change failed: Player data integrity issue."} })
         return
     end
 
@@ -511,31 +554,31 @@ SetPlayerRole = function(playerId, role, skipNotify)
         SafeSetByPlayerId(copsOnDuty, pIdNum, true)
         SafeRemoveByPlayerId(robbersActive, pIdNum)
         -- player.Functions.SetJob("leo", 0) -- Placeholder for framework integration
-        TriggerClientEvent('cnr:setPlayerRole', pIdNum, "cop")
-        if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Cop."} }) end
+        SafeTriggerClientEvent('cnr:setPlayerRole', pIdNum, "cop")
+        if not skipNotify then SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Cop."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Cop role.")
-        TriggerClientEvent('cops_and_robbers:bountyListUpdate', pIdNum, activeBounties)
+        SafeTriggerClientEvent('cops_and_robbers:bountyListUpdate', pIdNum, activeBounties)
     elseif role == "robber" then
         SafeSetByPlayerId(robbersActive, pIdNum, true)
         SafeRemoveByPlayerId(copsOnDuty, pIdNum)
         -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
-        TriggerClientEvent('cnr:setPlayerRole', pIdNum, "robber")
-        if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Robber."} }) end
+        SafeTriggerClientEvent('cnr:setPlayerRole', pIdNum, "robber")
+        if not skipNotify then SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Robber."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Robber role.")
     else
         SafeRemoveByPlayerId(copsOnDuty, pIdNum)
         SafeRemoveByPlayerId(robbersActive, pIdNum)
         -- player.Functions.SetJob("unemployed", 0) -- Placeholder for framework integration
-        TriggerClientEvent('cnr:setPlayerRole', pIdNum, "citizen")
-        if not skipNotify then TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Citizen."} }) end
+        SafeTriggerClientEvent('cnr:setPlayerRole', pIdNum, "citizen")
+        if not skipNotify then SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Citizen."} }) end
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.")
     end
     ApplyPerks(pIdNum, playersData[pIdNum].level, role) -- Re-apply/update perks based on new role
     -- Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
     local pDataForBasicInfo = shallowcopy(playersData[pIdNum])
     pDataForBasicInfo.inventory = nil
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
+    SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
 end
 
 IsPlayerCop = function(playerId) return GetPlayerRole(playerId) == "cop" end
@@ -562,6 +605,11 @@ end
 
 AddXP = function(playerId, amount, type)
     local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log("AddXP: Invalid player ID " .. tostring(playerId), "error")
+        return
+    end
+    
     local pData = GetCnrPlayerData(pIdNum)
     if not pData then Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error"); return end
     if type and pData.role ~= type and type ~= "general" then return end
@@ -572,22 +620,27 @@ AddXP = function(playerId, amount, type)
 
     if newLevel > oldLevel then
         pData.level = newLevel
-        TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Level Up!", string.format("Congratulations! You've reached Level %d!", newLevel)} })
-        TriggerClientEvent('cnr:levelUp', pIdNum, newLevel, pData.xp)
+        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Level Up!", string.format("Congratulations! You've reached Level %d!", newLevel)} })
+        SafeTriggerClientEvent('cnr:levelUp', pIdNum, newLevel, pData.xp)
         Log(string.format("Player %s leveled up to %d (XP: %d, Role: %s)", pIdNum, newLevel, pData.xp, pData.role))
         ApplyPerks(pIdNum, newLevel, pData.role)
     else
-        TriggerClientEvent('cnr:xpGained', pIdNum, amount, pData.xp)
+        SafeTriggerClientEvent('cnr:xpGained', pIdNum, amount, pData.xp)
         Log(string.format("Player %s gained %d XP (Total: %d, Role: %s)", pIdNum, amount, pData.xp, pData.role))
     end
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
+    SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
 ApplyPerks = function(playerId, level, role)
     local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log("ApplyPerks: Invalid player ID " .. tostring(playerId), "error")
+        return
+    end
+    
     local pData = GetCnrPlayerData(pIdNum); if not pData then return end
     pData.perks = {} -- Reset perks
     pData.extraSpikeStrips = 0 -- Reset specific perk values
@@ -642,8 +695,8 @@ ApplyPerks = function(playerId, level, role)
     end
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
-    TriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
+    SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
 
@@ -700,6 +753,11 @@ end)
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
     local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
+        return
+    end
+    
     print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
     if GetPlayerName(pIdNum) == nil or not IsPlayerRobber(pIdNum) then return end -- Check player online using GetPlayerName
 
@@ -737,10 +795,10 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Wanted calculation complete. pID: %s, Stars: %d, Points: %d', pIdNum, newStars, currentWanted.wantedLevel))
 
     Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
-    TriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
+    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
     -- The [CNR_SERVER_DEBUG] print previously here is now covered by the TRACE print above.
-    TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
-    TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Wanted", string.format("Wanted level increased! (%d Stars)", newStars)} })
+    SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
+    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Wanted", string.format("Wanted level increased! (%d Stars)", newStars)} })
 
     local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
     local robberPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
@@ -755,7 +813,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
             else
                 Log(string.format("UpdatePlayerWantedLevel: NPC Response ENABLED for player %s (%d stars), but robberCoords are nil. Event will still be triggered.", pIdNum, newStars), "warn")
             end
-            TriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
+            SafeTriggerClientEvent('cops_and_robbers:wantedLevelResponseUpdate', pIdNum, pIdNum, newStars, currentWanted.wantedLevel, robberCoords)
         else
             Log(string.format("UpdatePlayerWantedLevel: NPC Response DISABLED via Config.WantedSettings.enableNPCResponse for player %s (%d stars). Not triggering event.", pIdNum, newStars), "info")
         end
@@ -763,8 +821,8 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
         -- Alert Human Cops (existing logic)
         for copId, _ in pairs(copsOnDuty) do
             if GetPlayerName(copId) ~= nil then -- Check cop is online
-                TriggerClientEvent('chat:addMessage', copId, { args = {"^5Police Alert", string.format("Suspect %s (%s) is %d-star wanted for %s.", robberPlayerName, pIdNum, newStars, crimeDescription)} })
-                TriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, robberCoords, newStars, true)
+                SafeTriggerClientEvent('chat:addMessage', copId, { args = {"^5Police Alert", string.format("Suspect %s (%s) is %d-star wanted for %s.", robberPlayerName, pIdNum, newStars, crimeDescription)} })
+                SafeTriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, robberCoords, newStars, true)
             end
         end
     end
@@ -777,6 +835,11 @@ end
 
 ReduceWantedLevel = function(playerId, amount)
     local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log("ReduceWantedLevel: Invalid player ID " .. tostring(playerId), "error")
+        return
+    end
+    
     if wantedPlayers[pIdNum] then
         wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPlayers[pIdNum].wantedLevel - amount)
         local newStars = 0
@@ -789,13 +852,13 @@ ReduceWantedLevel = function(playerId, amount)
             end
         end
         wantedPlayers[pIdNum].stars = newStars
-        TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
         Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
         if wantedPlayers[pIdNum].wantedLevel == 0 then
-            TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Wanted", "You are no longer wanted."} })
+            SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Wanted", "You are no longer wanted."} })
             for copId, _ in pairs(copsOnDuty) do
                 if GetPlayerName(copId) ~= nil then -- Check cop is online
-                    TriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, nil, 0, false)
+                    SafeTriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, nil, 0, false)
                 end
             end
         end
@@ -821,6 +884,11 @@ end)
 -- =================================================================================================
 SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
     local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log("SendToJail: Invalid player ID " .. tostring(playerId), "error")
+        return
+    end
+    
     if GetPlayerName(pIdNum) == nil then return end -- Check player online
     local jailedPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
     arrestOptions = arrestOptions or {} -- Ensure options table exists
@@ -836,21 +904,26 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
 
     jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } -- Reset wanted
-    TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-    TriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation)
-    TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", durationSeconds)} })
+    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+    SafeTriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation)
+    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", durationSeconds)} })
     Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
 
     local arrestingOfficerName = (arrestingOfficerId and GetPlayerName(arrestingOfficerId)) or "System"
     for copId, _ in pairs(copsOnDuty) do
         if GetPlayerName(copId) ~= nil then -- Check cop is online
-            TriggerClientEvent('chat:addMessage', copId, { args = {"^5Police Info", string.format("Suspect %s jailed by %s.", jailedPlayerName, arrestingOfficerName)} })
-            TriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, nil, 0, false)
+            SafeTriggerClientEvent('chat:addMessage', copId, { args = {"^5Police Info", string.format("Suspect %s jailed by %s.", jailedPlayerName, arrestingOfficerName)} })
+            SafeTriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, nil, 0, false)
         end
     end
 
     if arrestingOfficerId and IsPlayerCop(arrestingOfficerId) then
         local officerIdNum = tonumber(arrestingOfficerId)
+        if not officerIdNum or officerIdNum <= 0 then
+            Log("SendToJail: Invalid arresting officer ID " .. tostring(arrestingOfficerId), "warn")
+            return
+        end
+        
         local arrestXP = 0
 
         -- Use originalWantedData.stars for XP calculation
@@ -859,7 +932,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         else arrestXP = Config.XPActionsCop.successful_arrest_low_wanted or 15 end
 
         AddXP(officerIdNum, arrestXP, "cop")
-        TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("Gained %d XP for arrest.", arrestXP)} })
+        SafeTriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("Gained %d XP for arrest.", arrestXP)} })
 
         -- K9 Assist Bonus (existing logic, now using arrestOptions)
         local engagement = k9Engagements[pIdNum] -- pIdNum is the robber
@@ -867,7 +940,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         if (engagement and engagement.copId == officerIdNum and (os.time() - engagement.time < (Config.K9AssistWindowSeconds or 30))) or arrestOptions.isK9Assist then
             local k9BonusXP = Config.XPActionsCop.k9_assist_arrest or 10 -- Corrected XP value
             AddXP(officerIdNum, k9BonusXP, "cop")
-            TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP K9 Assist!", k9BonusXP)} })
+            SafeTriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP K9 Assist!", k9BonusXP)} })
             Log(string.format("Cop %s K9 assist XP %d for robber %s.", officerIdNum, k9BonusXP, pIdNum))
             k9Engagements[pIdNum] = nil -- Clear engagement after awarding
         end
@@ -876,7 +949,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         if arrestOptions.isSubdueArrest and not arrestOptions.isK9Assist then -- Avoid double bonus if K9 was also involved somehow in subdue
             local subdueBonusXP = Config.XPActionsCop.subdue_arrest_bonus or 10
             AddXP(officerIdNum, subdueBonusXP, "cop")
-            TriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP for Subdue Arrest!", subdueBonusXP)} })
+            SafeTriggerClientEvent('chat:addMessage', officerIdNum, { args = {"^2XP", string.format("+%d XP for Subdue Arrest!", subdueBonusXP)} })
             Log(string.format("Cop %s Subdue Arrest XP %d for robber %s.", officerIdNum, subdueBonusXP, pIdNum))
         end
         if Config.BountySettings.enabled and Config.BountySettings.claimMethod == "arrest" and activeBounties[pIdNum] then
@@ -894,18 +967,19 @@ end
 
 CreateThread(function() -- Jail time update loop
     while true do Wait(1000)
-        for playerId, jailData in pairs(jail) do local pIdNum = tonumber(playerId)
-            if GetPlayerName(pIdNum) ~= nil then -- Check player online
+        for playerId, jailData in pairs(jail) do 
+            local pIdNum = tonumber(playerId)
+            if pIdNum and pIdNum > 0 and GetPlayerName(pIdNum) ~= nil then -- Check player online
                 jailData.remainingTime = jailData.remainingTime - 1
                 if jailData.remainingTime <= 0 then
-                    TriggerClientEvent('cnr:releaseFromJail', pIdNum)
-                    TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} }); Log("Player " .. pIdNum .. " released.")
+                    SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
+                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} }); Log("Player " .. pIdNum .. " released.")
                     jail[pIdNum] = nil
                 elseif jailData.remainingTime % 60 == 0 then
-                    TriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
+                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
                 end
             else
-                Log("Player " .. pIdNum .. " offline. Jail time paused.")
+                Log("Player " .. tostring(playerId) .. " offline. Jail time paused.")
                 -- Optionally, save player data here if jail time needs to persist accurately even if server restarts while player is offline & jailed.
                 -- However, current SavePlayerData is usually tied to playerDrop.
             end
@@ -1230,8 +1304,7 @@ RegisterNetEvent('cnr:reportCrime')
 AddEventHandler('cnr:reportCrime', function(crimeKey)
     local src = source
     local pIdNum = tonumber(src)
-    
-    -- Rate limiting to prevent spam
+      -- Rate limiting to prevent spam
     if not lastCrimeReports[pIdNum] then 
         lastCrimeReports[pIdNum] = {} 
     end
@@ -1350,14 +1423,13 @@ RegisterCommand("setwanted", function(source, args, rawCommand)
             end
         end
         wantedPlayers[pIdNum].stars = newStars
-        
-        -- Sync to client
-        TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-        TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, wantedPlayers[pIdNum].wantedLevel)
+          -- Sync to client
+        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+        SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, wantedPlayers[pIdNum].wantedLevel)
         
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", 
             string.format("Set wanted level for %s to %d points (%d stars)", GetPlayerName(targetId), wantedPoints, newStars) } })
-        TriggerClientEvent('chat:addMessage', targetId, { args = {"^1Wanted", 
+        SafeTriggerClientEvent('chat:addMessage', targetId, { args = {"^1Wanted", 
             string.format("Admin set your wanted level to %d points (%d stars)", wantedPoints, newStars)} })
             
         Log(string.format("Admin %s set wanted level for player %s to %d points (%d stars)", 

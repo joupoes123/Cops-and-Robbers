@@ -7,6 +7,23 @@
 local g_isPlayerPedReady = false
 
 -- =====================================
+--           HELPER FUNCTIONS
+-- =====================================
+
+-- Define Log function for consistent logging across client
+local function Log(message, level)
+    level = level or "info"
+    -- Check if Config and Config.DebugLogging are available
+    if Config and Config.DebugLogging then
+        if level == "error" then print("[CNR_CLIENT_ERROR] " .. message)
+        elseif level == "warn" then print("[CNR_CLIENT_WARN] " .. message)
+        else print("[CNR_CLIENT_INFO] " .. message) end
+    elseif level == "error" or level == "warn" then -- Always print errors/warnings if DebugLogging is off/Config unavailable
+        print("[CNR_CLIENT_CRITICAL] [" .. string.upper(level) .. "] " .. message)
+    end
+end
+
+-- =====================================
 --           CONFIGURATION
 -- =====================================
 
@@ -65,8 +82,15 @@ local currentSafeZoneName = ""
 -- Wanted System Expansion Client State
 local currentPlayerNPCResponseEntities = {}
 local corruptOfficialNPCs = {}
-local copStoreBlips = {}
 local currentHelpTextTarget = nil -- Moved to top level for broader access
+
+-- Contraband collection state
+local isCollectingFromDrop = nil
+local collectionTimerEnd = 0
+
+-- Store UI state
+local isCopStoreUiOpen = false
+local isRobberStoreUiOpen = false
 
 -- Patch: Exclude protected peds from police suppression
 local function IsPedProtected(ped)
@@ -959,14 +983,12 @@ AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
     end
 end)
 
--- Track if Cop Store UI is open
-local isCopStoreUiOpen = false
-
--- Cop Store Ped Interaction Thread (improved: no flicker, suppress when UI open)
+-- Handle role selection from NUI
 Citizen.CreateThread(function()
     local copStorePromptActive = false
     while true do
-        Citizen.Wait(100)        if role == "cop" and Config and Config.NPCVendors and not isCopStoreUiOpen then
+        Citizen.Wait(100)
+        if role == "cop" and Config and Config.NPCVendors and not isCopStoreUiOpen then
             local shown = false
             for _, vendor in ipairs(Config.NPCVendors) do
                 if vendor.name == "Cop Store" and vendor.location then
@@ -1139,9 +1161,6 @@ RegisterCommand("testequip", function()
     end
     print("[CNR_CLIENT_DEBUG] Manual weapon equip test triggered")
 end, false)
-
--- Track if Robber Store UI is open
-local isRobberStoreUiOpen = false
 
 -- Robber Store Ped Interaction Thread
 Citizen.CreateThread(function()
@@ -1386,7 +1405,8 @@ CreateThread(function()
                         end
                     end
                 end
-                lastAreaCheck = currentTime            end
+                lastAreaCheck = currentTime
+            end
         else
             -- Reset restricted area status if not a robber
             for i, _ in pairs(inRestrictedArea) do

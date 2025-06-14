@@ -11,7 +11,8 @@ local function Log(message, level)
         shouldLog = true
     end
 
-    if shouldLog then
+    -- Always log errors and warnings, even if DebugLogging is disabled
+    if shouldLog or level == "error" or level == "warn" then
         if level == "error" then print("[CNR_INV_SERV_ERROR] " .. message)
         elseif level == "warn" then print("[CNR_INV_SERV_WARN] " .. message)
         else print("[CNR_INV_SERV_INFO] " .. message) end
@@ -45,11 +46,16 @@ function AddItem(pData, itemId, quantity, playerId)
     if not pData.inventory then InitializePlayerInventory(pData, playerId) end
 
     local itemConfig = nil
-    for _, cfgItem in ipairs(Config.Items) do
-        if cfgItem.itemId == itemId then
-            itemConfig = cfgItem
-            break
+    if Config and Config.Items and type(Config.Items) == "table" then
+        for _, cfgItem in ipairs(Config.Items) do
+            if cfgItem.itemId == itemId then
+                itemConfig = cfgItem
+                break
+            end
         end
+    else
+        Log("AddItem: Config.Items not available or not properly configured for player " .. (playerId or "Unknown"), "error")
+        return false
     end
 
     if not itemConfig then Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn"); return false end
@@ -59,7 +65,12 @@ function AddItem(pData, itemId, quantity, playerId)
     end
     pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
     Log(string.format("Added %dx %s to player %s's inventory. New count: %d", quantity, itemId, playerId or "Unknown", pData.inventory[itemId].count))
-    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
+    if playerId then 
+        local playerIdNum = tonumber(playerId)
+        if playerIdNum then
+            TriggerClientEvent('cnr:inventoryUpdated', playerIdNum, pData.inventory) -- Notify client of change
+        end
+    end
     return true
 end
 
@@ -80,7 +91,12 @@ function RemoveItem(pData, itemId, quantity, playerId)
         pData.inventory[itemId] = nil -- Remove item if count is zero
     end
     Log(string.format("Removed %dx %s from player %s's inventory.", quantity, itemId, playerId or "Unknown"))
-    if playerId then TriggerClientEvent('cnr:inventoryUpdated', tonumber(playerId), pData.inventory) end -- Notify client of change
+    if playerId then 
+        local playerIdNum = tonumber(playerId)
+        if playerIdNum then
+            TriggerClientEvent('cnr:inventoryUpdated', playerIdNum, pData.inventory) -- Notify client of change
+        end
+    end
     return true
 end
 

@@ -9,7 +9,9 @@ function GetClientConfigItems()
 end
 
 -- Export for other client scripts if necessary
--- exports('GetClientConfigItems', GetClientConfigItems)
+exports('EquipInventoryWeapons', EquipInventoryWeapons)
+exports('GetClientConfigItems', GetClientConfigItems)
+exports('UpdateFullInventory', UpdateFullInventory)
 
 -- Helper function
 function Log(message, level)
@@ -204,7 +206,9 @@ function EquipInventoryWeapons()
         return
     end
 
-    Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+    Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")
+    
+if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
         Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
     end
@@ -216,7 +220,9 @@ function EquipInventoryWeapons()
 
     -- First, remove all weapons from the player to ensure clean state (armor is preserved)
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
-    RemoveAllPedWeapons(playerPed, true)    Citizen.Wait(200) -- Longer wait to ensure weapons are removed
+    RemoveAllPedWeapons(playerPed, true)
+    
+Citizen.Wait(200) -- Longer wait to ensure weapons are removed
     
     local processedItemCount = 0
     local weaponsEquipped = 0

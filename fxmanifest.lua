@@ -3,7 +3,7 @@ game 'gta5'
 
 name 'Cops and Robbers - Enhanced'
 description 'An immersive Cops and Robbers game mode with advanced features and administrative control'
-author 'Indominus'
+author 'The Axiom Collective'
 version '2.0'
 
 -- Define shared scripts, loaded first on both server and client.
@@ -13,15 +13,16 @@ shared_scripts {
 
 -- Define server-side scripts.
 server_scripts {
+    'safe_utils.lua',    -- Safe utility functions.
     'server.lua',       -- Core server logic.
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'inventory_server.lua' -- Add this line
+    'inventory_server.lua'
 }
 
 -- Define client-side scripts.
 client_scripts {
     'client.lua',        -- Core client logic and event handling.
-    'inventory_client.lua' -- Add this line
+    'inventory_client.lua'
 }
 
 -- Define the NUI page.
