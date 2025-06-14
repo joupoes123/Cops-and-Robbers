@@ -50,8 +50,13 @@ local xpForNextLevelDisplay = 0
 -- Contraband Drop Client State
 local activeDropBlips = {}
 local clientActiveContrabandDrops = {}
-local isCollectingFromDrop = nil
-local collectionTimerEnd = 0
+
+-- Blip tracking
+local copStoreBlips = {}
+local robberStoreBlips = {}
+
+-- Track protected peds to prevent NPC suppression from affecting them
+local g_protectedPolicePeds = {}
 
 -- Safe Zone Client State
 local isCurrentlyInSafeZone = false
@@ -62,9 +67,6 @@ local currentPlayerNPCResponseEntities = {}
 local corruptOfficialNPCs = {}
 local copStoreBlips = {}
 local currentHelpTextTarget = nil -- Moved to top level for broader access
-
--- Table to store protected peds (e.g., Cop Store ped)
-local g_protectedPolicePeds = {}
 
 -- Patch: Exclude protected peds from police suppression
 local function IsPedProtected(ped)
@@ -379,6 +381,75 @@ function UpdateCopStoreBlips()
     print("[CNR_CLIENT_DEBUG] UpdateCopStoreBlips finished. Current copStoreBlips count: " .. tablelength(copStoreBlips))
 end
 
+-- Update Robber Store Blips (visible only to robbers)
+function UpdateRobberStoreBlips()
+    if not Config.NPCVendors then
+        print("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Config.NPCVendors not found.")
+        return
+    end
+    if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
+        print("[CNR_CLIENT_ERROR] UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+        return
+    end
+    for i, vendor in ipairs(Config.NPCVendors) do
+        if vendor and vendor.location and vendor.name and (vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier") then
+            local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
+            if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+                if not robberStoreBlips[blipKey] or not DoesBlipExist(robberStoreBlips[blipKey]) then
+                    local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
+                    if vendor.name == "Black Market Dealer" then
+                        SetBlipSprite(blip, 266) -- Gun store icon
+                        SetBlipColour(blip, 1) -- Red
+                        BeginTextCommandSetBlipName("STRING")
+                        AddTextComponentString("Black Market")
+                        EndTextCommandSetBlipName(blip)
+                    else -- Gang Supplier
+                        SetBlipSprite(blip, 267) -- Ammu-nation icon
+                        SetBlipColour(blip, 5) -- Yellow
+                        BeginTextCommandSetBlipName("STRING")
+                        AddTextComponentString("Gang Supplier")
+                        EndTextCommandSetBlipName(blip)
+                    end
+                    SetBlipScale(blip, 0.8)
+                    SetBlipAsShortRange(blip, true)
+                    robberStoreBlips[blipKey] = blip
+                    print(string.format("[CNR_CLIENT_DEBUG] Created robber store blip for '%s' at %s", vendor.name, tostring(vendor.location)))
+                end
+            else
+                if robberStoreBlips[blipKey] and DoesBlipExist(robberStoreBlips[blipKey]) then
+                    print(string.format("[CNR_CLIENT_WARN] Removing stray blip from robberStoreBlips, associated with a non-Robber Store: '%s' at %s", vendor.name, blipKey))
+                    RemoveBlip(robberStoreBlips[blipKey])
+                    robberStoreBlips[blipKey] = nil
+                end
+            end
+        else
+            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d.", i))
+        end
+    end
+    -- Clean up orphaned blips
+    for blipKey, blipId in pairs(robberStoreBlips) do
+        local stillExistsAndIsRobberStore = false
+        if Config.NPCVendors and type(Config.NPCVendors) == "table" then
+            for _, vendor in ipairs(Config.NPCVendors) do
+                if vendor and vendor.location and vendor.name then
+                    if tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z) == blipKey and (vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier") then
+                        stillExistsAndIsRobberStore = true
+                        break
+                    end
+                end
+            end
+        end
+        if not stillExistsAndIsRobberStore then
+            if blipId and DoesBlipExist(blipId) then
+                RemoveBlip(blipId)
+            end
+            robberStoreBlips[blipKey] = nil
+            print(string.format("[CNR_CLIENT_DEBUG] Cleaned up orphaned/renamed Robber Store blip for key: %s", blipKey))
+        end
+    end
+    print("[CNR_CLIENT_DEBUG] UpdateRobberStoreBlips finished. Current robberStoreBlips count: " .. tablelength(robberStoreBlips))
+end
+
 function tablelength(T)
   local count = 0
   for _ in pairs(T) do count = count + 1 end
@@ -410,10 +481,50 @@ function SpawnCopStorePed()
     print("[CNR_CLIENT_DEBUG] Spawned and protected Cop Store ped at PD.")
 end
 
+-- Helper to spawn Robber Store peds and protect them from suppression
+function SpawnRobberStorePeds()
+    if not Config or not Config.NPCVendors then
+        print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
+        return
+    end
+    
+    for _, vendor in ipairs(Config.NPCVendors) do
+        if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+            local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
+            RequestModel(modelHash)
+            while not HasModelLoaded(modelHash) do 
+                Citizen.Wait(10) 
+            end
+            
+            local ped = CreatePed(4, modelHash, vendor.location.x, vendor.location.y, vendor.location.z - 1.0, vendor.heading or 0.0, false, true)
+            SetEntityAsMissionEntity(ped, true, true)
+            SetBlockingOfNonTemporaryEvents(ped, true)
+            SetPedFleeAttributes(ped, 0, false)
+            SetPedCombatAttributes(ped, 17, true)
+            SetPedCanRagdoll(ped, false)
+            SetPedDiesWhenInjured(ped, false)
+            SetEntityInvincible(ped, true)
+            FreezeEntityPosition(ped, true)
+            
+            -- Add to protected peds to prevent deletion by NPC suppression
+            g_protectedPolicePeds[ped] = true
+            
+            print(string.format("[CNR_CLIENT_DEBUG] Spawned and protected %s ped at %s", vendor.name, tostring(vendor.location)))
+        end
+    end
+end
+
 -- Call this on resource start and when player spawns
 Citizen.CreateThread(function()
     Citizen.Wait(2000)
     SpawnCopStorePed()
+    SpawnRobberStorePeds()
+    -- Initial blip setup based on current role
+    if role == "cop" then
+        UpdateCopStoreBlips()
+    elseif role == "robber" then
+        UpdateRobberStoreBlips()
+    end
 end)
 
 -- =====================================
@@ -440,6 +551,41 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     role = playerData.role
     local playerPedOnUpdate = PlayerPedId()
     -- Inventory is now handled by cnr:syncInventory event
+
+    -- Update blips based on role
+    if role == "cop" then
+        UpdateCopStoreBlips()
+        -- Clear robber store blips for cops
+        for blipKey, blipId in pairs(robberStoreBlips) do
+            if blipId and DoesBlipExist(blipId) then
+                RemoveBlip(blipId)
+            end
+            robberStoreBlips[blipKey] = nil
+        end
+    elseif role == "robber" then
+        UpdateRobberStoreBlips()
+        -- Clear cop store blips for robbers
+        for blipKey, blipId in pairs(copStoreBlips) do
+            if blipId and DoesBlipExist(blipId) then
+                RemoveBlip(blipId)
+            end
+            copStoreBlips[blipKey] = nil
+        end
+    else
+        -- Clear all store blips for citizens
+        for blipKey, blipId in pairs(copStoreBlips) do
+            if blipId and DoesBlipExist(blipId) then
+                RemoveBlip(blipId)
+            end
+            copStoreBlips[blipKey] = nil
+        end
+        for blipKey, blipId in pairs(robberStoreBlips) do
+            if blipId and DoesBlipExist(blipId) then
+                RemoveBlip(blipId)
+            end
+            robberStoreBlips[blipKey] = nil
+        end
+    end
 
     if role and oldRole ~= role then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
@@ -799,7 +945,7 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Handle item list from server and open Cop Store NUI
+-- Handle item list from server and open Store NUI
 RegisterNetEvent('cops_and_robbers:sendItemList')
 AddEventHandler('cops_and_robbers:sendItemList', function(storeName, items, playerInfo)
     if storeName == "Cop Store" then
@@ -807,13 +953,19 @@ AddEventHandler('cops_and_robbers:sendItemList', function(storeName, items, play
         isCopStoreUiOpen = true
         SetNuiFocus(true, true)
         SendNUIMessage({ action = 'openStore', storeName = storeName, items = items, playerInfo = playerInfo })
+    elseif storeName == "Black Market Dealer" or storeName == "Gang Supplier" then
+        print("[CNR_CLIENT_DEBUG] Received item list for " .. storeName .. ". Setting isRobberStoreUiOpen to true")
+        isRobberStoreUiOpen = true
+        SetNuiFocus(true, true)
+        SendNUIMessage({ action = 'openStore', storeName = storeName, items = items, playerInfo = playerInfo })
     end
 end)
 
--- Handle closing the Cop Store UI from NUI
+-- Handle closing the Store UI from NUI
 RegisterNUICallback("closeStore", function(_, cb)
-    print("[CNR_CLIENT_DEBUG] Closing Cop Store. Setting isCopStoreUiOpen to false")
+    print("[CNR_CLIENT_DEBUG] Closing Store. Setting store UI flags to false")
     isCopStoreUiOpen = false
+    isRobberStoreUiOpen = false
     SetNuiFocus(false, false)
     SetNuiFocusKeepInput(false) -- Extra safety to fully release focus
     cb({ success = true })
@@ -929,3 +1081,49 @@ RegisterCommand("testequip", function()
     end
     print("[CNR_CLIENT_DEBUG] Manual weapon equip test triggered")
 end, false)
+
+-- Track if Robber Store UI is open
+local isRobberStoreUiOpen = false
+
+-- Robber Store Ped Interaction Thread
+Citizen.CreateThread(function()
+    local robberStorePromptActive = false
+    while true do
+        Citizen.Wait(100)
+        if role == "robber" and Config and Config.NPCVendors and not isRobberStoreUiOpen then
+            local shown = false
+            for _, vendor in ipairs(Config.NPCVendors) do
+                if (vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier") and vendor.location then
+                    local playerPed = PlayerPedId()
+                    if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+                        local playerCoords = GetEntityCoords(playerPed)
+                        local dist = #(playerCoords - vendor.location)
+                        if dist < 2.0 then
+                            if not robberStorePromptActive then
+                                local storeType = vendor.name == "Black Market Dealer" and "Black Market" or "Gang Supplier"
+                                DisplayHelpText("Press ~INPUT_CONTEXT~ to open " .. storeType)
+                                robberStorePromptActive = true
+                            end
+                            shown = true
+                            if IsControlJustReleased(0, 51) then -- INPUT_CONTEXT (E)
+                                print("[CNR_CLIENT_DEBUG] Opening " .. vendor.name .. ". Current isRobberStoreUiOpen:", isRobberStoreUiOpen)
+                                TriggerServerEvent('cops_and_robbers:getItemList', 'Vendor', vendor.items, vendor.name)
+                                Citizen.Wait(500) -- Prevent double-trigger
+                            end
+                        end
+                    end
+                end
+            end
+            if not shown and robberStorePromptActive then
+                ClearAllHelpMessages()
+                robberStorePromptActive = false
+            end
+        else
+            if robberStorePromptActive then
+                ClearAllHelpMessages()
+                robberStorePromptActive = false
+            end
+            Citizen.Wait(300)
+        end
+    end
+end)
