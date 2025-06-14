@@ -1,0 +1,11 @@
+# Ignore development and documentation folders
+.github/
+.vscode/
+docs/
+
+# Common files to ignore
+*.log
+*.tmp
+*~
+.DS_Store
+Thumbs.db
