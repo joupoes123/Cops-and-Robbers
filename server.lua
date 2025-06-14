@@ -931,14 +931,21 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
         Log(string.format("cnr:selectRole: Player data not ready for %s. pData exists: %s, isDataLoaded: %s", pIdNum, tostring(pData ~= nil), tostring(pData and pData.isDataLoaded or false)), "warn")
         TriggerClientEvent('cnr:roleSelected', src, false, "Player data is not ready. Please wait a moment and try again.")
         return
-    end
+    end    -- No need for the old `if not pData then` check as the above condition covers it.
 
-    -- No need for the old `if not pData then` check as the above condition covers it.
-
-    if selectedRole ~= "cop" and selectedRole ~= "robber" then
+    if selectedRole ~= "cop" and selectedRole ~= "robber" and selectedRole ~= "civilian" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
-    end    -- Set role server-side
+    end
+    
+    -- Handle civilian role (no special spawn handling needed)
+    if selectedRole == "civilian" then
+        SetPlayerRole(pIdNum, nil) -- Clear role
+        TriggerClientEvent('cnr:roleSelected', src, true, "You are now a civilian.")
+        return
+    end
+
+    -- Set role server-side
     SetPlayerRole(pIdNum, selectedRole)
     -- Teleport to spawn and set ped model (client will handle visuals, but send spawn info)
     local spawnLocation = nil
@@ -1359,3 +1366,39 @@ RegisterCommand("setwanted", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /setwanted <playerId> <points>" } })
     end
 end, false)
+
+RegisterNetEvent('cops_and_robbers:adminSetLevel')
+AddEventHandler('cops_and_robbers:adminSetLevel', function(targetId, newLevel)
+    local src = source
+    local pData = GetCnrPlayerData(targetId)
+    
+    if not pData then
+        Log(string.format("adminSetLevel: No player data found for player %s", targetId), "warn")
+        return
+    end
+
+    -- Calculate XP needed for the new level
+    local newXP = 0
+    if Config.ExperienceSystem and Config.ExperienceSystem.levels then
+        for level = 1, newLevel do
+            if Config.ExperienceSystem.levels[level] then
+                newXP = newXP + Config.ExperienceSystem.levels[level].xpRequired
+            else
+                newXP = newXP + (level * 100) -- Fallback calculation
+            end
+        end
+    else
+        newXP = newLevel * 100 -- Simple fallback
+    end
+
+    -- Update player data
+    pData.level = newLevel
+    pData.xp = newXP
+    
+    -- Sync with client
+    TriggerClientEvent('cnr:updatePlayerData', targetId, pData)
+    SavePlayerData(targetId)
+    
+    Log(string.format("Admin %s set player %s level to %d (XP: %d)", 
+        GetPlayerName(src), GetPlayerName(targetId), newLevel, newXP))
+end)

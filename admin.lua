@@ -303,3 +303,39 @@ RegisterCommand("triggerpoweroutage", function(source, args, rawCommand)
     TriggerServerEvent('cops_and_robbers:adminTriggerPowerOutage', gridId)
     TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Power outage event triggered for grid ID: " .. gridId } })
 end, false)
+
+-- Set level command
+RegisterCommand("setlevel", function(source, args, rawCommand)
+    if not IsAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetId = tonumber(args[1])
+    local newLevel = tonumber(args[2])
+
+    if not targetId or not newLevel then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /setlevel <playerId> <level>" } })
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID." } })
+        return
+    end
+
+    if newLevel < 1 or newLevel > 100 then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Level must be between 1 and 100." } })
+        return
+    end
+
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetPlayerName(source), source, rawCommand)
+    TriggerServerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
+    
+    TriggerClientEvent('chat:addMessage', source, { 
+        args = { "^1Admin", string.format("Set level for %s to %d", GetPlayerName(targetId), newLevel) } 
+    })
+    TriggerClientEvent('chat:addMessage', targetId, { 
+        args = { "^1Admin", string.format("Admin set your level to %d", newLevel) } 
+    })
+end, false)

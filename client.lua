@@ -533,8 +533,27 @@ end)
 
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('cnr:playerSpawned') -- Corrected event name
-    SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
-    SetNuiFocus(true, true) -- Ensure mouse pointer appears for role selection
+    
+    -- Only show role selection if player doesn't have a role yet
+    if not role or role == "" then
+        SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
+        SetNuiFocus(true, true) -- Ensure mouse pointer appears for role selection
+    else
+        -- Player already has a role, respawn them at their role's spawn point
+        local spawnPoint = Config.SpawnPoints[role]
+        if spawnPoint then
+            local playerPed = PlayerPedId()
+            SetEntityCoords(playerPed, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
+            if role == "cop" then
+                SetEntityHeading(playerPed, 270.0)
+            elseif role == "robber" then
+                SetEntityHeading(playerPed, 180.0)
+            end
+            ShowNotification("Respawned as " .. role)
+            -- Reapply role visuals and loadout
+            ApplyRoleVisualsAndLoadout(role, nil)
+        end
+    end
 end)
 
 RegisterNetEvent('cnr:updatePlayerData')
@@ -1367,13 +1386,104 @@ CreateThread(function()
                         end
                     end
                 end
-                lastAreaCheck = currentTime
-            end
+                lastAreaCheck = currentTime            end
         else
             -- Reset restricted area status if not a robber
             for i, _ in pairs(inRestrictedArea) do
                 inRestrictedArea[i] = false
             end
+        end
+    end
+end)
+
+-- Function to clear role-specific blips
+local function ClearRoleSpecificBlips()
+    -- Clear cop store blips
+    for blipKey, blipId in pairs(copStoreBlips) do
+        if blipId and DoesBlipExist(blipId) then
+            RemoveBlip(blipId)
+        end
+    end
+    copStoreBlips = {}
+    
+    -- Clear robber store blips  
+    for blipKey, blipId in pairs(robberStoreBlips) do
+        if blipId and DoesBlipExist(blipId) then
+            RemoveBlip(blipId)
+        end
+    end
+    robberStoreBlips = {}
+end
+
+-- Command to open role selection menu
+RegisterCommand("selectrole", function(source, args, rawCommand)
+    local selectedRole = args[1]
+    
+    if selectedRole then
+        -- If a role is specified, select it directly
+        selectedRole = string.lower(selectedRole)
+        if selectedRole == "cop" or selectedRole == "robber" or selectedRole == "civilian" then
+            if selectedRole == "civilian" then
+                -- Handle civilian role (reset to no role)
+                role = nil
+                playerData.role = nil
+                ShowNotification("Role cleared. You are now a civilian.")
+                -- Clear any role-specific blips/UI
+                ClearRoleSpecificBlips()
+                return
+            else
+                TriggerServerEvent("cnr:selectRole", selectedRole)
+            end
+        else
+            ShowNotification("~r~Invalid role. Use: cop, robber, or civilian")
+        end    else
+        -- No role specified, open the role selection UI
+        SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
+        SetNuiFocus(true, true)
+    end
+end, false)
+
+-- Death detection and auto-respawn system
+Citizen.CreateThread(function()
+    local wasPlayerDead = false
+    
+    while true do
+        Citizen.Wait(1000) -- Check every second
+        
+        local playerPed = PlayerPedId()
+        local isPlayerDead = IsEntityDead(playerPed) or IsPedDeadOrDying(playerPed, true)
+        
+        if isPlayerDead and not wasPlayerDead then
+            -- Player just died
+            wasPlayerDead = true
+            
+            -- Ensure UI focus is cleared when player dies
+            SetNuiFocus(false, false)
+            SetNuiFocusKeepInput(false)
+            
+        elseif not isPlayerDead and wasPlayerDead then
+            -- Player just respawned
+            wasPlayerDead = false
+            
+            -- The playerSpawned event will handle the rest
+        end
+    end
+end)
+
+-- Emergency escape key handler to close stuck UI
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        if IsControlJustReleased(0, 322) then -- ESC key
+            -- Check if NUI focus is active and player is not in a valid UI state
+            local isInUI = false -- You can add logic here to check if legitimately in UI
+            
+            -- Force close UI if player seems stuck
+            SetNuiFocus(false, false)
+            SetNuiFocusKeepInput(false)
+            SendNUIMessage({ action = 'hideRoleSelection' })
+            SendNUIMessage({ action = 'closeStore' })
         end
     end
 end)
