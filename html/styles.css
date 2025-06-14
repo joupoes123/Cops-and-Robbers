@@ -144,18 +144,19 @@ button:hover {
 /* Store Container */
 #store-menu {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 900px;
-    max-width: 95vw;
-    height: 700px;
-    max-height: 90vh;
+    top: 5vh;
+    left: 5vw;
+    transform: none;
+    width: 90vw;
+    max-width: 1400px;
+    height: 85vh;
+    max-height: 85vh;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     border-radius: 20px;
     border: 2px solid #0f3460;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
-    animation: fadeInMenu 0.5s ease-out forwards;    overflow: hidden;
+    animation: fadeInMenu 0.5s ease-out forwards;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     -webkit-backdrop-filter: blur(10px);
@@ -687,24 +688,6 @@ button:hover {
     animation: slideOutDown 0.5s ease-out forwards;
 }
 
-/* Player Cash Display HUD Styling */
-#cash-display {
-    position: absolute;
-    top: 70px;
-    right: 20px;
-    background-color: #16213e; /* New Secondary Background */
-    color: #ffffff; /* New Text Color */
-    padding: 10px 15px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
-    border: 1px solid #0f3460; /* New Accent Color 2 for border */
-    font-weight: bold;
-    font-size: 16px;
-    z-index: 90;
-    display: none; /* Hidden by default, JS controls visibility */
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-}
-
 #level-text {
     font-size: 16px;
     font-weight: bold;
@@ -1094,4 +1077,48 @@ button:hover {
     #store-title {
         font-size: 24px;
     }
+}
+
+/* Cash Notification Styles */
+.cash-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.95), rgba(22, 27, 34, 0.95));
+    border: 1px solid rgba(76, 175, 80, 0.5);
+    border-radius: 12px;
+    padding: 15px 20px;
+    color: #4CAF50;
+    font-family: 'Roboto', sans-serif;
+    font-weight: 500;
+    box-shadow: 
+        0 10px 20px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(76, 175, 80, 0.2);
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s ease-out;    z-index: 2000;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.cash-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.cash-notification .cash-amount {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.cash-notification .cash-total {
+    font-size: 14px;
+    color: #999;
+    font-weight: 400;
+}
+
+/* Remove black background by ensuring no conflicting styles */
+body::before {
+    display: none !important;
 }

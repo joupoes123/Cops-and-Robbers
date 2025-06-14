@@ -1014,7 +1014,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     local playerInfo = {
         level = pData and pData.level or 1,
         role = pData and pData.role or "citizen",
-        cash = pData and pData.cash or 0
+        cash = pData and (pData.cash or pData.money) or 0
     }
 
     -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')

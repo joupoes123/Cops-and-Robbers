@@ -159,6 +159,27 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- Enhanced cop wanted level suppression
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(1000)
+        
+        if role == "cop" then
+            local playerId = PlayerId()
+            local currentWantedLevel = GetPlayerWantedLevel(playerId)
+            
+            if currentWantedLevel > 0 then
+                print("[CNR_CLIENT_DEBUG] Suppressing wanted level for cop player")
+                SetPlayerWantedLevel(playerId, 0, false)
+                SetPlayerWantedLevelNow(playerId, false)
+            end
+            
+            -- Ensure police blips are hidden for cop players
+            SetPoliceIgnorePlayer(PlayerPedId(), true)
+        end
+    end
+end)
+
 -- =====================================
 --           HELPER FUNCTIONS
 -- =====================================

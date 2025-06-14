@@ -31,10 +31,15 @@ window.addEventListener('message', function(event) {
                 }
             }
             showRoleSelection();
-            break;
-        case 'updateMoney':
-            updateCashDisplay(data.cash);
-            break;        case 'showStoreMenu':
+            break;        case 'updateMoney':
+            // Show cash notification instead of old persistent display
+            if (typeof data.cash === 'number') {
+                if (previousCash !== null && previousCash !== data.cash) {
+                    showCashNotification(data.cash, previousCash);
+                }
+                previousCash = data.cash;
+            }
+            break;case 'showStoreMenu':
         case 'openStore':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
@@ -257,17 +262,9 @@ function showToast(message, type = 'info', duration = 3000) {
 
     setTimeout(() => {
         toast.style.display = 'none';
-        toast.style.animation = '';
-    }, duration);
+        toast.style.animation = '';    }, duration);
 }
 
-function updateCashDisplay(currentCash) {
-    const cashDisplayElement = document.getElementById('cash-display');
-    if (cashDisplayElement) {
-        cashDisplayElement.textContent = '$' + (currentCash !== undefined ? currentCash.toLocaleString() : '0');
-        cashDisplayElement.style.display = 'block';
-    }
-}
 function showRoleSelection() {
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
@@ -315,9 +312,16 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         window.items = storeItems || [];
         window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
         
-        // Update player info display
-        if (playerCashEl) playerCashEl.textContent = `$${window.playerInfo.cash || 0}`;
+        // Update player info display and check for cash changes
+        const newCash = window.playerInfo.cash || 0;
+        if (playerCashEl) playerCashEl.textContent = `$${newCash}`;
         if (playerLevelEl) playerLevelEl.textContent = `Level ${window.playerInfo.level || 1}`;
+        
+        // Show cash notification if cash changed
+        if (previousCash !== null && previousCash !== newCash) {
+            showCashNotification(newCash, previousCash);
+        }
+        previousCash = newCash;
         
         window.currentCategory = null;
         window.currentTab = 'buy';
@@ -682,6 +686,39 @@ async function handleItemAction(itemId, quantity, actionType) {
     }
 }
 
+// Cash notification system
+let previousCash = null;
+
+function showCashNotification(newCash, oldCash = null) {
+    const difference = oldCash !== null ? newCash - oldCash : 0;
+    
+    if (difference === 0) return;
+    
+    const notification = document.createElement('div');
+    notification.className = 'cash-notification';
+    notification.innerHTML = `
+        <div class="cash-amount">${difference > 0 ? '+' : ''}$${Math.abs(difference)}</div>
+        <div class="cash-total">Total: $${newCash}</div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Trigger animation
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    // Remove after animation
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
 // Event listeners and other functions (DOMContentLoaded, selectRole, Escape key, Heist Timer, Admin Panel, Bounty Board) remain unchanged from the previous version.
 // ... (assuming the rest of the file content from the last read_files output is here)
 document.addEventListener('click', function(event) {
@@ -740,7 +777,7 @@ function selectRole(selectedRole) {
         //     hideRoleSelection();
         //   } else if (response && response.error) { ... } else { ... }
         // }
-        // Directly integrate for clarity or ensure handleRoleSelectionResponse is called:
+        // Directly integrate for clarity or ensure handleRoleSelection is called:
         if (response && response.success) {
             console.log('[CNR_NUI_ROLE] selectRole successful according to Lua. Calling hideRoleSelection().');
             hideRoleSelection();
