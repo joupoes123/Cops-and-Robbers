@@ -200,13 +200,11 @@ function EquipInventoryWeapons()
     local playerPed = PlayerPedId()
 
     if not playerPed or playerPed == 0 or playerPed == -1 then
-        Log("EquipInventoryWeapons: Invalid playerPed. Cannot equip weapons.", "error")
+        Log("EquipInventoryWeapons: Invalid playerPed. Cannot equip weapons/armor.", "error")
         return
     end
 
-    Log("EquipInventoryWeapons: Starting. Inv count: " .. tablelength(localPlayerInventory), "info")
-
-    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+    Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
         Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
     end
@@ -216,20 +214,32 @@ function EquipInventoryWeapons()
         Log(string.format("  DEBUG_INVENTORY: Item %s - Name: %s, Category: %s, Count: %s", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "info")
     end
 
-    -- First, remove all weapons from the player to ensure clean state
+    -- First, remove all weapons from the player to ensure clean state (armor is preserved)
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
     RemoveAllPedWeapons(playerPed, true)
-    Citizen.Wait(200) -- Longer wait to ensure weapons are removed
-
-    local processedItemCount = 0
+    Citizen.Wait(200) -- Longer wait to ensure weapons are removed    local processedItemCount = 0
     local weaponsEquipped = 0
+    local armorApplied = false
     
     -- Process each inventory item once
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
         
         if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
-            if (itemData.category == "Weapons" or itemData.category == "Melee Weapons") and itemData.count > 0 then
+            -- Handle Armor items first (apply to player's armor bar)
+            if itemData.category == "Armor" and itemData.count > 0 and not armorApplied then
+                local armorAmount = 100 -- Default armor amount
+                if itemId == "heavy_armor" then
+                    armorAmount = 200 -- Heavy armor gives more protection
+                end
+                
+                SetPedArmour(playerPed, armorAmount)
+                armorApplied = true
+                Log(string.format("  ✓ APPLIED ARMOR: %s (Amount: %d)", itemData.name or itemId, armorAmount), "info")
+            
+            -- Handle weapon items (including gas weapons in Utility category)
+            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or 
+                   (itemData.category == "Utility" and string.find(itemId, "weapon_"))) and itemData.count > 0 then
                 -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
                 local upperItemId = string.upper(itemId)
                 local weaponHash = GetHashKey(upperItemId)
@@ -278,7 +288,7 @@ function EquipInventoryWeapons()
         end
     end
     
-    Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons.", processedItemCount, weaponsEquipped), "info")
+    Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info")
     
     -- Select the first weapon if any weapons were equipped
     if weaponsEquipped > 0 then
