@@ -422,21 +422,57 @@ function loadSellGridItems() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
-    }).then(response => response.json())
-    .then(data => {
+    }).then(response => response.json())    .then(data => {
         sellGrid.innerHTML = '';
-        const playerItems = data.items || [];
+        const minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
         
-        if (playerItems.length === 0) {
+        if (!fullItemConfig) {
+            console.error('[CNR_NUI] fullItemConfig not available. Cannot reconstruct sell list details.');
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error: Item configuration not loaded.</div>';
+            return;
+        }
+        
+        if (!minimalInventory || minimalInventory.length === 0) {
             sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Your inventory is empty.</div>';
             return;
         }
         
         const fragment = document.createDocumentFragment();
-        playerItems.forEach(item => {
-            if (item.count > 0) {
-                fragment.appendChild(createInventorySlot(item, 'sell'));
-            }        });
+        minimalInventory.forEach(minItem => {
+            if (minItem.count > 0) {
+                // Look up full item details from config
+                let itemDetails = null;
+                if (Array.isArray(fullItemConfig)) {
+                    // If fullItemConfig is an array
+                    itemDetails = fullItemConfig.find(configItem => configItem.itemId === minItem.itemId);
+                } else {
+                    // If fullItemConfig is an object
+                    itemDetails = fullItemConfig[minItem.itemId];
+                }
+                
+                if (itemDetails) {
+                    // Calculate sell price (50% of base price by default)
+                    let sellPrice = Math.floor((itemDetails.price || itemDetails.basePrice || 0) * 0.5);
+                    
+                    // Apply dynamic economy if available
+                    if (window.cnrDynamicEconomySettings && window.cnrDynamicEconomySettings.enabled && typeof window.cnrDynamicEconomySettings.sellPriceFactor === 'number') {
+                        sellPrice = Math.floor((itemDetails.price || itemDetails.basePrice || 0) * window.cnrDynamicEconomySettings.sellPriceFactor);
+                    }
+                    
+                    const richItem = {
+                        itemId: minItem.itemId,
+                        name: itemDetails.name,
+                        count: minItem.count,
+                        category: itemDetails.category,
+                        sellPrice: sellPrice
+                    };
+                    
+                    fragment.appendChild(createInventorySlot(richItem, 'sell'));
+                } else {
+                    console.warn(`[CNR_NUI] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Skipping.`);
+                }
+            }
+        });
         sellGrid.appendChild(fragment);
     }).catch(error => {
         console.error('Error loading sell inventory:', error);
@@ -494,7 +530,7 @@ function createInventorySlot(item, type = 'buy') {
     
     const itemIcon = document.createElement('div');
     itemIcon.className = 'item-icon';
-    itemIcon.textContent = getItemIcon(item.category, item.name);
+    itemIcon.textContent = item.icon || getItemIcon(item.category, item.name);
     
     iconContainer.appendChild(itemIcon);
     

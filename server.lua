@@ -981,8 +981,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
             for _, configItem in ipairs(Config.Items) do
                 if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
-                    foundItem = {
-                        itemId = configItem.itemId,
+                    foundItem = {                        itemId = configItem.itemId,
                         name = configItem.name,
                         basePrice = configItem.basePrice, -- NUI will use this as 'price'
                         price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
@@ -990,6 +989,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                         forCop = configItem.forCop,
                         minLevelCop = configItem.minLevelCop,
                         minLevelRobber = configItem.minLevelRobber,
+                        icon = configItem.icon, -- Add icon field for modern UI
                         -- Add any other fields the NUI might need, like description, weight, etc.
                         -- e.g., description = configItem.description or ""
                     }
@@ -1010,12 +1010,11 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         print("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
         return
-    end
-
-    -- Include player level and role information for UI to check restrictions
+    end    -- Include player level, role, and cash information for UI to check restrictions and display
     local playerInfo = {
         level = pData and pData.level or 1,
-        role = pData and pData.role or "citizen"
+        role = pData and pData.role or "citizen",
+        cash = pData and pData.cash or 0
     }
 
     -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
