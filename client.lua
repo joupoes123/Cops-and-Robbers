@@ -690,6 +690,28 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     SetWantedLevelForPlayerRole(stars, points)
 end)
 
+-- Missing event handler for wanted level synchronization
+RegisterNetEvent('cnr:wantedLevelSync')
+AddEventHandler('cnr:wantedLevelSync', function(wantedData)
+    if wantedData then
+        currentWantedStarsClient = wantedData.stars or 0
+        currentWantedPointsClient = wantedData.wantedLevel or 0
+        local newUiLabel = ""
+        if wantedData.stars > 0 then
+            for _, levelData in ipairs(Config.WantedSettings.levels) do 
+                if levelData.stars == wantedData.stars then 
+                    newUiLabel = levelData.uiLabel
+                    break 
+                end 
+            end
+            if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", wantedData.stars) end
+        end
+        wantedUiLabel = newUiLabel
+        SetWantedLevelForPlayerRole(wantedData.stars, wantedData.wantedLevel)
+        print(string.format("[CNR_CLIENT_DEBUG] Wanted level synced: Stars=%d, Points=%d", wantedData.stars, wantedData.wantedLevel))
+    end
+end)
+
 RegisterNetEvent('cops_and_robbers:wantedLevelResponseUpdate')
 AddEventHandler('cops_and_robbers:wantedLevelResponseUpdate', function(targetPlayerId, stars, points, lastKnownCoords)
     -- This event handler is currently not responsible for spawning custom NPC police responses.
@@ -1124,6 +1146,217 @@ Citizen.CreateThread(function()
                 robberStorePromptActive = false
             end
             Citizen.Wait(300)
+        end
+    end
+end)
+
+-- =================================================================================================
+-- CRIME DETECTION SYSTEM
+-- =================================================================================================
+
+-- Vehicle theft detection
+local lastVehicle = nil
+local vehicleOwnershipCheck = {}
+
+CreateThread(function()
+    while true do
+        Wait(1000)
+        if role == "robber" then
+            local playerPed = PlayerPedId()
+            if playerPed and DoesEntityExist(playerPed) then
+                local currentVehicle = GetVehiclePedIsIn(playerPed, false)
+                
+                if currentVehicle ~= 0 and currentVehicle ~= lastVehicle then
+                    local driver = GetPedInVehicleSeat(currentVehicle, -1)
+                    if driver == playerPed then
+                        -- Check if this is a stolen vehicle
+                        local vehicleNetworkId = NetworkGetNetworkIdFromEntity(currentVehicle)
+                        local isPlayerVehicle = false
+                        
+                        -- Check if this vehicle was spawned by the player legitimately
+                        for playerId = 0, 255 do
+                            if NetworkIsPlayerActive(playerId) then
+                                local otherPed = GetPlayerPed(playerId)
+                                if otherPed ~= playerPed and DoesEntityExist(otherPed) then
+                                    local lastVehicleOfOther = GetVehiclePedIsIn(otherPed, true)
+                                    if lastVehicleOfOther == currentVehicle then
+                                        isPlayerVehicle = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Check if vehicle had NPC driver
+                        local wasNPCVehicle = vehicleOwnershipCheck[currentVehicle] or false
+                        if not wasNPCVehicle then
+                            -- Check if there are NPC passengers that suggest this was an NPC vehicle
+                            for seat = -1, GetVehicleMaxNumberOfPassengers(currentVehicle) do
+                                local passenger = GetPedInVehicleSeat(currentVehicle, seat)
+                                if passenger ~= 0 and passenger ~= playerPed and not IsPedAPlayer(passenger) then
+                                    wasNPCVehicle = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        -- Trigger vehicle theft if it's not the player's own vehicle
+                        if not isPlayerVehicle or wasNPCVehicle then
+                            print("[CNR_CLIENT_DEBUG] Vehicle theft detected")
+                            TriggerServerEvent('cnr:reportCrime', 'grand_theft_auto')
+                        end
+                    end
+                    lastVehicle = currentVehicle
+                elseif currentVehicle == 0 then
+                    lastVehicle = nil
+                end
+            end
+        end
+    end
+end)
+
+-- Track vehicle ownership for better theft detection
+CreateThread(function()
+    while true do
+        Wait(2000)
+        local playerPed = PlayerPedId()
+        if playerPed and DoesEntityExist(playerPed) then
+            local handle, vehicle = FindFirstVehicle()
+            local success = true
+            while success do
+                if DoesEntityExist(vehicle) then
+                    local driver = GetPedInVehicleSeat(vehicle, -1)
+                    if driver ~= 0 and not IsPedAPlayer(driver) then
+                        vehicleOwnershipCheck[vehicle] = true
+                    end
+                end
+                success, vehicle = FindNextVehicle(handle)
+            end
+            EndFindVehicle(handle)
+        end
+    end
+end)
+
+-- Speeding detection
+local lastSpeedCheck = 0
+CreateThread(function()
+    while true do
+        Wait(5000) -- Check every 5 seconds
+        if role == "robber" then
+            local currentTime = GetGameTimer()
+            if currentTime - lastSpeedCheck > 5000 then
+                local playerPed = PlayerPedId()
+                if playerPed and DoesEntityExist(playerPed) then
+                    local vehicle = GetVehiclePedIsIn(playerPed, false)
+                    if vehicle ~= 0 then
+                        local speed = GetEntitySpeed(vehicle) * 2.237 -- Convert to MPH
+                        if speed > 80 then -- High speed threshold
+                            print("[CNR_CLIENT_DEBUG] Speeding detected: " .. math.floor(speed) .. " MPH")
+                            TriggerServerEvent('cnr:reportCrime', 'speeding')
+                        end
+                    end
+                end
+                lastSpeedCheck = currentTime
+            end
+        end
+    end
+end)
+
+-- Violence detection (shooting)
+local lastShotTime = 0
+CreateThread(function()
+    while true do
+        Wait(500)
+        if role == "robber" then
+            local playerPed = PlayerPedId()
+            if playerPed and DoesEntityExist(playerPed) then
+                if IsPedShooting(playerPed) then
+                    local currentTime = GetGameTimer()
+                    if currentTime - lastShotTime > 3000 then -- Prevent spam
+                        -- Check if shooting at police or civilians
+                        local coords = GetEntityCoords(playerPed)
+                        local nearbyPeds = GetNearbyPeds(coords, 50.0)
+                        
+                        for _, ped in ipairs(nearbyPeds) do
+                            if DoesEntityExist(ped) and ped ~= playerPed then
+                                if IsPedNpcCop(ped) then
+                                    print("[CNR_CLIENT_DEBUG] Assault on police detected")
+                                    TriggerServerEvent('cnr:reportCrime', 'assault_cop')
+                                elseif not IsPedAPlayer(ped) then
+                                    print("[CNR_CLIENT_DEBUG] Assault on civilian detected") 
+                                    TriggerServerEvent('cnr:reportCrime', 'assault_civilian')
+                                end
+                            end
+                        end
+                        lastShotTime = currentTime
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Helper function to get nearby peds
+function GetNearbyPeds(coords, radius)
+    local peds = {}
+    local handle, ped = FindFirstPed()
+    local success = true
+    while success do
+        if DoesEntityExist(ped) then
+            local pedCoords = GetEntityCoords(ped)
+            if #(coords - pedCoords) <= radius then
+                table.insert(peds, ped)
+            end
+        end
+        success, ped = FindNextPed(handle)
+    end
+    EndFindPed(handle)
+    return peds
+end
+
+-- Restricted area detection
+local lastAreaCheck = 0
+local inRestrictedArea = {}
+
+CreateThread(function()
+    while true do
+        Wait(5000) -- Check every 5 seconds
+        if role == "robber" then
+            local currentTime = GetGameTimer()
+            if currentTime - lastAreaCheck > 5000 then
+                local playerPed = PlayerPedId()
+                if playerPed and DoesEntityExist(playerPed) then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    
+                    -- Check restricted areas from config
+                    if Config.RestrictedAreas then
+                        for i, area in ipairs(Config.RestrictedAreas) do
+                            local distance = #(playerCoords - area.center)
+                            if distance <= area.radius then
+                                if not inRestrictedArea[i] then
+                                    inRestrictedArea[i] = true
+                                    print(string.format("[CNR_CLIENT_DEBUG] Entered restricted area: %s", area.name))
+                                    TriggerServerEvent('cnr:reportCrime', 'restricted_area_entry')
+                                    if area.message then
+                                        ShowNotification(area.message)
+                                    end
+                                end
+                            else
+                                if inRestrictedArea[i] then
+                                    inRestrictedArea[i] = false
+                                    print(string.format("[CNR_CLIENT_DEBUG] Left restricted area: %s", area.name))
+                                end
+                            end
+                        end
+                    end
+                end
+                lastAreaCheck = currentTime
+            end
+        else
+            -- Reset restricted area status if not a robber
+            for i, _ in pairs(inRestrictedArea) do
+                inRestrictedArea[i] = false
+            end
         end
     end
 end)

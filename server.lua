@@ -1197,93 +1197,153 @@ RegisterNetEvent('cnr:requestPlayerInventory')
 AddEventHandler('cnr:requestPlayerInventory', function()
     local src = source
     local pData = GetCnrPlayerData(src)
-    
     if pData and pData.inventory then
-        -- Send the minimal inventory to trigger re-equipping
-        TriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
-        Log(string.format("Player %s requested inventory sync for re-equipping weapons.", src))
+        TriggerClientEvent('cnr:receivePlayerInventory', src, pData.inventory)
+    else
+        TriggerClientEvent('cnr:receivePlayerInventory', src, {})
     end
 end)
 
--- =================================================================================================
--- DEBUG/TESTING COMMANDS (Remove in production)
--- =================================================================================================
+-- Crime reporting system
+local lastCrimeReports = {} -- Initialize at module level
 
--- Temporary admin command to set player level for testing
-RegisterCommand('setlevel', function(source, args, rawCommand)
+RegisterNetEvent('cnr:reportCrime')
+AddEventHandler('cnr:reportCrime', function(crimeKey)
     local src = source
-    if not IsAdmin(src) then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have permission to use this command."} })
+    local pIdNum = tonumber(src)
+    
+    -- Rate limiting to prevent spam
+    if not lastCrimeReports[pIdNum] then 
+        lastCrimeReports[pIdNum] = {} 
+    end
+    
+    local currentTime = os.time()
+    local lastReportTime = lastCrimeReports[pIdNum][crimeKey] or 0
+    local cooldownTime = 10 -- 10 seconds between same crime reports
+    
+    if currentTime - lastReportTime < cooldownTime then
+        print(string.format("[CNR_SERVER_TRACE] Crime report %s from player %s ignored (cooldown)", crimeKey, pIdNum))
         return
     end
+    
+    lastCrimeReports[pIdNum][crimeKey] = currentTime
+    
+    -- Check if the crime exists in config
+    if not Config.WantedSettings.crimes[crimeKey] then
+        Log(string.format("Unknown crime reported: %s from player %s", crimeKey, pIdNum), "warn")
+        return
+    end
+    
+    print(string.format("[CNR_SERVER_DEBUG] Crime reported: %s by player %s", crimeKey, pIdNum))
+    UpdatePlayerWantedLevel(pIdNum, crimeKey)
+end)
 
-    local targetId = tonumber(args[1])
-    local newLevel = tonumber(args[2])
+RegisterCommand("testwanted", function(source, args, rawCommand)
+    if source == 0 then return end -- Console command not supported
     
-    if not targetId or not newLevel then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^3Usage", "/setlevel [playerId] [level]"} })
+    local pData = GetCnrPlayerData(source)
+    if not pData then return end
+    
+    local crimeKey = args[1] or "grand_theft_auto"
+    
+    -- Only allow robbers to test the wanted system
+    if pData.role ~= "robber" then
+        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Only robbers can test the wanted system!"} })
         return
     end
     
-    local pData = GetCnrPlayerData(targetId)
-    if not pData then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Player data not found for ID: " .. targetId} })
+    -- Check if the crime exists
+    if not Config.WantedSettings.crimes[crimeKey] then
+        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Unknown crime key: " .. crimeKey} })
         return
     end
     
-    pData.level = math.max(1, math.min(newLevel, Config.MaxLevel or 10))
-    ApplyPerks(targetId, pData.level, pData.role)
-    
-    local targetName = GetPlayerName(targetId) or "Unknown"
-    TriggerClientEvent('chat:addMessage', src, { args = {"^2Admin", string.format("Set %s (ID: %d) to level %d", targetName, targetId, pData.level)} })
-    TriggerClientEvent('chat:addMessage', targetId, { args = {"^2Admin", string.format("Your level has been set to %d by an admin", pData.level)} })
-    
-    Log(string.format("Admin %s set player %s (%s) to level %d", src, targetId, targetName, pData.level))
+    print(string.format("[CNR_SERVER_DEBUG] Admin test: Adding wanted level for crime %s to player %s", crimeKey, source))
+    UpdatePlayerWantedLevel(source, crimeKey)
+    TriggerClientEvent('chat:addMessage', source, { args = {"^3Test", "Added wanted level for crime: " .. crimeKey} })
 end, false)
 
--- Command to force equip all weapons in inventory
-RegisterCommand('equipweapons', function(source, args, rawCommand)
-    local src = source
-    TriggerClientEvent('cnr:forceEquipWeapons', src)
-    TriggerClientEvent('chat:addMessage', src, { args = {"^2Debug", "Attempting to re-equip all weapons from inventory."} })
-end, false)
-
--- Test command to give a few weapons for testing
-RegisterCommand('giveweapons', function(source, args, rawCommand)
-    local src = source
-    if not IsAdmin(src) then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have permission to use this command."} })
-        return
+RegisterCommand("checkwanted", function(source, args, rawCommand)
+    if source == 0 then return end -- Console command not supported
+    
+    local pIdNum = tonumber(source)
+    local pData = GetCnrPlayerData(source)
+    
+    if not pData then 
+        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Player data not found!"} })
+        return 
     end
-
-    local pData = GetCnrPlayerData(src)
-    if not pData then
-        TriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Player data not found."} })
-        return
-    end
-
-    -- Add some test weapons to inventory
-    local testWeapons = {
-        { itemId = "weapon_pistol", name = "Pistol" },
-        { itemId = "weapon_pumpshotgun", name = "Pump Shotgun" },
-        { itemId = "weapon_assaultrifle", name = "Assault Rifle" },
-        { itemId = "weapon_carbinerifle", name = "Carbine Rifle" }
-    }
-
-    for _, weapon in ipairs(testWeapons) do
-        local weaponConfig = nil
-        for _, cfgItem in ipairs(Config.Items) do
-            if cfgItem.itemId == weapon.itemId then
-                weaponConfig = cfgItem
-                break
+    
+    local wantedData = wantedPlayers[pIdNum]
+    local role = pData.role or "unknown"
+    local isRobber = IsPlayerRobber(pIdNum)
+    
+    if wantedData then
+        local message = string.format("Role: %s | Robber: %s | Stars: %d | Points: %d | Last Crime: %d sec ago", 
+            role, tostring(isRobber), wantedData.stars, wantedData.wantedLevel, 
+            os.time() - (wantedData.lastCrimeTime or 0))
+        TriggerClientEvent('chat:addMessage', source, { args = {"^3Wanted Status", message} })
+        
+        -- Show crimes committed
+        if wantedData.crimesCommitted then
+            local crimesList = {}
+            for crime, count in pairs(wantedData.crimesCommitted) do
+                table.insert(crimesList, string.format("%s(%d)", crime, count))
+            end
+            if #crimesList > 0 then
+                TriggerClientEvent('chat:addMessage', source, { args = {"^3Crimes", table.concat(crimesList, ", ")} })
             end
         end
-        
-        if weaponConfig then
-            AddItemToPlayerInventory(src, weapon.itemId, 1, weaponConfig)
-            Log(string.format("Admin gave %s to player %s", weapon.name, src))
-        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = {"^3Wanted Status", 
+            string.format("Role: %s | Robber: %s | No wanted data (clean record)", role, tostring(isRobber))} })
+    end
+end, false)
+
+RegisterCommand("setwanted", function(source, args, rawCommand)
+    if source == 0 then return end -- Console not supported
+    if not IsAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
     end
 
-    TriggerClientEvent('chat:addMessage', src, { args = {"^2Admin", "Test weapons added to inventory. Use /equipweapons to equip them."} })
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local wantedPoints = tonumber(args[2])
+
+    if targetId and GetPlayerName(targetId) and wantedPoints then
+        local pIdNum = tonumber(targetId)
+        if not wantedPlayers[pIdNum] then 
+            wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } 
+        end
+        
+        wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPoints)
+        wantedPlayers[pIdNum].lastCrimeTime = os.time()
+        
+        -- Calculate new stars
+        local newStars = 0
+        if Config.WantedSettings and Config.WantedSettings.levels then
+            for i = #Config.WantedSettings.levels, 1, -1 do
+                if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.levels[i].threshold then
+                    newStars = Config.WantedSettings.levels[i].stars
+                    break
+                end
+            end
+        end
+        wantedPlayers[pIdNum].stars = newStars
+        
+        -- Sync to client
+        TriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+        TriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, wantedPlayers[pIdNum].wantedLevel)
+        
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", 
+            string.format("Set wanted level for %s to %d points (%d stars)", GetPlayerName(targetId), wantedPoints, newStars) } })
+        TriggerClientEvent('chat:addMessage', targetId, { args = {"^1Wanted", 
+            string.format("Admin set your wanted level to %d points (%d stars)", wantedPoints, newStars)} })
+            
+        Log(string.format("Admin %s set wanted level for player %s to %d points (%d stars)", 
+            GetPlayerName(source), GetPlayerName(targetId), wantedPoints, newStars))
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /setwanted <playerId> <points>" } })
+    end
 end, false)

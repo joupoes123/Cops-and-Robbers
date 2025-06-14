@@ -367,12 +367,12 @@ Config.WantedSettings = {
         assault_civilian           = 3,    -- Assaulting a civilian without killing.
         murder_civilian            = 10,   -- For killing a civilian.
         assault_cop                = 15,   -- For assaulting a police officer.
-        murder_cop                 = 25,   -- For killing a police officer.
-        -- Other
+        murder_cop                 = 25,   -- For killing a police officer.        -- Other
         resisting_arrest           = 5,    -- Fleeing from police after being told to stop.
         jailbreak_attempt          = 30,   -- Attempting to break someone out of jail.
         emp_used_on_police         = 8,    -- Using EMP that affects police vehicles.
-        power_grid_sabotaged_crime = 8     -- Sabotaging power grid (distinct from XP action).
+        power_grid_sabotaged_crime = 8,    -- Sabotaging power grid (distinct from XP action).
+        restricted_area_entry      = 3     -- Entering restricted areas like Fort Zancudo.
     },
     decayRatePoints      = 1,    -- Amount of wanted points to decay per interval. (Renamed from decayRate)
     decayIntervalMs      = 30000,-- Milliseconds (30 seconds) - how often the decay check runs. (Renamed from decayInterval)
