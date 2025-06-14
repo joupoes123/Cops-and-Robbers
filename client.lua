@@ -1382,8 +1382,7 @@ CreateThread(function()
                 local playerPed = PlayerPedId()
                 if playerPed and DoesEntityExist(playerPed) then
                     local playerCoords = GetEntityCoords(playerPed)
-                    
-                    -- Check restricted areas from config
+                      -- Check restricted areas from config
                     if Config.RestrictedAreas then
                         for i, area in ipairs(Config.RestrictedAreas) do
                             local distance = #(playerCoords - area.center)
@@ -1391,7 +1390,10 @@ CreateThread(function()
                                 if not inRestrictedArea[i] then
                                     inRestrictedArea[i] = true
                                     print(string.format("[CNR_CLIENT_DEBUG] Entered restricted area: %s", area.name))
-                                    TriggerServerEvent('cnr:reportCrime', 'restricted_area_entry')
+                                    
+                                    -- Send area info to server for minimum star enforcement
+                                    TriggerServerEvent('cnr:reportRestrictedAreaEntry', area)
+                                    
                                     if area.message then
                                         ShowNotification(area.message)
                                     end
@@ -1416,7 +1418,105 @@ CreateThread(function()
     end
 end)
 
--- Function to clear role-specific blips
+-- Hit and Run Detection
+local lastVehicleCollision = 0
+local lastPedHit = {}
+
+CreateThread(function()
+    while true do
+        Wait(100) -- Check frequently for hit and run
+        if role == "robber" then
+            local playerPed = PlayerPedId()
+            if playerPed and DoesEntityExist(playerPed) then
+                local vehicle = GetVehiclePedIsIn(playerPed, false)
+                if vehicle ~= 0 then
+                    local currentTime = GetGameTimer()
+                    
+                    -- Check if vehicle collided with anything recently
+                    if HasEntityCollidedWithAnything(vehicle) and currentTime - lastVehicleCollision > 2000 then
+                        local vehicleCoords = GetEntityCoords(vehicle)
+                        local nearbyPeds = GetNearbyPeds(vehicleCoords, 10.0)
+                        
+                        for _, ped in ipairs(nearbyPeds) do
+                            if DoesEntityExist(ped) and ped ~= playerPed and not IsPedAPlayer(ped) then
+                                -- Check if ped is injured or dead from vehicle collision
+                                if (IsPedDeadOrDying(ped, true) or IsPedFatallyInjured(ped) or IsPedInjured(ped)) then
+                                    local pedId = tostring(ped)
+                                    if not lastPedHit[pedId] or currentTime - lastPedHit[pedId] > 10000 then
+                                        lastPedHit[pedId] = currentTime
+                                        
+                                        -- Check if it's a cop or civilian
+                                        if IsPedNpcCop(ped) then
+                                            print("[CNR_CLIENT_DEBUG] Hit and run on police officer detected")
+                                            TriggerServerEvent('cnr:reportCrime', 'hit_and_run_cop')
+                                        else
+                                            print("[CNR_CLIENT_DEBUG] Hit and run on civilian detected")
+                                            TriggerServerEvent('cnr:reportCrime', 'hit_and_run_civilian')
+                                        end
+                                        
+                                        -- If ped is dead, also report murder
+                                        if IsPedDeadOrDying(ped, true) or IsPedFatallyInjured(ped) then
+                                            if IsPedNpcCop(ped) then
+                                                print("[CNR_CLIENT_DEBUG] Murder of police officer detected")
+                                                TriggerServerEvent('cnr:reportCrime', 'cop_murder')
+                                            else
+                                                print("[CNR_CLIENT_DEBUG] Murder of civilian detected")
+                                                TriggerServerEvent('cnr:reportCrime', 'civilian_murder')
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        lastVehicleCollision = currentTime
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Enhanced Murder Detection (non-vehicle)
+local lastMurderCheck = 0
+
+CreateThread(function()
+    while true do
+        Wait(1000) -- Check every second
+        if role == "robber" then
+            local currentTime = GetGameTimer()
+            if currentTime - lastMurderCheck > 1000 then
+                local playerPed = PlayerPedId()
+                if playerPed and DoesEntityExist(playerPed) then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    local nearbyPeds = GetNearbyPeds(playerCoords, 15.0)
+                    
+                    for _, ped in ipairs(nearbyPeds) do
+                        if DoesEntityExist(ped) and ped ~= playerPed and not IsPedAPlayer(ped) then
+                            -- Check if ped just died and player was the source
+                            if IsPedDeadOrDying(ped, true) and GetPedSourceOfDeath(ped) == playerPed then
+                                local pedId = tostring(ped)
+                                if not lastPedHit[pedId] then
+                                    lastPedHit[pedId] = currentTime
+                                    
+                                    if IsPedNpcCop(ped) then
+                                        print("[CNR_CLIENT_DEBUG] Direct murder of police officer detected")
+                                        TriggerServerEvent('cnr:reportCrime', 'cop_murder')
+                                    else
+                                        print("[CNR_CLIENT_DEBUG] Direct murder of civilian detected")
+                                        TriggerServerEvent('cnr:reportCrime', 'civilian_murder')
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    lastMurderCheck = currentTime
+                end
+            end
+        end
+    end
+end)
+
+-- Helper function to clear role-specific blips
 local function ClearRoleSpecificBlips()
     -- Clear cop store blips
     for blipKey, blipId in pairs(copStoreBlips) do
@@ -1506,4 +1606,22 @@ Citizen.CreateThread(function()
             SendNUIMessage({ action = 'closeStore' })
         end
     end
+end)
+
+-- Wanted Level UI Notification Event Handlers
+RegisterNetEvent('cnr:showWantedNotification')
+AddEventHandler('cnr:showWantedNotification', function(stars, points, levelLabel)
+    SendNUIMessage({
+        action = "showWantedNotification",
+        stars = stars,
+        points = points,
+        level = levelLabel
+    })
+end)
+
+RegisterNetEvent('cnr:hideWantedNotification')
+AddEventHandler('cnr:hideWantedNotification', function()
+    SendNUIMessage({
+        action = "hideWantedNotification"
+    })
 end)

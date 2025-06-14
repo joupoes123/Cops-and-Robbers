@@ -1142,3 +1142,128 @@ button:hover {
 body::before {
     display: none !important;
 }
+
+/* ==========================================================================
+   Wanted Level Notification Styles
+   ========================================================================== */
+
+.wanted-notification {
+    position: fixed;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    background: linear-gradient(145deg, rgba(233, 69, 96, 0.95), rgba(211, 47, 47, 0.95));
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    color: #ffffff;
+    font-family: 'Roboto', sans-serif;
+    box-shadow: 
+        0 15px 35px rgba(233, 69, 96, 0.3),
+        0 5px 15px rgba(0, 0, 0, 0.2),        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    z-index: 1500;
+    min-width: 220px;
+    animation: slideInFromRight 0.4s ease-out;
+}
+
+.wanted-notification.hidden {
+    display: none !important;
+}
+
+.wanted-notification.removing {
+    animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+.wanted-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.wanted-icon {
+    font-size: 32px;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    animation: pulse 2s infinite;
+}
+
+.wanted-text {
+    flex: 1;
+}
+
+.wanted-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.wanted-level {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 3px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.wanted-points {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+/* Animations for wanted notification */
+@keyframes slideInFromRight {
+    from {
+        transform: translateY(-50%) translateX(300px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(-50%) translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateY(-50%) translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-50%) translateX(300px);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Wanted level colors for different star levels */
+.wanted-notification.level-1 {
+    background: linear-gradient(145deg, rgba(255, 193, 7, 0.95), rgba(255, 152, 0, 0.95));
+}
+
+.wanted-notification.level-2 {
+    background: linear-gradient(145deg, rgba(255, 152, 0, 0.95), rgba(244, 67, 54, 0.95));
+}
+
+.wanted-notification.level-3 {
+    background: linear-gradient(145deg, rgba(244, 67, 54, 0.95), rgba(233, 30, 99, 0.95));
+}
+
+.wanted-notification.level-4 {
+    background: linear-gradient(145deg, rgba(233, 30, 99, 0.95), rgba(156, 39, 176, 0.95));
+}
+
+.wanted-notification.level-5 {
+    background: linear-gradient(145deg, rgba(156, 39, 176, 0.95), rgba(103, 58, 183, 0.95));
+}

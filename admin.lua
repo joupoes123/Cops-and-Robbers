@@ -307,12 +307,12 @@ RegisterCommand("setlevel", function(source, args, rawCommand)
     if not IsValidPlayer(targetId) then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID." } })
         return
-    end
-
-    if newLevel < 1 or newLevel > 100 then
+    end    if newLevel < 1 or newLevel > 100 then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Level must be between 1 and 100." } })
         return
-    end    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    end
+
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
     TriggerServerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
     
     TriggerClientEvent('chat:addMessage', source, { 

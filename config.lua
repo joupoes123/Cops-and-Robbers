@@ -12,6 +12,7 @@ Config = Config or {}
 --        General Settings
 -- =========================
 
+Config.DebugLogging   = false -- Set to true to enable detailed server console logging (may cause spam)
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
@@ -83,9 +84,8 @@ Config.AmmuNationStores = {
 --     NPC Vendor Configurations
 -- =========================
 -- Defines NPC vendors, their locations, models, and items they sell.
-Config.NPCVendors = {
-    {
-        location = vector3(-1107.17, 4949.54, 218.65), -- Grapeseed, near airfield
+Config.NPCVendors = {    {
+        location = vector3(-1165.62, 4926.14, 222.25), -- More accessible location near Grapeseed
         heading  = 140.0,
         model    = "s_m_y_dealer_01",
         name     = "Black Market Dealer",
@@ -350,12 +350,13 @@ Config.WantedSettings = {
         { stars = 4, threshold = 130, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 }, -- Increased from 100
         { stars = 5, threshold = 200, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }  -- Increased from 150
     },
-    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
-        -- Traffic Violations (increased values)
+    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.        -- Traffic Violations (increased values)
         speeding                   = 3,    -- For receiving a speeding ticket. (increased from 1)
         reckless_driving           = 5,    -- Example: driving on sidewalk, excessive near misses. (increased from 2)
         hit_and_run_vehicle        = 8,    -- Hitting a vehicle and fleeing. (increased from 3)
         hit_and_run_ped            = 12,   -- Hitting a pedestrian and fleeing. (increased from 5)
+        hit_and_run_civilian       = 12,   -- Hitting a civilian pedestrian and fleeing.
+        hit_and_run_cop            = 25,   -- Hitting a police officer and fleeing.
         -- Property Crimes (increased values)
         grand_theft_auto           = 10,   -- Stealing an occupied vehicle. (increased from 5)
         store_robbery_small        = 8,    -- Example: For smaller, less risky store robberies. (increased from 5)
@@ -367,18 +368,19 @@ Config.WantedSettings = {
         -- Violent Crimes (increased values)
         assault_civilian           = 8,    -- Assaulting a civilian without killing. (increased from 3)
         murder_civilian            = 20,   -- For killing a civilian. (increased from 10)
+        civilian_murder            = 20,   -- Alternative name for killing a civilian.
         assault_cop                = 25,   -- For assaulting a police officer. (increased from 15)
         murder_cop                 = 40,   -- For killing a police officer. (increased from 25)
+        cop_murder                 = 40,   -- Alternative name for killing a police officer.
         -- Other (increased values)
         resisting_arrest           = 10,   -- Fleeing from police after being told to stop. (increased from 5)
         jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)
         emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
-        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)
-        restricted_area_entry      = 6     -- Entering restricted areas like Fort Zancudo. (increased from 3)
+        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)restricted_area_entry      = 15    -- Entering restricted areas like Fort Zancudo. (increased from 6)
     },
     decayRatePoints      = 1,    -- Amount of wanted points to decay per interval.
-    decayIntervalMs      = 45000,-- Milliseconds (45 seconds) - how often the decay check runs. (increased from 30000)
-    noCrimeCooldownMs    = 120000,-- Milliseconds (120 seconds) - time player must be "clean" before decay starts. (increased from 60000)
+    decayIntervalMs      = 25000,-- Milliseconds (25 seconds) - how often the decay check runs. (decreased from 45000)
+    noCrimeCooldownMs    = 60000,-- Milliseconds (60 seconds) - time player must be "clean" before decay starts. (decreased from 120000)
     copSightCooldownMs   = 30000,-- Milliseconds (30 seconds) - time player must be out of cop sight for decay to resume.
     copSightDistance     = 75.0  -- meters, how far a cop can "see" a wanted player to pause decay.
 }
@@ -417,10 +419,10 @@ Config.WantedNPCPresets = {
 Config.MaxActiveNPCResponseGroups = 5 -- Set to a non-zero value
 
 Config.RestrictedAreas = {
-    { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 750.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 20 },
-    { name = "Humane Labs",  center = vector3(3615.0, 3740.0, 28.0),  radius = 300.0, wantedThreshold = 2, message = "~y~Warning: Highly restricted area (Humane Labs). Increased security presence.", wantedPoints = 15 },
-    { name = "Prison Grounds", center = Config.PrisonLocation, radius = 250.0, wantedThreshold = 0, message = "~o~You are on prison grounds. Loitering is discouraged.", wantedPoints = 5, ifNotRobber = true }, -- Example: give points if not a robber (e.g. cops shouldn't get points here)
-    -- Add more areas: { name, center (vector3), radius (float), wantedThreshold (stars to trigger message/response), message (string), wantedPoints (points to add if entered), ifNotRobber (optional bool) }
+    { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 400.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 40, minStars = 3 },
+    { name = "Humane Labs",  center = vector3(3615.0, 3740.0, 28.0),  radius = 300.0, wantedThreshold = 2, message = "~y~Warning: Highly restricted area (Humane Labs). Increased security presence.", wantedPoints = 25, minStars = 2 },
+    { name = "Prison Grounds", center = Config.PrisonLocation, radius = 200.0, wantedThreshold = 0, message = "~o~You are on prison grounds. Loitering is discouraged.", wantedPoints = 15, minStars = 1, ifNotRobber = true }, -- Example: give points if not a robber (e.g. cops shouldn't get points here)
+    -- Add more areas: { name, center (vector3), radius (float), wantedThreshold (stars to trigger message/response), message (string), wantedPoints (points to add if entered), minStars (minimum stars to enforce), ifNotRobber (optional bool) }
 }
 
 -- =========================

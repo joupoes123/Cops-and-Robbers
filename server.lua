@@ -751,18 +751,25 @@ end)
 -- WANTED SYSTEM
 -- =================================================================================================
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
-    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
+    -- Only log TRACE if debug logging is enabled
+    if Config.DebugLogging then
+        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
+    end
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
         Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
     
-    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
+    if Config.DebugLogging then
+        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
+    end
     if GetPlayerName(pIdNum) == nil or not IsPlayerRobber(pIdNum) then return end -- Check player online using GetPlayerName
 
     local crimeConfig = Config.WantedSettings.crimes[crimeKey]
-    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
+    if Config.DebugLogging then
+        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
+    end
     if not crimeConfig then Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error"); return end
 
     if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
@@ -790,15 +797,28 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
                 break
             end
         end
-    end
-    currentWanted.stars = newStars
-    print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Wanted calculation complete. pID: %s, Stars: %d, Points: %d', pIdNum, newStars, currentWanted.wantedLevel))
-
-    Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
-    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
+    end    currentWanted.stars = newStars
+    -- Reduced logging: Only log on significant changes to reduce spam
+    if newStars ~= (currentWanted.previousStars or 0) then
+        Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
+        currentWanted.previousStars = newStars
+    end    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
     -- The [CNR_SERVER_DEBUG] print previously here is now covered by the TRACE print above.
     SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
-    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Wanted", string.format("Wanted level increased! (%d Stars)", newStars)} })
+    
+    -- Send UI notification instead of chat message
+    local uiLabel = ""
+    for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
+        if levelData.stars == newStars then
+            uiLabel = levelData.uiLabel
+            break
+        end
+    end
+    if uiLabel == "" then
+        uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
+    end
+    
+    SafeTriggerClientEvent('cnr:showWantedNotification', pIdNum, newStars, currentWanted.wantedLevel, uiLabel)
 
     local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
     local robberPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
@@ -852,9 +872,9 @@ ReduceWantedLevel = function(playerId, amount)
             end
         end
         wantedPlayers[pIdNum].stars = newStars
-        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-        Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
+        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])        Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
         if wantedPlayers[pIdNum].wantedLevel == 0 then
+            SafeTriggerClientEvent('cnr:hideWantedNotification', pIdNum)
             SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Wanted", "You are no longer wanted."} })
             for copId, _ in pairs(copsOnDuty) do
                 if GetPlayerName(copId) ~= nil then -- Check cop is online
@@ -1330,147 +1350,72 @@ AddEventHandler('cnr:reportCrime', function(crimeKey)
     UpdatePlayerWantedLevel(pIdNum, crimeKey)
 end)
 
-RegisterCommand("testwanted", function(source, args, rawCommand)
-    if source == 0 then return end -- Console command not supported
+-- Enhanced Restricted Area Entry with Minimum Star Level Enforcement
+RegisterNetEvent('cnr:reportRestrictedAreaEntry')
+AddEventHandler('cnr:reportRestrictedAreaEntry', function(area)
+    local src = source
+    local pData = GetCnrPlayerData(src)
     
-    local pData = GetCnrPlayerData(source)
-    if not pData then return end
+    if not pData or pData.role ~= "robber" then return end
     
-    local crimeKey = args[1] or "grand_theft_auto"
+    -- Add wanted points for entering the area
+    UpdatePlayerWantedLevel(src, 'restricted_area_entry')
     
-    -- Only allow robbers to test the wanted system
-    if pData.role ~= "robber" then
-        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Only robbers can test the wanted system!"} })
-        return
-    end
-    
-    -- Check if the crime exists
-    if not Config.WantedSettings.crimes[crimeKey] then
-        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Unknown crime key: " .. crimeKey} })
-        return
-    end
-    
-    print(string.format("[CNR_SERVER_DEBUG] Admin test: Adding wanted level for crime %s to player %s", crimeKey, source))
-    UpdatePlayerWantedLevel(source, crimeKey)
-    TriggerClientEvent('chat:addMessage', source, { args = {"^3Test", "Added wanted level for crime: " .. crimeKey} })
-end, false)
-
-RegisterCommand("checkwanted", function(source, args, rawCommand)
-    if source == 0 then return end -- Console command not supported
-    
-    local pIdNum = tonumber(source)
-    local pData = GetCnrPlayerData(source)
-    
-    if not pData then 
-        TriggerClientEvent('chat:addMessage', source, { args = {"^1Error", "Player data not found!"} })
-        return 
-    end
-    
-    local wantedData = wantedPlayers[pIdNum]
-    local role = pData.role or "unknown"
-    local isRobber = IsPlayerRobber(pIdNum)
-    
-    if wantedData then
-        local message = string.format("Role: %s | Robber: %s | Stars: %d | Points: %d | Last Crime: %d sec ago", 
-            role, tostring(isRobber), wantedData.stars, wantedData.wantedLevel, 
-            os.time() - (wantedData.lastCrimeTime or 0))
-        TriggerClientEvent('chat:addMessage', source, { args = {"^3Wanted Status", message} })
-        
-        -- Show crimes committed
-        if wantedData.crimesCommitted then
-            local crimesList = {}
-            for crime, count in pairs(wantedData.crimesCommitted) do
-                table.insert(crimesList, string.format("%s(%d)", crime, count))
-            end
-            if #crimesList > 0 then
-                TriggerClientEvent('chat:addMessage', source, { args = {"^3Crimes", table.concat(crimesList, ", ")} })
-            end
-        end
-    else
-        TriggerClientEvent('chat:addMessage', source, { args = {"^3Wanted Status", 
-            string.format("Role: %s | Robber: %s | No wanted data (clean record)", role, tostring(isRobber))} })
-    end
-end, false)
-
-RegisterCommand("setwanted", function(source, args, rawCommand)
-    if source == 0 then return end -- Console not supported
-    if not IsAdmin(source) then
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
-        return
-    end
-
-    local targetIdStr = args[1]
-    local targetId = tonumber(targetIdStr)
-    local wantedPoints = tonumber(args[2])
-
-    if targetId and GetPlayerName(targetId) and wantedPoints then
-        local pIdNum = tonumber(targetId)
-        if not wantedPlayers[pIdNum] then 
-            wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } 
-        end
-        
-        wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPoints)
-        wantedPlayers[pIdNum].lastCrimeTime = os.time()
-        
-        -- Calculate new stars
-        local newStars = 0
-        if Config.WantedSettings and Config.WantedSettings.levels then
-            for i = #Config.WantedSettings.levels, 1, -1 do
-                if wantedPlayers[pIdNum].wantedLevel >= Config.WantedSettings.levels[i].threshold then
-                    newStars = Config.WantedSettings.levels[i].stars
-                    break
+    -- Enforce minimum star level if specified
+    if area.minStars and area.minStars > 0 then
+        local currentWanted = wantedPlayers[src]
+        if currentWanted then
+            local currentStars = currentWanted.stars or 0
+            
+            if currentStars < area.minStars then
+                -- Calculate minimum points needed for required star level
+                local minPointsNeeded = 0
+                if Config.WantedSettings and Config.WantedSettings.levels then
+                    for _, levelData in ipairs(Config.WantedSettings.levels) do
+                        if levelData.stars == area.minStars then
+                            minPointsNeeded = levelData.threshold
+                            break
+                        end
+                    end
+                end
+                
+                -- Set to minimum required points if current is less
+                if currentWanted.wantedLevel < minPointsNeeded then
+                    local pointsToAdd = minPointsNeeded - currentWanted.wantedLevel
+                    currentWanted.wantedLevel = minPointsNeeded
+                    currentWanted.lastCrimeTime = os.time()
+                    
+                    -- Recalculate stars
+                    local newStars = 0
+                    for i = #Config.WantedSettings.levels, 1, -1 do
+                        if currentWanted.wantedLevel >= Config.WantedSettings.levels[i].threshold then
+                            newStars = Config.WantedSettings.levels[i].stars
+                            break
+                        end
+                    end
+                    currentWanted.stars = newStars
+                    
+                    -- Sync to client and send UI notification
+                    SafeTriggerClientEvent('cnr:wantedLevelSync', src, currentWanted)
+                    SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', src, newStars, currentWanted.wantedLevel)
+                    
+                    local uiLabel = ""
+                    for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
+                        if levelData.stars == newStars then
+                            uiLabel = levelData.uiLabel
+                            break
+                        end
+                    end
+                    if uiLabel == "" then
+                        uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
+                    end
+                    
+                    SafeTriggerClientEvent('cnr:showWantedNotification', src, newStars, currentWanted.wantedLevel, uiLabel)
+                    
+                    Log(string.format("Player %s entered %s - minimum %d stars enforced (was %d, now %d)", 
+                        src, area.name, area.minStars, currentStars, newStars))
                 end
             end
         end
-        wantedPlayers[pIdNum].stars = newStars
-          -- Sync to client
-        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-        SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, wantedPlayers[pIdNum].wantedLevel)
-        
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", 
-            string.format("Set wanted level for %s to %d points (%d stars)", GetPlayerName(targetId), wantedPoints, newStars) } })
-        SafeTriggerClientEvent('chat:addMessage', targetId, { args = {"^1Wanted", 
-            string.format("Admin set your wanted level to %d points (%d stars)", wantedPoints, newStars)} })
-            
-        Log(string.format("Admin %s set wanted level for player %s to %d points (%d stars)", 
-            GetPlayerName(source), GetPlayerName(targetId), wantedPoints, newStars))
-    else
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /setwanted <playerId> <points>" } })
     end
-end, false)
-
-RegisterNetEvent('cops_and_robbers:adminSetLevel')
-AddEventHandler('cops_and_robbers:adminSetLevel', function(targetId, newLevel)
-    local src = source
-    local pData = GetCnrPlayerData(targetId)
-    
-    if not pData then
-        Log(string.format("adminSetLevel: No player data found for player %s", targetId), "warn")
-        return
-    end
-
-    -- Calculate XP needed for the new level
-    local newXP = 0
-    if Config.ExperienceSystem and Config.ExperienceSystem.levels then
-        for level = 1, newLevel do
-            if Config.ExperienceSystem.levels[level] then
-                newXP = newXP + Config.ExperienceSystem.levels[level].xpRequired
-            else
-                newXP = newXP + (level * 100) -- Fallback calculation
-            end
-        end
-    else
-        newXP = newLevel * 100 -- Simple fallback
-    end
-
-    -- Update player data
-    pData.level = newLevel
-    pData.xp = newXP
-    
-    -- Sync with client
-    TriggerClientEvent('cnr:updatePlayerData', targetId, pData)
-    SavePlayerData(targetId)
-    
-    Log(string.format("Admin %s set player %s level to %d (XP: %d)", 
-        GetPlayerName(src), GetPlayerName(targetId), newLevel, newXP))
 end)

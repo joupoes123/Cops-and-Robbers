@@ -122,6 +122,12 @@ window.addEventListener('message', function(event) {
                 loadSellItems();
             }
             break;
+        case 'showWantedNotification':
+            showWantedNotification(data.stars, data.points, data.level);
+            break;
+        case 'hideWantedNotification':
+            hideWantedNotification();
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
@@ -772,6 +778,86 @@ function showCashNotification(newCash, oldCash = null) {
             }
         }, 300);
     }, 3000);
+}
+
+// ====================================================================
+// Wanted Level Notification Functions
+// ====================================================================
+
+let wantedNotificationTimeout = null;
+
+function showWantedNotification(stars, points, levelLabel) {
+    console.log('[CNR_NUI] Showing wanted notification - Stars:', stars, 'Points:', points, 'Level:', levelLabel);
+    
+    const notification = document.getElementById('wanted-notification');
+    if (!notification) {
+        console.error('[CNR_NUI] Wanted notification element not found');
+        return;
+    }
+
+    // Clear any existing timeout
+    if (wantedNotificationTimeout) {
+        clearTimeout(wantedNotificationTimeout);
+        wantedNotificationTimeout = null;
+    }
+
+    // Update notification content
+    const wantedIcon = notification.querySelector('.wanted-icon');
+    const wantedLevelEl = notification.querySelector('.wanted-level');
+    const wantedPointsEl = notification.querySelector('.wanted-points');
+
+    if (wantedIcon) wantedIcon.textContent = '⭐';
+    if (wantedLevelEl) {
+        wantedLevelEl.textContent = levelLabel || generateStarDisplay(stars);
+    }
+    if (wantedPointsEl) {
+        wantedPointsEl.textContent = `${points} Points`;
+    }
+
+    // Remove existing level classes and add new one
+    notification.className = 'wanted-notification';
+    if (stars > 0) {
+        notification.classList.add(`level-${Math.min(stars, 5)}`);
+    }
+
+    // Show notification
+    notification.classList.remove('hidden', 'removing');
+    
+    // Auto-hide after 4 seconds for star levels 1-2, longer for higher levels
+    const hideDelay = stars <= 2 ? 4000 : 6000;
+    wantedNotificationTimeout = setTimeout(() => {
+        hideWantedNotification();
+    }, hideDelay);
+}
+
+function hideWantedNotification() {
+    const notification = document.getElementById('wanted-notification');
+    if (!notification) return;
+
+    // Clear timeout if it exists
+    if (wantedNotificationTimeout) {
+        clearTimeout(wantedNotificationTimeout);
+        wantedNotificationTimeout = null;
+    }
+
+    // Add removing animation class
+    notification.classList.add('removing');
+    
+    // Hide after animation completes
+    setTimeout(() => {
+        notification.classList.add('hidden');
+        notification.classList.remove('removing');
+    }, 300);
+}
+
+function generateStarDisplay(stars) {
+    if (stars <= 0) return '';
+    const maxStars = 5;
+    let display = '';
+    for (let i = 1; i <= maxStars; i++) {
+        display += i <= stars ? '★' : '☆';
+    }
+    return display;
 }
 
 // Event listeners and other functions (DOMContentLoaded, selectRole, Escape key, Heist Timer, Admin Panel, Bounty Board) remain unchanged from the previous version.
