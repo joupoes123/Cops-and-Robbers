@@ -32,12 +32,11 @@ window.addEventListener('message', function(event) {
             }
             showRoleSelection();
             break;        case 'updateMoney':
-            // Show cash notification instead of old persistent display
+            // Legacy case: Just store the cash value, don't show notification
+            // The new store UI handles cash display directly from playerInfo
             if (typeof data.cash === 'number') {
-                if (previousCash !== null && previousCash !== data.cash) {
-                    showCashNotification(data.cash, previousCash);
-                }
                 previousCash = data.cash;
+                console.log('[CNR_NUI_DEBUG] updateMoney legacy handler - cash stored:', data.cash);
             }
             break;case 'showStoreMenu':
         case 'openStore':
@@ -302,6 +301,8 @@ function hideRoleSelection() {
     }
 }
 function openStoreMenu(storeName, storeItems, playerInfo) {
+    console.log('[CNR_NUI_DEBUG] openStoreMenu called with:', { storeName, storeItems, playerInfo });
+    
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
     const playerCashEl = document.getElementById('player-cash-amount');
@@ -312,13 +313,19 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         window.items = storeItems || [];
         window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
         
+        console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
+        console.log('[CNR_NUI_DEBUG] cash value:', window.playerInfo.cash);
+        
         // Update player info display and check for cash changes
         const newCash = window.playerInfo.cash || 0;
-        if (playerCashEl) playerCashEl.textContent = `$${newCash}`;
+        if (playerCashEl) {
+            playerCashEl.textContent = `$${newCash.toLocaleString()}`;
+            console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
+        }
         if (playerLevelEl) playerLevelEl.textContent = `Level ${window.playerInfo.level || 1}`;
-        
-        // Show cash notification if cash changed
+          // Show cash notification if cash changed (only when store is opened)
         if (previousCash !== null && previousCash !== newCash) {
+            console.log('[CNR_NUI_DEBUG] Cash changed in store from', previousCash, 'to', newCash);
             showCashNotification(newCash, previousCash);
         }
         previousCash = newCash;
