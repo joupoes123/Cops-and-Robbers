@@ -216,8 +216,9 @@ function EquipInventoryWeapons()
 
     -- First, remove all weapons from the player to ensure clean state (armor is preserved)
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
-    RemoveAllPedWeapons(playerPed, true)
-    Citizen.Wait(200) -- Longer wait to ensure weapons are removed    local processedItemCount = 0
+    RemoveAllPedWeapons(playerPed, true)    Citizen.Wait(200) -- Longer wait to ensure weapons are removed
+    
+    local processedItemCount = 0
     local weaponsEquipped = 0
     local armorApplied = false
     

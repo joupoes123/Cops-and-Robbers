@@ -907,6 +907,9 @@ end)
 
 RegisterNetEvent('cnr:spawnPlayerAt')
 AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
+    print(string.format("[CNR_CLIENT_DEBUG] cnr:spawnPlayerAt received: location=%s, heading=%s, role=%s", 
+        tostring(location), tostring(heading), tostring(role)))
+    
     local playerPed = PlayerPedId()
     if location and type(location) == "table" and location.x and location.y and location.z then
         SetEntityCoords(playerPed, location.x, location.y, location.z, false, false, false, true)
@@ -914,7 +917,10 @@ AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
             SetEntityHeading(playerPed, heading)
         end
         ShowNotification("Spawned as " .. tostring(role or "unknown"))
+        print(string.format("[CNR_CLIENT_DEBUG] Player successfully spawned at %f, %f, %f as %s", 
+            location.x, location.y, location.z, tostring(role)))
     else
+        print(string.format("[CNR_CLIENT_ERROR] Invalid spawn location received: %s", tostring(location)))
         ShowNotification("~r~Error: Could not determine spawn point for your role.")
     end
     -- Apply visuals and loadout for the new role

@@ -938,18 +938,30 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     if selectedRole ~= "cop" and selectedRole ~= "robber" then
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
-    end
-    -- Set role server-side
+    end    -- Set role server-side
     SetPlayerRole(pIdNum, selectedRole)
     -- Teleport to spawn and set ped model (client will handle visuals, but send spawn info)
-    local spawnPoint = nil
-    if selectedRole == "cop" and Config.CopSpawnPoints and #Config.CopSpawnPoints > 0 then
-        spawnPoint = Config.CopSpawnPoints[1] -- Use first cop spawn for now
-    elseif selectedRole == "robber" and Config.RobberSpawnPoints and #Config.RobberSpawnPoints > 0 then
-        spawnPoint = Config.RobberSpawnPoints[1]
+    local spawnLocation = nil
+    local spawnHeading = 0.0
+    
+    if selectedRole == "cop" and Config.SpawnPoints and Config.SpawnPoints.cop then
+        spawnLocation = Config.SpawnPoints.cop
+        spawnHeading = 270.0 -- Facing west (common for Mission Row PD)
+    elseif selectedRole == "robber" and Config.SpawnPoints and Config.SpawnPoints.robber then
+        spawnLocation = Config.SpawnPoints.robber
+        spawnHeading = 180.0 -- Facing south
     end
-    if spawnPoint then
-        TriggerClientEvent('cnr:spawnPlayerAt', src, spawnPoint.location, spawnPoint.heading, selectedRole)
+    
+    if spawnLocation then
+        TriggerClientEvent('cnr:spawnPlayerAt', src, spawnLocation, spawnHeading, selectedRole)
+        Log(string.format("Player %s spawned as %s at %s", GetPlayerName(src), selectedRole, tostring(spawnLocation)))
+        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s", 
+            GetPlayerName(src), src, selectedRole))
+    else
+        Log(string.format("No spawn point found for role %s", selectedRole), "warn")
+        print(string.format("[CNR_SERVER_WARN] No spawn point found for role %s for player %s", selectedRole, src))
+        TriggerClientEvent('cnr:roleSelected', src, false, "No spawn point configured for this role.")
+        return
     end
     -- Confirm to client
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
