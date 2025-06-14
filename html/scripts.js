@@ -406,21 +406,32 @@ function loadCategories() {
 
 // New Grid-Based Item Loading
 function loadGridItems() {
-    const inventoryGrid = document.getElementById('inventory-grid');
-    if (!inventoryGrid) return;
-    inventoryGrid.innerHTML = '';
+    const gridContainer = document.getElementById('inventory-grid');
+    if (!gridContainer) return;
     
-    const filteredItems = (window.items || []).filter(item => 
-        !window.currentCategory || item.category === window.currentCategory);
+    // Clear existing items
+    gridContainer.innerHTML = '';
     
-    if (filteredItems.length === 0) {
-        inventoryGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No items in this category.</div>';
-        return;
+    // Add debug info for scrollbar testing
+    console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
+    
+    // Force minimum content for scrollbar testing
+    const minItemsForScroll = 20;
+    let itemsToRender = window.items || [];
+    
+    // If not enough items, duplicate some to test scrollbar
+    if (itemsToRender.length < minItemsForScroll) {
+        const duplicatedItems = [];
+        for (let i = 0; i < minItemsForScroll; i++) {
+            if (itemsToRender.length > 0) {
+                duplicatedItems.push({...itemsToRender[i % itemsToRender.length], id: `${itemsToRender[i % itemsToRender.length].id}_dup_${i}`});
+            }
+        }
+        itemsToRender = duplicatedItems;
+        console.log('[CNR_NUI_DEBUG] Duplicated items for scrollbar testing. New count:', itemsToRender.length);
     }
-    
-    const fragment = document.createDocumentFragment();
-    filteredItems.forEach(item => fragment.appendChild(createInventorySlot(item, 'buy')));
-    inventoryGrid.appendChild(fragment);
+
+    // ...existing code...
 }
 
 function loadSellGridItems() {

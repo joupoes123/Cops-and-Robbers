@@ -144,9 +144,9 @@ button:hover {
 /* Store Container */
 #store-menu {
     position: fixed;
-    top: 2vh;
-    left: 2vw;
-    transform: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 96vw;
     max-width: 1600px;
     height: 92vh;
@@ -154,13 +154,15 @@ button:hover {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     border-radius: 20px;
     border: 2px solid #0f3460;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    /* Temporarily removed box-shadow to test black box issue */
+    /* box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1); */
     animation: fadeInMenu 0.5s ease-out forwards;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    /* Temporarily removed backdrop filter to test black box issue */
+    /* -webkit-backdrop-filter: blur(10px); */
+    /* backdrop-filter: blur(10px); */
     z-index: 1000;
 }
 
@@ -342,35 +344,42 @@ button:hover {
 .inventory-grid {
     flex: 1;
     padding: 20px 30px;
-    overflow-y: scroll; /* Changed from auto to scroll to force scrollbar */
+    overflow-y: scroll !important; /* Force scrollbar to always show */
+    overflow-x: hidden;
     scrollbar-width: auto; /* Firefox */
     scrollbar-color: #e94560 rgba(0, 0, 0, 0.2); /* Firefox */
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 15px;
     align-content: start;
+    /* Force minimum height to ensure content overflows and scrollbar appears */
+    min-height: 600px;
 }
 
-/* Custom Scrollbar for Grid */
+/* Custom Scrollbar for Grid - Force visibility */
 .inventory-grid::-webkit-scrollbar {
-    width: 12px; /* Made wider to ensure visibility */
+    width: 16px !important; /* Made even wider to ensure visibility */
     -webkit-appearance: none;
+    display: block !important;
 }
 
 .inventory-grid::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.5) !important;
     border-radius: 10px;
     -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .inventory-grid::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #e94560, #ff7675);
+    background: linear-gradient(135deg, #e94560, #ff7675) !important;
     border-radius: 10px;
     -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-height: 30px;
 }
 
 .inventory-grid::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #d63384, #e94560);
+    background: linear-gradient(135deg, #d63384, #e94560) !important;
 }
 
 /* Store Category List - Legacy Support */
@@ -1067,8 +1076,7 @@ button:hover {
     #store-menu {
         width: 98vw;
         height: 90vh;
-        top: 1vh;
-        left: 1vw;
+        /* Keep the centering transform for mobile too */
     }
     
     .inventory-grid {
