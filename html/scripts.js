@@ -785,54 +785,64 @@ function showCashNotification(newCash, oldCash = null) {
 // ====================================================================
 
 let wantedNotificationTimeout = null;
+let lastKnownStars = 0; // Track previous star level to only show notifications on changes
 
 function showWantedNotification(stars, points, levelLabel) {
-    console.log('[CNR_NUI] Showing wanted notification - Stars:', stars, 'Points:', points, 'Level:', levelLabel);
-    
-    const notification = document.getElementById('wanted-notification');
-    if (!notification) {
-        console.error('[CNR_NUI] Wanted notification element not found');
-        return;
-    }
+    // Only show notification if stars have actually changed
+    if (stars !== lastKnownStars) {
+        console.log('[CNR_NUI] Showing wanted notification - Stars changed from', lastKnownStars, 'to', stars, 'Points:', points, 'Level:', levelLabel);
+        lastKnownStars = stars; // Update tracked stars
+        
+        const notification = document.getElementById('wanted-notification');
+        if (!notification) {
+            console.error('[CNR_NUI] Wanted notification element not found');
+            return;
+        }
 
-    // Clear any existing timeout
-    if (wantedNotificationTimeout) {
-        clearTimeout(wantedNotificationTimeout);
-        wantedNotificationTimeout = null;
-    }
+        // Clear any existing timeout
+        if (wantedNotificationTimeout) {
+            clearTimeout(wantedNotificationTimeout);
+            wantedNotificationTimeout = null;
+        }
 
-    // Update notification content
-    const wantedIcon = notification.querySelector('.wanted-icon');
-    const wantedLevelEl = notification.querySelector('.wanted-level');
-    const wantedPointsEl = notification.querySelector('.wanted-points');
+        // Update notification content
+        const wantedIcon = notification.querySelector('.wanted-icon');
+        const wantedLevelEl = notification.querySelector('.wanted-level');
+        const wantedPointsEl = notification.querySelector('.wanted-points');
 
-    if (wantedIcon) wantedIcon.textContent = '⭐';
-    if (wantedLevelEl) {
-        wantedLevelEl.textContent = levelLabel || generateStarDisplay(stars);
-    }
-    if (wantedPointsEl) {
-        wantedPointsEl.textContent = `${points} Points`;
-    }
+        if (wantedIcon) wantedIcon.textContent = '⭐';
+        if (wantedLevelEl) {
+            wantedLevelEl.textContent = levelLabel || generateStarDisplay(stars);
+        }
+        if (wantedPointsEl) {
+            wantedPointsEl.textContent = `${points} Points`;
+        }
 
-    // Remove existing level classes and add new one
-    notification.className = 'wanted-notification';
-    if (stars > 0) {
-        notification.classList.add(`level-${Math.min(stars, 5)}`);
-    }
+        // Remove existing level classes and add new one
+        notification.className = 'wanted-notification';
+        if (stars > 0) {
+            notification.classList.add(`level-${Math.min(stars, 5)}`);        }
 
-    // Show notification
-    notification.classList.remove('hidden', 'removing');
-    
-    // Auto-hide after 4 seconds for star levels 1-2, longer for higher levels
-    const hideDelay = stars <= 2 ? 4000 : 6000;
-    wantedNotificationTimeout = setTimeout(() => {
-        hideWantedNotification();
-    }, hideDelay);
+        // Show notification
+        notification.style.display = 'block';
+        notification.style.opacity = '1';
+
+        // Auto-hide after 15 seconds (instead of 3)
+        wantedNotificationTimeout = setTimeout(() => {
+            hideWantedNotification();
+        }, 15000); // Increased from 3000ms to 15000ms
+    } else {
+        // Stars haven't changed, just update the internal tracking
+        console.log('[CNR_NUI] Wanted level sync (no star change) - Stars:', stars, 'Points:', points);
+    }
 }
 
 function hideWantedNotification() {
     const notification = document.getElementById('wanted-notification');
     if (!notification) return;
+
+    // Reset star tracking when notification is hidden (wanted level cleared)
+    lastKnownStars = 0;
 
     // Clear timeout if it exists
     if (wantedNotificationTimeout) {

@@ -8,15 +8,15 @@ function GetClientConfigItems()
     return clientConfigItems
 end
 
--- Export for other client scripts if necessary
-exports('EquipInventoryWeapons', EquipInventoryWeapons)
-exports('GetClientConfigItems', GetClientConfigItems)
-exports('UpdateFullInventory', UpdateFullInventory)
+-- Export placeholder - functions will be defined below and exports set at end of file
 
--- Helper function
+-- Helper function with debug control
 function Log(message, level)
     level = level or "info"
-    print("[CNR_INV_CLIENT] [" .. string.upper(level) .. "] " .. message)
+    -- Only show ERROR and WARN levels to reduce spam
+    if level == "error" or level == "warn" then
+        print("[CNR_INV_CLIENT] [" .. string.upper(level) .. "] " .. message)
+    end
 end
 
 RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to receive this event from server
@@ -374,3 +374,8 @@ RegisterCommand('checkconfig', function()
     
     Log("Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
 end, false)
+
+-- Export functions for other client scripts
+exports('EquipInventoryWeapons', EquipInventoryWeapons)
+exports('GetClientConfigItems', GetClientConfigItems)
+exports('UpdateFullInventory', UpdateFullInventory)

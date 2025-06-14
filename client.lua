@@ -13,12 +13,8 @@ local g_isPlayerPedReady = false
 -- Define Log function for consistent logging across client
 local function Log(message, level)
     level = level or "info"
-    -- Check if Config and Config.DebugLogging are available
-    if Config and Config.DebugLogging then
-        if level == "error" then print("[CNR_CLIENT_ERROR] " .. message)
-        elseif level == "warn" then print("[CNR_CLIENT_WARN] " .. message)
-        else print("[CNR_CLIENT_INFO] " .. message) end
-    elseif level == "error" or level == "warn" then -- Always print errors/warnings if DebugLogging is off/Config unavailable
+    -- Only show critical errors and warnings to reduce spam
+    if level == "error" or level == "warn" then
         print("[CNR_CLIENT_CRITICAL] [" .. string.upper(level) .. "] " .. message)
     end
 end
@@ -263,11 +259,10 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     playerAmmo = {}
     print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: All weapons removed.")
     local modelToLoad = nil
-    local modelHash = nil
-    if newRole == "cop" then
+    local modelHash = nil    if newRole == "cop" then
         modelToLoad = "s_m_y_cop_01"
     elseif newRole == "robber" then
-        modelToLoad = "a_m_m_farmer_01"
+        modelToLoad = "mp_m_waremech_01"  -- Changed to warehouse mechanic model
     else
         modelToLoad = "a_m_m_farmer_01"
     end
@@ -538,11 +533,61 @@ function SpawnRobberStorePeds()
     end
 end
 
+-- Vehicle spawning system for robbers
+function SpawnRobberVehicles()
+    if not Config or not Config.RobberVehicleSpawns then
+        print("[CNR_CLIENT_ERROR] SpawnRobberVehicles: Config.RobberVehicleSpawns not found")
+        return
+    end
+    
+    for _, vehicleSpawn in ipairs(Config.RobberVehicleSpawns) do
+        if vehicleSpawn.location and vehicleSpawn.model then
+            local modelHash = GetHashKey(vehicleSpawn.model)
+            RequestModel(modelHash)
+            
+            -- Wait for model to load
+            local attempts = 0
+            while not HasModelLoaded(modelHash) and attempts < 100 do
+                Citizen.Wait(50)
+                attempts = attempts + 1
+            end
+            
+            if HasModelLoaded(modelHash) then
+                local vehicle = CreateVehicle(
+                    modelHash,
+                    vehicleSpawn.location.x,
+                    vehicleSpawn.location.y, 
+                    vehicleSpawn.location.z,
+                    vehicleSpawn.heading or 0.0,
+                    true, -- isNetwork
+                    false -- netMissionEntity
+                )
+                
+                if vehicle and DoesEntityExist(vehicle) then
+                    -- Make vehicle available and persistent
+                    SetEntityAsMissionEntity(vehicle, true, true)
+                    SetVehicleOnGroundProperly(vehicle)
+                    SetVehicleEngineOn(vehicle, false, true, false)
+                    SetVehicleDoorsLocked(vehicle, 1) -- Unlocked
+                    print(string.format("[CNR_CLIENT_DEBUG] Spawned robber vehicle %s at %s", vehicleSpawn.model, tostring(vehicleSpawn.location)))
+                else
+                    print(string.format("[CNR_CLIENT_ERROR] Failed to create vehicle %s", vehicleSpawn.model))
+                end
+            else
+                print(string.format("[CNR_CLIENT_ERROR] Failed to load model %s after 100 attempts", vehicleSpawn.model))
+            end
+            
+            SetModelAsNoLongerNeeded(modelHash)
+        end
+    end
+end
+
 -- Call this on resource start and when player spawns
 Citizen.CreateThread(function()
     Citizen.Wait(2000)
     SpawnCopStorePed()
     SpawnRobberStorePeds()
+    SpawnRobberVehicles() -- Added vehicle spawning for robbers
     -- Initial blip setup based on current role
     if role == "cop" then
         UpdateCopStoreBlips()
@@ -1581,6 +1626,7 @@ Citizen.CreateThread(function()
             SetNuiFocus(false, false)
             SetNuiFocusKeepInput(false)
             
+       
         elseif not isPlayerDead and wasPlayerDead then
             -- Player just respawned
             wasPlayerDead = false
@@ -1624,4 +1670,16 @@ AddEventHandler('cnr:hideWantedNotification', function()
     SendNUIMessage({
         action = "hideWantedNotification"
     })
+end)
+
+-- Infinite stamina system
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(1000)
+        local playerPed = PlayerPedId()
+        if playerPed and DoesEntityExist(playerPed) then
+            -- Restore stamina to full
+            RestorePlayerStamina(PlayerId(), 100.0)
+        end
+    end
 end)

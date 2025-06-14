@@ -18,12 +18,8 @@ local Config = Config -- Keep this near the top as Log depends on it.
 
 local function Log(message, level)
     level = level or "info"
-    -- Check if Config and Config.DebugLogging are available
-    if Config and Config.DebugLogging then
-        if level == "error" then print("[CNR_ERROR] " .. message)
-        elseif level == "warn" then print("[CNR_WARN] " .. message)
-        else print("[CNR_INFO] " .. message) end
-    elseif level == "error" or level == "warn" then -- Always print errors/warnings if DebugLogging is off/Config unavailable
+    -- Only show critical errors and warnings to reduce spam
+    if level == "error" or level == "warn" then
         print("[CNR_CRITICAL_LOG] [" .. string.upper(level) .. "] " .. message)
     end
 end
@@ -322,74 +318,8 @@ end
 -- Simple (or placeholder) inventory interaction functions
 -- In a full system, these would likely call exports from inventory_server.lua
 
-function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails) -- itemDetails is the full entry from Config.Items
-    local pData = GetCnrPlayerData(playerId)
-    if not pData then return false, "Player data not found" end
 
-    pData.inventory = pData.inventory or {} -- Ensure inventory table exists
-
-    -- It's crucial that itemDetails is the actual item object from Config.Items
-    if not itemDetails or not itemDetails.name or not itemDetails.category then
-        -- Attempt to find itemDetails from Config.Items if not passed in correctly
-        local foundConfigItem = nil
-        for _, cfgItem in ipairs(Config.Items) do
-            if cfgItem.itemId == itemId then
-                foundConfigItem = cfgItem
-                break
-            end
-        end
-        if not foundConfigItem then
-            Log(string.format("AddItemToPlayerInventory: CRITICAL - Item details not found in Config.Items for itemId '%s' and not passed correctly. Cannot add to inventory for player %s.", itemId, playerId), "error")
-            return false, "Item configuration not found"
-        end
-        itemDetails = foundConfigItem -- Use the one found in Config.Items
-    end
-
-    local currentCount = 0
-    if pData.inventory[itemId] and pData.inventory[itemId].count then
-        currentCount = pData.inventory[itemId].count
-    end
-
-    local newCount = currentCount + quantity
-
-    pData.inventory[itemId] = {
-        count = newCount,
-        name = itemDetails.name,
-        category = itemDetails.category,
-        itemId = itemId -- Store itemId for completeness, useful for iterating/reconstructing
-        -- Store other details if needed by client, e.g., basePrice for some client-side calcs, though sellPrice is usually server-authoritative
-        -- basePrice = itemDetails.basePrice
-    }
-
-    -- Ensure player data is marked for saving if that's your persistence mechanism
-    -- MarkPlayerDataForSave(playerId)
-
-    local pDataForBasicInfo = shallowcopy(pData)
-    pDataForBasicInfo.inventory = nil -- Remove inventory for this event
-    TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
-    Log(string.format("Added/updated %d of %s to player %s inventory. New count: %d. Name: %s, Category: %s", quantity, itemId, playerId, newCount, itemDetails.name, itemDetails.category))
-    return true, "Item added/updated"
-end
-
-function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
-    local pData = GetCnrPlayerData(playerId)
-    if not pData or not pData.inventory or not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
-        return false, "Item not found or insufficient quantity"
-    end
-
-    pData.inventory[itemId].count = pData.inventory[itemId].count - quantity
-
-    if pData.inventory[itemId].count <= 0 then
-        pData.inventory[itemId] = nil -- Remove item entry if count is zero or less
-    end
-    local pDataForBasicInfo = shallowcopy(pData)
-    pDataForBasicInfo.inventory = nil -- Remove inventory for this event
-    TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
-    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
-    Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
-    return true, "Item removed"
-end
+-- OLD INVENTORY FUNCTIONS REMOVED - Using enhanced versions with save marking below
 
 -- Ensure InitializePlayerInventory is defined (even if simple)
 function InitializePlayerInventory(pData, playerId)
@@ -1159,10 +1089,98 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
                 count = invItemData.count
             })
         end
-    end    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
-    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
+    end    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
+-- OLD HANDLERS REMOVED - Using enhanced versions below with inventory saving
+
+-- =================================================================================================
+-- ROBUST INVENTORY SAVING SYSTEM
+-- =================================================================================================
+
+-- Table to track players who need inventory save
+local playersSavePending = {}
+
+-- Function to mark player for inventory save
+local function MarkPlayerForInventorySave(playerId)
+    local pIdNum = tonumber(playerId)
+    if pIdNum and pIdNum > 0 then
+        playersSavePending[pIdNum] = true
+    end
+end
+
+-- Function to save player data immediately (used for critical saves)
+local function SavePlayerDataImmediate(playerId, reason)
+    reason = reason or "manual"
+    local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then return false end
+    
+    local pData = GetCnrPlayerData(pIdNum)
+    if not pData then return false end
+    
+    local success = SavePlayerData(pIdNum)
+    if success then
+        playersSavePending[pIdNum] = nil -- Clear pending save flag
+        Log(string.format("Immediate save completed for player %s (reason: %s)", pIdNum, reason))
+        return true
+    else
+        Log(string.format("Failed immediate save for player %s (reason: %s)", pIdNum, reason), "error")
+        return false
+    end
+end
+
+-- Periodic save system - saves all pending players every 30 seconds
+CreateThread(function()
+    while true do
+        Wait(30000) -- 30 seconds
+        
+        -- Save all players who have pending saves
+        for playerId, needsSave in pairs(playersSavePending) do
+            if needsSave and GetPlayerName(playerId) then
+                SavePlayerDataImmediate(playerId, "periodic")
+            end
+        end
+        
+        -- Clean up offline players from pending saves
+        for playerId, _ in pairs(playersSavePending) do
+            if not GetPlayerName(playerId) then
+                playersSavePending[playerId] = nil
+            end
+        end
+    end
+end)
+
+-- Player connecting handler - for tracking new connections
+AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
+    local src = source
+    Log(string.format("Player connecting: %s (ID: %s)", name, src))
+    
+    -- Clear any pending save for this player ID (in case of reconnect)
+    playersSavePending[src] = nil
+end)
+
+-- Player dropped handler - immediate save on disconnect
+AddEventHandler('playerDropped', function(reason)
+    local src = source
+    local playerName = GetPlayerName(src) or "Unknown"
+    
+    Log(string.format("Player %s (ID: %s) disconnected. Reason: %s", playerName, src, reason))
+    
+    -- Immediately save player data before they disconnect
+    SavePlayerDataImmediate(src, "disconnect")
+    
+    -- Clean up player from all tracking tables
+    playersSavePending[src] = nil
+    playersData[src] = nil
+    copsOnDuty[src] = nil
+    robbersActive[src] = nil
+    wantedPlayers[src] = nil
+    jail[src] = nil
+    activeBounties[src] = nil
+    -- ... add other tables as needed
+end)
+
+-- Enhanced buy/sell operations with immediate inventory saves
 RegisterNetEvent('cops_and_robbers:buyItem')
 AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     local src = source
@@ -1170,11 +1188,11 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     quantity = tonumber(quantity) or 1
 
     if not pData then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
     end
     if quantity <= 0 then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
     end
 
@@ -1187,55 +1205,53 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     end
 
     if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
-    end    -- Role/Level Checks
+    end
+
+    -- Role/Level Checks
     if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
         Log(string.format("Player %s (Level: %d) tried to buy %s but needs cop level %d", src, pData.level, itemConfig.name, itemConfig.minLevelCop), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
     end
     if pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
         Log(string.format("Player %s (Level: %d) tried to buy %s but needs robber level %d", src, pData.level, itemConfig.name, itemConfig.minLevelRobber), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
     end
     if itemConfig.forCop and pData.role ~= "cop" then
         Log(string.format("Player %s (Role: %s) tried to buy %s but it's cop-only", src, pData.role, itemConfig.name), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
-        return
-    end
-    -- Add similar check for 'forRobber' if you implement that flag in Config.Items
-
-    local price = itemConfig.basePrice
-    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-        price = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-    end
-    local totalCost = price * quantity
-
-    if GetPlayerMoney(src) < totalCost then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
     end
 
-    if RemovePlayerMoney(src, totalCost) then
-        local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
-        if success then
-            -- Record purchase for dynamic economy
-            if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-                table.insert(purchaseHistory, { playerId = src, itemId = itemId, quantity = quantity, pricePaid = totalCost, timestamp = os.time() })
-                -- Optional: Prune purchaseHistory if it gets too large, or do it in SavePurchaseHistory
-            end            TriggerClientEvent('cops_and_robbers:buyResult', src, true) -- No message
-            -- Trigger refresh of sell list if needed
-            TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
-            Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
-        else
-            AddPlayerMoney(src, totalCost) -- Refund money if adding item failed
-            TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
-            Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
-        end
+    -- Calculate cost with dynamic pricing
+    local totalCost = CalculateDynamicPrice(itemConfig.basePrice, itemId) * quantity
+
+    if not RemovePlayerMoney(src, totalCost) then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
+        return
+    end
+
+    -- Add to purchase history for dynamic pricing
+    local currentTime = os.time()
+    if not purchaseHistory[itemId] then purchaseHistory[itemId] = {} end
+    table.insert(purchaseHistory[itemId], currentTime)
+
+    -- Add item to inventory
+    local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
+    if success then
+        TriggerClientEvent('cops_and_robbers:buyResult', src, true)
+        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
+        Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
+        
+        -- IMMEDIATE SAVE after purchase
+        SavePlayerDataImmediate(src, "purchase")
     else
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false) -- No message
+        AddPlayerMoney(src, totalCost)
+        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
+        Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
     end
 end)
 
@@ -1249,14 +1265,6 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
         TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
-    if quantity <= 0 then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
-        return
-    end
-    if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
-        return
-    end
 
     local itemConfig = nil
     for _, cfgItem in ipairs(Config.Items) do
@@ -1266,156 +1274,129 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
         end
     end
 
-    if not itemConfig then
+    if not itemConfig or not itemConfig.sellPrice then
         TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         return
     end
 
-    local sellPricePerItem = math.floor(itemConfig.basePrice * (Config.DynamicEconomy and Config.DynamicEconomy.sellPriceFactor or 0.5))
-    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-         local currentDynamicBuyPrice = CalculateDynamicPrice(itemId, itemConfig.basePrice)
-         sellPricePerItem = math.floor(currentDynamicBuyPrice * (Config.DynamicEconomy.sellPriceFactor or 0.5))
-    end
-    local totalGain = sellPricePerItem * quantity
-
     local success, msg = RemoveItemFromPlayerInventory(src, itemId, quantity)
     if success then
-        AddPlayerMoney(src, totalGain)        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
-        -- Trigger refresh of sell list after successful sell
+        local totalEarned = itemConfig.sellPrice * quantity
+        AddPlayerMoney(src, totalEarned)
+        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
-        Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalGain))
+        Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalEarned))
+        
+        -- IMMEDIATE SAVE after sale
+        SavePlayerDataImmediate(src, "sale")
     else
         TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
         Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
     end
 end)
 
-RegisterNetEvent('cnr:requestConfigItems')
-AddEventHandler('cnr:requestConfigItems', function()
+-- Enhanced respawn system with inventory restoration
+RegisterNetEvent('cnr:playerRespawned')
+AddEventHandler('cnr:playerRespawned', function()
     local src = source
-    if Config.Items then
-        local itemCount = 0
-        if type(Config.Items) == "table" then
-            for _ in pairs(Config.Items) do itemCount = itemCount + 1 end
-        end
-        
-        TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
-        Log("Sent Config.Items to client " .. src .. " (items: " .. itemCount .. ")", "info")
-    else
-        Log("Config.Items not available on server to send to client " .. src, "error")
-    end
-end)
-
-RegisterNetEvent('cnr:requestPlayerInventory')
-AddEventHandler('cnr:requestPlayerInventory', function()
-    local src = source
+    Log(string.format("Player %s respawned, restoring inventory", src))
+    
+    -- Reload and sync player inventory
     local pData = GetCnrPlayerData(src)
     if pData and pData.inventory then
-        TriggerClientEvent('cnr:receivePlayerInventory', src, pData.inventory)
+        -- Send fresh inventory sync
+        SafeTriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
+        Log(string.format("Restored inventory for respawned player %s with %d items", src, tablelength(pData.inventory or {})))
     else
-        TriggerClientEvent('cnr:receivePlayerInventory', src, {})
+        Log(string.format("No inventory to restore for player %s", src), "warn")
     end
 end)
 
--- Crime reporting system
-local lastCrimeReports = {} -- Initialize at module level
-
-RegisterNetEvent('cnr:reportCrime')
-AddEventHandler('cnr:reportCrime', function(crimeKey)
+-- Enhanced player spawn handler with inventory sync
+RegisterNetEvent('cnr:playerSpawned')
+AddEventHandler('cnr:playerSpawned', function()
     local src = source
-    local pIdNum = tonumber(src)
-      -- Rate limiting to prevent spam
-    if not lastCrimeReports[pIdNum] then 
-        lastCrimeReports[pIdNum] = {} 
-    end
+    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
     
-    local currentTime = os.time()
-    local lastReportTime = lastCrimeReports[pIdNum][crimeKey] or 0
-    local cooldownTime = 10 -- 10 seconds between same crime reports
+    -- Load player data
+    LoadPlayerData(src)
     
-    if currentTime - lastReportTime < cooldownTime then
-        print(string.format("[CNR_SERVER_TRACE] Crime report %s from player %s ignored (cooldown)", crimeKey, pIdNum))
-        return
-    end
-    
-    lastCrimeReports[pIdNum][crimeKey] = currentTime
-    
-    -- Check if the crime exists in config
-    if not Config.WantedSettings.crimes[crimeKey] then
-        Log(string.format("Unknown crime reported: %s from player %s", crimeKey, pIdNum), "warn")
-        return
-    end
-    
-    print(string.format("[CNR_SERVER_DEBUG] Crime reported: %s by player %s", crimeKey, pIdNum))
-    UpdatePlayerWantedLevel(pIdNum, crimeKey)
+    -- Ensure inventory is properly synced after spawn
+    Citizen.SetTimeout(2000, function() -- Give time for data to load
+        local pData = GetCnrPlayerData(src)
+        if pData and pData.inventory then
+            SafeTriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
+            Log(string.format("Post-spawn inventory sync for player %s", src))
+        end
+    end)
 end)
 
--- Enhanced Restricted Area Entry with Minimum Star Level Enforcement
-RegisterNetEvent('cnr:reportRestrictedAreaEntry')
-AddEventHandler('cnr:reportRestrictedAreaEntry', function(area)
-    local src = source
-    local pData = GetCnrPlayerData(src)
-    
-    if not pData or pData.role ~= "robber" then return end
-    
-    -- Add wanted points for entering the area
-    UpdatePlayerWantedLevel(src, 'restricted_area_entry')
-    
-    -- Enforce minimum star level if specified
-    if area.minStars and area.minStars > 0 then
-        local currentWanted = wantedPlayers[src]
-        if currentWanted then
-            local currentStars = currentWanted.stars or 0
-            
-            if currentStars < area.minStars then
-                -- Calculate minimum points needed for required star level
-                local minPointsNeeded = 0
-                if Config.WantedSettings and Config.WantedSettings.levels then
-                    for _, levelData in ipairs(Config.WantedSettings.levels) do
-                        if levelData.stars == area.minStars then
-                            minPointsNeeded = levelData.threshold
-                            break
-                        end
-                    end
-                end
-                
-                -- Set to minimum required points if current is less
-                if currentWanted.wantedLevel < minPointsNeeded then
-                    local pointsToAdd = minPointsNeeded - currentWanted.wantedLevel
-                    currentWanted.wantedLevel = minPointsNeeded
-                    currentWanted.lastCrimeTime = os.time()
-                    
-                    -- Recalculate stars
-                    local newStars = 0
-                    for i = #Config.WantedSettings.levels, 1, -1 do
-                        if currentWanted.wantedLevel >= Config.WantedSettings.levels[i].threshold then
-                            newStars = Config.WantedSettings.levels[i].stars
-                            break
-                        end
-                    end
-                    currentWanted.stars = newStars
-                    
-                    -- Sync to client and send UI notification
-                    SafeTriggerClientEvent('cnr:wantedLevelSync', src, currentWanted)
-                    SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', src, newStars, currentWanted.wantedLevel)
-                    
-                    local uiLabel = ""
-                    for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
-                        if levelData.stars == newStars then
-                            uiLabel = levelData.uiLabel
-                            break
-                        end
-                    end
-                    if uiLabel == "" then
-                        uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
-                    end
-                    
-                    SafeTriggerClientEvent('cnr:showWantedNotification', src, newStars, currentWanted.wantedLevel, uiLabel)
-                    
-                    Log(string.format("Player %s entered %s - minimum %d stars enforced (was %d, now %d)", 
-                        src, area.name, area.minStars, currentStars, newStars))
-                end
+-- Enhanced AddItemToPlayerInventory with save marking
+function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return false, "Player data not found" end
+
+    pData.inventory = pData.inventory or {}
+
+    if not itemDetails or not itemDetails.name or not itemDetails.category then
+        local foundConfigItem = nil
+        for _, cfgItem in ipairs(Config.Items) do
+            if cfgItem.itemId == itemId then
+                foundConfigItem = cfgItem
+                break
             end
         end
+        if not foundConfigItem then
+            Log(string.format("AddItemToPlayerInventory: CRITICAL - Item details not found in Config.Items for itemId '%s' and not passed correctly. Cannot add to inventory for player %s.", itemId, playerId), "error")
+            return false, "Item configuration not found"
+        end
+        itemDetails = foundConfigItem
     end
-end)
+
+    local currentCount = 0
+    if pData.inventory[itemId] and pData.inventory[itemId].count then
+        currentCount = pData.inventory[itemId].count
+    end
+
+    local newCount = currentCount + quantity
+
+    pData.inventory[itemId] = {
+        count = newCount,
+        name = itemDetails.name,
+        category = itemDetails.category,
+        itemId = itemId
+    }
+
+    -- Mark for save
+    MarkPlayerForInventorySave(playerId)
+
+    local pDataForBasicInfo = shallowcopy(pData)
+    pDataForBasicInfo.inventory = nil
+    TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
+    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
+    Log(string.format("Added/updated %d of %s to player %s inventory. New count: %d. Name: %s, Category: %s", quantity, itemId, playerId, newCount, itemDetails.name, itemDetails.category))
+    return true, "Item added/updated"
+end
+
+function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory or not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
+        return false, "Item not found or insufficient quantity"
+    end
+
+    pData.inventory[itemId].count = pData.inventory[itemId].count - quantity
+
+    if pData.inventory[itemId].count <= 0 then
+        pData.inventory[itemId] = nil
+    end
+    
+    -- Mark for save
+    MarkPlayerForInventorySave(playerId)
+    
+    local pDataForBasicInfo = shallowcopy(pData)
+    pDataForBasicInfo.inventory = nil
+    TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
+    TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory)) -- Send MINIMAL inventory separately
+    Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
+    return true, "Item removed"
+end

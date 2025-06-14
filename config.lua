@@ -84,9 +84,10 @@ Config.AmmuNationStores = {
 --     NPC Vendor Configurations
 -- =========================
 -- Defines NPC vendors, their locations, models, and items they sell.
-Config.NPCVendors = {    {
-        location = vector3(-1165.62, 4926.14, 222.25), -- More accessible location near Grapeseed
-        heading  = 140.0,
+Config.NPCVendors = {
+    {
+        location = vector3(1000.32, 0.68, 78.30), -- Behind Diamond Casino in alley - accessible city location
+        heading  = 265.0,
         model    = "s_m_y_dealer_01",
         name     = "Black Market Dealer",
         items    = { 
@@ -374,9 +375,9 @@ Config.WantedSettings = {
         cop_murder                 = 40,   -- Alternative name for killing a police officer.
         -- Other (increased values)
         resisting_arrest           = 10,   -- Fleeing from police after being told to stop. (increased from 5)
-        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)
-        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
-        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)restricted_area_entry      = 15    -- Entering restricted areas like Fort Zancudo. (increased from 6)
+        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
+        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)
+        restricted_area_entry      = 15    -- Entering restricted areas like Fort Zancudo. (increased from 6)
     },
     decayRatePoints      = 1,    -- Amount of wanted points to decay per interval.
     decayIntervalMs      = 25000,-- Milliseconds (25 seconds) - how often the decay check runs. (decreased from 45000)
@@ -561,8 +562,10 @@ Config.PoliceVehicleSpawns = {
     -- Add more spawn points as needed
 }
 
-Config.RobberVehicleSpawns = { -- Example, might not be used if robbers acquire vehicles differently
-    { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0 }, -- Near Robber spawn
+Config.RobberVehicleSpawns = { -- Vehicles spawned for robbers near their spawn point
+    { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0, model = "sultan" }, -- Fast sedan near Robber spawn
+    { location = vector3(2125.2, 4785.3, 40.0), heading = 200.0, model = "futo" },   -- Drift car
+    { location = vector3(2115.1, 4775.8, 40.0), heading = 160.0, model = "elegy2" }, -- Sports car
     -- Add more spawn points as needed
 }
 
