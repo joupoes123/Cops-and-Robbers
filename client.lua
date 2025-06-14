@@ -486,15 +486,28 @@ RegisterNetEvent('cnr:xpGained')
 AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
     playerData.xp = newTotalXp
     ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
-    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+    SendNUIMessage({ 
+        action = "updateXPBar", 
+        currentXP = playerData.xp, 
+        currentLevel = playerData.level, 
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role),
+        xpGained = amount
+    })
 end)
 
 RegisterNetEvent('cnr:levelUp')
 AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    local oldLevel = playerData.level
     playerData.level = newLevel
     playerData.xp = newTotalXp
     ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
-    SendNUIMessage({ action = "updateXPBar", currentXP = playerData.xp, currentLevel = playerData.level, xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role) })
+    SendNUIMessage({ 
+        action = "updateXPBar", 
+        currentXP = playerData.xp, 
+        currentLevel = playerData.level, 
+        xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role),
+        xpGained = 0 -- Level up doesn't show XP gain, just the level animation
+    })
 end)
 
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')

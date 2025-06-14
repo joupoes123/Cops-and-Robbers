@@ -50,9 +50,8 @@ window.addEventListener('message', function(event) {
             break;
         case 'startHeistTimer':
             startHeistTimer(data.duration, data.bankName);
-            break;
-        case 'updateXPBar':
-            updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel);
+            break;        case 'updateXPBar':
+            updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel, data.xpGained);
             break;
         case 'refreshSellListIfNeeded':
             // console.log("[CNR_NUI] Received refreshSellListIfNeeded. Calling loadSellItems().");
@@ -124,16 +123,60 @@ async function fetchSetNuiFocus(hasFocus, hasCursor) {
     }
 }
 
-// XP, Toast, Cash Display, UI Visibility functions (remain unchanged)
-function updateXPDisplayElements(xp, level, nextLvlXp) {
+// Enhanced XP Display with Animation and Auto-Hide
+let xpDisplayTimeout;
+let currentXP = 0;
+let currentLevel = 1;
+let currentNextLvlXP = 100;
+
+function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
     const levelTextElement = document.getElementById('level-text');
     const xpTextElement = document.getElementById('xp-text');
     const xpBarFillElement = document.getElementById('xp-bar-fill');
     const xpLevelContainer = document.getElementById('xp-level-container');
+    const xpGainIndicator = document.getElementById('xp-gain-indicator');
 
-    if (xpLevelContainer) xpLevelContainer.style.display = 'flex';
-    if (levelTextElement) levelTextElement.textContent = "LVL " + level;
-    if (xpTextElement) xpTextElement.textContent = xp + " / " + nextLvlXp + " XP";
+    // Store previous values to detect changes
+    const previousXP = currentXP;
+    const previousLevel = currentLevel;
+    
+    // Update current values
+    currentXP = xp;
+    currentLevel = level;
+    currentNextLvlXP = nextLvlXp;    // Calculate XP gained if not provided
+    if (xpGained === null && previousXP !== 0) {
+        xpGained = currentXP - previousXP;
+    }
+
+    // Don't show XP bar for initial load or if no XP change
+    const shouldShow = xpGained !== null && (xpGained > 0 || previousLevel !== currentLevel);
+    
+    // Show XP bar with animation only if there's actual progression
+    if (xpLevelContainer && shouldShow) {
+        xpLevelContainer.classList.remove('hide');
+        xpLevelContainer.classList.add('show');
+    }
+
+    // Update level text with animation if level changed
+    if (levelTextElement) {
+        if (level !== previousLevel && previousLevel !== 1) {
+            // Level up animation
+            levelTextElement.style.transform = 'scale(1.2)';
+            levelTextElement.style.color = '#4CAF50';
+            setTimeout(() => {
+                levelTextElement.style.transform = 'scale(1)';
+                levelTextElement.style.color = '#e94560';
+            }, 500);
+        }
+        levelTextElement.textContent = "LVL " + level;
+    }
+
+    // Update XP text
+    if (xpTextElement) {
+        xpTextElement.textContent = xp + " / " + nextLvlXp + " XP";
+    }
+
+    // Animate XP bar fill
     if (xpBarFillElement) {
         let percentage = 0;
         if (typeof nextLvlXp === 'number' && nextLvlXp > 0 && xp < nextLvlXp) {
@@ -141,8 +184,47 @@ function updateXPDisplayElements(xp, level, nextLvlXp) {
         } else if (typeof nextLvlXp !== 'number' || xp >= nextLvlXp) {
             percentage = 100;
         }
-        xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
+        
+        // Smooth animation to new percentage
+        setTimeout(() => {
+            xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
+        }, 200);
     }
+
+    // Show XP gain indicator if XP was gained
+    if (xpGained && xpGained > 0 && xpGainIndicator) {
+        xpGainIndicator.textContent = `+${xpGained} XP`;
+        xpGainIndicator.classList.remove('show');
+        // Force reflow to restart animation
+        xpGainIndicator.offsetHeight;
+        xpGainIndicator.classList.add('show');
+        
+        // Remove animation class after animation completes
+        setTimeout(() => {
+            xpGainIndicator.classList.remove('show');
+        }, 3000);
+    }
+
+    // Clear existing timeout
+    if (xpDisplayTimeout) {
+        clearTimeout(xpDisplayTimeout);
+    }
+
+    // Set new timeout to hide XP bar after 10 seconds
+    xpDisplayTimeout = setTimeout(() => {
+        if (xpLevelContainer) {
+            xpLevelContainer.classList.remove('show');
+            xpLevelContainer.classList.add('hide');
+            
+            // Actually hide the element after animation
+            setTimeout(() => {
+                if (xpLevelContainer.classList.contains('hide')) {
+                    xpLevelContainer.style.display = 'none';
+                    xpLevelContainer.classList.remove('hide');
+                }
+            }, 500);
+        }
+    }, 10000);
 }
 
 function showToast(message, type = 'info', duration = 3000) {

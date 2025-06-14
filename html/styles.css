@@ -626,7 +626,7 @@ button:hover {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    display: flex; /* Use flexbox for alignment */
+    display: none; /* Hidden by default */
     align-items: center; /* Vertically align items in the container */
     background-color: #16213e; /* New Secondary Background */
     padding: 10px 20px; /* Adjusted padding */
@@ -636,6 +636,21 @@ button:hover {
     color: #ffffff; /* New Text Color */
     font-family: Arial, sans-serif;
     border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+}
+
+#xp-level-container.show {
+    display: flex !important;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    animation: slideInUp 0.5s ease-out forwards;
+}
+
+#xp-level-container.hide {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    animation: slideOutDown 0.5s ease-out forwards;
 }
 
 /* Player Cash Display HUD Styling */
@@ -678,12 +693,79 @@ button:hover {
     height: 100%;
     background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient for XP fill */
     border-radius: 7px; /* Slightly smaller to fit inside background */
-    transition: width 0.3s ease-in-out; /* Smooth transition for width changes */
+    transition: width 1.2s ease-out; /* Slower, smoother transition for width changes */
 }
 
 #xp-text {
     font-size: 14px;
     color: #f0f0f0; /* Lighter grey for XP text for contrast */
+}
+
+/* XP Gain Indicator */
+.xp-gain-indicator {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #4CAF50;
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 95;
+}
+
+.xp-gain-indicator.show {
+    animation: xpGainPop 3s ease-out forwards;
+}
+
+/* Animations */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes slideOutDown {
+    from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(50px);
+    }
+}
+
+@keyframes xpGainPop {
+    0% {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.8);
+    }
+    15% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.1);
+    }
+    30% {
+        transform: translateY(-50%) scale(1);
+    }
+    85% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.9);
+    }
 }
 
 /* ==========================================================================
