@@ -143,30 +143,39 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
     // Update current values
     currentXP = xp;
     currentLevel = level;
-    currentNextLvlXP = nextLvlXp;    // Calculate XP gained if not provided
+    currentNextLvlXP = nextLvlXp;
+
+    // Calculate XP gained if not provided
     if (xpGained === null && previousXP !== 0) {
         xpGained = currentXP - previousXP;
-    }
-
-    // Don't show XP bar for initial load or if no XP change
+    }    // Only show XP bar if there's actual XP gain or level change
     const shouldShow = xpGained !== null && (xpGained > 0 || previousLevel !== currentLevel);
     
-    // Show XP bar with animation only if there's actual progression
-    if (xpLevelContainer && shouldShow) {
+    if (!shouldShow) {
+        console.log('[CNR_NUI] No XP change detected, not showing XP bar');
+        return;
+    }
+
+    // Show XP bar with slide-in animation
+    if (xpLevelContainer) {
+        xpLevelContainer.style.display = 'flex';
         xpLevelContainer.classList.remove('hide');
         xpLevelContainer.classList.add('show');
+        console.log('[CNR_NUI] Showing XP bar with animation');
     }
 
     // Update level text with animation if level changed
     if (levelTextElement) {
-        if (level !== previousLevel && previousLevel !== 1) {
+        if (level !== previousLevel && previousLevel !== 0) {
             // Level up animation
+            levelTextElement.style.transition = 'transform 0.5s ease-out, color 0.5s ease-out';
             levelTextElement.style.transform = 'scale(1.2)';
             levelTextElement.style.color = '#4CAF50';
             setTimeout(() => {
                 levelTextElement.style.transform = 'scale(1)';
                 levelTextElement.style.color = '#e94560';
             }, 500);
+            console.log(`[CNR_NUI] Level up animation: ${previousLevel} -> ${level}`);
         }
         levelTextElement.textContent = "LVL " + level;
     }
@@ -188,20 +197,25 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
         // Smooth animation to new percentage
         setTimeout(() => {
             xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
+            console.log(`[CNR_NUI] XP bar animated to ${percentage.toFixed(1)}%`);
         }, 200);
     }
 
     // Show XP gain indicator if XP was gained
     if (xpGained && xpGained > 0 && xpGainIndicator) {
         xpGainIndicator.textContent = `+${xpGained} XP`;
+        xpGainIndicator.style.display = 'block';
         xpGainIndicator.classList.remove('show');
         // Force reflow to restart animation
         xpGainIndicator.offsetHeight;
         xpGainIndicator.classList.add('show');
         
+        console.log(`[CNR_NUI] Showing +${xpGained} XP indicator`);
+        
         // Remove animation class after animation completes
         setTimeout(() => {
             xpGainIndicator.classList.remove('show');
+            xpGainIndicator.style.display = 'none';
         }, 3000);
     }
 
@@ -215,6 +229,8 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
         if (xpLevelContainer) {
             xpLevelContainer.classList.remove('show');
             xpLevelContainer.classList.add('hide');
+            
+            console.log('[CNR_NUI] Hiding XP bar after 10 seconds');
             
             // Actually hide the element after animation
             setTimeout(() => {

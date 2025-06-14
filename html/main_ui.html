@@ -1,6 +1,6 @@
 <!-- html/main_ui.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <!-- Ensures proper scaling on different devices -->
@@ -41,22 +41,20 @@
         </div>
         <!-- Close Store Button MOVED TO TOP -->
     </section>    <!-- XP and Level Display HUD -->
-    <div id="xp-level-container" class="hud-element" style="display: none;"> <!-- Initially hidden -->
+    <div id="xp-level-container" class="hud-element"> <!-- Initially hidden via CSS -->
         <span id="level-text">LVL 1</span>
         <div id="xp-bar-background">
             <div id="xp-bar-fill"></div>
         </div>
         <span id="xp-text">0 / 100 XP</span>
-        <div id="xp-gain-indicator" class="xp-gain-indicator" style="display: none;">+0 XP</div>
+        <div id="xp-gain-indicator" class="xp-gain-indicator">+0 XP</div>
     </div>
 
     <!-- Player Cash Display HUD -->
     <div id="cash-display" class="hud-element">
         $0
-    </div>
-
-    <!-- Heist Timer HUD (Moved from index.html) -->
-    <div id="heist-timer" class="hud" role="status" aria-live="polite" style="display: none;"> <!-- Initially hidden is good practice -->
+    </div>    <!-- Heist Timer HUD (Moved from index.html) -->
+    <div id="heist-timer" class="hud heist-timer-hidden" role="status" aria-live="polite"> <!-- Initially hidden via CSS -->
         <p id="timer-text"></p>
     </div>
 
@@ -89,16 +87,13 @@
                     -->
                 </tbody>
             </table>
-        </div>
-        <div id="admin-ban-reason-container" class="hidden" style="margin-top: 10px;">
+        </div>        <div id="admin-ban-reason-container" class="hidden admin-ban-reason-container">
             <label for="admin-ban-reason">Ban Reason:</label>
             <input type="text" id="admin-ban-reason" placeholder="Enter reason for ban">
             <button id="admin-confirm-ban-btn"><span class="icon">✔️</span>Confirm Ban</button>
             <button id="admin-cancel-ban-btn"><span class="icon">❌</span>Cancel</button>
         </div>
-    </section>
-
-    <!-- Toast Notification Container -->
-    <div id="toast" class="toast-notification" style="display:none;"></div>
+    </section>    <!-- Toast Notification Container -->
+    <div id="toast" class="toast-notification toast-hidden"></div>
 </body>
 </html>
