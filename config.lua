@@ -341,43 +341,44 @@ Config.PowerGridSabotageCooldown   = 600    -- seconds (10 minutes) cooldown bef
 -- =========================
 Config.WantedSettings = {
     enableNPCResponse = false, -- MASTER SWITCH: Set to true to enable NPC police response, false to disable.
-    baseIncreasePoints = 1,    -- Default points for minor infractions if not specified in crimes. (Renamed from baseIncrease)
+    baseIncreasePoints = 2,    -- Default points for minor infractions if not specified in crimes. (Increased from 1)
     levels = {                 -- Defines star levels and UI labels based on accumulated wanted points.
-        { stars = 1, threshold = 10,  uiLabel = "Wanted: ★☆☆☆☆", minPunishment = 60,  maxPunishment = 120 }, -- Punishment in seconds (jail time)
-        { stars = 2, threshold = 30,  uiLabel = "Wanted: ★★☆☆☆", minPunishment = 120, maxPunishment = 240 },
-        { stars = 3, threshold = 60,  uiLabel = "Wanted: ★★★☆☆", minPunishment = 240, maxPunishment = 480 },
-        { stars = 4, threshold = 100, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 },
-        { stars = 5, threshold = 150, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }
+        { stars = 1, threshold = 15,  uiLabel = "Wanted: ★☆☆☆☆", minPunishment = 60,  maxPunishment = 120 }, -- Increased from 10
+        { stars = 2, threshold = 40,  uiLabel = "Wanted: ★★☆☆☆", minPunishment = 120, maxPunishment = 240 }, -- Increased from 30
+        { stars = 3, threshold = 80,  uiLabel = "Wanted: ★★★☆☆", minPunishment = 240, maxPunishment = 480 }, -- Increased from 60
+        { stars = 4, threshold = 130, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 }, -- Increased from 100
+        { stars = 5, threshold = 200, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }  -- Increased from 150
     },
     crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
-        -- Traffic Violations
-        speeding                   = 1,    -- For receiving a speeding ticket.
-        reckless_driving           = 2,    -- Example: driving on sidewalk, excessive near misses.
-        hit_and_run_vehicle        = 3,    -- Hitting a vehicle and fleeing.
-        hit_and_run_ped            = 5,    -- Hitting a pedestrian and fleeing.
-        -- Property Crimes
-        grand_theft_auto           = 5,    -- Stealing an occupied vehicle.
-        store_robbery_small        = 5,    -- Example: For smaller, less risky store robberies.
-        store_robbery_medium       = 10,   -- For general store robberies.
-        armed_robbery_player       = 8,    -- Robbing another player at gunpoint (if implemented).
-        -- Major Heists
-        bank_heist_major           = 20,   -- For successful major bank heists.
-        armored_car_heist          = 15,   -- For successful armored car heists.
-        -- Violent Crimes
-        assault_civilian           = 3,    -- Assaulting a civilian without killing.
-        murder_civilian            = 10,   -- For killing a civilian.
-        assault_cop                = 15,   -- For assaulting a police officer.
-        murder_cop                 = 25,   -- For killing a police officer.        -- Other
-        resisting_arrest           = 5,    -- Fleeing from police after being told to stop.
-        jailbreak_attempt          = 30,   -- Attempting to break someone out of jail.
-        emp_used_on_police         = 8,    -- Using EMP that affects police vehicles.
-        power_grid_sabotaged_crime = 8,    -- Sabotaging power grid (distinct from XP action).
-        restricted_area_entry      = 3     -- Entering restricted areas like Fort Zancudo.
+        -- Traffic Violations (increased values)
+        speeding                   = 3,    -- For receiving a speeding ticket. (increased from 1)
+        reckless_driving           = 5,    -- Example: driving on sidewalk, excessive near misses. (increased from 2)
+        hit_and_run_vehicle        = 8,    -- Hitting a vehicle and fleeing. (increased from 3)
+        hit_and_run_ped            = 12,   -- Hitting a pedestrian and fleeing. (increased from 5)
+        -- Property Crimes (increased values)
+        grand_theft_auto           = 10,   -- Stealing an occupied vehicle. (increased from 5)
+        store_robbery_small        = 8,    -- Example: For smaller, less risky store robberies. (increased from 5)
+        store_robbery_medium       = 15,   -- For general store robberies. (increased from 10)
+        armed_robbery_player       = 12,   -- Robbing another player at gunpoint (if implemented). (increased from 8)
+        -- Major Heists (increased values)
+        bank_heist_major           = 35,   -- For successful major bank heists. (increased from 20)
+        armored_car_heist          = 25,   -- For successful armored car heists. (increased from 15)
+        -- Violent Crimes (increased values)
+        assault_civilian           = 8,    -- Assaulting a civilian without killing. (increased from 3)
+        murder_civilian            = 20,   -- For killing a civilian. (increased from 10)
+        assault_cop                = 25,   -- For assaulting a police officer. (increased from 15)
+        murder_cop                 = 40,   -- For killing a police officer. (increased from 25)
+        -- Other (increased values)
+        resisting_arrest           = 10,   -- Fleeing from police after being told to stop. (increased from 5)
+        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)
+        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
+        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)
+        restricted_area_entry      = 6     -- Entering restricted areas like Fort Zancudo. (increased from 3)
     },
-    decayRatePoints      = 1,    -- Amount of wanted points to decay per interval. (Renamed from decayRate)
-    decayIntervalMs      = 30000,-- Milliseconds (30 seconds) - how often the decay check runs. (Renamed from decayInterval)
-    noCrimeCooldownMs    = 60000,-- Milliseconds (60 seconds) - time player must be "clean" (no new crimes committed) before decay starts. (Renamed from decayCooldown)
-    copSightCooldownMs   = 30000,-- Milliseconds (30 seconds) - time player must be out of cop sight for decay to resume (if decay was paused due to cop sight). (Renamed from sightCooldown)
+    decayRatePoints      = 1,    -- Amount of wanted points to decay per interval.
+    decayIntervalMs      = 45000,-- Milliseconds (45 seconds) - how often the decay check runs. (increased from 30000)
+    noCrimeCooldownMs    = 120000,-- Milliseconds (120 seconds) - time player must be "clean" before decay starts. (increased from 60000)
+    copSightCooldownMs   = 30000,-- Milliseconds (30 seconds) - time player must be out of cop sight for decay to resume.
     copSightDistance     = 75.0  -- meters, how far a cop can "see" a wanted player to pause decay.
 }
 

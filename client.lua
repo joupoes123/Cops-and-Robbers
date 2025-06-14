@@ -911,14 +911,25 @@ AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
         tostring(location), tostring(heading), tostring(role)))
     
     local playerPed = PlayerPedId()
-    if location and type(location) == "table" and location.x and location.y and location.z then
-        SetEntityCoords(playerPed, location.x, location.y, location.z, false, false, false, true)
+    local spawnX, spawnY, spawnZ = nil, nil, nil
+    
+    -- Handle both vector3 and table formats for location
+    if location then
+        if type(location) == "vector3" then
+            spawnX, spawnY, spawnZ = location.x, location.y, location.z
+        elseif type(location) == "table" and location.x and location.y and location.z then
+            spawnX, spawnY, spawnZ = location.x, location.y, location.z
+        end
+    end
+    
+    if spawnX and spawnY and spawnZ then
+        SetEntityCoords(playerPed, spawnX, spawnY, spawnZ, false, false, false, true)
         if heading then
             SetEntityHeading(playerPed, heading)
         end
         ShowNotification("Spawned as " .. tostring(role or "unknown"))
         print(string.format("[CNR_CLIENT_DEBUG] Player successfully spawned at %f, %f, %f as %s", 
-            location.x, location.y, location.z, tostring(role)))
+            spawnX, spawnY, spawnZ, tostring(role)))
     else
         print(string.format("[CNR_CLIENT_ERROR] Invalid spawn location received: %s", tostring(location)))
         ShowNotification("~r~Error: Could not determine spawn point for your role.")
