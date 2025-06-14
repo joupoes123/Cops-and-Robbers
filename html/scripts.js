@@ -32,11 +32,26 @@ window.addEventListener('message', function(event) {
             }
             showRoleSelection();
             break;        case 'updateMoney':
-            // Legacy case: Just store the cash value, don't show notification
-            // The new store UI handles cash display directly from playerInfo
+            // Update cash display dynamically when money changes
             if (typeof data.cash === 'number') {
+                const playerCashEl = document.getElementById('player-cash-amount');
+                if (playerCashEl) {
+                    playerCashEl.textContent = `$${data.cash.toLocaleString()}`;
+                    console.log('[CNR_NUI_DEBUG] updateMoney - Updated cash display to:', `$${data.cash.toLocaleString()}`);
+                }
+                
+                // Show cash notification if cash changed and store is open
+                const storeMenuElement = document.getElementById('store-menu');
+                if (storeMenuElement && storeMenuElement.style.display === 'block' && previousCash !== null && previousCash !== data.cash) {
+                    console.log('[CNR_NUI_DEBUG] Cash changed from', previousCash, 'to', data.cash);
+                    showCashNotification(data.cash, previousCash);
+                }
+                
+                // Update stored values
                 previousCash = data.cash;
-                console.log('[CNR_NUI_DEBUG] updateMoney legacy handler - cash stored:', data.cash);
+                if (window.playerInfo) {
+                    window.playerInfo.cash = data.cash;
+                }
             }
             break;case 'showStoreMenu':
         case 'openStore':
@@ -407,31 +422,49 @@ function loadCategories() {
 // New Grid-Based Item Loading
 function loadGridItems() {
     const gridContainer = document.getElementById('inventory-grid');
-    if (!gridContainer) return;
+    if (!gridContainer) {
+        console.error('[CNR_NUI_DEBUG] inventory-grid element not found!');
+        return;
+    }
     
     // Clear existing items
     gridContainer.innerHTML = '';
     
-    // Add debug info for scrollbar testing
     console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
+    console.log('[CNR_NUI_DEBUG] currentCategory:', window.currentCategory);
+    console.log('[CNR_NUI_DEBUG] Sample items:', window.items ? window.items.slice(0, 3) : 'No items');
     
-    // Force minimum content for scrollbar testing
-    const minItemsForScroll = 20;
     let itemsToRender = window.items || [];
     
-    // If not enough items, duplicate some to test scrollbar
-    if (itemsToRender.length < minItemsForScroll) {
-        const duplicatedItems = [];
-        for (let i = 0; i < minItemsForScroll; i++) {
-            if (itemsToRender.length > 0) {
-                duplicatedItems.push({...itemsToRender[i % itemsToRender.length], id: `${itemsToRender[i % itemsToRender.length].id}_dup_${i}`});
-            }
-        }
-        itemsToRender = duplicatedItems;
-        console.log('[CNR_NUI_DEBUG] Duplicated items for scrollbar testing. New count:', itemsToRender.length);
+    // Filter by category if one is selected
+    if (window.currentCategory) {
+        itemsToRender = itemsToRender.filter(item => item.category === window.currentCategory);
+        console.log('[CNR_NUI_DEBUG] Filtered items by category', window.currentCategory, ':', itemsToRender.length);
     }
-
-    // ...existing code...
+    
+    if (itemsToRender.length === 0) {
+        console.log('[CNR_NUI_DEBUG] No items to render, showing empty message');
+        gridContainer.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No items available.</div>';
+        return;
+    }
+    
+    // Create document fragment for better performance
+    const fragment = document.createDocumentFragment();
+    
+    itemsToRender.forEach((item, index) => {
+        console.log('[CNR_NUI_DEBUG] Creating slot for item:', item.itemId, item.name);
+        const slot = createInventorySlot(item, 'buy');
+        if (slot) {
+            fragment.appendChild(slot);
+            console.log('[CNR_NUI_DEBUG] Successfully created slot for:', item.itemId);
+        } else {
+            console.error('[CNR_NUI_DEBUG] Failed to create slot for:', item.itemId);
+        }
+    });
+    
+    gridContainer.appendChild(fragment);
+    console.log('[CNR_NUI_DEBUG] Rendered', itemsToRender.length, 'items to grid');
+    console.log('[CNR_NUI_DEBUG] Grid container children count:', gridContainer.children.length);
 }
 
 function loadSellGridItems() {
@@ -521,6 +554,8 @@ function createItemElement(item, type = 'buy') {
 
 // Modern Grid-Based Inventory Slot Creation
 function createInventorySlot(item, type = 'buy') {
+    console.log('[CNR_NUI_DEBUG] createInventorySlot called for:', item.itemId, 'type:', type, 'item data:', item);
+    
     const slot = document.createElement('div');
     slot.className = 'inventory-slot';
     slot.dataset.itemId = item.itemId;
@@ -585,7 +620,8 @@ function createInventorySlot(item, type = 'buy') {
     
     const itemPrice = document.createElement('div');
     itemPrice.className = 'item-price';
-    itemPrice.textContent = `$${(type === 'buy' ? item.price : item.sellPrice)}`;
+    const priceValue = type === 'buy' ? (item.price || item.basePrice) : item.sellPrice;
+    itemPrice.textContent = `$${priceValue ? priceValue.toLocaleString() : '0'}`;
     itemInfo.appendChild(itemPrice);
     
     slot.appendChild(itemInfo);
@@ -616,6 +652,7 @@ function createInventorySlot(item, type = 'buy') {
         slot.appendChild(actionOverlay);
     }
     
+    console.log('[CNR_NUI_DEBUG] Successfully created slot for:', item.itemId);
     return slot;
 }
 
