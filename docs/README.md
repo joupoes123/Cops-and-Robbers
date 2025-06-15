@@ -178,8 +178,7 @@ Cops-and-Robbers/
 └── docs/                  # Documentation
     ├── README.md
     ├── CONTRIBUTING.md
-    ├── CODE_OF_CONDUCT.md
-    └── natives_universal.lua
+    └── CODE_OF_CONDUCT.md
 ```
 
 ---
