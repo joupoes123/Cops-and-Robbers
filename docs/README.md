@@ -9,6 +9,7 @@
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [Controls](#controls)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Development Branch Structure](#development-branch-structure)
@@ -44,33 +45,86 @@
 - **Jail Time Restrictions**: Limited capabilities while jailed, with a countdown until release.
 - **Reintegration**: Released robbers have their wanted levels reset and can rejoin the action.
 
+### Advanced Player Inventory System
+
+- **Modern UI**: Features a sleek, category-based inventory interface accessible with the `I` key.
+- **Item Management**: View, equip, use, and drop items with intuitive controls.
+- **Categories**: Items are organized into Weapons, Medical, Tools, and Miscellaneous for easy navigation.
+- **Real-time Updates**: Inventory syncs in real-time between client and server.
+- **Item Effects**: Items have immediate effects when used (healing, armor, spike strips, etc.).
+
+### Comprehensive Store System
+
+- **Multiple Store Types**: 
+  - **Gun Stores**: Purchase weapons and ammunition (Cop-only stores and civilian gun stores)
+  - **Clothing Stores**: Buy and equip different clothing items
+  - **Medical Stores**: Purchase healing items and medical supplies
+  - **Tool Stores**: Buy specialized tools and equipment
+- **Role-Specific Access**: Certain stores are restricted to specific roles (e.g., police equipment stores)
+- **Interactive Interface**: Modern UI for browsing and purchasing items
+- **Inventory Integration**: Purchased items are automatically added to player inventory
+
 ### Enhanced User Interface (UI)
 
-- **NUI-Based Menus**: Interactive role selection menu and heist timers for an immersive experience.
+- **NUI-Based Menus**: Interactive role selection, inventory, and store menus for an immersive experience.
+- **Modern Design**: Clean, responsive interfaces with category-based navigation.
 - **HUD Elements**: Displays vital information such as heist details, wanted levels, and notifications.
-- **Visual Feedback**: On-screen messages for level-ups, arrests, and other significant events.
+- **Visual Feedback**: On-screen messages for level-ups, arrests, purchases, and other significant events.
 
-### Custom Inventory System
+### Banking and Heist System
 
-- **Integrated Management**: Features a built-in inventory system for managing items, removing reliance on external inventory scripts.
-- **Configurable Items**: Items are defined in `config.lua`.
-- **Persistent Storage**: Player inventories are saved with their core data.
-
-### Additional Bank Locations
-
-- **Variety of Heist Targets**: Multiple bank locations across the map offer diverse opportunities.
+- **Multiple Bank Locations**: Various bank locations across the map offer diverse heist opportunities.
 - **Variable Difficulty**: Different banks present unique challenges and rewards.
+- **Heist Mechanics**: Coordinated bank robberies with timers and security responses.
 
 ### Administrative Tools
 
 - **Expanded Admin Commands**: Comprehensive commands for server management, including player moderation and resource control.
-- **Real-Time Monitoring**: freeze/unfreeze actions, and teleport as needed.
-- **Player Management**: Adjust player roles, cash balances, and other core player data. Inventory management is now handled by an integrated system.
+- **Real-Time Monitoring**: Freeze/unfreeze actions, and teleport as needed.
+- **Player Management**: Adjust player roles, cash balances, experience, and inventory items.
+- **Ban System**: Persistent ban management with JSON storage.
 
 ### Customizable Assets & Scripts
 
 - **Modify Game Elements**: Tailor vehicles, weapons, uniforms, and abilities to fit your community's vision.
 - **Standalone Design**: Designed as a standalone resource. While integration with other mods is possible, core functionality does not rely on external frameworks like ESX or QBCore.
+- **Safe Utilities**: Built-in utilities for secure data handling and player management.
+
+---
+
+## Controls
+
+### General Controls
+
+- **F5**: Toggle role selection menu (choose between Cop and Robber)
+- **I**: Open/close player inventory
+- **E**: Interact with stores and other interactive elements
+- **H**: Toggle HUD display
+- **F6**: Open admin menu (admin only)
+
+### Cop-Specific Controls
+
+- **F1**: Access cop menu (spawn vehicles, equipment, etc.)
+- **F3**: Arrest nearby robber (when close to a robber)
+- **G**: Cuff/uncuff nearby player
+
+### Robber-Specific Controls
+
+- **F2**: Access robber menu (heist options, getaway vehicles, etc.)
+
+### Inventory Controls
+
+- **Left Click**: Select item
+- **Right Click**: Use/equip item
+- **Drop Button**: Drop selected item
+- **Category Tabs**: Navigate between Weapons, Medical, Tools, and Miscellaneous items
+
+### Store Controls
+
+- **Left Click**: Select item to purchase
+- **Purchase Button**: Buy selected item
+- **Category Navigation**: Browse different item categories
+- **Close Button (X)**: Exit store interface
 
 ---
 
@@ -102,6 +156,32 @@
 
    - Restart or launch your server to initialize the resource.
 
+### File Structure
+
+```
+Cops-and-Robbers/
+├── fxmanifest.lua          # Resource manifest
+├── config.lua              # Main configuration file
+├── server.lua              # Core server logic
+├── client.lua              # Core client logic
+├── admin.lua               # Administrative commands
+├── inventory_server.lua    # Server-side inventory system
+├── inventory_client.lua    # Client-side inventory system
+├── safe_utils.lua          # Security utilities
+├── bans.json              # Ban storage
+├── purchase_history.json  # Purchase tracking
+├── html/
+│   ├── main_ui.html       # Main UI interface
+│   ├── styles.css         # UI styling
+│   └── scripts.js         # UI JavaScript logic
+├── player_data/           # Player data storage
+└── docs/                  # Documentation
+    ├── README.md
+    ├── CONTRIBUTING.md
+    ├── CODE_OF_CONDUCT.md
+    └── natives_universal.lua
+```
+
 ---
 
 ## Configuration
@@ -113,6 +193,29 @@ Customize the gameplay experience by editing the configuration options in `confi
 - **Max Players**: Set the maximum number of players (`Config.MaxPlayers`).
 - **Heist Cooldown**: Adjust the cooldown time between heists (`Config.HeistCooldown`).
 - **Spawn Locations**: Define spawn points for cops and robbers (`Config.CopSpawn`, `Config.RobberSpawn`).
+
+### Inventory System
+
+- **Items Configuration**: All items are defined in `Config.Items` with properties like:
+  - **Type**: Category (weapon, medical, tool, misc)
+  - **Label**: Display name
+  - **Description**: Item description
+  - **Price**: Store price
+  - **Effect**: What happens when used
+  - **Consumable**: Whether item is consumed on use
+- **Starting Items**: Configure default items for new players in `Config.StartingItems`
+
+### Store System
+
+- **Store Locations**: Define store coordinates and types in `Config.Stores`
+- **Store Categories**: Configure what items each store type sells
+- **Role Restrictions**: Set which roles can access specific stores
+- **Store Types Available**:
+  - `gunstore`: Weapon and ammunition sales
+  - `clothing`: Clothing and uniform items
+  - `medical`: Healing items and medical supplies
+  - `tools`: Equipment and specialized tools
+  - `police_armory`: Restricted police equipment
 
 ### Bank Vaults
 
@@ -133,6 +236,49 @@ Customize the gameplay experience by editing the configuration options in `confi
 
 - **Police Vehicles**: List available vehicles for cops (`Config.PoliceVehicles`).
 - **Civilian Vehicles**: List available vehicles for robbers (`Config.CivilianVehicles`).
+
+### Administrative Settings
+
+- **Admin Controls**: Configure admin permissions and available commands
+- **Ban System**: Settings for the persistent ban system using JSON storage
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Inventory Not Opening**: 
+   - Ensure the `I` key is not bound to another resource
+   - Check server console for NUI errors
+   - Verify `html/` folder exists with all UI files
+
+2. **Store Interactions Not Working**:
+   - Make sure you're standing close enough to store locations
+   - Check if stores are properly configured in `config.lua`
+   - Verify store coordinates are correct for your map
+
+3. **Items Not Working**:
+   - Check `Config.Items` in `config.lua` for proper item definitions
+   - Ensure item effects are properly configured
+   - Verify server-side inventory handlers are running
+
+4. **Role Selection Issues**:
+   - Press `F5` to access role selection menu
+   - Ensure player data is being saved properly
+   - Check for conflicts with other roleplay resources
+
+5. **Performance Issues**:
+   - Reduce the number of items in stores if experiencing lag
+   - Check server console for errors
+   - Ensure proper resource load order in `server.cfg`
+
+### Getting Help
+
+- Check the console for error messages
+- Review the configuration in `config.lua`
+- Test with minimal other resources to identify conflicts
+- Join our Discord community for support
 
 ---
 
