@@ -182,6 +182,9 @@ local function GetCnrPlayerData(playerId)
     return playersData[tonumber(playerId)]
 end
 
+-- Global access function for other server scripts
+_G.GetCnrPlayerData = GetCnrPlayerData
+
 local function GetPlayerMoney(playerId)
     local pId = tonumber(playerId)
     local pData = playersData[pId]

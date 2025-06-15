@@ -126,7 +126,67 @@
                 <div class="wanted-points">50 Points</div>
             </div>
         </div>
-    </div>
+    </div>    <!-- Player Inventory Section -->
+    <section id="inventory-menu" class="hidden" role="dialog" aria-labelledby="inventory-title" aria-modal="true">
+        <div class="inventory-header">
+            <h1 id="inventory-title">Player Inventory</h1>
+            <button id="inventory-close-btn" class="inventory-close-btn" aria-label="Close Inventory Menu">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        
+        <!-- Player Info Bar -->
+        <div id="inventory-player-info-bar" class="player-info-bar">
+            <div class="player-cash">
+                <span class="cash-icon">💰</span>
+                <span id="inventory-player-cash-amount">$0</span>
+            </div>
+            <div class="player-level">
+                <span class="level-icon">🏆</span>
+                <span id="inventory-player-level-text">Level 1</span>
+            </div>
+        </div>
+        
+        <!-- Category Filter for Inventory -->
+        <div id="inventory-category-filter" class="category-filter" aria-label="Inventory Categories">
+            <div id="inventory-category-list" class="category-list"></div>
+        </div>
+        
+        <!-- Inventory Grid -->
+        <div id="inventory-grid-section" class="tab-content active">
+            <div id="player-inventory-grid" class="inventory-grid">
+                <!-- Grid items will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Equipment Panel -->
+        <div id="equipment-panel" class="equipment-panel">
+            <h3>Equipment</h3>
+            <div id="equipped-items" class="equipped-items">
+                <!-- Equipped items will be shown here -->
+            </div>
+        </div>
+        
+        <!-- Item Actions Panel -->
+        <div id="item-actions-panel" class="item-actions-panel hidden">
+            <h3 id="selected-item-name">Select an item</h3>
+            <div id="selected-item-info" class="selected-item-info">
+                <p id="selected-item-description">No item selected</p>
+                <p id="selected-item-count">Count: 0</p>
+            </div>
+            <div id="item-action-buttons" class="item-action-buttons">
+                <button id="equip-item-btn" class="action-btn equip-btn">
+                    <span class="icon">⚡</span>Equip
+                </button>
+                <button id="use-item-btn" class="action-btn use-btn">
+                    <span class="icon">🔧</span>Use
+                </button>
+                <button id="drop-item-btn" class="action-btn drop-btn">
+                    <span class="icon">📤</span>Drop
+                </button>
+            </div>
+        </div>
+    </section>
 
     <!-- Toast Notification Container -->
     <div id="toast" class="toast-notification toast-hidden"></div>

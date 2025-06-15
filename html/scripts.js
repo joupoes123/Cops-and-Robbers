@@ -4,9 +4,9 @@
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
 let fullItemConfig = null; // Will store Config.Items
 
-// =================================================================---
+// ====================================================================
 // NUI Message Handling & Security
-// =================================================================---
+// ====================================================================
 const allowedOrigins = [
     `nui://cops-and-robbers`,
     "http://localhost:3000", // For local development if applicable
@@ -124,9 +124,14 @@ window.addEventListener('message', function(event) {
             break;
         case 'showWantedNotification':
             showWantedNotification(data.stars, data.points, data.level);
-            break;
-        case 'hideWantedNotification':
+            break;        case 'hideWantedNotification':
             hideWantedNotification();
+            break;
+        case 'openInventory':
+        case 'closeInventory':
+        case 'updateInventory':
+        case 'updateEquippedItems':
+            handleInventoryMessage(data);
             break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
@@ -1177,3 +1182,515 @@ function safeGetTableByPlayerId(tbl, playerId) {
     }
     return undefined;
 }
+
+// ====================================================================
+// Player Inventory System
+// ====================================================================
+
+let currentInventoryTab = 'all';
+let selectedInventoryItem = null;
+let playerInventoryData = {};
+let equippedItems = new Set();
+
+// Initialize inventory system
+function initInventorySystem() {
+    console.log('[CNR_INVENTORY] Initializing inventory system...');
+    
+    // Add event listeners
+    const inventoryCloseBtn = document.getElementById('inventory-close-btn');
+    if (inventoryCloseBtn) {
+        inventoryCloseBtn.addEventListener('click', closeInventoryMenu);
+    }
+    
+    // Add action button listeners
+    const equipBtn = document.getElementById('equip-item-btn');
+    const useBtn = document.getElementById('use-item-btn');
+    const dropBtn = document.getElementById('drop-item-btn');
+    
+    if (equipBtn) equipBtn.addEventListener('click', equipSelectedItem);
+    if (useBtn) useBtn.addEventListener('click', useSelectedItem);
+    if (dropBtn) dropBtn.addEventListener('click', dropSelectedItem);
+    
+    console.log('[CNR_INVENTORY] Inventory system initialized');
+}
+
+// Show inventory menu
+function showInventoryMenu() {
+    console.log('[CNR_INVENTORY] Opening inventory menu...');
+    
+    const inventoryMenu = document.getElementById('inventory-menu');
+    if (inventoryMenu) {
+        inventoryMenu.style.display = 'block';
+        inventoryMenu.classList.add('show');
+        
+        // Update player info
+        updateInventoryPlayerInfo();
+        
+        // Request current inventory from server
+        requestPlayerInventoryForUI();
+        
+        // Set focus
+        fetchSetNuiFocus(true, true);
+        
+        console.log('[CNR_INVENTORY] Inventory menu opened');
+    }
+}
+
+// Close inventory menu
+function closeInventoryMenu() {
+    console.log('[CNR_INVENTORY] Closing inventory menu...');
+    
+    const inventoryMenu = document.getElementById('inventory-menu');
+    if (inventoryMenu) {
+        inventoryMenu.style.display = 'none';
+        inventoryMenu.classList.remove('show');
+        
+        // Clear selection
+        clearItemSelection();
+        
+        // Release focus
+        fetchSetNuiFocus(false, false);
+        
+        console.log('[CNR_INVENTORY] Inventory menu closed');
+    }
+}
+
+// Update player info in inventory
+function updateInventoryPlayerInfo() {
+    const cashElement = document.getElementById('inventory-player-cash-amount');
+    const levelElement = document.getElementById('inventory-player-level-text');
+    
+    if (cashElement && window.playerInfo && window.playerInfo.cash !== undefined) {
+        cashElement.textContent = `$${window.playerInfo.cash.toLocaleString()}`;
+    }
+    
+    if (levelElement && window.playerInfo && window.playerInfo.level !== undefined) {
+        levelElement.textContent = `Level ${window.playerInfo.level}`;
+    }
+}
+
+// Request player inventory from server
+async function requestPlayerInventoryForUI() {
+    try {
+        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/getPlayerInventoryForUI`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({})
+        });
+        
+        const result = await response.json();
+        if (result && result.success) {
+            playerInventoryData = result.inventory || {};
+            renderInventoryGrid();
+            renderEquippedItems();
+            renderCategoryFilter();
+        } else {
+            console.error('[CNR_INVENTORY] Failed to get inventory:', result.error);
+            showToast('Failed to load inventory', 'error', 3000);
+        }
+    } catch (error) {
+        console.error('[CNR_INVENTORY] Error requesting inventory:', error);
+        showToast('Error loading inventory', 'error', 3000);
+    }
+}
+
+// Render category filter buttons
+function renderCategoryFilter() {
+    const categoryList = document.getElementById('inventory-category-list');
+    if (!categoryList) return;
+    
+    // Get unique categories from inventory
+    const categories = new Set(['all']);
+    
+    if (fullItemConfig && Array.isArray(fullItemConfig)) {
+        Object.values(playerInventoryData).forEach(item => {
+            if (item.category) {
+                categories.add(item.category);
+            }
+        });
+    }
+    
+    categoryList.innerHTML = '';
+    
+    categories.forEach(category => {
+        const btn = document.createElement('button');
+        btn.className = 'category-btn';
+        btn.textContent = category === 'all' ? 'All' : category;
+        btn.dataset.category = category;
+        
+        if (category === currentInventoryTab) {
+            btn.classList.add('active');
+        }
+        
+        btn.addEventListener('click', () => {
+            currentInventoryTab = category;
+            renderInventoryGrid();
+            
+            // Update active button
+            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+        
+        categoryList.appendChild(btn);
+    });
+}
+
+// Render inventory grid
+function renderInventoryGrid() {
+    const grid = document.getElementById('player-inventory-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    // Filter items based on current tab
+    const filteredItems = Object.entries(playerInventoryData).filter(([itemId, itemData]) => {
+        if (currentInventoryTab === 'all') return true;
+        return itemData.category === currentInventoryTab;
+    });
+    
+    if (filteredItems.length === 0) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'inventory-empty';
+        emptyState.innerHTML = `
+            <span class="empty-icon">📦</span>
+            <div>No items in ${currentInventoryTab === 'all' ? 'inventory' : currentInventoryTab}</div>
+        `;
+        grid.appendChild(emptyState);
+        return;
+    }
+    
+    filteredItems.forEach(([itemId, itemData]) => {
+        const itemElement = createInventoryItemElement(itemId, itemData);
+        grid.appendChild(itemElement);
+    });
+}
+
+// Create inventory item element
+function createInventoryItemElement(itemId, itemData) {
+    const item = document.createElement('div');
+    item.className = 'inventory-item';
+    item.dataset.itemId = itemId;
+    
+    // Check if item is equipped
+    if (equippedItems.has(itemId)) {
+        item.classList.add('equipped');
+    }
+    
+    // Get item icon
+    const icon = getItemIcon(itemData);
+    
+    item.innerHTML = `
+        <span class="item-icon">${icon}</span>
+        <div class="item-name">${itemData.name || itemId}</div>
+        <div class="item-count">x${itemData.count || 0}</div>
+    `;
+    
+    // Add click event
+    item.addEventListener('click', () => selectInventoryItem(itemId, itemData, item));
+    
+    return item;
+}
+
+// Get item icon based on category or specific item
+function getItemIcon(itemData) {
+    // Check if item has specific icon
+    if (itemData.icon) {
+        return itemData.icon;
+    }
+    
+    // Category-based icons
+    const categoryIcons = {
+        'Weapons': '🔫',
+        'Melee Weapons': '⚔️',
+        'Ammunition': '📦',
+        'Armor': '🛡️',
+        'Utility': '🔧',
+        'Explosives': '💣',
+        'Accessories': '🎭',
+        'Cop Gear': '👮'
+    };
+    
+    return categoryIcons[itemData.category] || '📦';
+}
+
+// Select inventory item
+function selectInventoryItem(itemId, itemData, element) {
+    // Clear previous selection
+    document.querySelectorAll('.inventory-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Select new item
+    element.classList.add('selected');
+    selectedInventoryItem = { itemId, itemData };
+    
+    // Show item actions panel
+    showItemActionsPanel(itemId, itemData);
+}
+
+// Show item actions panel
+function showItemActionsPanel(itemId, itemData) {
+    const panel = document.getElementById('item-actions-panel');
+    const nameEl = document.getElementById('selected-item-name');
+    const descEl = document.getElementById('selected-item-description');
+    const countEl = document.getElementById('selected-item-count');
+    
+    if (!panel || !nameEl || !descEl || !countEl) return;
+    
+    nameEl.textContent = itemData.name || itemId;
+    descEl.textContent = getItemDescription(itemData);
+    countEl.textContent = `Count: ${itemData.count || 0}`;
+    
+    // Update button states
+    updateActionButtonStates(itemId, itemData);
+    
+    panel.classList.remove('hidden');
+}
+
+// Get item description
+function getItemDescription(itemData) {
+    const descriptions = {
+        'Weapons': 'Combat weapon that can be equipped and used',
+        'Melee Weapons': 'Close-range weapon for combat',
+        'Ammunition': 'Ammunition for weapons',
+        'Armor': 'Protective gear to reduce damage',
+        'Utility': 'Useful item with special functions',
+        'Explosives': 'Explosive device for combat',
+        'Accessories': 'Cosmetic or minor functional item',
+        'Cop Gear': 'Law enforcement equipment'
+    };
+    
+    return descriptions[itemData.category] || 'Inventory item';
+}
+
+// Update action button states
+function updateActionButtonStates(itemId, itemData) {
+    const equipBtn = document.getElementById('equip-item-btn');
+    const useBtn = document.getElementById('use-item-btn');
+    const dropBtn = document.getElementById('drop-item-btn');
+    
+    if (!equipBtn || !useBtn || !dropBtn) return;
+    
+    const isEquipped = equippedItems.has(itemId);
+    const canEquip = canItemBeEquipped(itemData);
+    const canUse = canItemBeUsed(itemData);
+    
+    // Equip button
+    equipBtn.disabled = !canEquip;
+    equipBtn.textContent = isEquipped ? '🔓 Unequip' : '⚡ Equip';
+    
+    // Use button
+    useBtn.disabled = !canUse;
+    
+    // Drop button
+    dropBtn.disabled = false; // Can always drop items
+}
+
+// Check if item can be equipped
+function canItemBeEquipped(itemData) {
+    const equipableCategories = ['Weapons', 'Melee Weapons', 'Armor', 'Cop Gear', 'Utility'];
+    return equipableCategories.includes(itemData.category);
+}
+
+// Check if item can be used
+function canItemBeUsed(itemData) {
+    const usableCategories = ['Utility', 'Armor'];
+    const usableItems = ['medkit', 'firstaidkit', 'armor', 'heavy_armor', 'spikestrip_item'];
+    
+    return usableCategories.includes(itemData.category) || usableItems.includes(itemData.itemId);
+}
+
+// Clear item selection
+function clearItemSelection() {
+    document.querySelectorAll('.inventory-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    selectedInventoryItem = null;
+    
+    const panel = document.getElementById('item-actions-panel');
+    if (panel) {
+        panel.classList.add('hidden');
+    }
+}
+
+// Equip/unequip selected item
+async function equipSelectedItem() {
+    if (!selectedInventoryItem) return;
+    
+    const { itemId, itemData } = selectedInventoryItem;
+    const isEquipped = equippedItems.has(itemId);
+    
+    try {
+        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/equipInventoryItem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({
+                itemId: itemId,
+                equip: !isEquipped
+            })
+        });
+        
+        const result = await response.json();
+        if (result && result.success) {
+            if (isEquipped) {
+                equippedItems.delete(itemId);
+                showToast(`Unequipped ${itemData.name}`, 'success', 2000);
+            } else {
+                equippedItems.add(itemId);
+                showToast(`Equipped ${itemData.name}`, 'success', 2000);
+            }
+            
+            // Update UI
+            renderInventoryGrid();
+            renderEquippedItems();
+            updateActionButtonStates(itemId, itemData);
+        } else {
+            showToast(result.error || 'Failed to equip item', 'error', 3000);
+        }
+    } catch (error) {
+        console.error('[CNR_INVENTORY] Error equipping item:', error);
+        showToast('Error equipping item', 'error', 3000);
+    }
+}
+
+// Use selected item
+async function useSelectedItem() {
+    if (!selectedInventoryItem) return;
+    
+    const { itemId, itemData } = selectedInventoryItem;
+    
+    try {
+        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/useInventoryItem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({
+                itemId: itemId
+            })
+        });
+        
+        const result = await response.json();
+        if (result && result.success) {
+            showToast(`Used ${itemData.name}`, 'success', 2000);
+            
+            // Refresh inventory if item was consumed
+            if (result.consumed) {
+                requestPlayerInventoryForUI();
+                clearItemSelection();
+            }
+        } else {
+            showToast(result.error || 'Failed to use item', 'error', 3000);
+        }
+    } catch (error) {
+        console.error('[CNR_INVENTORY] Error using item:', error);
+        showToast('Error using item', 'error', 3000);
+    }
+}
+
+// Drop selected item
+async function dropSelectedItem() {
+    if (!selectedInventoryItem) return;
+    
+    const { itemId, itemData } = selectedInventoryItem;
+    
+    // Confirm drop
+    const confirmed = confirm(`Are you sure you want to drop ${itemData.name}?`);
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/dropInventoryItem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({
+                itemId: itemId,
+                quantity: 1
+            })
+        });
+        
+        const result = await response.json();
+        if (result && result.success) {
+            showToast(`Dropped ${itemData.name}`, 'success', 2000);
+            requestPlayerInventoryForUI();
+            clearItemSelection();
+        } else {
+            showToast(result.error || 'Failed to drop item', 'error', 3000);
+        }
+    } catch (error) {
+        console.error('[CNR_INVENTORY] Error dropping item:', error);
+        showToast('Error dropping item', 'error', 3000);
+    }
+}
+
+// Render equipped items panel
+function renderEquippedItems() {
+    const container = document.getElementById('equipped-items');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (equippedItems.size === 0) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'equipped-empty';
+        emptyState.innerHTML = '<div style="text-align: center; color: #7f8c8d; font-size: 12px;">No items equipped</div>';
+        container.appendChild(emptyState);
+        return;
+    }
+    
+    equippedItems.forEach(itemId => {
+        const itemData = playerInventoryData[itemId];
+        if (!itemData) return;
+        
+        const equippedItem = document.createElement('div');
+        equippedItem.className = 'equipped-item';
+        
+        const icon = getItemIcon(itemData);
+        
+        equippedItem.innerHTML = `
+            <span class="item-icon">${icon}</span>
+            <div class="item-details">
+                <div class="item-name">${itemData.name || itemId}</div>
+                <div class="item-count">x${itemData.count || 0}</div>
+            </div>
+        `;
+        
+        container.appendChild(equippedItem);
+    });
+}
+
+// Handle NUI messages for inventory
+function handleInventoryMessage(data) {
+    switch (data.action) {
+        case 'openInventory':
+            showInventoryMenu();
+            break;
+        case 'closeInventory':
+            closeInventoryMenu();
+            break;
+        case 'updateInventory':
+            if (data.inventory) {
+                playerInventoryData = data.inventory;
+                renderInventoryGrid();
+                renderEquippedItems();
+                renderCategoryFilter();
+                updateInventoryPlayerInfo();
+            }
+            break;
+        case 'updateEquippedItems':
+            if (data.equippedItems) {
+                equippedItems = new Set(data.equippedItems);
+                renderInventoryGrid();
+                renderEquippedItems();
+            }
+            break;
+    }
+}
+
+// Initialize inventory system when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    initInventorySystem();
+});
+
+// Export functions for global access
+window.showInventoryMenu = showInventoryMenu;
+window.closeInventoryMenu = closeInventoryMenu;
+window.handleInventoryMessage = handleInventoryMessage;

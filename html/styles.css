@@ -1262,3 +1262,455 @@ body::before {
 .wanted-notification.level-5 {
     background: linear-gradient(145deg, rgba(156, 39, 176, 0.95), rgba(103, 58, 183, 0.95));
 }
+
+/* ==========================================================================
+   Player Inventory System Styles
+   ========================================================================== */
+
+/* Main Inventory Menu Styles */
+#inventory-menu {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    max-width: 90vw;
+    height: 700px;
+    max-height: 90vh;
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    border: 2px solid #0f3460;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    padding: 0;
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+    animation: fadeInMenu 0.3s ease-out;
+}
+
+#inventory-menu.show {
+    display: block;
+}
+
+/* Inventory Header */
+.inventory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    background: linear-gradient(135deg, #0f3460, #1a1a2e);
+    border-bottom: 2px solid #e94560;
+    border-radius: 15px 15px 0 0;
+}
+
+.inventory-header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.inventory-close-btn {
+    background: #e94560;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.inventory-close-btn:hover {
+    background: #d63555;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.4);
+}
+
+/* Inventory Content Layout */
+#inventory-menu .player-info-bar {
+    margin: 15px 25px;
+    padding: 12px 20px;
+    background: rgba(15, 52, 96, 0.3);
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+}
+
+/* Category Filter for Inventory */
+#inventory-category-filter {
+    margin: 0 25px 15px 25px;
+}
+
+#inventory-category-filter .category-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#inventory-category-filter .category-btn {
+    padding: 8px 16px;
+    background: rgba(15, 52, 96, 0.5);
+    border: 1px solid #0f3460;
+    border-radius: 20px;
+    color: #ffffff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+#inventory-category-filter .category-btn:hover {
+    background: rgba(233, 69, 96, 0.7);
+    border-color: #e94560;
+    transform: translateY(-1px);
+}
+
+#inventory-category-filter .category-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* Main Inventory Grid Section */
+#inventory-grid-section {
+    padding: 0 25px;
+    height: calc(100% - 200px);
+    overflow-y: auto;
+    display: flex;
+    gap: 20px;
+}
+
+/* Player Inventory Grid */
+#player-inventory-grid {
+    flex: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    padding: 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Inventory Item Styles */
+.inventory-item {
+    background: linear-gradient(145deg, #16213e, #1a1a2e);
+    border: 2px solid #0f3460;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.inventory-item:hover {
+    border-color: #e94560;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(233, 69, 96, 0.3);
+}
+
+.inventory-item.selected {
+    border-color: #f39c12;
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    box-shadow: 0 0 15px rgba(243, 156, 18, 0.4);
+}
+
+.inventory-item.equipped {
+    border-color: #27ae60;
+    background: linear-gradient(145deg, #1a1a2e, #0e5132);
+}
+
+.inventory-item.equipped::after {
+    content: "⚡";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #27ae60;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+/* Item Icon */
+.item-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Item Name */
+.item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 4px;
+    line-height: 1.2;
+}
+
+/* Item Count */
+.item-count {
+    font-size: 11px;
+    color: #bdc3c7;
+    font-weight: 500;
+}
+
+/* Equipment Panel */
+.equipment-panel {
+    flex: 1;
+    background: rgba(15, 52, 96, 0.2);
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 15px;
+    max-height: 400px;
+}
+
+.equipment-panel h3 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    color: #e94560;
+    text-align: center;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 8px;
+}
+
+.equipped-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.equipped-item {
+    background: rgba(39, 174, 96, 0.2);
+    border: 1px solid #27ae60;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.equipped-item .item-icon {
+    font-size: 16px;
+    margin: 0;
+}
+
+.equipped-item .item-details {
+    flex: 1;
+}
+
+.equipped-item .item-name {
+    font-size: 12px;
+    margin: 0;
+    color: #ffffff;
+}
+
+.equipped-item .item-count {
+    font-size: 10px;
+    color: #bdc3c7;
+}
+
+/* Item Actions Panel */
+.item-actions-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 25px;
+    right: 25px;
+    background: rgba(15, 52, 96, 0.9);
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 15px;
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+}
+
+.item-actions-panel.hidden {
+    display: none;
+}
+
+.item-actions-panel h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #f39c12;
+}
+
+.selected-item-info {
+    margin-bottom: 15px;
+}
+
+.selected-item-info p {
+    margin: 5px 0;
+    font-size: 12px;
+    color: #bdc3c7;
+}
+
+/* Action Buttons */
+.item-action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.equip-btn {
+    background: #27ae60;
+    color: white;
+}
+
+.equip-btn:hover {
+    background: #2ecc71;
+    transform: translateY(-1px);
+}
+
+.equip-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.use-btn {
+    background: #3498db;
+    color: white;
+}
+
+.use-btn:hover {
+    background: #5dade2;
+    transform: translateY(-1px);
+}
+
+.use-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.drop-btn {
+    background: #e74c3c;
+    color: white;
+}
+
+.drop-btn:hover {
+    background: #ec7063;
+    transform: translateY(-1px);
+}
+
+.drop-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Scrollbar Styles for Inventory */
+#player-inventory-grid::-webkit-scrollbar,
+#inventory-grid-section::-webkit-scrollbar {
+    width: 8px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-track,
+#inventory-grid-section::-webkit-scrollbar-track {
+    background: rgba(15, 52, 96, 0.3);
+    border-radius: 4px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-thumb,
+#inventory-grid-section::-webkit-scrollbar-thumb {
+    background: #e94560;
+    border-radius: 4px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-thumb:hover,
+#inventory-grid-section::-webkit-scrollbar-thumb:hover {
+    background: #d63555;
+}
+
+/* Empty Inventory State */
+.inventory-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+.inventory-empty .empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    display: block;
+    opacity: 0.5;
+}
+
+/* Responsive Design for Inventory */
+@media (max-width: 1024px) {
+    #inventory-menu {
+        width: 95vw;
+        height: 85vh;
+    }
+    
+    #player-inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+    
+    #inventory-grid-section {
+        flex-direction: column;
+    }
+    
+    .equipment-panel {
+        max-height: 200px;
+    }
+}
+
+@media (max-width: 768px) {
+    #inventory-menu {
+        width: 98vw;
+        height: 90vh;
+    }
+    
+    .inventory-header {
+        padding: 15px 20px;
+    }
+    
+    .inventory-header h1 {
+        font-size: 20px;
+    }
+    
+    #player-inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    }
+    
+    .inventory-item {
+        min-height: 100px;
+        padding: 8px;
+    }
+    
+    .item-icon {
+        font-size: 24px;
+    }
+}
