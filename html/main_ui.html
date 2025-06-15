@@ -1,6 +1,6 @@
 <!-- html/main_ui.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <!-- Ensures proper scaling on different devices -->
@@ -11,41 +11,74 @@
 </head>
 <body>
     <!-- Role Selection Section -->
-    <section id="role-selection" class="hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
+    <section id="role-selection" class="menu hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
         <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
-        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role">Cop</button>
-        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role">Robber</button>
-    </section>
-
-    <!-- Store Section -->
+        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role"><span class="icon">👮</span>Cop</button>
+        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role"><span class="icon">💰</span>Robber</button>
+    </section>    <!-- Store Section -->
     <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
-        <h1 id="store-title">Store</h1>
+        <div class="store-header">
+            <h1 id="store-title">Store</h1>
+            <button id="close-btn" class="store-close-btn" aria-label="Close Store Menu">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        
         <!-- Tab Menu -->
         <div id="tab-menu" role="tablist">
-            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">Buy</button>
-            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">Sell</button>
+            <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">
+                <span class="tab-icon">🛒</span>
+                <span class="tab-label">Buy</span>
+            </button>
+            <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">
+                <span class="tab-icon">💸</span>
+                <span class="tab-label">Sell</span>
+            </button>
         </div>
-        <!-- Category List -->
-        <div id="category-list" aria-label="Item Categories"></div>
+        
+        <!-- Player Info Bar -->
+        <div id="player-info-bar" class="player-info-bar">
+            <div class="player-cash">
+                <span class="cash-icon">💰</span>
+                <span id="player-cash-amount">$0</span>
+            </div>
+            <div class="player-level">
+                <span class="level-icon">🏆</span>
+                <span id="player-level-text">Level 1</span>
+            </div>
+        </div>
+        
+        <!-- Category Filter -->
+        <div id="category-filter" class="category-filter" aria-label="Item Categories">
+            <div id="category-list" class="category-list"></div>
+        </div>
+        
         <!-- Buy Section -->
         <div id="buy-section" class="tab-content active" role="tabpanel" aria-labelledby="buy-tab-button">
-            <div id="item-list"></div>
+            <div id="inventory-grid" class="inventory-grid">
+                <!-- Grid items will be populated by JavaScript -->
+            </div>
         </div>
+        
         <!-- Sell Section -->
         <div id="sell-section" class="tab-content" role="tabpanel" aria-labelledby="sell-tab-button">
-            <!-- Sell section content will be loaded here -->
+            <div id="sell-inventory-grid" class="inventory-grid">
+                <!-- Sell grid items will be populated by JavaScript -->
+            </div>
         </div>
-        <!-- Close Store Button -->
-        <button id="close-btn" aria-label="Close Store Menu">Close</button>
     </section>
-
-    <!-- XP and Level Display HUD -->
-    <div id="xp-level-container" class="hud-element" style="display: none;"> <!-- Initially hidden -->
+    </section>    <!-- XP and Level Display HUD -->
+    <div id="xp-level-container" class="hud-element"> <!-- Initially hidden via CSS -->
         <span id="level-text">LVL 1</span>
         <div id="xp-bar-background">
-            <div id="xp-bar-fill"></div>
-        </div>
+            <div id="xp-bar-fill"></div>        </div>
         <span id="xp-text">0 / 100 XP</span>
+        <div id="xp-gain-indicator" class="xp-gain-indicator">+0 XP</div>
+    </div>
+
+    <!-- Heist Timer HUD (Moved from index.html) -->
+    <div id="heist-timer" class="hud heist-timer-hidden" role="status" aria-live="polite"> <!-- Initially hidden via CSS -->
+        <p id="timer-text"></p>
     </div>
 
     <script src="scripts.js"></script>
@@ -54,7 +87,7 @@
     <section id="admin-panel" class="hidden" role="dialog" aria-labelledby="adminPanelTitle" aria-modal="true">
         <h1 id="adminPanelTitle">Admin Panel</h1>
         <div class="admin-controls">
-            <button id="admin-close-btn" aria-label="Close Admin Panel">Close Panel</button>
+            <button id="admin-close-btn" aria-label="Close Admin Panel"><span class="icon">❌</span>Close Panel</button>
         </div>
         <h2>Player List</h2>
         <div class="admin-player-list-container">
@@ -70,15 +103,92 @@
                 </thead>
                 <tbody id="admin-player-list-body">
                     <!-- Player rows will be injected here by scripts.js -->
+                    <!-- JS will add icons to action buttons like:
+                         <button class="admin-action-btn admin-kick-btn"><span class="icon">👢</span>Kick</button>
+                         <button class="admin-action-btn admin-ban-btn"><span class="icon">🚫</span>Ban</button>
+                         <button class="admin-action-btn admin-teleport-btn"><span class="icon">➡️</span>TP to</button>
+                    -->
                 </tbody>
             </table>
-        </div>
-        <div id="admin-ban-reason-container" class="hidden" style="margin-top: 10px;">
+        </div>        <div id="admin-ban-reason-container" class="hidden admin-ban-reason-container">
             <label for="admin-ban-reason">Ban Reason:</label>
             <input type="text" id="admin-ban-reason" placeholder="Enter reason for ban">
-            <button id="admin-confirm-ban-btn">Confirm Ban</button>
-            <button id="admin-cancel-ban-btn">Cancel</button>
+            <button id="admin-confirm-ban-btn"><span class="icon">✔️</span>Confirm Ban</button>
+            <button id="admin-cancel-ban-btn"><span class="icon">❌</span>Cancel</button>
+        </div>
+    </section>    <!-- Wanted Level Notification (Middle Right) -->
+    <div id="wanted-notification" class="wanted-notification hidden">
+        <div class="wanted-content">
+            <div class="wanted-icon">⭐</div>
+            <div class="wanted-text">
+                <div class="wanted-title">WANTED LEVEL</div>
+                <div class="wanted-level">★★★☆☆</div>
+                <div class="wanted-points">50 Points</div>
+            </div>
+        </div>
+    </div>    <!-- Player Inventory Section -->
+    <section id="inventory-menu" class="hidden" role="dialog" aria-labelledby="inventory-title" aria-modal="true">
+        <div class="inventory-header">
+            <h1 id="inventory-title">Player Inventory</h1>
+            <button id="inventory-close-btn" class="inventory-close-btn" aria-label="Close Inventory Menu">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        
+        <!-- Player Info Bar -->
+        <div id="inventory-player-info-bar" class="player-info-bar">
+            <div class="player-cash">
+                <span class="cash-icon">💰</span>
+                <span id="inventory-player-cash-amount">$0</span>
+            </div>
+            <div class="player-level">
+                <span class="level-icon">🏆</span>
+                <span id="inventory-player-level-text">Level 1</span>
+            </div>
+        </div>
+        
+        <!-- Category Filter for Inventory -->
+        <div id="inventory-category-filter" class="category-filter" aria-label="Inventory Categories">
+            <div id="inventory-category-list" class="category-list"></div>
+        </div>
+        
+        <!-- Inventory Grid -->
+        <div id="inventory-grid-section" class="tab-content active">
+            <div id="player-inventory-grid" class="inventory-grid">
+                <!-- Grid items will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Equipment Panel -->
+        <div id="equipment-panel" class="equipment-panel">
+            <h3>Equipment</h3>
+            <div id="equipped-items" class="equipped-items">
+                <!-- Equipped items will be shown here -->
+            </div>
+        </div>
+        
+        <!-- Item Actions Panel -->
+        <div id="item-actions-panel" class="item-actions-panel hidden">
+            <h3 id="selected-item-name">Select an item</h3>
+            <div id="selected-item-info" class="selected-item-info">
+                <p id="selected-item-description">No item selected</p>
+                <p id="selected-item-count">Count: 0</p>
+            </div>
+            <div id="item-action-buttons" class="item-action-buttons">
+                <button id="equip-item-btn" class="action-btn equip-btn">
+                    <span class="icon">⚡</span>Equip
+                </button>
+                <button id="use-item-btn" class="action-btn use-btn">
+                    <span class="icon">🔧</span>Use
+                </button>
+                <button id="drop-item-btn" class="action-btn drop-btn">
+                    <span class="icon">📤</span>Drop
+                </button>
+            </div>
         </div>
     </section>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast-notification toast-hidden"></div>
 </body>
 </html>

@@ -1,0 +1,13 @@
+# Ignore development and documentation folders
+.github/
+.vscode/
+docs/
+# Exception: track readme.md in docs folder
+!docs/readme.md
+
+# Common files to ignore
+*.log
+*.tmp
+*~
+.DS_Store
+Thumbs.db

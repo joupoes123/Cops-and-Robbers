@@ -12,6 +12,7 @@ Config = Config or {}
 --        General Settings
 -- =========================
 
+Config.DebugLogging   = false -- Set to true to enable detailed server console logging (may cause spam)
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
@@ -20,7 +21,8 @@ Config.DefaultStartMoney = 2500 -- Starting cash for new players.
 -- Spawn locations based on roles
 Config.SpawnPoints = {
     cop    = vector3(452.6, -980.0, 30.7),   -- Police station location (Mission Row PD)
-    robber = vector3(2126.7, 4794.1, 41.1)   -- Example: Countryside airport location (Sandy Shores Airfield)
+    robber = vector3(2126.7, 4794.1, 41.1),  -- Example: Countryside airport location (Sandy Shores Airfield)
+    citizen = vector3(-260.0, -970.0, 31.2) -- Legion Square
 }
 
 -- Jail Location (players are sent here when jailed)
@@ -51,18 +53,13 @@ Config.CivilianVehicles = { "sultan", "futo", "blista", "banshee", "elegy2", "st
 -- =========================
 -- Experience and Leveling System (Legacy)
 -- =========================
--- This 'Config.Experience' table seems to be a legacy or alternative leveling system.
--- The newer, more detailed system is defined under 'Player Leveling System (New)' further down.
--- Consider removing or integrating this if it's redundant.
--- Config.Experience table (lines 40-61) removed by subtask
+-- Legacy Config.Experience table removed.
 
 
 -- =========================
 --    Wanted Level System (Legacy/Simple)
 -- =========================
--- Note: This simple wanted level system is mostly superseded by the advanced Config.WantedSettings below.
--- It might still be used for basic NPC police response or simple UI elements if not fully removed or integrated.
--- Config.WantedLevels table (lines 66-74) removed by subtask
+-- Legacy Config.WantedLevels table removed.
 
 
 -- =========================
@@ -89,19 +86,166 @@ Config.AmmuNationStores = {
 -- Defines NPC vendors, their locations, models, and items they sell.
 Config.NPCVendors = {
     {
-        location = vector3(-1107.17, 4949.54, 218.65), -- Grapeseed, near airfield
-        heading  = 140.0,
+        location = vector3(1000.32, 0.68, 78.30), -- Behind Diamond Casino in alley - accessible city location
+        heading  = 265.0,
         model    = "s_m_y_dealer_01",
-        name     = "Black Market Dealer",
-        items    = { "weapon_knife", "weapon_switchblade", "weapon_microsmg", "ammo_smg", "lockpick", "mask", "c4", "drill" } -- Item IDs from Config.Items
+        name     = "Black Market Dealer",        items    = { 
+            -- Advanced Robber Equipment
+            "weapon_knife", 
+            "weapon_switchblade", 
+            "weapon_microsmg", 
+            "weapon_smg",
+            "weapon_assaultrifle",
+            "weapon_sniperrifle",
+            "weapon_emplauncher",
+            "weapon_stickybomb",
+            
+            -- NEW HIGH-END WEAPONS
+            "weapon_compactrifle",
+            "weapon_bullpuprifle",
+            "weapon_advancedrifle", 
+            "weapon_specialcarbine",
+            "weapon_machinegun",
+            "weapon_combatmg_mk2",
+            "weapon_minigun",
+            "weapon_grenade",
+            "weapon_rpg",
+            "weapon_grenadelauncher",
+            "weapon_hominglauncher",
+            "weapon_firework",
+            "weapon_railgun",
+            "weapon_autoshotgun",
+            "weapon_bullpupshotgun",
+            "weapon_dbshotgun",
+            "weapon_musket",
+            "weapon_heavysniper",
+            "weapon_heavysniper_mk2",
+            "weapon_marksmanrifle",
+            "weapon_marksmanrifle_mk2",
+            
+            -- AMMUNITION
+            "ammo_smg", 
+            "ammo_rifle",
+            "ammo_sniper",
+            "ammo_explosive",
+            "ammo_minigun",
+            
+            -- HEIST EQUIPMENT
+            "lockpick", 
+            "adv_lockpick",
+            "hacking_device",
+            "drill",
+            "thermite",
+            "c4",
+            "mask",
+            "heavy_armor"
+        }
     },
-    {
-        location = vector3(1961.48, 3740.69, 32.34),  -- Sandy Shores, near barber
+    {        location = vector3(1961.48, 3740.69, 32.34),  -- Sandy Shores, near barber
         heading  = 300.0,
         model    = "g_m_y_mexgang_01",
         name     = "Gang Supplier",
-        items    = { "weapon_pistol", "weapon_sawnoffshotgun", "ammo_shotgun", "armor", "bandana" } -- Changed weapon_pistol50 to weapon_pistol for consistency
+        items    = {
+            -- Basic Robber Equipment
+            "weapon_pistol", 
+            "weapon_bat",
+            "weapon_crowbar",
+            "weapon_sawnoffshotgun", 
+            
+            -- NEW MID-TIER WEAPONS
+            "weapon_vintagepistol",
+            "weapon_snspistol",
+            "weapon_heavypistol",
+            "weapon_machinepistol",
+            "weapon_minismg",
+            "weapon_pumpshotgun",
+            "weapon_bullpupshotgun",
+            "weapon_assaultshotgun",
+            "weapon_compactrifle",
+            "weapon_gusenberg",
+            "weapon_dagger",
+            "weapon_hatchet",
+            "weapon_machete",
+            "weapon_katana",
+            "weapon_wrench",
+            "weapon_hammer",
+            "weapon_poolcue",
+            
+            -- AMMUNITION
+            "ammo_pistol",
+            "ammo_shotgun", 
+            "ammo_smg",
+            
+            -- BASIC EQUIPMENT
+            "armor", 
+            "lockpick",
+            "bandana",
+            "mask",
+            "gloves"
+        }
     },
+    {
+        location = vector3(451.39, -974.42, 30.69),
+        heading  = 125.60,
+        model    = "s_m_y_cop_01",
+        name     = "Cop Store",
+        items    = {
+            -- Level 1 Equipment (Starting Gear)
+            "weapon_stungun",
+            "weapon_pistol",
+            "weapon_nightstick",
+            "weapon_flashlight",
+            "weapon_fireextinguisher",
+            
+            -- Level 2 Equipment
+            "weapon_pumpshotgun",
+            "weapon_combatpistol",
+            "weapon_flaregun",
+            "weapon_flare",
+            "weapon_doubleaction",
+            
+            -- Level 3 Equipment
+            "weapon_pistol_mk2",
+            "k9whistle",
+            "weapon_smokegrenade",
+            "weapon_combatshotgun",
+            
+            -- Level 4 Equipment
+            "weapon_carbinerifle",
+            "weapon_revolver_mk2",
+            "weapon_stunrod",
+            
+            -- Level 10 Equipment
+            "weapon_appistol",
+            "weapon_heavyshotgun",
+            "weapon_assaultshotgun",
+            "weapon_specialcarbine_mk2",
+            "weapon_combatmg",
+            
+            -- Level 15 Equipment
+            "weapon_sniperrifle",
+            "weapon_bzgas",
+            
+            -- Level 20 Equipment
+            "weapon_snowball",
+            
+            -- Ammunition
+            "ammo_pistol",
+            "ammo_shotgun",
+            "ammo_rifle",
+            "ammo_sniper",
+            
+            -- Armor & Utility
+            "armor",
+            "heavy_armor",
+            "firstaidkit",
+            "medkit",
+            
+            -- Cop Gear
+            "spikestrip_item",
+            "speedradar_gun"
+        }
+    }
     -- Additional NPC vendors can be added here following the same structure.
 }
 
@@ -115,58 +259,124 @@ Config.NPCVendors = {
 -- `category`: Used for NUI store filtering (e.g., "Weapons", "Ammunition", "Utility").
 -- `forCop`: If true, item is typically restricted to cops in general stores (server-side logic enforces).
 -- `minLevelCop`, `minLevelRobber`: Minimum player level required for the respective role to purchase/use this item.
+-- `icon`: Optional icon path or emoji for UI display. Falls back to category-based icons if not specified.
 Config.Items = {
     -- Weapons
-    { name = "Pistol",            itemId = "weapon_pistol",         basePrice = 500,  category = "Weapons" },
-    { name = "Combat Pistol",     itemId = "weapon_combatpistol",   basePrice = 750,  category = "Weapons" },
-    { name = "Heavy Pistol",      itemId = "weapon_heavypistol",    basePrice = 1000, category = "Weapons", minLevelCop = 5, minLevelRobber = 7 },
-    { name = "SMG",               itemId = "weapon_smg",            basePrice = 1500, category = "Weapons" },
-    { name = "Micro SMG",         itemId = "weapon_microsmg",       basePrice = 1250, category = "Weapons" },
-    { name = "Assault Rifle",     itemId = "weapon_assaultrifle",   basePrice = 2500, category = "Weapons", minLevelCop = 8, minLevelRobber = 10 },
-    { name = "Carbine Rifle",     itemId = "weapon_carbinerifle",   basePrice = 3000, category = "Weapons", forCop = true, minLevelCop = 4 },
-    { name = "Sniper Rifle",      itemId = "weapon_sniperrifle",    basePrice = 5000, category = "Weapons", minLevelCop = 10, minLevelRobber = 10 },
-    { name = "Pump Shotgun",      itemId = "weapon_pumpshotgun",    basePrice = 1200, category = "Weapons" },
-    { name = "Sawed-Off Shotgun", itemId = "weapon_sawnoffshotgun", basePrice = 1000, category = "Weapons" },
+    { name = "Pistol",                itemId = "weapon_pistol",           basePrice = 500,  category = "Weapons", minLevelCop = 1, icon = "🔫" },
+    { name = "Combat Pistol",         itemId = "weapon_combatpistol",     basePrice = 750,  category = "Weapons", minLevelCop = 2, icon = "🔫" },
+    { name = "Pistol Mk II",          itemId = "weapon_pistol_mk2",       basePrice = 800,  category = "Weapons", minLevelCop = 3, forCop = true, icon = "🔫" },
+    { name = "AP Pistol",             itemId = "weapon_appistol",         basePrice = 1200, category = "Weapons", minLevelCop = 10, forCop = true, icon = "🔫" },
+    { name = "Heavy Pistol",          itemId = "weapon_heavypistol",      basePrice = 1000, category = "Weapons", minLevelCop = 5, minLevelRobber = 7, icon = "🔫" },
+    { name = "Double-Action Revolver", itemId = "weapon_doubleaction",     basePrice = 900,  category = "Weapons", minLevelCop = 2, icon = "🔫" },
+    { name = "Heavy Revolver Mk II",  itemId = "weapon_revolver_mk2",     basePrice = 1500, category = "Weapons", minLevelCop = 4, forCop = true, icon = "🔫" },
+    
+    { name = "SMG",                   itemId = "weapon_smg",              basePrice = 1500, category = "Weapons", minLevelRobber = 5, icon = "💥" },
+    { name = "Micro SMG",             itemId = "weapon_microsmg",         basePrice = 1250, category = "Weapons", minLevelRobber = 4, icon = "💥" },
+    { name = "Assault Rifle",         itemId = "weapon_assaultrifle",     basePrice = 2500, category = "Weapons", minLevelCop = 8, minLevelRobber = 10, icon = "🔫" },
+    { name = "Carbine Rifle",         itemId = "weapon_carbinerifle",     basePrice = 3000, category = "Weapons", forCop = true, minLevelCop = 4, icon = "🔫" },
+    { name = "Special Carbine Mk II", itemId = "weapon_specialcarbine_mk2", basePrice = 4000, category = "Weapons", forCop = true, minLevelCop = 10, icon = "🔫" },
+    { name = "Combat MG",             itemId = "weapon_combatmg",         basePrice = 5500, category = "Weapons", forCop = true, minLevelCop = 10, icon = "💥" },
+    { name = "Sniper Rifle",          itemId = "weapon_sniperrifle",      basePrice = 5000, category = "Weapons", minLevelCop = 15, minLevelRobber = 15, icon = "🎯" },
+    
+    -- NEW HIGH-END WEAPONS (Black Market)
+    { name = "Compact Rifle",         itemId = "weapon_compactrifle",     basePrice = 2800, category = "Weapons", minLevelRobber = 8, icon = "🔫" },
+    { name = "Bullpup Rifle",         itemId = "weapon_bullpuprifle",     basePrice = 3200, category = "Weapons", minLevelRobber = 10, icon = "🔫" },
+    { name = "Advanced Rifle",        itemId = "weapon_advancedrifle",    basePrice = 3500, category = "Weapons", minLevelRobber = 12, icon = "🔫" },
+    { name = "Special Carbine",       itemId = "weapon_specialcarbine",   basePrice = 3800, category = "Weapons", minLevelRobber = 12, icon = "🔫" },
+    { name = "Machine Gun",           itemId = "weapon_machinegun",       basePrice = 6000, category = "Weapons", minLevelRobber = 18, icon = "💥" },
+    { name = "Combat MG Mk II",       itemId = "weapon_combatmg_mk2",     basePrice = 7000, category = "Weapons", minLevelRobber = 20, icon = "💥" },
+    { name = "Minigun",               itemId = "weapon_minigun",          basePrice = 15000, category = "Weapons", minLevelRobber = 20, icon = "💥" },
+    { name = "Heavy Sniper",          itemId = "weapon_heavysniper",      basePrice = 7500, category = "Weapons", minLevelRobber = 18, icon = "🎯" },
+    { name = "Heavy Sniper Mk II",    itemId = "weapon_heavysniper_mk2",  basePrice = 10000, category = "Weapons", minLevelRobber = 20, icon = "🎯" },
+    { name = "Marksman Rifle",        itemId = "weapon_marksmanrifle",    basePrice = 6500, category = "Weapons", minLevelRobber = 16, icon = "🎯" },
+    { name = "Marksman Rifle Mk II",  itemId = "weapon_marksmanrifle_mk2", basePrice = 8500, category = "Weapons", minLevelRobber = 18, icon = "🎯" },
+    { name = "Auto Shotgun",          itemId = "weapon_autoshotgun",      basePrice = 3500, category = "Weapons", minLevelRobber = 12, icon = "💥" },
+    { name = "Bullpup Shotgun",       itemId = "weapon_bullpupshotgun",   basePrice = 2200, category = "Weapons", minLevelRobber = 6, icon = "💥" },
+    { name = "Double Barrel Shotgun", itemId = "weapon_dbshotgun",        basePrice = 2800, category = "Weapons", minLevelRobber = 8, icon = "💥" },
+    { name = "Musket",                itemId = "weapon_musket",           basePrice = 4000, category = "Weapons", minLevelRobber = 10, icon = "🎯" },
+    
+    -- EXPLOSIVE WEAPONS
+    { name = "Grenade",               itemId = "weapon_grenade",          basePrice = 1500, category = "Explosives", minLevelRobber = 10, icon = "💣" },
+    { name = "RPG",                   itemId = "weapon_rpg",              basePrice = 25000, category = "Explosives", minLevelRobber = 20, icon = "🚀" },
+    { name = "Grenade Launcher",      itemId = "weapon_grenadelauncher",  basePrice = 18000, category = "Explosives", minLevelRobber = 18, icon = "💥" },
+    { name = "Homing Launcher",       itemId = "weapon_hominglauncher",   basePrice = 30000, category = "Explosives", minLevelRobber = 20, icon = "🎯" },
+    { name = "Firework Launcher",     itemId = "weapon_firework",         basePrice = 5000, category = "Explosives", minLevelRobber = 12, icon = "🎇" },
+    { name = "Railgun",               itemId = "weapon_railgun",          basePrice = 50000, category = "Explosives", minLevelRobber = 20, icon = "⚡" },
+    
+    -- NEW MID-TIER WEAPONS (Gang Supplier)
+    { name = "Vintage Pistol",        itemId = "weapon_vintagepistol",    basePrice = 600, category = "Weapons", minLevelRobber = 2, icon = "🔫" },
+    { name = "SNS Pistol",            itemId = "weapon_snspistol",        basePrice = 400, category = "Weapons", minLevelRobber = 1, icon = "🔫" },
+    { name = "Machine Pistol",        itemId = "weapon_machinepistol",    basePrice = 1100, category = "Weapons", minLevelRobber = 4, icon = "💥" },
+    { name = "Mini SMG",              itemId = "weapon_minismg",          basePrice = 1300, category = "Weapons", minLevelRobber = 5, icon = "💥" },
+    { name = "Gusenberg Sweeper",     itemId = "weapon_gusenberg",        basePrice = 2000, category = "Weapons", minLevelRobber = 8, icon = "💥" },
+    
+    { name = "Pump Shotgun",          itemId = "weapon_pumpshotgun",      basePrice = 1200, category = "Weapons", minLevelCop = 2, icon = "💥" },
+    { name = "Combat Shotgun",        itemId = "weapon_combatshotgun",    basePrice = 1800, category = "Weapons", minLevelCop = 3, forCop = true, icon = "💥" },
+    { name = "Heavy Shotgun",         itemId = "weapon_heavyshotgun",     basePrice = 2500, category = "Weapons", minLevelCop = 10, forCop = true, icon = "💥" },
+    { name = "Assault Shotgun",       itemId = "weapon_assaultshotgun",   basePrice = 3000, category = "Weapons", minLevelCop = 10, forCop = true, icon = "💥" },
+    { name = "Sawed-Off Shotgun",     itemId = "weapon_sawnoffshotgun",   basePrice = 1000, category = "Weapons", minLevelRobber = 3, icon = "💥" },
+    
+    { name = "Flare Gun",             itemId = "weapon_flaregun",         basePrice = 400,  category = "Weapons", minLevelCop = 2, forCop = true, icon = "🎇" },
+    { name = "Compact EMP Launcher",  itemId = "weapon_emplauncher",      basePrice = 8000, category = "Weapons", minLevelRobber = 8, icon = "⚡" },
+    { name = "Snowball Launcher",     itemId = "weapon_snowball",         basePrice = 1,    category = "Weapons", minLevelCop = 20, forCop = true, icon = "❄️" },
 
     -- Melee Weapons
-    { name = "Knife",             itemId = "weapon_knife",          basePrice = 100,  category = "Melee Weapons" },
-    { name = "Bat",               itemId = "weapon_bat",            basePrice = 50,   category = "Melee Weapons" },
-    { name = "Crowbar",           itemId = "weapon_crowbar",        basePrice = 75,   category = "Melee Weapons" },
-    { name = "Switchblade",       itemId = "weapon_switchblade",    basePrice = 150,  category = "Melee Weapons" },
-    { name = "Flashlight",        itemId = "weapon_flashlight",     basePrice = 100,  category = "Melee Weapons" }, -- Often considered a melee weapon too
+    { name = "Knife",                 itemId = "weapon_knife",            basePrice = 100,  category = "Melee Weapons", minLevelRobber = 1, icon = "🗡️" },
+    { name = "Bat",                   itemId = "weapon_bat",              basePrice = 50,   category = "Melee Weapons", minLevelRobber = 1, icon = "🏏" },
+    { name = "Crowbar",               itemId = "weapon_crowbar",          basePrice = 75,   category = "Melee Weapons", minLevelRobber = 2, icon = "🔧" },
+    { name = "Switchblade",           itemId = "weapon_switchblade",      basePrice = 150,  category = "Melee Weapons", minLevelRobber = 3, icon = "🗡️" },
+    { name = "Nightstick",            itemId = "weapon_nightstick",       basePrice = 200,  category = "Melee Weapons", minLevelCop = 1, forCop = true, icon = "🥖" },
+    { name = "Flashlight",            itemId = "weapon_flashlight",       basePrice = 100,  category = "Melee Weapons", minLevelCop = 1, icon = "🔦" },
+    { name = "Stun Gun",              itemId = "weapon_stungun",          basePrice = 600,  category = "Melee Weapons", minLevelCop = 1, forCop = true, icon = "⚡" },
+    { name = "The Shocker",           itemId = "weapon_stunrod",          basePrice = 800,  category = "Melee Weapons", minLevelCop = 4, forCop = true, icon = "⚡" },
+
+    -- NEW MELEE WEAPONS (Gang Supplier)
+    { name = "Dagger",                itemId = "weapon_dagger",           basePrice = 120,  category = "Melee Weapons", minLevelRobber = 2, icon = "🗡️" },
+    { name = "Hatchet",               itemId = "weapon_hatchet",          basePrice = 200,  category = "Melee Weapons", minLevelRobber = 3, icon = "🪓" },
+    { name = "Machete",               itemId = "weapon_machete",          basePrice = 250,  category = "Melee Weapons", minLevelRobber = 4, icon = "🔪" },
+    { name = "Katana",                itemId = "weapon_katana",           basePrice = 500,  category = "Melee Weapons", minLevelRobber = 6, icon = "⚔️" },
+    { name = "Wrench",                itemId = "weapon_wrench",           basePrice = 80,   category = "Melee Weapons", minLevelRobber = 1, icon = "🔧" },
+    { name = "Hammer",                itemId = "weapon_hammer",           basePrice = 90,   category = "Melee Weapons", minLevelRobber = 2, icon = "🔨" },
+    { name = "Pool Cue",              itemId = "weapon_poolcue",          basePrice = 60,   category = "Melee Weapons", minLevelRobber = 1, icon = "🎱" },
 
     -- Ammunition (ammo_X corresponds to weapon type, not specific weapon model)
-    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition" }, -- For all pistols
-    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition" }, -- For all SMGs
-    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition" }, -- For all assault/carbine rifles
-    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition" }, -- For all shotguns
-    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition" }, -- For all sniper rifles
-
+    { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition", weaponLink = "weapon_pistol", ammoAmount = 12, icon = "📦" },
+    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition", weaponLink = "weapon_smg", ammoAmount = 30, icon = "📦" },
+    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition", weaponLink = "weapon_carbinerifle", ammoAmount = 30, icon = "📦" },
+    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition", weaponLink = "weapon_pumpshotgun", ammoAmount = 8, icon = "📦" },
+    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition", weaponLink = "weapon_sniperrifle", ammoAmount = 5, icon = "📦" },
+    
+    -- NEW AMMUNITION TYPES
+    { name = "Explosive Ammo",    itemId = "ammo_explosive",        basePrice = 500,  category = "Ammunition", weaponLink = "weapon_rpg", ammoAmount = 3, icon = "💥" },
+    { name = "Minigun Ammo",      itemId = "ammo_minigun",          basePrice = 300,  category = "Ammunition", weaponLink = "weapon_minigun", ammoAmount = 100, icon = "📦" },
+    
     -- Armor and Utility
-    { name = "Body Armor",        itemId = "armor",                 basePrice = 500,  category = "Armor" },
-    { name = "Heavy Armor",       itemId = "heavy_armor",           basePrice = 1000, category = "Armor", minLevelCop = 6, minLevelRobber = 8 },
-    { name = "Medkit",            itemId = "medkit",                basePrice = 250,  category = "Utility" }, -- Custom item, server logic for effect
-    { name = "First Aid Kit",     itemId = "firstaidkit",           basePrice = 100,  category = "Utility" }, -- Custom item, server logic for effect
-    { name = "Lockpick",          itemId = "lockpick",              basePrice = 150,  category = "Utility" }, -- Custom item
-    { name = "Advanced Lockpick", itemId = "adv_lockpick",          basePrice = 300,  category = "Utility", minLevelRobber = 4 },
-    { name = "Parachute",         itemId = "gadget_parachute",      basePrice = 300,  category = "Utility" }, -- Built-in gadget
-    { name = "Drill",             itemId = "drill",                 basePrice = 500,  category = "Utility", minLevelRobber = 3 },
-    { name = "C4 Explosive",      itemId = "c4",                    basePrice = 2000, category = "Utility", minLevelRobber = 9 },
-
-    -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
-    { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories" },
-    { name = "Gloves",            itemId = "gloves",                basePrice = 100,  category = "Accessories" },
-    { name = "Hat",               itemId = "hat",                   basePrice = 150,  category = "Accessories" },
-    { name = "Bandana",           itemId = "bandana",               basePrice = 80,   category = "Accessories" },
-    { name = "Sunglasses",        itemId = "sunglasses",            basePrice = 120,  category = "Accessories" },
-
+    { name = "Body Armor",           itemId = "armor",                   basePrice = 500,  category = "Armor", icon = "🛡️" },
+    { name = "Heavy Armor",          itemId = "heavy_armor",             basePrice = 1000, category = "Armor", minLevelCop = 6, minLevelRobber = 8, icon = "🛡️" },
+    { name = "Fire Extinguisher",    itemId = "weapon_fireextinguisher", basePrice = 300,  category = "Utility", minLevelCop = 1, forCop = true, icon = "🧯" },
+    { name = "Flare",                itemId = "weapon_flare",            basePrice = 25,   category = "Utility", minLevelCop = 2, forCop = true, icon = "🎇" },
+    { name = "Tear Gas",             itemId = "weapon_smokegrenade",     basePrice = 500,  category = "Utility", minLevelCop = 3, forCop = true, icon = "💨" },
+    { name = "BZ Gas",               itemId = "weapon_bzgas",            basePrice = 800,  category = "Utility", minLevelCop = 15, forCop = true, icon = "☁️" },
+    { name = "Medkit",               itemId = "medkit",                  basePrice = 250,  category = "Utility", icon = "🩹" },
+    { name = "First Aid Kit",        itemId = "firstaidkit",             basePrice = 100,  category = "Utility", icon = "❤️" },
+    { name = "Lockpick",             itemId = "lockpick",                basePrice = 150,  category = "Utility", minLevelRobber = 1, icon = "🗝️" },
+    { name = "Advanced Lockpick",    itemId = "adv_lockpick",            basePrice = 300,  category = "Utility", minLevelRobber = 4, icon = "🔐" },
+    { name = "Hacking Device",       itemId = "hacking_device",          basePrice = 800,  category = "Utility", minLevelRobber = 6, icon = "💻" },
+    { name = "Parachute",            itemId = "gadget_parachute",        basePrice = 300,  category = "Utility", icon = "🪂" },
+    { name = "Drill",                itemId = "drill",                   basePrice = 500,  category = "Utility", minLevelRobber = 3, icon = "🔧" },
+    { name = "Thermite",             itemId = "thermite",                basePrice = 1500, category = "Utility", minLevelRobber = 8, icon = "🧨" },
+    { name = "C4 Explosive",         itemId = "c4",                      basePrice = 2000, category = "Utility", minLevelRobber = 12, icon = "💣" },
+    { name = "Sticky Bomb",          itemId = "weapon_stickybomb",       basePrice = 2500, category = "Utility", minLevelRobber = 15, icon = "💣" },    -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
+    { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories", icon = "🎭" },
+    { name = "Gloves",            itemId = "gloves",                basePrice = 100,  category = "Accessories", icon = "🧤" },
+    { name = "Hat",               itemId = "hat",                   basePrice = 150,  category = "Accessories", icon = "🧢" },
+    { name = "Bandana",           itemId = "bandana",               basePrice = 80,   category = "Accessories", icon = "🧣" },
+    { name = "Sunglasses",        itemId = "sunglasses",            basePrice = 120,  category = "Accessories", icon = "🕶️" },
+    
     -- Cop Gear (Restricted items for Cops)
-    { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true },
-    { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2 },
-    { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3 },
-
-    -- Robber Gear (Restricted items for Robbers)
-    { name = "EMP Device",        itemId = "emp_device",            basePrice = 2500, category = "Robber Gear", minLevelRobber = 5 }
+    { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true, icon = "⚡" },
+    { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2, icon = "📡" },
+    { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3, icon = "🐕" }
 }
 
 -- =========================
@@ -229,43 +439,47 @@ Config.PowerGridSabotageCooldown   = 600    -- seconds (10 minutes) cooldown bef
 -- Advanced Wanted System Settings
 -- =========================
 Config.WantedSettings = {
-    baseIncreasePoints = 1,    -- Default points for minor infractions if not specified in crimes. (Renamed from baseIncrease)
+    enableNPCResponse = false, -- MASTER SWITCH: Set to true to enable NPC police response, false to disable.
+    baseIncreasePoints = 2,    -- Default points for minor infractions if not specified in crimes. (Increased from 1)
     levels = {                 -- Defines star levels and UI labels based on accumulated wanted points.
-        { stars = 1, threshold = 10,  uiLabel = "Wanted: ★☆☆☆☆", minPunishment = 60,  maxPunishment = 120 }, -- Punishment in seconds (jail time)
-        { stars = 2, threshold = 30,  uiLabel = "Wanted: ★★☆☆☆", minPunishment = 120, maxPunishment = 240 },
-        { stars = 3, threshold = 60,  uiLabel = "Wanted: ★★★☆☆", minPunishment = 240, maxPunishment = 480 },
-        { stars = 4, threshold = 100, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 },
-        { stars = 5, threshold = 150, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }
+        { stars = 1, threshold = 15,  uiLabel = "Wanted: ★☆☆☆☆", minPunishment = 60,  maxPunishment = 120 }, -- Increased from 10
+        { stars = 2, threshold = 40,  uiLabel = "Wanted: ★★☆☆☆", minPunishment = 120, maxPunishment = 240 }, -- Increased from 30
+        { stars = 3, threshold = 80,  uiLabel = "Wanted: ★★★☆☆", minPunishment = 240, maxPunishment = 480 }, -- Increased from 60
+        { stars = 4, threshold = 130, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 }, -- Increased from 100
+        { stars = 5, threshold = 200, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }  -- Increased from 150
     },
-    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
-        -- Traffic Violations
-        speeding                   = 1,    -- For receiving a speeding ticket.
-        reckless_driving           = 2,    -- Example: driving on sidewalk, excessive near misses.
-        hit_and_run_vehicle        = 3,    -- Hitting a vehicle and fleeing.
-        hit_and_run_ped            = 5,    -- Hitting a pedestrian and fleeing.
-        -- Property Crimes
-        grand_theft_auto           = 5,    -- Stealing an occupied vehicle.
-        store_robbery_small        = 5,    -- Example: For smaller, less risky store robberies.
-        store_robbery_medium       = 10,   -- For general store robberies.
-        armed_robbery_player       = 8,    -- Robbing another player at gunpoint (if implemented).
-        -- Major Heists
-        bank_heist_major           = 20,   -- For successful major bank heists.
-        armored_car_heist          = 15,   -- For successful armored car heists.
-        -- Violent Crimes
-        assault_civilian           = 3,    -- Assaulting a civilian without killing.
-        murder_civilian            = 10,   -- For killing a civilian.
-        assault_cop                = 15,   -- For assaulting a police officer.
-        murder_cop                 = 25,   -- For killing a police officer.
-        -- Other
-        resisting_arrest           = 5,    -- Fleeing from police after being told to stop.
-        jailbreak_attempt          = 30,   -- Attempting to break someone out of jail.
-        emp_used_on_police         = 8,    -- Using EMP that affects police vehicles.
-        power_grid_sabotaged_crime = 8     -- Sabotaging power grid (distinct from XP action).
+    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.        -- Traffic Violations (increased values)
+        speeding                   = 3,    -- For receiving a speeding ticket. (increased from 1)
+        reckless_driving           = 5,    -- Example: driving on sidewalk, excessive near misses. (increased from 2)
+        hit_and_run_vehicle        = 8,    -- Hitting a vehicle and fleeing. (increased from 3)
+        hit_and_run_ped            = 12,   -- Hitting a pedestrian and fleeing. (increased from 5)
+        hit_and_run_civilian       = 12,   -- Hitting a civilian pedestrian and fleeing.
+        hit_and_run_cop            = 25,   -- Hitting a police officer and fleeing.
+        -- Property Crimes (increased values)
+        grand_theft_auto           = 10,   -- Stealing an occupied vehicle. (increased from 5)
+        store_robbery_small        = 8,    -- Example: For smaller, less risky store robberies. (increased from 5)
+        store_robbery_medium       = 15,   -- For general store robberies. (increased from 10)
+        armed_robbery_player       = 12,   -- Robbing another player at gunpoint (if implemented). (increased from 8)
+        -- Major Heists (increased values)
+        bank_heist_major           = 35,   -- For successful major bank heists. (increased from 20)
+        armored_car_heist          = 25,   -- For successful armored car heists. (increased from 15)
+        -- Violent Crimes (increased values)
+        assault_civilian           = 8,    -- Assaulting a civilian without killing. (increased from 3)
+        murder_civilian            = 20,   -- For killing a civilian. (increased from 10)
+        civilian_murder            = 20,   -- Alternative name for killing a civilian.
+        assault_cop                = 25,   -- For assaulting a police officer. (increased from 15)
+        murder_cop                 = 40,   -- For killing a police officer. (increased from 25)
+        cop_murder                 = 40,   -- Alternative name for killing a police officer.
+        -- Other (increased values)
+        resisting_arrest           = 10,   -- Fleeing from police after being told to stop. (increased from 5)
+        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
+        power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)
+        restricted_area_entry      = 15    -- Entering restricted areas like Fort Zancudo. (increased from 6)
     },
-    decayRatePoints      = 1,    -- Amount of wanted points to decay per interval. (Renamed from decayRate)
-    decayIntervalMs      = 30000,-- Milliseconds (30 seconds) - how often the decay check runs. (Renamed from decayInterval)
-    noCrimeCooldownMs    = 60000,-- Milliseconds (60 seconds) - time player must be "clean" (no new crimes committed) before decay starts. (Renamed from decayCooldown)
-    copSightCooldownMs   = 30000,-- Milliseconds (30 seconds) - time player must be out of cop sight for decay to resume (if decay was paused due to cop sight). (Renamed from sightCooldown)
+    decayRatePoints      = 1,    -- Amount of wanted points to decay per interval.
+    decayIntervalMs      = 25000,-- Milliseconds (25 seconds) - how often the decay check runs. (decreased from 45000)
+    noCrimeCooldownMs    = 60000,-- Milliseconds (60 seconds) - time player must be "clean" before decay starts. (decreased from 120000)
+    copSightCooldownMs   = 30000,-- Milliseconds (30 seconds) - time player must be out of cop sight for decay to resume.
     copSightDistance     = 75.0  -- meters, how far a cop can "see" a wanted player to pause decay.
 }
 
@@ -276,20 +490,37 @@ Config.WantedSettings = {
 -- Defines NPC police response groups based on wanted level.
 -- Each preset (e.g., [1] for 1-star) is an array of groups to spawn.
 Config.WantedNPCPresets = {
-    [1] = {}, -- NPC groups removed by subtask
-    [2] = {}, -- NPC groups removed by subtask
-    [3] = {}, -- NPC groups removed by subtask
-    [4] = {}, -- NPC groups removed by subtask
-    [5] = {}  -- NPC groups removed by subtask
-    -- All original NPC group definitions removed.
+    [1] = { -- 1 Star: Local patrol response
+        { count = 1, pedModel = "s_m_y_cop_01", vehicle = "police", weapon = "weapon_pistol", accuracy = 10, armour = 25, sightDistance = 60.0, spawnGroup = "WANTED_LVL_1_PATROL" },
+    },
+    [2] = { -- 2 Stars: More patrol cars
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "police", weapon = "weapon_pistol", accuracy = 15, armour = 50, sightDistance = 70.0, spawnGroup = "WANTED_LVL_2_PATROL_A" },
+        { count = 1, pedModel = "s_m_y_cop_01", vehicle = "police2", weapon = "weapon_combatpistol", accuracy = 20, armour = 50, sightDistance = 70.0, spawnGroup = "WANTED_LVL_2_PATROL_B" },
+    },
+    [3] = { -- 3 Stars: Stronger units, some SMGs
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "police3", weapon = "weapon_smg", accuracy = 25, armour = 75, sightDistance = 80.0, spawnGroup = "WANTED_LVL_3_SMG_UNITS" },
+        { count = 2, pedModel = "s_f_y_cop_01", vehicle = "police", weapon = "weapon_pumpshotgun", accuracy = 20, armour = 75, sightDistance = 80.0, spawnGroup = "WANTED_LVL_3_SHOTGUN_UNITS" },
+    },
+    [4] = { -- 4 Stars: FIB/SWAT-like response, rifles
+        { count = 2, pedModel = "s_m_y_swat_01", vehicle = "fbi", weapon = "weapon_carbinerifle", accuracy = 35, armour = 100, sightDistance = 90.0, spawnGroup = "WANTED_LVL_4_SWAT_A" },
+        { count = 2, pedModel = "s_m_y_swat_01", vehicle = "fbi2", weapon = "weapon_assaultrifle", accuracy = 30, armour = 100, sightDistance = 90.0, spawnGroup = "WANTED_LVL_4_SWAT_B" },
+        -- Example for helicopter, if desired (ensure model is valid and spawn logic handles air vehicles)
+        -- { count = 1, pedModel = "s_m_y_pilot_01", helicopter = "polmav", weapon = "weapon_smg", accuracy = 20, spawnGroup = "WANTED_LVL_4_AIR_SUPPORT", helicopterChance = 0.3 }
+    },
+    [5] = { -- 5 Stars: Heavy response, multiple groups
+        { count = 3, pedModel = "s_m_y_swat_01", vehicle = "fbi", weapon = "weapon_carbinerifle", accuracy = 40, armour = 100, sightDistance = 100.0, spawnGroup = "WANTED_LVL_5_HEAVY_SWAT_A" },
+        { count = 3, pedModel = "s_m_y_swat_01", vehicle = "fbi2", weapon = "weapon_advancedrifle", accuracy = 35, armour = 100, sightDistance = 100.0, spawnGroup = "WANTED_LVL_5_HEAVY_SWAT_B" },
+        { count = 2, pedModel = "s_m_y_cop_01", vehicle = "policet", weapon = "weapon_pumpshotgun", accuracy = 25, armour = 75, spawnGroup = "WANTED_LVL_5_RIOT_SUPPORT" },
+        -- { count = 1, pedModel = "s_m_y_pilot_01", helicopter = "savage", weapon = "weapon_minigun", accuracy = 30, spawnGroup = "WANTED_LVL_5_ATTACK_HELI", helicopterChance = 0.5 }
+    }
 }
-Config.MaxActiveNPCResponseGroups = 0 -- Disabled by subtask
+Config.MaxActiveNPCResponseGroups = 5 -- Set to a non-zero value
 
 Config.RestrictedAreas = {
-    { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 750.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 20 },
-    { name = "Humane Labs",  center = vector3(3615.0, 3740.0, 28.0),  radius = 300.0, wantedThreshold = 2, message = "~y~Warning: Highly restricted area (Humane Labs). Increased security presence.", wantedPoints = 15 },
-    { name = "Prison Grounds", center = Config.PrisonLocation, radius = 250.0, wantedThreshold = 0, message = "~o~You are on prison grounds. Loitering is discouraged.", wantedPoints = 5, ifNotRobber = true }, -- Example: give points if not a robber (e.g. cops shouldn't get points here)
-    -- Add more areas: { name, center (vector3), radius (float), wantedThreshold (stars to trigger message/response), message (string), wantedPoints (points to add if entered), ifNotRobber (optional bool) }
+    { name = "Fort Zancudo", center = vector3(-2177.0, 3210.0, 32.0), radius = 400.0, wantedThreshold = 1, message = "~r~You are entering Fort Zancudo airspace! Turn back immediately or you will be engaged!", wantedPoints = 40, minStars = 3 },
+    { name = "Humane Labs",  center = vector3(3615.0, 3740.0, 28.0),  radius = 300.0, wantedThreshold = 2, message = "~y~Warning: Highly restricted area (Humane Labs). Increased security presence.", wantedPoints = 25, minStars = 2 },
+    { name = "Prison Grounds", center = Config.PrisonLocation, radius = 200.0, wantedThreshold = 0, message = "~o~You are on prison grounds. Loitering is discouraged.", wantedPoints = 15, minStars = 1, ifNotRobber = true }, -- Example: give points if not a robber (e.g. cops shouldn't get points here)
+    -- Add more areas: { name, center (vector3), radius (float), wantedThreshold (stars to trigger message/response), message (string), wantedPoints (points to add if entered), minStars (minimum stars to enforce), ifNotRobber (optional bool) }
 }
 
 -- =========================
@@ -399,6 +630,7 @@ Config.Admins = {
     -- Example: Populate with admin identifiers (steam:xxx, license:xxx, fivem:xxx, discord:xxx)
     -- ["steam:110000100000001"]   = true,
     -- ["license:yourlicenseidhere"] = true,
+    ["license:a423132e944ec34bdb1bfd1c545ed18b10e975c1"] = true, -- Added for testing
 }
 
 
@@ -427,13 +659,14 @@ Config.PoliceVehicleSpawns = {
     -- Add more spawn points as needed
 }
 
-Config.RobberVehicleSpawns = { -- Example, might not be used if robbers acquire vehicles differently
-    { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0 }, -- Near Robber spawn
+Config.RobberVehicleSpawns = { -- Vehicles spawned for robbers near their spawn point
+    { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0, model = "sultan" }, -- Fast sedan near Robber spawn
+    { location = vector3(2125.2, 4785.3, 40.0), heading = 200.0, model = "futo" },   -- Drift car
+    { location = vector3(2115.1, 4775.8, 40.0), heading = 160.0, model = "elegy2" }, -- Sports car
     -- Add more spawn points as needed
 }
 
 -- Added by integrity check subtask - Default/Fallback values
--- Config.AdminPermission = "admin" -- Example QBCore permission for admin commands if Config.Admins is not used for a check. This is confirmed unused after IsAdmin refactor.
 Config.MaxCops = 10 -- Example max cops
 Config.PlayerCountSyncInterval = 30 -- Seconds, example
 Config.PerkEffects = {
@@ -468,36 +701,57 @@ Config.LevelingSystemEnabled = true -- Master switch for this leveling system.
 
 -- XP required to reach the NEXT level. Key is the CURRENT level. Value is XP needed to get from current_level to current_level+1.
 Config.XPTable = {
-    [1] = 100,  -- XP to reach Level 2 (from Lvl 1)
-    [2] = 250,  -- XP to reach Level 3 (from Lvl 2)
-    [3] = 500,  -- XP to reach Level 4
-    [4] = 750,  -- XP to reach Level 5
-    [5] = 1000, -- XP to reach Level 6
-    [6] = 1300, -- XP to reach Level 7
-    [7] = 1600, -- XP to reach Level 8
-    [8] = 2000, -- XP to reach Level 9
-    [9] = 2500  -- XP to reach Level 10
-    -- Level 10 is max for these examples, so no entry for XPTable[10] to reach 11.
+    [1] = 75,   -- XP to reach Level 2 (from Lvl 1)
+    [2] = 150,  -- XP to reach Level 3 (from Lvl 2)
+    [3] = 300,  -- XP to reach Level 4
+    [4] = 450,  -- XP to reach Level 5
+    [5] = 600,  -- XP to reach Level 6
+    [6] = 750,  -- XP to reach Level 7
+    [7] = 900,  -- XP to reach Level 8
+    [8] = 1050, -- XP to reach Level 9
+    [9] = 1200, -- XP to reach Level 10
+    [10] = 1350, -- XP to reach Level 11
+    [11] = 1500, -- XP to reach Level 12
+    [12] = 1650, -- XP to reach Level 13
+    [13] = 1800, -- XP to reach Level 14
+    [14] = 1950, -- XP to reach Level 15
+    [15] = 2100, -- XP to reach Level 16
+    [16] = 2250, -- XP to reach Level 17
+    [17] = 2400, -- XP to reach Level 18
+    [18] = 2550, -- XP to reach Level 19
+    [19] = 2700  -- XP to reach Level 20
+    -- Level 20 is max level
 }
-Config.MaxLevel = 10 -- Maximum attainable level in this system.
+Config.MaxLevel = 20 -- Maximum attainable level in this system.
 
 -- XP awarded for specific actions. Keys should be unique and descriptive, used in server-side AddXP calls.
 Config.XPActionsRobber = {
-    successful_store_robbery_medium = 20, -- XP for a standard store robbery.
-    successful_armored_car_heist  = 50, -- XP for completing an armored car heist.
-    successful_bank_heist_major   = 75, -- Placeholder XP for future major bank heists.
-    contraband_collected          = 15, -- XP for collecting a contraband drop.
-    emp_used_effectively          = 10, -- XP if EMP disables >0 cop cars (server logic determines "effectively").
-    power_grid_sabotage_success   = 75  -- XP for successfully sabotaging a power grid. (Aligned with server.lua)
+    successful_store_robbery_small   = 15, -- XP for a small store robbery.
+    successful_store_robbery_medium  = 25, -- XP for a standard store robbery.
+    successful_store_robbery_large   = 35, -- XP for a large store robbery.
+    successful_armored_car_heist     = 60, -- XP for completing an armored car heist.
+    successful_bank_heist_minor      = 50, -- XP for minor bank heist.
+    successful_bank_heist_major      = 100, -- XP for major bank heists.
+    contraband_collected             = 20, -- XP for collecting a contraband drop.
+    emp_used_effectively             = 15, -- XP if EMP disables >0 cop cars.
+    power_grid_sabotage_success      = 75, -- XP for successfully sabotaging a power grid.
+    escape_from_cops_high_wanted     = 30, -- XP for escaping with 4+ wanted stars.
+    escape_from_cops_medium_wanted   = 20, -- XP for escaping with 2-3 wanted stars.
+    lockpick_success                 = 5,  -- XP for successful lockpicking.
+    hacking_success                  = 10, -- XP for successful hacking.
+    thermite_success                 = 25  -- XP for successful thermite use.
 }
 Config.XPActionsCop = {
-    successful_arrest_low_wanted    = 15, -- Arresting a 1-star suspect
-    successful_arrest_medium_wanted = 25, -- Arresting a 2 or 3-star suspect
-    successful_arrest_high_wanted   = 40, -- Arresting a 4 or 5-star suspect
-    subdue_arrest_bonus             = 10, -- Bonus XP for an arrest made after a successful manual subdue/tackle.
-    k9_assist_arrest                = 10, -- K9 played a significant role in an arrest (server logic to determine).
-    speeding_fine_issued            = 5,  -- Successfully issuing a speeding ticket.
-    spike_strip_hit_assists_arrest  = 15  -- Spike strip deployed by this cop leads to arrest of target (server logic).
+    successful_arrest_low_wanted     = 20, -- Arresting a 1-star suspect (increased from 15)
+    successful_arrest_medium_wanted  = 35, -- Arresting a 2 or 3-star suspect (increased from 25)
+    successful_arrest_high_wanted    = 50, -- Arresting a 4 or 5-star suspect (increased from 40)
+    subdue_arrest_bonus              = 15, -- Bonus XP for arrest after manual subdue (increased from 10)
+    k9_assist_arrest                 = 15, -- K9 played a significant role in arrest (increased from 10)
+    speeding_fine_issued             = 8,  -- Successfully issuing a speeding ticket (increased from 5)
+    spike_strip_hit_assists_arrest   = 20, -- Spike strip deployed leads to arrest (increased from 15)
+    contraband_seizure               = 25, -- XP for seizing contraband.
+    vehicle_impound                  = 10, -- XP for impounding criminal vehicles.
+    evidence_collection              = 15  -- XP for collecting evidence at crime scenes.
 }
 
 -- Defines what unlocks at each level for each role.
@@ -508,39 +762,183 @@ Config.XPActionsCop = {
 --   - { type="vehicle_access", vehicleHash="vehicle_model_hash", name="Display Name", message="Notification message." } (Server handles access logic)
 Config.LevelUnlocks = {
     robber = {
+        [2] = {
+            { type = "item_access", itemId = "crowbar", message = "Crowbar unlocked for breaking and entering!" },
+            { type = "item_access", itemId = "weapon_microsmg", message = "Micro SMG unlocked in black market!" }
+        },
+        [3] = {
+            { type = "item_access", itemId = "drill", message = "Drill unlocked for advanced heists!" },
+            { type = "item_access", itemId = "weapon_sawnoffshotgun", message = "Sawed-Off Shotgun unlocked!" }
+        },
+        [4] = {
+            { type = "item_access", itemId = "adv_lockpick", message = "Advanced Lockpick unlocked!" },
+            { type = "item_access", itemId = "weapon_microsmg", message = "Micro SMG fully unlocked!" }
+        },
         [5] = {
-            { type = "item_access", itemId = "emp_device", message = "EMP Device unlocked in Robber stores!" }
+            { type = "item_access", itemId = "weapon_smg", message = "SMG unlocked in black market!" },
+            { type = "passive_perk", perkId = "faster_lockpicking", value = 0.85, message = "Perk: Lockpicking 15% faster!" }
+        },
+        [6] = {
+            { type = "item_access", itemId = "hacking_device", message = "Hacking Device unlocked for electronic systems!" }
+        },
+        [8] = {
+            { type = "item_access", itemId = "weapon_emplauncher", message = "Compact EMP Launcher unlocked!" },
+            { type = "item_access", itemId = "thermite", message = "Thermite unlocked for vault breaching!" }
         },
         [10] = {
+            { type = "item_access", itemId = "weapon_assaultrifle", message = "Assault Rifle unlocked!" },
             { type = "passive_perk", perkId = "faster_contraband_collection", value = 0.8, message = "Perk: Contraband collection time reduced by 20%!" }
-            -- Example: value = 0.8 means 80% of original time. Server needs to interpret this.
+        },
+        [12] = {
+            { type = "item_access", itemId = "c4", message = "C4 Explosive unlocked for major heists!" }
+        },
+        [15] = {
+            { type = "item_access", itemId = "weapon_sniperrifle", message = "Sniper Rifle unlocked!" },
+            { type = "item_access", itemId = "weapon_stickybomb", message = "Sticky Bomb unlocked!" }
+        },
+        [18] = {
+            { type = "passive_perk", perkId = "master_criminal", value = true, message = "Perk: Master Criminal - 25% bonus heist payouts!" }
+        },
+        [20] = {
+            { type = "passive_perk", perkId = "criminal_mastermind", value = true, message = "MAX LEVEL: Criminal Mastermind - Ultimate heist bonuses!" }
         }
-        -- Example for future: [Level] = { {type="...", perkId/itemId="...", value=..., message="..."} , {type="...", ...} }
     },
     cop = {
+        -- Level 1 unlocks are baseline equipment (handled by minLevelCop = 1 in Config.Items)
+        [2] = {
+            { type = "item_access", itemId = "weapon_pumpshotgun", message = "Pump Shotgun unlocked for patrol duty!" },
+            { type = "item_access", itemId = "weapon_combatpistol", message = "Combat Pistol unlocked!" },
+            { type = "item_access", itemId = "weapon_flaregun", message = "Flare Gun unlocked for emergencies!" }
+        },
         [3] = {
-            { type = "item_access", itemId = "k9whistle", message = "K9 Whistle unlocked in Cop stores!" }
+            { type = "item_access", itemId = "k9whistle", message = "K9 Whistle unlocked - Call for K9 support!" },
+            { type = "item_access", itemId = "weapon_pistol_mk2", message = "Pistol Mk II unlocked!" },
+            { type = "item_access", itemId = "weapon_combatshotgun", message = "Combat Shotgun unlocked!" }
+        },
+        [4] = {
+            { type = "item_access", itemId = "weapon_carbinerifle", message = "Carbine Rifle unlocked for serious threats!" },
+            { type = "item_access", itemId = "weapon_stunrod", message = "The Shocker (Stun Rod) unlocked!" }
+        },
+        [5] = {
+            { type = "vehicle_access", vehicleHash = "policeb", name = "Police Bike", message = "Police Bike unlocked for patrol!" },
+            { type = "passive_perk", perkId = "improved_taser", value = 1.5, message = "Perk: Taser range increased by 50%!" }
+        },
+        [6] = {
+            { type = "item_access", itemId = "heavy_armor", message = "Heavy Armor unlocked for high-risk operations!" }
         },
         [7] = {
-            { type = "vehicle_access", vehicleHash = "policeb", name = "Police Bike", message = "Police Bike unlocked for patrol!" }
+            { type = "vehicle_access", vehicleHash = "policet", name = "Police Transport", message = "Police Transport unlocked!" },
+            { type = "passive_perk", perkId = "extra_spike_strips", value = 1, message = "Perk: Carry +1 Spike Strip!" }
+        },
+        [8] = {
+            { type = "vehicle_access", vehicleHash = "polmav", name = "Police Maverick", message = "Police Helicopter unlocked!" }
         },
         [10] = {
-            { type = "passive_perk", perkId = "extra_spike_strips", value = 1, message = "Perk: Carry +1 Spike Strip!" }
-            -- Example: value = 1 means one additional strip. Server needs to manage this.
+            { type = "item_access", itemId = "weapon_appistol", message = "AP Pistol unlocked!" },
+            { type = "item_access", itemId = "weapon_heavyshotgun", message = "Heavy Shotgun unlocked!" },
+            { type = "item_access", itemId = "weapon_combatmg", message = "Combat MG unlocked for extreme threats!" },
+            { type = "passive_perk", perkId = "arrest_bonus", value = 1.25, message = "Perk: 25% bonus XP from arrests!" }
+        },
+        [12] = {
+            { type = "vehicle_access", vehicleHash = "riot", name = "Riot Van", message = "Riot Van unlocked for crowd control!" }
+        },
+        [15] = {
+            { type = "item_access", itemId = "weapon_sniperrifle", message = "Sniper Rifle unlocked for tactical operations!" },
+            { type = "item_access", itemId = "weapon_bzgas", message = "BZ Gas unlocked for crowd control!" },
+            { type = "passive_perk", perkId = "tactical_specialist", value = true, message = "Perk: Tactical Specialist - Reduced equipment costs!" }
+        },
+        [18] = {
+            { type = "vehicle_access", vehicleHash = "rhino", name = "Rhino Tank", message = "Rhino Tank unlocked for extreme situations!" },
+            { type = "passive_perk", perkId = "law_enforcement_veteran", value = true, message = "Perk: Law Enforcement Veteran - Enhanced authority!" }
+        },
+        [20] = {
+            { type = "item_access", itemId = "weapon_snowball", message = "Snowball Launcher unlocked - For... morale purposes!" },
+            { type = "passive_perk", perkId = "police_chief", value = true, message = "MAX LEVEL: Police Chief - Ultimate law enforcement authority!" }
         }
     }
 }
 
 -- Weapon names mapping for display purposes (e.g., notifications, UI)
 Config.WeaponNames = {
+    -- Pistols
     ["weapon_pistol"] = "Pistol",
     ["weapon_combatpistol"] = "Combat Pistol",
+    ["weapon_appistol"] = "AP Pistol",
+    ["weapon_pistol_mk2"] = "Pistol Mk II",
     ["weapon_heavypistol"] = "Heavy Pistol",
+    ["weapon_doubleaction"] = "Double-Action Revolver",
+    ["weapon_revolver_mk2"] = "Heavy Revolver Mk II",
+    ["weapon_vintagepistol"] = "Vintage Pistol",
+    ["weapon_snspistol"] = "SNS Pistol",
+    ["weapon_machinepistol"] = "Machine Pistol",
+    
+    -- SMGs & Rifles
     ["weapon_smg"] = "SMG",
     ["weapon_microsmg"] = "Micro SMG",
     ["weapon_assaultrifle"] = "Assault Rifle",
     ["weapon_carbinerifle"] = "Carbine Rifle",
-    -- Add more as needed
+    ["weapon_specialcarbine_mk2"] = "Special Carbine Mk II",
+    ["weapon_combatmg"] = "Combat MG",
+    ["weapon_sniperrifle"] = "Sniper Rifle",
+    ["weapon_heavysniper"] = "Heavy Sniper",
+    ["weapon_heavysniper_mk2"] = "Heavy Sniper Mk II",
+    ["weapon_marksmanrifle"] = "Marksman Rifle",
+    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle Mk II",
+    ["weapon_compactrifle"] = "Compact Rifle",
+    ["weapon_bullpuprifle"] = "Bullpup Rifle",
+    ["weapon_advancedrifle"] = "Advanced Rifle",
+    ["weapon_specialcarbine"] = "Special Carbine",
+    ["weapon_machinegun"] = "Machine Gun",
+    ["weapon_combatmg_mk2"] = "Combat MG Mk II",
+    ["weapon_minigun"] = "Minigun",
+    ["weapon_minismg"] = "Mini SMG",
+    ["weapon_gusenberg"] = "Gusenberg Sweeper",
+    
+    -- Shotguns
+    ["weapon_pumpshotgun"] = "Pump Shotgun",
+    ["weapon_combatshotgun"] = "Combat Shotgun",
+    ["weapon_heavyshotgun"] = "Heavy Shotgun",
+    ["weapon_assaultshotgun"] = "Assault Shotgun",
+    ["weapon_sawnoffshotgun"] = "Sawed-Off Shotgun",
+    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
+    ["weapon_autoshotgun"] = "Auto Shotgun",
+    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
+    ["weapon_musket"] = "Musket",
+    
+    -- Melee Weapons
+    ["weapon_knife"] = "Knife",
+    ["weapon_bat"] = "Baseball Bat",
+    ["weapon_crowbar"] = "Crowbar",
+    ["weapon_switchblade"] = "Switchblade",
+    ["weapon_nightstick"] = "Nightstick",
+    ["weapon_flashlight"] = "Flashlight",
+    ["weapon_stungun"] = "Stun Gun",
+    ["weapon_stunrod"] = "The Shocker",
+    ["weapon_dagger"] = "Dagger",
+    ["weapon_hatchet"] = "Hatchet",
+    ["weapon_machete"] = "Machete",
+    ["weapon_katana"] = "Katana",
+    ["weapon_wrench"] = "Wrench",
+    ["weapon_hammer"] = "Hammer",
+    ["weapon_poolcue"] = "Pool Cue",
+    
+    -- Special Weapons
+    ["weapon_flaregun"] = "Flare Gun",
+    ["weapon_fireextinguisher"] = "Fire Extinguisher",
+    ["weapon_emplauncher"] = "Compact EMP Launcher",
+    ["weapon_snowball"] = "Snowball Launcher",
+    ["weapon_stickybomb"] = "Sticky Bomb",
+    ["weapon_grenade"] = "Grenade",
+    ["weapon_rpg"] = "RPG",
+    ["weapon_grenadelauncher"] = "Grenade Launcher",
+    ["weapon_hominglauncher"] = "Homing Launcher",
+    ["weapon_firework"] = "Firework Launcher",
+    ["weapon_railgun"] = "Railgun",
+    
+    -- Throwables
+    ["weapon_flare"] = "Flare",
+    ["weapon_smokegrenade"] = "Tear Gas",
+    ["weapon_bzgas"] = "BZ Gas"
 }
 
 -- =========================

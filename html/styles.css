@@ -5,15 +5,64 @@
 /* Updated: 2025-02-11 */
 
 /* ==========================================================================
-   Global Styles
+   Global Styles & Animations
    ========================================================================== */
+
+.icon {
+    margin-right: 8px; /* Spacing for icons in buttons */
+}
+
+@keyframes fadeInMenu {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes fadeInNotification {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes fadeOutNotification {
+    from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(30px);
+    }
+}
 
 body {
     margin: 0;
     padding: 0;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: transparent; /* Fixed: transparent for FiveM NUI */
     font-family: Arial, sans-serif;
-    color: #fff;
+    color: #ffffff; /* New Text Color */
+}
+
+/* Focus States */
+button:focus,
+input:focus,
+textarea:focus, /* Added textarea for completeness */
+select:focus, /* Added select for completeness */
+.tab-btn:focus,
+.category-btn:focus {
+    outline: 2px solid #e94560; /* Accent color 1 for outline */
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3); /* Optional: softer glow effect */
 }
 
 /* ==========================================================================
@@ -28,6 +77,8 @@ button {
 
 button:hover {
     opacity: 0.9;
+    transform: translateY(-2px); /* Add subtle transform on hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4); /* Enhanced shadow on hover */
 }
 
 /* Generic Menu Styles (used by role selection in index.html) */
@@ -36,23 +87,38 @@ button:hover {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.7);
-    padding: 20px;
-    border-radius: 10px;
+    background: #16213e; /* New Secondary Background */
+    padding: 30px; /* Further Increased padding */
+    border-radius: 12px; /* Slightly larger border-radius */
     text-align: center;
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* New Box Shadow */
+    animation: fadeInMenu 0.3s ease-out forwards;
 }
 
 .menu h1 {
-    color: #fff;
+    color: #ffffff; /* New Text Color */
     margin-top: 0; /* Added for consistency */
+    margin-bottom: 25px; /* Increased margin for h1 */
 }
 
 .menu button {
-    padding: 10px 20px;
-    margin: 10px;
-    font-size: 18px;
-    border: none; /* Assuming default button styles might need override */
-    border-radius: 5px; /* Added for softer edges */
+    background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient */
+    color: #ffffff; /* New Text Color */
+    border: none;
+    border-radius: 8px; /* New border-radius */
+    font-weight: bold; /* New font-weight */
+    font-size: 18px; /* New font-size */
+    padding: 14px 28px; /* Further Increased padding */
+    margin: 15px; /* Increased margin for buttons */
+    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease; /* New transition */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+}
+
+.menu button:hover {
+    background: linear-gradient(to right, #ff7675, #e94560); /* Gradient shifts on hover */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Generic HUD Styles (used by heist timer in index.html) */
@@ -63,7 +129,7 @@ button:hover {
     transform: translateX(-50%);
     color: #fff;
     font-size: 24px;
-    text-shadow: 1px 1px 2px #000;
+    text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.7), 0px 0px 10px rgba(0, 0, 0, 0.5); /* Enhanced text shadow */
 }
 
 /* Specific Heist Timer Style */
@@ -72,141 +138,302 @@ button:hover {
 }
 
 /* ==========================================================================
-   Store UI Styles (main_ui.html, store.html)
+   Modern Store UI Styles - Grid-Based Inventory Interface
    ========================================================================== */
 
 /* Store Container */
 #store-menu {
-    width: 600px;
-    max-width: 90%;
-    margin: 50px auto;
-    background-color: #222;
-    padding: 20px;
-    border-radius: 10px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 96vw;
+    max-width: 1600px;
+    height: 92vh;
+    max-height: 92vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 20px;
+    border: 2px solid #0f3460;
+    /* Temporarily removed box-shadow to test black box issue */
+    /* box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1); */
+    animation: fadeInMenu 0.5s ease-out forwards;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* Temporarily removed backdrop filter to test black box issue */
+    /* -webkit-backdrop-filter: blur(10px); */
+    /* backdrop-filter: blur(10px); */
+    z-index: 1000;
+}
+
+/* Store Header */
+.store-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: linear-gradient(90deg, #0f3460 0%, #1f4e79 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 #store-title {
-    text-align: center;
-    margin-top: 0; /* Added for consistency */
-    margin-bottom: 20px; /* Added spacing */
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 1px;
 }
 
-/* Store Tab Menu */
+.store-close-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+}
+
+.store-close-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 12px rgba(233, 69, 96, 0.5);
+}
+
+.close-icon {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Tab Menu */
 #tab-menu {
     display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
+    padding: 0 30px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tab-btn {
-    margin: 0 5px;
-    padding: 10px;
-    background-color: #555;
-    border: none;
-    color: #fff;
-    cursor: pointer;
     flex: 1;
-    border-radius: 3px; /* Added for softer edges */
+    padding: 15px 20px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    position: relative;
+}
+
+.tab-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e94560, #ff7675);
+    transition: width 0.3s ease;
+}
+
+.tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
-    background-color: #d9534f; /* Highlight active tab */
+    color: #ffffff;
+    background: rgba(233, 69, 96, 0.1);
 }
 
-/* Store Category List */
-#category-list {
+.tab-btn.active::after {
+    width: 80%;
+}
+
+.tab-icon {
+    font-size: 20px;
+}
+
+/* Player Info Bar */
+.player-info-bar {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-cash, .player-level {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 14px;
+    /* Remove shadow effects that cause black border in FiveM */
+    box-shadow: none;
+    text-shadow: none;
+    filter: none;
+}
+
+.cash-icon, .level-icon {
+    font-size: 16px;
+}
+
+/* Category Filter */
+.category-filter {
+    padding: 15px 30px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.category-list {
+    display: flex;
+    gap: 10px;
     flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 20px;
 }
 
 .category-btn {
-    margin: 5px;
-    padding: 10px;
-    background-color: #555;
-    border: none;
-    color: #fff;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    flex: 1 1 100px; /* Allow wrapping and flexible sizing */
-    border-radius: 3px; /* Added for softer edges */
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.category-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
 }
 
 .category-btn.active {
-    background-color: #d9534f; /* Highlight active category */
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-color: #e94560;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
 }
 
-/* Store Tab Content Area */
+/* Tab Content */
 .tab-content {
-    display: none; /* Hidden by default */
+    display: none;
+    flex: 1;
+    overflow: hidden;
 }
 
 .tab-content.active {
-    display: block; /* Shown when active */
+    display: flex;
+    flex-direction: column;
 }
 
-/* Store Item List */
-#item-list { /* This ID is used in both buy and potentially sell sections if structured similarly */
+/* Inventory Grid */
+.inventory-grid {
+    flex: 1;
+    padding: 20px 30px;
+    max-height: 600px; /* Set maximum height instead of min-height */
+    overflow-y: auto; /* Use auto instead of scroll to show scrollbar only when needed */
+    overflow-x: hidden;
+    scrollbar-width: auto; /* Firefox */
+    scrollbar-color: #e94560 rgba(0, 0, 0, 0.2); /* Firefox */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    align-content: start;
+}
+
+/* Custom Scrollbar for Grid - Force visibility */
+.inventory-grid::-webkit-scrollbar {
+    width: 12px !important; /* Reasonable width */
+    -webkit-appearance: none;
+    display: block !important;
+}
+
+.inventory-grid::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-radius: 6px;
+    /* Remove shadow effects that can cause issues in FiveM */
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.inventory-grid::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #e94560, #ff7675) !important;
+    border-radius: 6px;
+    /* Remove shadow effects that can cause issues in FiveM */
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-height: 30px;
+}
+
+.inventory-grid::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #d63384, #e94560) !important;
+}
+
+/* Store Category List - Legacy Support */
+.category-btn {
+    margin: 8px;
+    padding: 12px 18px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.category-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.category-btn.active {
+    background: linear-gradient(45deg, #e94560, #ff7675);
+    border-color: #e94560;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.3);
+}
+
+/* Legacy Item List Support (fallback) */
+#item-list {
     max-height: 400px;
     overflow-y: auto;
     margin-bottom: 20px;
-    padding-right: 10px; /* Added padding for scrollbar */
+    padding-right: 10px;
 }
 
-/* Individual Item Styling */
-.item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center; /* Vertically align items */
-    margin: 10px 0;
-    padding: 10px; /* Added padding */
-    background-color: rgba(255, 255, 255, 0.05); /* Slight background for items */
-    border-radius: 5px; /* Added for softer edges */
+#item-list::-webkit-scrollbar {
+    width: 8px;
 }
-
-.item-name {
-    flex: 1; /* Takes available space */
+#item-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
 }
-
-.item-price {
-    flex: 0 0 80px; /* Fixed width */
-    text-align: right;
+#item-list::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #e94560, #ff7675);
+    border-radius: 10px;
 }
-
-.item-quantity { /* Used in sell section, likely */
-    flex: 0 0 50px; /* Fixed width */
-    text-align: right;
-}
-
-.quantity-input { /* Used with buy/sell actions */
-    width: 50px;
-    margin-right: 10px;
-    padding: 5px; /* Added padding */
-    border-radius: 3px; /* Added for softer edges */
-    border: 1px solid #444; /* Added border */
-    background-color: #333; /* Darker background */
-    color: #fff; /* White text */
-}
-
-/* Item Action Buttons (Buy/Sell) */
-.buy-btn, .sell-btn {
-    flex: 0 0 60px; /* Fixed width */
-    padding: 8px 10px; /* Adjusted padding */
-    font-size: 14px; /* Standardized font size */
-    border-radius: 3px; /* Added for softer edges */
-}
-
-/* Store Close Button */
-#close-btn {
-    width: 100%;
-    padding: 12px; /* Increased padding */
-    background-color: #d9534f; /* Red color for close/action */
-    border: none;
-    color: #fff;
-    font-size: 16px;
-    cursor: pointer;
-    border-radius: 5px; /* Added for softer edges */
-    margin-top: 20px; /* Added margin for spacing */
+#item-list::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #d63384, #e94560);
 }
 
 /* ==========================================================================
@@ -215,38 +442,72 @@ button:hover {
 
 @media (max-width: 600px) {
     #store-menu {
-        padding: 15px;
-        margin: 20px auto; /* Adjusted margin for smaller screens */
+        padding: 20px 15px; /* Adjusted padding */
+        /* margin: 20px auto; */ /* Removed: Conflicts with absolute centering via top/left/transform */
+        width: 90%; /* Ensure it doesn't hit screen edges */
     }
 
-    .menu button { /* Styles for buttons within .menu (role selection) */
-        font-size: 16px;
-        padding: 8px 16px;
-    }
-
-    .tab-btn { /* Store tab buttons */
-        padding: 8px;
+    /* General button adjustments for smaller screens */
+    .menu button,
+    #store-menu .tab-btn,
+    #store-menu .category-btn,
+    .item .buy-btn, /* Targeting buy/sell buttons within item context */
+    .item .sell-btn {
         font-size: 14px;
-    }
-
-    .category-btn { /* Store category buttons */
-        font-size: 14px; /* Ensure category buttons are also responsive */
+        padding: 10px 12px; /* Standardized padding */
     }
 
     .item { /* Store items */
         flex-direction: column; /* Stack item details vertically */
-        align-items: flex-start; /* Align to start */
+        align-items: stretch; /* Stretch items to full width */
+        padding: 12px; /* Slightly reduce padding for items */
     }
 
-    .item-price, .item-quantity, .buy-btn, .sell-btn {
+    .item-name {
+        margin-bottom: 8px; /* Add space below name when stacked */
+    }
+
+    .item-price, .item-quantity {
         text-align: left; /* Align text left in vertical layout */
-        margin-top: 5px; /* Add some space between stacked elements */
+        margin-bottom: 8px; /* Add space below price/quantity */
     }
 
     .quantity-input {
-        width: 100%; /* Full width for input on small screens */
+        width: calc(100% - 12px); /* Full width for input minus padding */
         margin-right: 0;
-        margin-bottom: 5px; /* Space below input */
+        margin-bottom: 10px; /* Space below input */
+    }
+
+    .buy-btn, .sell-btn { /* Specific adjustments for buy/sell buttons if needed */
+        width: 100%; /* Make buttons full width */
+        margin-left: 0; /* Remove left margin if any */
+        margin-top: 5px;
+    }
+
+    /* Admin Panel adjustments for smaller screens */
+    #admin-panel {
+        width: 95%;
+        padding: 15px;
+    }
+
+    #admin-panel h1, #admin-panel h2 {
+        font-size: 1.5em; /* Reduce heading font size */
+    }
+
+    .admin-player-list-container {
+        overflow-x: auto; /* Ensure table content can scroll horizontally */
+    }
+
+    #admin-panel table {
+        font-size: 12px; /* Reduce table font size */
+    }
+    #admin-panel th, #admin-panel td {
+        padding: 8px 6px; /* Reduce cell padding */
+    }
+    #admin-panel .admin-action-btn {
+        font-size: 11px;
+        padding: 4px 6px;
+        margin-right: 3px;
     }
 }
 
@@ -261,33 +522,53 @@ button:hover {
     width: 800px;
     max-width: 95%;
     max-height: 80vh;
-    background-color: #2c3e50; /* Dark blue-grey */
-    color: #ecf0f1; /* Light grey text */
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    background-color: #16213e; /* New Secondary Background */
+    color: #ffffff; /* New Text Color */
+    padding: 30px; /* Further Increased padding */
+    border-radius: 12px; /* Slightly larger border-radius */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); /* Enhanced Box Shadow */
     display: flex;
     flex-direction: column;
     z-index: 100; /* Ensure it's above other UI */
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    animation: fadeInMenu 0.3s ease-out forwards;
 }
 
 #admin-panel h1, #admin-panel h2 {
-    color: #e74c3c; /* Reddish titles */
+    color: #e94560; /* New Accent Color 1 for titles */
     text-align: center;
     margin-top: 0;
+    margin-bottom: 20px; /* Increased margin for titles */
 }
 
 .admin-controls {
-    margin-bottom: 15px;
+    margin-bottom: 20px; /* Increased margin */
     text-align: right;
 }
 
 .admin-player-list-container {
     overflow-y: auto; /* Scrollable player list */
     flex-grow: 1;
-    background-color: rgba(0,0,0,0.2);
-    padding: 5px;
-    border-radius: 4px;
+    background-color: rgba(15, 52, 96, 0.3); /* Darker, transparent version of Accent Color 2 */
+    padding: 10px; /* Increased padding */
+    border-radius: 8px; /* New border-radius */
+}
+
+/* Webkit Scrollbar Styling for .admin-player-list-container */
+.admin-player-list-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px; /* For horizontal scroll if overflow-x is also auto */
+}
+.admin-player-list-container::-webkit-scrollbar-track {
+    background: #1a1a2e; /* Primary background for track */
+    border-radius: 10px;
+}
+.admin-player-list-container::-webkit-scrollbar-thumb {
+    background: #0f3460; /* Accent Color 2 for thumb */
+    border-radius: 10px;
+}
+.admin-player-list-container::-webkit-scrollbar-thumb:hover {
+    background: #1f4e79; /* Darker Accent Color 2 for thumb hover */
 }
 
 #admin-panel table {
@@ -297,68 +578,94 @@ button:hover {
 }
 
 #admin-panel th, #admin-panel td {
-    border: 1px solid #34495e; /* Slightly lighter blue-grey border */
-    padding: 8px;
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    padding: 12px; /* Further Increased padding for cells */
     text-align: left;
 }
 
 #admin-panel th {
-    background-color: #e74c3c;
-    color: #fff;
+    background-color: #e94560; /* New Accent Color 1 */
+    color: #ffffff; /* New Text Color */
+    padding: 14px; /* Increased padding for table headers */
 }
 
 #admin-panel tr:nth-child(even) {
-    background-color: #34495e;
+    background-color: rgba(15, 52, 96, 0.3); /* Adjusted zebra striping (using panel's accent color with opacity) */
+}
+
+#admin-panel tr:hover {
+    background-color: rgba(233, 69, 96, 0.2); /* Subtle hover effect using Accent Color 1 with low opacity */
 }
 
 #admin-panel .admin-action-btn {
-    padding: 5px 8px;
+    padding: 6px 10px; /* Adjusted padding */
     margin-right: 5px;
     border: none;
-    border-radius: 3px;
+    border-radius: 5px; /* New border-radius */
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px; /* Adjusted font size */
+    transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.admin-kick-btn { background-color: #f39c12; color: #fff; } /* Orange */
-.admin-ban-btn { background-color: #c0392b; color: #fff; }  /* Darker Red */
-.admin-teleport-btn { background-color: #2980b9; color: #fff; } /* Blue */
+.admin-kick-btn { background: linear-gradient(to right, #e94560, #ff7675); color: #fff; }
+.admin-ban-btn { background: linear-gradient(to right, #e94560, #ff7675); color: #fff; }
+.admin-teleport-btn { background: linear-gradient(to right, #0f3460, #1f4e79); color: #fff; } /* Different gradient for non-critical action */
+
+.admin-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
 
 #admin-ban-reason-container {
-    padding: 10px;
-    background-color: #34495e;
-    border-radius: 4px;
+    padding: 15px; /* Increased padding */
+    background-color: #0f3460; /* New Accent Color 2 */
+    border-radius: 8px; /* New border-radius */
     margin-top: 15px;
 }
 
 #admin-ban-reason {
     width: calc(100% - 22px); /* Adjust for padding/border */
-    padding: 8px;
+    padding: 10px; /* Increased padding */
     margin-bottom: 10px;
-    border-radius: 3px;
-    border: 1px solid #2c3e50;
+    border-radius: 6px; /* Adjusted for consistency */
+    border: 1px solid #16213e; /* New Secondary Background for border */
+    background-color: #1a1a2e; /* New Primary Background */
+    color: #ffffff; /* New Text Color */
 }
 
 #admin-panel button { /* General button styling within admin panel */
-    background-color: #555;
-    color: #fff;
+    background: linear-gradient(to right, #e94560, #ff7675);
+    color: #ffffff;
     border: none;
-    padding: 8px 12px;
-    border-radius: 3px;
+    padding: 10px 15px; /* Adjusted padding */
+    border-radius: 8px; /* New border-radius */
+    font-weight: bold;
+    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 #admin-panel button:hover {
-    opacity: 0.8;
+    background: linear-gradient(to right, #ff7675, #e94560);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    opacity: 1; /* Override previous opacity setting */
 }
 
 #admin-close-btn {
-    background-color: #7f8c8d; /* Grey */
+    background: #0f3460; /* New Accent Color 2 */
 }
+#admin-close-btn:hover {
+    background: #1f4e79; /* Darker shade of Accent Color 2 */
+}
+
 
 #admin-ban-reason-container button {
     margin-right: 10px;
 }
-#admin-confirm-ban-btn { background-color: #c0392b; }
-#admin-cancel-ban-btn { background-color: #7f8c8d; }
+#admin-confirm-ban-btn { background: linear-gradient(to right, #e94560, #ff7675); }
+#admin-cancel-ban-btn { background: #0f3460; }
+#admin-confirm-ban-btn:hover { background: linear-gradient(to right, #ff7675, #e94560); }
+#admin-cancel-ban-btn:hover { background: #1f4e79; }
 
 .hidden {
     display: none !important; /* Ensure hidden class works */
@@ -372,30 +679,47 @@ button:hover {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    display: flex; /* Use flexbox for alignment */
+    display: none; /* Hidden by default */
     align-items: center; /* Vertically align items in the container */
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 8px 15px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    background-color: #16213e; /* New Secondary Background */
+    padding: 10px 20px; /* Adjusted padding */
+    border-radius: 12px; /* New border-radius */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* New Box Shadow */
     z-index: 90; /* Below admin panel but above general game */
-    color: #fff;
+    color: #ffffff; /* New Text Color */
     font-family: Arial, sans-serif;
+    border: 1px solid #0f3460; /* New Accent Color 2 for border */
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+    position: relative; /* For XP gain indicator positioning */
+}
+
+#xp-level-container.show {
+    display: flex !important;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    animation: slideInUp 0.5s ease-out forwards;
+}
+
+#xp-level-container.hide {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    animation: slideOutDown 0.5s ease-out forwards;
 }
 
 #level-text {
     font-size: 16px;
     font-weight: bold;
     margin-right: 10px;
-    color: #FFD700; /* Gold color for level */
+    color: #e94560; /* New Accent Color 1 for level text */
 }
 
 #xp-bar-background {
     width: 200px; /* Fixed width for the XP bar */
     height: 18px;
-    background-color: #555; /* Dark grey background */
-    border: 1px solid #333;
-    border-radius: 5px;
+    background-color: #0f3460; /* New Accent Color 2 for XP bar background */
+    border: 1px solid #1a1a2e; /* New Primary Background for border */
+    border-radius: 8px; /* New border-radius */
     overflow: hidden; /* Ensure fill doesn't spill out */
     margin-right: 10px;
 }
@@ -403,12 +727,990 @@ button:hover {
 #xp-bar-fill {
     width: 0%; /* Initial width, will be updated by JS */
     height: 100%;
-    background-color: #4CAF50; /* Green for XP progress */
-    border-radius: 4px; /* Slightly smaller to fit inside background */
-    transition: width 0.3s ease-in-out; /* Smooth transition for width changes */
+    background: linear-gradient(to right, #e94560, #ff7675); /* New Subtle Gradient for XP fill */
+    border-radius: 7px; /* Slightly smaller to fit inside background */
+    transition: width 1.2s ease-out; /* Slower, smoother transition for width changes */
 }
 
 #xp-text {
     font-size: 14px;
-    color: #eee; /* Light grey for XP text */
+    color: #f0f0f0; /* Lighter grey for XP text for contrast */
+}
+
+/* XP Gain Indicator */
+.xp-gain-indicator {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #4CAF50;
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 95;
+    display: none; /* Hidden by default */
+}
+
+.xp-gain-indicator.show {
+    display: block !important;
+    animation: xpGainPop 3s ease-out forwards;
+}
+
+/* Animations */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes slideOutDown {
+    from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(50px);
+    }
+}
+
+@keyframes xpGainPop {
+    0% {
+        opacity: 0;
+        transform: translateY(-50%) scale(0.5);
+    }
+    15% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.2);
+    }
+    30% {
+        transform: translateY(-50%) scale(1);
+    }
+    85% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60%) scale(0.8);
+    }
+}
+
+/* ==========================================================================
+   Toast Notification Styles (Placeholder)
+   ========================================================================== */
+#toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #0f3460; /* Accent Color 2 */
+    color: #ffffff;
+    padding: 15px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 1000; /* Above all other UI */
+    font-size: 16px;
+    animation: fadeInNotification 0.5s ease-out forwards;
+    /* Add a display: none; by default, JS will make it visible */
+    display: none;
+}
+
+#toast.error {
+    background-color: #e94560; /* Accent Color 1 for errors */
+}
+
+#toast.success {
+    background-color: #4CAF50; /* A green color for success */
+}
+
+/* Applying styles to the class instead of ID for consistency with HTML */
+.toast-notification {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%); /* Initial transform for centering */
+    background-color: #0f3460; /* Default/Info color from new palette */
+    color: #ffffff;
+    padding: 16px 32px;
+    border-radius: 8px;
+    z-index: 9999;
+    font-size: 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    display: none; /* Hidden by default */
+    /* Animation will be applied by JS: fadeInNotification then fadeOutNotification */
+}
+
+.toast-notification.success {
+    background-color: #00b894; /* Success color from original example */
+    /* Consider: background: linear-gradient(90deg, #00b894 0%, #00cec9 100%); */
+}
+
+.toast-notification.error {
+    background-color: #e94560; /* Accent color 1 as error color */
+    /* Consider: background: linear-gradient(90deg, #e94560 0%, #d63031 100%); */
+}
+
+/* Additional CSS classes to replace inline styles */
+.heist-timer-hidden {
+    display: none;
+}
+
+.admin-ban-reason-container {
+    margin-top: 10px;
+}
+
+.toast-hidden {
+    display: none;
+}
+
+/* Inventory Item Slots - Modern Grid Design */
+.inventory-slot {
+    aspect-ratio: 1;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.inventory-slot:hover {
+    transform: translateY(-4px);
+    border-color: #e94560;
+    box-shadow: 
+        0 8px 16px rgba(233, 69, 96, 0.2),
+        0 0 20px rgba(233, 69, 96, 0.1),
+        inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    background: linear-gradient(145deg, rgba(233, 69, 96, 0.1) 0%, rgba(255, 118, 117, 0.05) 100%);
+}
+
+.inventory-slot.locked {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: linear-gradient(145deg, rgba(128, 128, 128, 0.1) 0%, rgba(64, 64, 64, 0.05) 100%);
+    border-color: rgba(128, 128, 128, 0.3);
+}
+
+.inventory-slot.locked:hover {
+    transform: none;
+    box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Item Icon Container */
+.item-icon-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.item-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.inventory-slot:hover .item-icon {
+    background: rgba(233, 69, 96, 0.2);
+    border-color: rgba(233, 69, 96, 0.5);
+    transform: scale(1.05);
+}
+
+/* Level Requirement Badge */
+.level-requirement {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: linear-gradient(45deg, #ff6b6b, #ff5252);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(255, 107, 107, 0.4);
+    z-index: 2;
+}
+
+/* Item Info */
+.item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.item-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    text-align: center;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.item-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: #4CAF50;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.inventory-slot.locked .item-price {
+    color: #999999;
+}
+
+/* Quantity Badge */
+.quantity-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Purchase/Action Overlay */
+.action-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(233, 69, 96, 0.9), rgba(255, 118, 117, 0.9));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.3s ease;    border-radius: 12px;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.inventory-slot:hover .action-overlay {
+    opacity: 1;
+}
+
+.inventory-slot.locked:hover .action-overlay {
+    opacity: 0;
+}
+
+.action-overlay .quantity-input {
+    width: 60px;
+    padding: 4px 8px;
+    margin-bottom: 8px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333333;
+    font-weight: bold;
+}
+
+.action-overlay .action-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 6px;
+    color: #333333;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-overlay .action-btn:hover {
+    background: #ffffff;
+    transform: scale(1.05);
+}
+
+/* Special Effects */
+@keyframes itemPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+.inventory-slot.new-item {
+    animation: itemPulse 2s ease-in-out infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        padding: 15px 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    #store-menu {
+        width: 98vw;
+        height: 90vh;
+        /* Keep the centering transform for mobile too */
+    }
+    
+    .inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px 15px;
+    }
+    
+    .store-header {
+        padding: 15px 20px;
+    }
+    
+    #store-title {
+        font-size: 24px;
+    }
+}
+
+/* Cash Notification Styles */
+.cash-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.95), rgba(22, 27, 34, 0.95));
+    border: 1px solid rgba(76, 175, 80, 0.5);
+    border-radius: 12px;
+    padding: 15px 20px;
+    color: #4CAF50;
+    font-family: 'Roboto', sans-serif;
+    font-weight: 500;
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s ease-out;
+    z-index: 2000;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.cash-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.cash-notification .cash-amount {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.cash-notification .cash-total {
+    font-size: 14px;
+    color: #999;
+    font-weight: 400;
+}
+
+/* Remove black background by ensuring no conflicting styles */
+body::before {
+    display: none !important;
+}
+
+/* ==========================================================================
+   Wanted Level Notification Styles
+   ========================================================================== */
+
+.wanted-notification {
+    position: fixed;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    background: linear-gradient(145deg, rgba(233, 69, 96, 0.95), rgba(211, 47, 47, 0.95));
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    color: #ffffff;
+    font-family: 'Roboto', sans-serif;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    z-index: 1500;
+    min-width: 220px;
+    animation: slideInFromRight 0.4s ease-out;
+}
+
+.wanted-notification.hidden {
+    display: none !important;
+}
+
+.wanted-notification.removing {
+    animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+.wanted-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.wanted-icon {
+    font-size: 32px;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    animation: pulse 2s infinite;
+}
+
+.wanted-text {
+    flex: 1;
+}
+
+.wanted-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.wanted-level {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 3px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.wanted-points {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+/* Animations for wanted notification */
+@keyframes slideInFromRight {
+    from {
+        transform: translateY(-50%) translateX(300px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(-50%) translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutToRight {
+    from {
+        transform: translateY(-50%) translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-50%) translateX(300px);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Wanted level colors for different star levels */
+.wanted-notification.level-1 {
+    background: linear-gradient(145deg, rgba(255, 193, 7, 0.95), rgba(255, 152, 0, 0.95));
+}
+
+.wanted-notification.level-2 {
+    background: linear-gradient(145deg, rgba(255, 152, 0, 0.95), rgba(244, 67, 54, 0.95));
+}
+
+.wanted-notification.level-3 {
+    background: linear-gradient(145deg, rgba(244, 67, 54, 0.95), rgba(233, 30, 99, 0.95));
+}
+
+.wanted-notification.level-4 {
+    background: linear-gradient(145deg, rgba(233, 30, 99, 0.95), rgba(156, 39, 176, 0.95));
+}
+
+.wanted-notification.level-5 {
+    background: linear-gradient(145deg, rgba(156, 39, 176, 0.95), rgba(103, 58, 183, 0.95));
+}
+
+/* ==========================================================================
+   Player Inventory System Styles
+   ========================================================================== */
+
+/* Main Inventory Menu Styles */
+#inventory-menu {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    max-width: 90vw;
+    height: 700px;
+    max-height: 90vh;
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    border: 2px solid #0f3460;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    padding: 0;
+    z-index: 1000;
+    display: none;
+    overflow: hidden;
+    animation: fadeInMenu 0.3s ease-out;
+}
+
+#inventory-menu.show {
+    display: block;
+}
+
+/* Inventory Header */
+.inventory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    background: linear-gradient(135deg, #0f3460, #1a1a2e);
+    border-bottom: 2px solid #e94560;
+    border-radius: 15px 15px 0 0;
+}
+
+.inventory-header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.inventory-close-btn {
+    background: #e94560;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.inventory-close-btn:hover {
+    background: #d63555;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(233, 69, 96, 0.4);
+}
+
+/* Inventory Content Layout */
+#inventory-menu .player-info-bar {
+    margin: 15px 25px;
+    padding: 12px 20px;
+    background: rgba(15, 52, 96, 0.3);
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+}
+
+/* Category Filter for Inventory */
+#inventory-category-filter {
+    margin: 0 25px 15px 25px;
+}
+
+#inventory-category-filter .category-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#inventory-category-filter .category-btn {
+    padding: 8px 16px;
+    background: rgba(15, 52, 96, 0.5);
+    border: 1px solid #0f3460;
+    border-radius: 20px;
+    color: #ffffff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+#inventory-category-filter .category-btn:hover {
+    background: rgba(233, 69, 96, 0.7);
+    border-color: #e94560;
+    transform: translateY(-1px);
+}
+
+#inventory-category-filter .category-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* Main Inventory Grid Section */
+#inventory-grid-section {
+    padding: 0 25px;
+    height: calc(100% - 200px);
+    overflow-y: auto;
+    display: flex;
+    gap: 20px;
+}
+
+/* Player Inventory Grid */
+#player-inventory-grid {
+    flex: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    padding: 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Inventory Item Styles */
+.inventory-item {
+    background: linear-gradient(145deg, #16213e, #1a1a2e);
+    border: 2px solid #0f3460;
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.inventory-item:hover {
+    border-color: #e94560;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(233, 69, 96, 0.3);
+}
+
+.inventory-item.selected {
+    border-color: #f39c12;
+    background: linear-gradient(145deg, #1a1a2e, #16213e);
+    box-shadow: 0 0 15px rgba(243, 156, 18, 0.4);
+}
+
+.inventory-item.equipped {
+    border-color: #27ae60;
+    background: linear-gradient(145deg, #1a1a2e, #0e5132);
+}
+
+.inventory-item.equipped::after {
+    content: "⚡";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #27ae60;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+/* Item Icon */
+.item-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Item Name */
+.item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 4px;
+    line-height: 1.2;
+}
+
+/* Item Count */
+.item-count {
+    font-size: 11px;
+    color: #bdc3c7;
+    font-weight: 500;
+}
+
+/* Equipment Panel */
+.equipment-panel {
+    flex: 1;
+    background: rgba(15, 52, 96, 0.2);
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 15px;
+    max-height: 400px;
+}
+
+.equipment-panel h3 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    color: #e94560;
+    text-align: center;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 8px;
+}
+
+.equipped-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.equipped-item {
+    background: rgba(39, 174, 96, 0.2);
+    border: 1px solid #27ae60;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.equipped-item .item-icon {
+    font-size: 16px;
+    margin: 0;
+}
+
+.equipped-item .item-details {
+    flex: 1;
+}
+
+.equipped-item .item-name {
+    font-size: 12px;
+    margin: 0;
+    color: #ffffff;
+}
+
+.equipped-item .item-count {
+    font-size: 10px;
+    color: #bdc3c7;
+}
+
+/* Item Actions Panel */
+.item-actions-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 25px;
+    right: 25px;
+    background: rgba(15, 52, 96, 0.9);
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 15px;
+    -webkit-backdrop-filter: blur(5px);
+    backdrop-filter: blur(5px);
+}
+
+.item-actions-panel.hidden {
+    display: none;
+}
+
+.item-actions-panel h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #f39c12;
+}
+
+.selected-item-info {
+    margin-bottom: 15px;
+}
+
+.selected-item-info p {
+    margin: 5px 0;
+    font-size: 12px;
+    color: #bdc3c7;
+}
+
+/* Action Buttons */
+.item-action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.equip-btn {
+    background: #27ae60;
+    color: white;
+}
+
+.equip-btn:hover {
+    background: #2ecc71;
+    transform: translateY(-1px);
+}
+
+.equip-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.use-btn {
+    background: #3498db;
+    color: white;
+}
+
+.use-btn:hover {
+    background: #5dade2;
+    transform: translateY(-1px);
+}
+
+.use-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.drop-btn {
+    background: #e74c3c;
+    color: white;
+}
+
+.drop-btn:hover {
+    background: #ec7063;
+    transform: translateY(-1px);
+}
+
+.drop-btn:disabled {
+    background: #7f8c8d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Scrollbar Styles for Inventory */
+#player-inventory-grid::-webkit-scrollbar,
+#inventory-grid-section::-webkit-scrollbar {
+    width: 8px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-track,
+#inventory-grid-section::-webkit-scrollbar-track {
+    background: rgba(15, 52, 96, 0.3);
+    border-radius: 4px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-thumb,
+#inventory-grid-section::-webkit-scrollbar-thumb {
+    background: #e94560;
+    border-radius: 4px;
+}
+
+#player-inventory-grid::-webkit-scrollbar-thumb:hover,
+#inventory-grid-section::-webkit-scrollbar-thumb:hover {
+    background: #d63555;
+}
+
+/* Empty Inventory State */
+.inventory-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+.inventory-empty .empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    display: block;
+    opacity: 0.5;
+}
+
+/* Responsive Design for Inventory */
+@media (max-width: 1024px) {
+    #inventory-menu {
+        width: 95vw;
+        height: 85vh;
+    }
+    
+    #player-inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+    
+    #inventory-grid-section {
+        flex-direction: column;
+    }
+    
+    .equipment-panel {
+        max-height: 200px;
+    }
+}
+
+@media (max-width: 768px) {
+    #inventory-menu {
+        width: 98vw;
+        height: 90vh;
+    }
+    
+    .inventory-header {
+        padding: 15px 20px;
+    }
+    
+    .inventory-header h1 {
+        font-size: 20px;
+    }
+    
+    #player-inventory-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    }
+    
+    .inventory-item {
+        min-height: 100px;
+        padding: 8px;
+    }
+    
+    .item-icon {
+        font-size: 24px;
+    }
 }
