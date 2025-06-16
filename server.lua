@@ -1163,6 +1163,15 @@ AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     
     -- Clear any pending save for this player ID (in case of reconnect)
     playersSavePending[src] = nil
+    
+    -- Send Config.Items to player after a short delay
+    Citizen.CreateThread(function()
+        Citizen.Wait(2000) -- Wait for player to fully connect
+        if Config and Config.Items then
+            TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+            Log(string.format("Auto-sent Config.Items to connecting player %s", src), "info")
+        end
+    end)
 end)
 
 -- Player dropped handler - immediate save on disconnect
@@ -1404,3 +1413,15 @@ function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
     return true, "Item removed"
 end
+
+-- Handle client request for Config.Items
+RegisterServerEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local source = source
+    if Config and Config.Items then
+        TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
+        Log(string.format("Sent Config.Items to player %s (%d items)", source, tablelength(Config.Items)), "info")
+    else
+        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found", source), "error")
+    end
+end)

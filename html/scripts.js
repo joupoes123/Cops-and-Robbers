@@ -1699,10 +1699,12 @@ function handleInventoryMessage(data) {
 
 function openInventoryUI(data) {
     if (isInventoryOpen) return;
-      isInventoryOpen = true;
+    
+    isInventoryOpen = true;
     console.log('[CNR_INVENTORY] Opening inventory UI');
     
-    // Show the inventory (HTML structure already exists)
+    // Create inventory UI if it doesn't exist    createInventoryUI();
+      // Show the inventory
     const inventoryContainer = document.getElementById('inventory-menu');
     if (inventoryContainer) {
         inventoryContainer.style.display = 'block';

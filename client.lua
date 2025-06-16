@@ -94,6 +94,7 @@ local g_protectedPolicePeds = {}
 -- Track spawned NPCs to prevent duplicates
 local g_spawnedNPCs = {}
 local g_spawnedVehicles = {}
+local g_robberVehiclesSpawned = false
 
 -- Safe Zone Client State
 local isCurrentlyInSafeZone = false
@@ -277,34 +278,6 @@ RegisterCommand('equipweapns', function()
     else
         print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
     end
-end, false)
-
--- Debug command to test inventory system
-RegisterCommand('testinv', function()
-    print("[CNR_CLIENT_DEBUG] Testing inventory system...")
-    local currentResourceName = GetCurrentResourceName()
-    
-    -- Test export existence
-    if exports[currentResourceName] and exports[currentResourceName].ToggleInventoryUI then
-        print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export exists")
-    else
-        print("[CNR_CLIENT_ERROR] ToggleInventoryUI export missing")
-    end
-    
-    if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
-        print("[CNR_CLIENT_DEBUG] EquipInventoryWeapons export exists")
-    else
-        print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export missing")
-    end
-    
-    -- Test inventory
-    TriggerEvent('cnr:openInventory')
-end, false)
-
--- Debug command to test vehicle spawning
-RegisterCommand('testveh', function()
-    print("[CNR_CLIENT_DEBUG] Testing vehicle spawning...")
-    SpawnRobberVehicles()
 end, false)
 
 -- =====================================
@@ -629,21 +602,15 @@ end
 
 -- Helper to spawn Robber Store peds and protect them from suppression
 function SpawnRobberStorePeds()
-    print("[CNR_CLIENT_DEBUG] SpawnRobberStorePeds called")
     if not Config or not Config.NPCVendors then
         print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
         return
     end
     
-    print(string.format("[CNR_CLIENT_DEBUG] Found %d NPCVendors in config", #Config.NPCVendors))
-    
     for _, vendor in ipairs(Config.NPCVendors) do
-        print(string.format("[CNR_CLIENT_DEBUG] Checking vendor: %s", vendor.name or "unknown"))
         if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
-            print(string.format("[CNR_CLIENT_DEBUG] Processing %s NPC", vendor.name))
             -- Check if already spawned
             if g_spawnedNPCs[vendor.name] then
-                print(string.format("[CNR_CLIENT_DEBUG] %s already spawned, skipping", vendor.name))
                 goto continue
             end
               local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
@@ -686,10 +653,19 @@ end
 
 -- Vehicle spawning system for robbers
 function SpawnRobberVehicles()
+    -- Prevent multiple spawning
+    if g_robberVehiclesSpawned then
+        print("[CNR_CLIENT_DEBUG] Robber vehicles already spawned, skipping")
+        return
+    end
+    
     if not Config or not Config.RobberVehicleSpawns then
         print("[CNR_CLIENT_ERROR] SpawnRobberVehicles: Config.RobberVehicleSpawns not found")
         return
     end
+    
+    print("[CNR_CLIENT_DEBUG] Spawning robber vehicles...")
+    g_robberVehiclesSpawned = true
     
     for _, vehicleSpawn in ipairs(Config.RobberVehicleSpawns) do
         if vehicleSpawn.location and vehicleSpawn.model then
@@ -1212,12 +1188,13 @@ Citizen.CreateThread(function()
         Citizen.Wait(100)
         if role == "cop" and Config and Config.NPCVendors and not isCopStoreUiOpen then
             local shown = false
-            for _, vendor in ipairs(Config.NPCVendors) do
-                if vendor.name == "Cop Store" and vendor.location then
+            for _, vendor in ipairs(Config.NPCVendors) do                if vendor.name == "Cop Store" and vendor.location then
                     local playerPed = PlayerPedId()
                     if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
                         local playerCoords = GetEntityCoords(playerPed)
-                        local dist = #(playerCoords - vendor.location)
+                        -- Handle both vector3 and vector4 formats for vendor location
+                        local vendorPos = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
+                        local dist = #(playerCoords - vendorPos)
                         if dist < 2.0 then
                             if not copStorePromptActive then
                                 DisplayHelpText("Press ~INPUT_CONTEXT~ to open Cop Store")
@@ -1241,6 +1218,50 @@ Citizen.CreateThread(function()
             if copStorePromptActive then
                 ClearAllHelpMessages()
                 copStorePromptActive = false
+            end
+            Citizen.Wait(300)
+        end
+    end
+end)
+
+-- Handle robber store interactions (Black Market Dealer and Gang Supplier)
+Citizen.CreateThread(function()
+    local robberStorePromptActive = false
+    while true do
+        Citizen.Wait(100)
+        if role == "robber" and Config and Config.NPCVendors and not isRobberStoreUiOpen then
+            local shown = false
+            for _, vendor in ipairs(Config.NPCVendors) do
+                if (vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier") and vendor.location then
+                    local playerPed = PlayerPedId()
+                    if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+                        local playerCoords = GetEntityCoords(playerPed)
+                        -- Handle both vector3 and vector4 formats for vendor location
+                        local vendorPos = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
+                        local dist = #(playerCoords - vendorPos)
+                        if dist < 2.0 then
+                            if not robberStorePromptActive then
+                                DisplayHelpText("Press ~INPUT_CONTEXT~ to open " .. vendor.name)
+                                robberStorePromptActive = true
+                            end
+                            shown = true
+                            if IsControlJustReleased(0, 51) then -- INPUT_CONTEXT (E)
+                                print("[CNR_CLIENT_DEBUG] Opening " .. vendor.name .. ". Current isRobberStoreUiOpen:", isRobberStoreUiOpen)
+                                TriggerServerEvent('cops_and_robbers:getItemList', 'Vendor', vendor.items, vendor.name)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+            if not shown and robberStorePromptActive then
+                ClearAllHelpMessages()
+                robberStorePromptActive = false
+            end
+        else
+            if robberStorePromptActive then
+                ClearAllHelpMessages()
+                robberStorePromptActive = false
             end
             Citizen.Wait(300)
         end
