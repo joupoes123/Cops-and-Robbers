@@ -201,7 +201,7 @@ local function AddPlayerMoney(playerId, amount, type)
         Log(string.format("AddPlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
         return false
     end
-    
+
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
@@ -231,7 +231,7 @@ local function RemovePlayerMoney(playerId, amount, type)
         Log(string.format("RemovePlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
         return false
     end
-    
+
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
@@ -289,7 +289,7 @@ end
 local function CalculateDynamicPrice(itemId, basePrice)
     -- Ensure basePrice is a number
     basePrice = tonumber(basePrice) or 0
-    
+
     if not Config.DynamicEconomy or not Config.DynamicEconomy.enabled then
         return basePrice
     end
@@ -344,7 +344,7 @@ LoadPlayerData = function(playerId)
         Log(string.format("LoadPlayerData: Invalid player ID %s", tostring(playerId)), "error")
         return
     end
-    
+
     -- Check if player is still online
     if not GetPlayerName(pIdNum) then
         Log(string.format("LoadPlayerData: Player %s is not online", pIdNum), "warn")
@@ -387,7 +387,7 @@ LoadPlayerData = function(playerId)
         Log("No save file found for " .. pIdNum .. " at " .. filename .. ". Initializing default data.")
         playersData[pIdNum] = nil -- Force default initialization
     end
-    
+
 if not playersData[pIdNum] then
         -- Log(string.format("LoadPlayerData: Initializing new default data structure for player %s.", pIdNum), "info")
         local playerPed = GetPlayerPed(tostring(pIdNum))
@@ -430,7 +430,7 @@ if not playersData[pIdNum] then
     else
         Log("LoadPlayerData: CRITICAL - playersData[pIdNum] became nil before InitializePlayerInventory for " .. pIdNum, "error")
     end
-    
+
 local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
@@ -442,9 +442,9 @@ end
 SavePlayerData = function(playerId)
     local pIdNum = tonumber(playerId)
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then 
+    if not pData then
         Log("SavePlayerData: No data for player " .. pIdNum, "warn")
-        return 
+        return
     end
 
     local license = GetPlayerLicense(pIdNum) -- Use helper
@@ -453,7 +453,7 @@ SavePlayerData = function(playerId)
         Log("SavePlayerData: Could not find license for player " .. pIdNum .. ". Using numeric ID as fallback filename. Data might not persist correctly across sessions if ID changes.", "warn")
         license = "pid_" .. pIdNum -- Fallback, not ideal for persistence if server IDs are not static
     end
-    
+
 local filename = "player_data/" .. license:gsub(":", "") .. ".json"
     -- Ensure lastKnownPosition is updated before saving
     local playerPed = GetPlayerPed(tostring(pIdNum))
@@ -474,13 +474,13 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log(string.format("SetPlayerRole: Invalid player ID %s", tostring(playerId)), "error")
         return
     end
-    
+
     -- Check if player is still online
     if not GetPlayerName(pIdNum) then
         Log(string.format("SetPlayerRole: Player %s is not online", pIdNum), "warn")
         return
     end
-    
+
     local playerName = GetPlayerName(pIdNum) or "Unknown"
     -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
@@ -556,11 +556,11 @@ AddXP = function(playerId, amount, type)
         Log("AddXP: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then 
+    if not pData then
         Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error")
-        return 
+        return
     end
     if type and pData.role ~= type and type ~= "general" then return end
 
@@ -590,10 +590,10 @@ ApplyPerks = function(playerId, level, role)
         Log("ApplyPerks: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then 
-        return 
+    if not pData then
+        return
     end
     pData.perks = {} -- Reset perks
     pData.extraSpikeStrips = 0 -- Reset specific perk values
@@ -661,10 +661,10 @@ function CheckAndPlaceBounty(playerId)
     if not Config.BountySettings.enabled then return end
     local wantedData = wantedPlayers[pIdNum]
     local pData = GetCnrPlayerData(pIdNum)
-    if not wantedData or not pData then 
-        return 
+    if not wantedData or not pData then
+        return
     end
-    
+
     if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
        not activeBounties[pIdNum] and (pData.bountyCooldownUntil or 0) < os.time() then
         local bountyAmount = Config.BountySettings.baseAmount
@@ -704,12 +704,12 @@ CreateThread(function() -- Bounty Increase & Expiry Loop
                 if activeBounties and playerId then
                     activeBounties[playerId] = nil
                 end
-                if pData then 
+                if pData then
                     local cooldownMinutes = Config.BountySettings.cooldownMinutes
                     if cooldownMinutes then
                         pData.bountyCooldownUntil = currentTime + (cooldownMinutes * 60)
                     end
-                    if isPlayerOnline then SavePlayerData(playerId) end 
+                    if isPlayerOnline then SavePlayerData(playerId) end
                 end
                 bountyUpdatedThisCycle = true
             end
@@ -732,7 +732,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
         Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if Config.DebugLogging then
         print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
     end
@@ -742,9 +742,9 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     if Config.DebugLogging then
         print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
     end
-    if not crimeConfig then 
+    if not crimeConfig then
         Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error")
-        return 
+        return
     end
 
     if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
@@ -773,18 +773,18 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
             end
         end
     end
-    
+
 currentWanted.stars = newStars
     -- Reduced logging: Only log on significant changes to reduce spam
     if newStars ~= (currentWanted.previousStars or 0) then
         Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
         currentWanted.previousStars = newStars
     end
-    
+
 SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
     -- The [CNR_SERVER_DEBUG] print previously here is now covered by the TRACE print above.
     SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
-    
+
     -- Send UI notification instead of chat message
     local uiLabel = ""
     for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
@@ -796,7 +796,7 @@ SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wa
     if uiLabel == "" then
         uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
     end
-    
+
     SafeTriggerClientEvent('cnr:showWantedNotification', pIdNum, newStars, currentWanted.wantedLevel, uiLabel)
 
     local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
@@ -838,7 +838,7 @@ ReduceWantedLevel = function(playerId, amount)
         Log("ReduceWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if wantedPlayers[pIdNum] then
         wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPlayers[pIdNum].wantedLevel - amount)
         local newStars = 0
@@ -887,7 +887,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         Log("SendToJail: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if GetPlayerName(pIdNum) == nil then return end -- Check player online
     local jailedPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
     arrestOptions = arrestOptions or {} -- Ensure options table exists
@@ -922,7 +922,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
             Log("SendToJail: Invalid arresting officer ID " .. tostring(arrestingOfficerId), "warn")
             return
         end
-        
+
         local arrestXP = 0
 
         -- Use originalWantedData.stars for XP calculation
@@ -960,11 +960,11 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
             TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY CLAIMED]", string.format("%s claimed $%d bounty on %s!", officerNameForBounty, bountyAmt, bountyInfo.name)} })
             activeBounties[pIdNum] = nil
             local robberPData = GetCnrPlayerData(pIdNum)
-            if robberPData then 
+            if robberPData then
                 robberPData.bountyCooldownUntil = os.time() + (Config.BountySettings.cooldownMinutes*60)
-                if GetPlayerName(pIdNum) then 
-                    SavePlayerData(pIdNum) 
-                end 
+                if GetPlayerName(pIdNum) then
+                    SavePlayerData(pIdNum)
+                end
             end
             TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
         end
@@ -973,7 +973,7 @@ end
 
 CreateThread(function() -- Jail time update loop
     while true do Wait(1000)
-        for playerId, jailData in pairs(jail) do 
+        for playerId, jailData in pairs(jail) do
             local pIdNum = tonumber(playerId)
             if pIdNum and pIdNum > 0 and GetPlayerName(pIdNum) ~= nil then -- Check player online
                 jailData.remainingTime = jailData.remainingTime - 1
@@ -1018,7 +1018,7 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
     end
-    
+
     -- Handle civilian role (no special spawn handling needed)
     if selectedRole == "civilian" then
         SetPlayerRole(pIdNum, nil) -- Clear role
@@ -1031,7 +1031,7 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     -- Teleport to spawn and set ped model (client will handle visuals, but send spawn info)
     local spawnLocation = nil
     local spawnHeading = 0.0
-    
+
     if selectedRole == "cop" and Config.SpawnPoints and Config.SpawnPoints.cop then
         spawnLocation = Config.SpawnPoints.cop
         spawnHeading = 270.0 -- Facing west (common for Mission Row PD)
@@ -1039,11 +1039,11 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
         spawnLocation = Config.SpawnPoints.robber
         spawnHeading = 180.0 -- Facing south
     end
-    
+
     if spawnLocation then
         TriggerClientEvent('cnr:spawnPlayerAt', src, spawnLocation, spawnHeading, selectedRole)
         Log(string.format("Player %s spawned as %s at %s", GetPlayerName(src), selectedRole, tostring(spawnLocation)))
-        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s", 
+        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s",
             GetPlayerName(src), src, selectedRole))
     else
         Log(string.format("No spawn point found for role %s", selectedRole), "warn")
@@ -1147,7 +1147,7 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
             })
         end
     end
-    
+
     print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
@@ -1174,10 +1174,10 @@ local function SavePlayerDataImmediate(playerId, reason)
     reason = reason or "manual"
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then return false end
-    
+
     local pData = GetCnrPlayerData(pIdNum)
     if not pData then return false end
-    
+
     local success = SavePlayerData(pIdNum)
     if success then
         playersSavePending[pIdNum] = nil -- Clear pending save flag
@@ -1193,14 +1193,14 @@ end
 CreateThread(function()
     while true do
         Wait(30000) -- 30 seconds
-        
+
         -- Save all players who have pending saves
         for playerId, needsSave in pairs(playersSavePending) do
             if needsSave and GetPlayerName(playerId) then
                 SavePlayerDataImmediate(playerId, "periodic")
             end
         end
-        
+
         -- Clean up offline players from pending saves
         for playerId, _ in pairs(playersSavePending) do
             if not GetPlayerName(playerId) then
@@ -1214,10 +1214,10 @@ end)
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
     Log(string.format("Player connecting: %s (ID: %s)", name, src))
-    
+
     -- Clear any pending save for this player ID (in case of reconnect)
     playersSavePending[src] = nil
-    
+
     -- Send Config.Items to player after a short delay
     Citizen.CreateThread(function()
         Citizen.Wait(2000) -- Wait for player to fully connect
@@ -1232,12 +1232,12 @@ end)
 AddEventHandler('playerDropped', function(reason)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
-    
+
     Log(string.format("Player %s (ID: %s) disconnected. Reason: %s", playerName, src, reason))
-    
+
     -- Immediately save player data before they disconnect
     SavePlayerDataImmediate(src, "disconnect")
-    
+
     -- Clean up player from all tracking tables
     playersSavePending[src] = nil
     playersData[src] = nil
@@ -1312,7 +1312,7 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
         TriggerClientEvent('cops_and_robbers:buyResult', src, true)
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
-        
+
         -- IMMEDIATE SAVE after purchase
         SavePlayerDataImmediate(src, "purchase")
     else
@@ -1353,7 +1353,7 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
         TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalEarned))
-        
+
         -- IMMEDIATE SAVE after sale
         SavePlayerDataImmediate(src, "sale")
     else
@@ -1367,7 +1367,7 @@ RegisterNetEvent('cnr:playerRespawned')
 AddEventHandler('cnr:playerRespawned', function()
     local src = source
     Log(string.format("Player %s respawned, restoring inventory", src))
-    
+
     -- Reload and sync player inventory
     local pData = GetCnrPlayerData(src)
     if pData and pData.inventory then
@@ -1384,10 +1384,10 @@ RegisterNetEvent('cnr:playerSpawned')
 AddEventHandler('cnr:playerSpawned', function()
     local src = source
     Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
-    
+
     -- Load player data
     LoadPlayerData(src)
-    
+
     -- Ensure inventory is properly synced after spawn
     Citizen.SetTimeout(2000, function() -- Give time for data to load
         local pData = GetCnrPlayerData(src)
@@ -1456,10 +1456,10 @@ function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     if pData.inventory[itemId].count <= 0 then
         pData.inventory[itemId] = nil
     end
-    
+
     -- Mark for save
     MarkPlayerForInventorySave(playerId)
-    
+
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
@@ -1473,10 +1473,10 @@ RegisterServerEvent('cnr:requestConfigItems')
 AddEventHandler('cnr:requestConfigItems', function()
     local source = source
     Log(string.format("Received Config.Items request from player %s", source), "info")
-    
+
     -- Give some time for Config to be fully loaded if this is early in startup
     Citizen.Wait(100)
-    
+
     if Config and Config.Items and type(Config.Items) == "table" then
         local itemCount = 0
         for _ in pairs(Config.Items) do itemCount = itemCount + 1 end

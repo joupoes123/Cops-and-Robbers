@@ -90,19 +90,19 @@ Config.NPCVendors = {
         model    = "s_m_y_dealer_01",
         name     = "Black Market Dealer",items    = {
             -- Advanced Robber Equipment
-            "weapon_knife", 
-            "weapon_switchblade", 
-            "weapon_microsmg", 
+            "weapon_knife",
+            "weapon_switchblade",
+            "weapon_microsmg",
             "weapon_smg",
             "weapon_assaultrifle",
             "weapon_sniperrifle",
             "weapon_emplauncher",
             "weapon_stickybomb",
-            
+
             -- NEW HIGH-END WEAPONS
             "weapon_compactrifle",
             "weapon_bullpuprifle",
-            "weapon_advancedrifle", 
+            "weapon_advancedrifle",
             "weapon_specialcarbine",
             "weapon_machinegun",
             "weapon_combatmg_mk2",
@@ -121,16 +121,16 @@ Config.NPCVendors = {
             "weapon_heavysniper_mk2",
             "weapon_marksmanrifle",
             "weapon_marksmanrifle_mk2",
-            
+
             -- AMMUNITION
-            "ammo_smg", 
+            "ammo_smg",
             "ammo_rifle",
             "ammo_sniper",
             "ammo_explosive",
             "ammo_minigun",
-            
+
             -- HEIST EQUIPMENT
-            "lockpick", 
+            "lockpick",
             "adv_lockpick",
             "hacking_device",
             "drill",
@@ -145,11 +145,11 @@ Config.NPCVendors = {
         name     = "Gang Supplier",
         items    = {
             -- Basic Robber Equipment
-            "weapon_pistol", 
+            "weapon_pistol",
             "weapon_bat",
             "weapon_crowbar",
-            "weapon_sawnoffshotgun", 
-            
+            "weapon_sawnoffshotgun",
+
             -- NEW MID-TIER WEAPONS
             "weapon_vintagepistol",
             "weapon_snspistol",
@@ -168,14 +168,14 @@ Config.NPCVendors = {
             "weapon_wrench",
             "weapon_hammer",
             "weapon_poolcue",
-            
+
             -- AMMUNITION
             "ammo_pistol",
-            "ammo_shotgun", 
+            "ammo_shotgun",
             "ammo_smg",
-            
+
             -- BASIC EQUIPMENT
-            "armor", 
+            "armor",
             "lockpick",
             "bandana",
             "mask",
@@ -192,51 +192,51 @@ Config.NPCVendors = {
             "weapon_nightstick",
             "weapon_flashlight",
             "weapon_fireextinguisher",
-            
+
             -- Level 2 Equipment
             "weapon_pumpshotgun",
             "weapon_combatpistol",
             "weapon_flaregun",
             "weapon_flare",
             "weapon_doubleaction",
-            
+
             -- Level 3 Equipment
             "weapon_pistol_mk2",
             "k9whistle",
             "weapon_smokegrenade",
             "weapon_combatshotgun",
-            
+
             -- Level 4 Equipment
             "weapon_carbinerifle",
             "weapon_revolver_mk2",
             "weapon_stunrod",
-            
+
             -- Level 10 Equipment
             "weapon_appistol",
             "weapon_heavyshotgun",
             "weapon_assaultshotgun",
             "weapon_specialcarbine_mk2",
             "weapon_combatmg",
-            
+
             -- Level 15 Equipment
             "weapon_sniperrifle",
             "weapon_bzgas",
-            
+
             -- Level 20 Equipment
             "weapon_snowball",
-            
+
             -- Ammunition
             "ammo_pistol",
             "ammo_shotgun",
             "ammo_rifle",
             "ammo_sniper",
-            
+
             -- Armor & Utility
             "armor",
             "heavy_armor",
             "firstaidkit",
             "medkit",
-            
+
             -- Cop Gear
             "spikestrip_item",
             "speedradar_gun"
@@ -265,7 +265,7 @@ Config.Items = {
     { name = "Heavy Pistol",          itemId = "weapon_heavypistol",      basePrice = 1000, category = "Weapons", minLevelCop = 5, minLevelRobber = 7, icon = "🔫" },
     { name = "Double-Action Revolver", itemId = "weapon_doubleaction",     basePrice = 900,  category = "Weapons", minLevelCop = 2, icon = "🔫" },
     { name = "Heavy Revolver Mk II",  itemId = "weapon_revolver_mk2",     basePrice = 1500, category = "Weapons", minLevelCop = 4, forCop = true, icon = "🔫" },
-    
+
     { name = "SMG",                   itemId = "weapon_smg",              basePrice = 1500, category = "Weapons", minLevelRobber = 5, icon = "💥" },
     { name = "Micro SMG",             itemId = "weapon_microsmg",         basePrice = 1250, category = "Weapons", minLevelRobber = 4, icon = "💥" },
     { name = "Assault Rifle",         itemId = "weapon_assaultrifle",     basePrice = 2500, category = "Weapons", minLevelCop = 8, minLevelRobber = 10, icon = "🔫" },
@@ -273,7 +273,7 @@ Config.Items = {
     { name = "Special Carbine Mk II", itemId = "weapon_specialcarbine_mk2", basePrice = 4000, category = "Weapons", forCop = true, minLevelCop = 10, icon = "🔫" },
     { name = "Combat MG",             itemId = "weapon_combatmg",         basePrice = 5500, category = "Weapons", forCop = true, minLevelCop = 10, icon = "💥" },
     { name = "Sniper Rifle",          itemId = "weapon_sniperrifle",      basePrice = 5000, category = "Weapons", minLevelCop = 15, minLevelRobber = 15, icon = "🎯" },
-    
+
     -- NEW HIGH-END WEAPONS (Black Market)
     { name = "Compact Rifle",         itemId = "weapon_compactrifle",     basePrice = 2800, category = "Weapons", minLevelRobber = 8, icon = "🔫" },
     { name = "Bullpup Rifle",         itemId = "weapon_bullpuprifle",     basePrice = 3200, category = "Weapons", minLevelRobber = 10, icon = "🔫" },
@@ -290,7 +290,7 @@ Config.Items = {
     { name = "Bullpup Shotgun",       itemId = "weapon_bullpupshotgun",   basePrice = 2200, category = "Weapons", minLevelRobber = 6, icon = "💥" },
     { name = "Double Barrel Shotgun", itemId = "weapon_dbshotgun",        basePrice = 2800, category = "Weapons", minLevelRobber = 8, icon = "💥" },
     { name = "Musket",                itemId = "weapon_musket",           basePrice = 4000, category = "Weapons", minLevelRobber = 10, icon = "🎯" },
-    
+
     -- EXPLOSIVE WEAPONS
     { name = "Grenade",               itemId = "weapon_grenade",          basePrice = 1500, category = "Explosives", minLevelRobber = 10, icon = "💣" },
     { name = "RPG",                   itemId = "weapon_rpg",              basePrice = 25000, category = "Explosives", minLevelRobber = 20, icon = "🚀" },
@@ -298,20 +298,20 @@ Config.Items = {
     { name = "Homing Launcher",       itemId = "weapon_hominglauncher",   basePrice = 30000, category = "Explosives", minLevelRobber = 20, icon = "🎯" },
     { name = "Firework Launcher",     itemId = "weapon_firework",         basePrice = 5000, category = "Explosives", minLevelRobber = 12, icon = "🎇" },
     { name = "Railgun",               itemId = "weapon_railgun",          basePrice = 50000, category = "Explosives", minLevelRobber = 20, icon = "⚡" },
-    
+
     -- NEW MID-TIER WEAPONS (Gang Supplier)
     { name = "Vintage Pistol",        itemId = "weapon_vintagepistol",    basePrice = 600, category = "Weapons", minLevelRobber = 2, icon = "🔫" },
     { name = "SNS Pistol",            itemId = "weapon_snspistol",        basePrice = 400, category = "Weapons", minLevelRobber = 1, icon = "🔫" },
     { name = "Machine Pistol",        itemId = "weapon_machinepistol",    basePrice = 1100, category = "Weapons", minLevelRobber = 4, icon = "💥" },
     { name = "Mini SMG",              itemId = "weapon_minismg",          basePrice = 1300, category = "Weapons", minLevelRobber = 5, icon = "💥" },
     { name = "Gusenberg Sweeper",     itemId = "weapon_gusenberg",        basePrice = 2000, category = "Weapons", minLevelRobber = 8, icon = "💥" },
-    
+
     { name = "Pump Shotgun",          itemId = "weapon_pumpshotgun",      basePrice = 1200, category = "Weapons", minLevelCop = 2, icon = "💥" },
     { name = "Combat Shotgun",        itemId = "weapon_combatshotgun",    basePrice = 1800, category = "Weapons", minLevelCop = 3, forCop = true, icon = "💥" },
     { name = "Heavy Shotgun",         itemId = "weapon_heavyshotgun",     basePrice = 2500, category = "Weapons", minLevelCop = 10, forCop = true, icon = "💥" },
     { name = "Assault Shotgun",       itemId = "weapon_assaultshotgun",   basePrice = 3000, category = "Weapons", minLevelCop = 10, forCop = true, icon = "💥" },
     { name = "Sawed-Off Shotgun",     itemId = "weapon_sawnoffshotgun",   basePrice = 1000, category = "Weapons", minLevelRobber = 3, icon = "💥" },
-    
+
     { name = "Flare Gun",             itemId = "weapon_flaregun",         basePrice = 400,  category = "Weapons", minLevelCop = 2, forCop = true, icon = "🎇" },
     { name = "Compact EMP Launcher",  itemId = "weapon_emplauncher",      basePrice = 8000, category = "Weapons", minLevelRobber = 8, icon = "⚡" },
     { name = "Snowball Launcher",     itemId = "weapon_snowball",         basePrice = 1,    category = "Weapons", minLevelCop = 20, forCop = true, icon = "❄️" },
@@ -341,11 +341,11 @@ Config.Items = {
     { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition", weaponLink = "weapon_carbinerifle", ammoAmount = 30, icon = "📦" },
     { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition", weaponLink = "weapon_pumpshotgun", ammoAmount = 8, icon = "📦" },
     { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition", weaponLink = "weapon_sniperrifle", ammoAmount = 5, icon = "📦" },
-    
+
     -- NEW AMMUNITION TYPES
     { name = "Explosive Ammo",    itemId = "ammo_explosive",        basePrice = 500,  category = "Ammunition", weaponLink = "weapon_rpg", ammoAmount = 3, icon = "💥" },
     { name = "Minigun Ammo",      itemId = "ammo_minigun",          basePrice = 300,  category = "Ammunition", weaponLink = "weapon_minigun", ammoAmount = 100, icon = "📦" },
-    
+
     -- Armor and Utility
     { name = "Body Armor",           itemId = "armor",                   basePrice = 500,  category = "Armor", icon = "🛡️" },
     { name = "Heavy Armor",          itemId = "heavy_armor",             basePrice = 1000, category = "Armor", minLevelCop = 6, minLevelRobber = 8, icon = "🛡️" },
@@ -362,14 +362,14 @@ Config.Items = {
     { name = "Drill",                itemId = "drill",                   basePrice = 500,  category = "Utility", minLevelRobber = 3, icon = "🔧" },
     { name = "Thermite",             itemId = "thermite",                basePrice = 1500, category = "Utility", minLevelRobber = 8, icon = "🧨" },
     { name = "C4 Explosive",         itemId = "c4",                      basePrice = 2000, category = "Utility", minLevelRobber = 12, icon = "💣" },    { name = "Sticky Bomb",          itemId = "weapon_stickybomb",       basePrice = 2500, category = "Utility", minLevelRobber = 15, icon = "💣" },
-    
+
     -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
     { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories", icon = "🎭" },
     { name = "Gloves",            itemId = "gloves",                basePrice = 100,  category = "Accessories", icon = "🧤" },
     { name = "Hat",               itemId = "hat",                   basePrice = 150,  category = "Accessories", icon = "🧢" },
     { name = "Bandana",           itemId = "bandana",               basePrice = 80,   category = "Accessories", icon = "🧣" },
     { name = "Sunglasses",        itemId = "sunglasses",            basePrice = 120,  category = "Accessories", icon = "🕶️" },
-    
+
     -- Cop Gear (Restricted items for Cops)
     { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true, icon = "⚡" },
     { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2, icon = "📡" },
@@ -869,7 +869,7 @@ Config.WeaponNames = {
     ["weapon_vintagepistol"] = "Vintage Pistol",
     ["weapon_snspistol"] = "SNS Pistol",
     ["weapon_machinepistol"] = "Machine Pistol",
-    
+
     -- SMGs & Rifles
     ["weapon_smg"] = "SMG",
     ["weapon_microsmg"] = "Micro SMG",
@@ -891,7 +891,7 @@ Config.WeaponNames = {
     ["weapon_minigun"] = "Minigun",
     ["weapon_minismg"] = "Mini SMG",
     ["weapon_gusenberg"] = "Gusenberg Sweeper",
-    
+
     -- Shotguns
     ["weapon_pumpshotgun"] = "Pump Shotgun",
     ["weapon_combatshotgun"] = "Combat Shotgun",
@@ -902,7 +902,7 @@ Config.WeaponNames = {
     ["weapon_autoshotgun"] = "Auto Shotgun",
     ["weapon_dbshotgun"] = "Double Barrel Shotgun",
     ["weapon_musket"] = "Musket",
-    
+
     -- Melee Weapons
     ["weapon_knife"] = "Knife",
     ["weapon_bat"] = "Baseball Bat",
@@ -919,7 +919,7 @@ Config.WeaponNames = {
     ["weapon_wrench"] = "Wrench",
     ["weapon_hammer"] = "Hammer",
     ["weapon_poolcue"] = "Pool Cue",
-    
+
     -- Special Weapons
     ["weapon_flaregun"] = "Flare Gun",
     ["weapon_fireextinguisher"] = "Fire Extinguisher",
@@ -932,7 +932,7 @@ Config.WeaponNames = {
     ["weapon_hominglauncher"] = "Homing Launcher",
     ["weapon_firework"] = "Firework Launcher",
     ["weapon_railgun"] = "Railgun",
-    
+
     -- Throwables
     ["weapon_flare"] = "Flare",
     ["weapon_smokegrenade"] = "Tear Gas",

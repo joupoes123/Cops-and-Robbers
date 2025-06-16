@@ -46,7 +46,7 @@ AddEventHandler('cnr:receiveConfigItems', function(receivedConfigItems)
         itemConfig = clientConfigItems
     })
     Log("Sent Config.Items to NUI via SendNUIMessage.", "info")
-    
+
     -- Check if localPlayerInventory currently holds minimal data (e.g. from an early sync before config arrived)
     -- A simple heuristic: if an item exists and its 'name' field is the same as its 'itemId', it's likely minimal.
     if localPlayerInventory and next(localPlayerInventory) then
@@ -70,21 +70,21 @@ Citizen.CreateThread(function()
     while not NetworkIsPlayerActive(PlayerId()) do
         Citizen.Wait(500)
     end
-    
+
     Citizen.Wait(3000) -- Wait 3 seconds after player is active
-    
+
     local attempts = 0
     local maxAttempts = 10
-    
+
     while not clientConfigItems and attempts < maxAttempts do
         attempts = attempts + 1
         TriggerServerEvent('cnr:requestConfigItems')
         Log("Requested Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "info")
-        
+
         -- Wait 3 seconds for response
         Citizen.Wait(3000)
     end
-    
+
     if not clientConfigItems then
         Log("Failed to receive Config.Items from server after " .. maxAttempts .. " attempts", "error")
     end
@@ -98,14 +98,14 @@ function UpdateFullInventory(minimalInventoryData)
     if not configItems then
         Log("UpdateFullInventory: clientConfigItems not yet available. Requesting from server and storing minimal inventory.", "error")
         localPlayerInventory = minimalInventoryData or {}
-        
+
         -- Request config items from server with retry logic
         local attempts = 0
         local maxAttempts = 5
-        
+
         TriggerServerEvent('cnr:requestConfigItems')
         Log("Requested Config.Items from server due to missing data.", "info")
-        
+
         -- Set up a timer to retry if needed
         Citizen.CreateThread(function()
             while not GetClientConfigItems() and attempts < maxAttempts do
@@ -116,14 +116,14 @@ function UpdateFullInventory(minimalInventoryData)
                     Log("Retry requesting Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "warn")
                 end
             end
-            
+
             -- If we got the config items, try to update inventory again
             if GetClientConfigItems() and localPlayerInventory and next(localPlayerInventory) then
                 Log("Config.Items received after retry, attempting inventory reconstruction again", "info")
                 UpdateFullInventory(localPlayerInventory)
             end
         end)
-        
+
         return
     end
 
@@ -208,7 +208,7 @@ function EquipInventoryWeapons()
     end
 
     Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")
-    
+
 if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
         Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
@@ -222,17 +222,17 @@ if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
     -- First, remove all weapons from the player to ensure clean state (armor is preserved)
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
     RemoveAllPedWeapons(playerPed, true)
-    
+
 Citizen.Wait(200) -- Longer wait to ensure weapons are removed
-    
+
     local processedItemCount = 0
     local weaponsEquipped = 0
     local armorApplied = false
-    
+
     -- Process each inventory item once
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
-        
+
         if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
             -- Handle Armor items first (apply to player's armor bar)
             if itemData.category == "Armor" and itemData.count > 0 and not armorApplied then
@@ -240,25 +240,25 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
                 if itemId == "heavy_armor" then
                     armorAmount = 200 -- Heavy armor gives more protection
                 end
-                
+
                 SetPedArmour(playerPed, armorAmount)
                 armorApplied = true
                 Log(string.format("  ✓ APPLIED ARMOR: %s (Amount: %d)", itemData.name or itemId, armorAmount), "info")
-            
+
             -- Handle weapon items (including gas weapons in Utility category)
-            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or 
+            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or
                    (itemData.category == "Utility" and string.find(itemId, "weapon_"))) and itemData.count > 0 then
                 -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
                 local upperItemId = string.upper(itemId)
                 local weaponHash = GetHashKey(upperItemId)
-                
+
                 -- Also try the original itemId if uppercase doesn't work
                 if weaponHash == 0 or weaponHash == -1 then
                     weaponHash = GetHashKey(itemId)
                 end
-                
+
                 Log(string.format("  DEBUG_HASH: ItemId: %s, UpperCase: %s, Hash: %s", itemId, upperItemId, weaponHash), "info")
-                
+
                 if weaponHash ~= 0 and weaponHash ~= -1 then
                     -- Determine ammo: use itemData.ammo if present, else default
                     local ammoCount = itemData.ammo
@@ -269,14 +269,14 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
                            ammoCount = 150 -- Increased default ammo for better testing
                         end
                     end
-                    
+
                     -- Give weapon with ammo (without immediately equipping)
                     GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
                     Citizen.Wait(100) -- Wait between weapons
-                    
+
                     -- Ensure ammo is set correctly
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
-                    
+
                     -- Verify the weapon was equipped
                     local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
                     if hasWeapon then
@@ -295,9 +295,9 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
             Log(string.format("  WARNING: Item ID: %s missing data (Name: %s, Category: %s, Count: %s).", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "warn")
         end
     end
-    
+
     Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info")
-    
+
     -- Select the first weapon if any weapons were equipped
     if weaponsEquipped > 0 then
         Citizen.Wait(200)
@@ -320,7 +320,7 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
             end
         end
     end
-    
+
     -- Final verification - list all weapons the player currently has
     Citizen.Wait(100)
     Log("EquipInventoryWeapons: Final weapon check:", "info")
@@ -372,7 +372,7 @@ RegisterCommand('checkconfig', function()
     else
         Log("Config.Items NOT available!", "error")
     end
-    
+
     Log("Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
 end, false)
 
@@ -395,7 +395,7 @@ exports('ToggleInventoryUI', ToggleInventoryUI)
 RegisterNetEvent('cnr:openInventory')
 AddEventHandler('cnr:openInventory', function()
     Log("Received cnr:openInventory event", "info")
-    
+
     -- Check if we have Config.Items available
     if not clientConfigItems or not next(clientConfigItems) then
         -- Show error message to player
@@ -403,7 +403,7 @@ AddEventHandler('cnr:openInventory', function()
         Log("Inventory open failed: Config.Items not yet available", "warn")
         return
     end
-    
+
     if not isInventoryOpen then
         isInventoryOpen = true
         SendNUIMessage({

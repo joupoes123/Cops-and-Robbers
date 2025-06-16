@@ -210,17 +210,17 @@ end)
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(1000)
-        
+
         if role == "cop" then
             local playerId = PlayerId()
             local currentWantedLevel = GetPlayerWantedLevel(playerId)
-            
+
             if currentWantedLevel > 0 then
                 print("[CNR_CLIENT_DEBUG] Suppressing wanted level for cop player")
                 SetPlayerWantedLevel(playerId, 0, false)
                 SetPlayerWantedLevelNow(playerId, false)
             end
-            
+
             -- Ensure police blips are hidden for cop players
             SetPoliceIgnorePlayer(PlayerPedId(), true)
         end
@@ -246,7 +246,7 @@ Citizen.CreateThread(function()
             print("[CNR_CLIENT_DEBUG] I key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
             print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
-            
+
             if exports[currentResourceName] and exports[currentResourceName].ToggleInventoryUI then
                 print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export found, calling it")
                 exports[currentResourceName]:ToggleInventoryUI()
@@ -387,7 +387,7 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         playerWeapons["weapon_bat"] = true
         playerAmmo["weapon_bat"] = 1
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
-        
+
         -- Note: Robber vehicles are spawned on resource start, not per-player
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
@@ -563,25 +563,25 @@ function SpawnCopStorePed()
     if g_spawnedNPCs["CopStore"] then
         return
     end
-    
+
     local vendor = nil
     if Config and Config.NPCVendors then
         for _, v in ipairs(Config.NPCVendors) do
-            if v.name == "Cop Store" then 
+            if v.name == "Cop Store" then
                 vendor = v
-                break 
+                break
             end
         end
     end
-    if not vendor then 
+    if not vendor then
         print("[CNR_CLIENT_ERROR] Cop Store vendor not found in Config.NPCVendors")
-        return 
+        return
     end
-    
+
     local model = GetHashKey("s_m_m_ciasec_01") -- Use a unique cop-like model not used by NPC police
     RequestModel(model)
     while not HasModelLoaded(model) do Citizen.Wait(10) end
-    
+
     -- Handle both vector3 and vector4 formats for location
     local x, y, z, heading
     if vendor.location.w then
@@ -592,7 +592,7 @@ function SpawnCopStorePed()
         x, y, z = vendor.location.x, vendor.location.y, vendor.location.z
         heading = vendor.heading or 0.0
     end
-    
+
     local ped = CreatePed(4, model, x, y, z - 1.0, heading, false, true)
     SetEntityAsMissionEntity(ped, true, true)
     SetBlockingOfNonTemporaryEvents(ped, true)
@@ -613,7 +613,7 @@ function SpawnRobberStorePeds()
         print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
         return
     end
-    
+
     for _, vendor in ipairs(Config.NPCVendors) do
         if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
             -- Check if already spawned
@@ -622,10 +622,10 @@ function SpawnRobberStorePeds()
             end
               local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
             RequestModel(modelHash)
-            while not HasModelLoaded(modelHash) do 
-                Citizen.Wait(10) 
+            while not HasModelLoaded(modelHash) do
+                Citizen.Wait(10)
             end
-            
+
             -- Handle both vector3 and vector4 formats for location
             local x, y, z, heading
             if vendor.location.w then
@@ -636,7 +636,7 @@ function SpawnRobberStorePeds()
                 x, y, z = vendor.location.x, vendor.location.y, vendor.location.z
                 heading = vendor.heading or 0.0
             end
-            
+
             local ped = CreatePed(4, modelHash, x, y, z - 1.0, heading, false, true)
             SetEntityAsMissionEntity(ped, true, true)
             SetBlockingOfNonTemporaryEvents(ped, true)
@@ -646,13 +646,13 @@ function SpawnRobberStorePeds()
             SetPedDiesWhenInjured(ped, false)
             SetEntityInvincible(ped, true)
             FreezeEntityPosition(ped, true)
-            
+
             -- Add to protected peds to prevent deletion by NPC suppression
             g_protectedPolicePeds[ped] = true
             g_spawnedNPCs[vendor.name] = ped
-            
+
             print(string.format("[CNR_CLIENT_DEBUG] Spawned and protected %s ped at %s", vendor.name, tostring(vendor.location)))
-            
+
             ::continue::
         end
     end
@@ -665,20 +665,20 @@ function SpawnRobberVehicles()
         print("[CNR_CLIENT_DEBUG] Robber vehicles already spawned, skipping")
         return
     end
-    
+
     if not Config or not Config.RobberVehicleSpawns then
         print("[CNR_CLIENT_ERROR] SpawnRobberVehicles: Config.RobberVehicleSpawns not found")
         return
     end
-    
+
     print("[CNR_CLIENT_DEBUG] Spawning robber vehicles...")
     g_robberVehiclesSpawned = true
-    
+
     for _, vehicleSpawn in ipairs(Config.RobberVehicleSpawns) do
         if vehicleSpawn.location and vehicleSpawn.model then
             local modelHash = GetHashKey(vehicleSpawn.model)
             RequestModel(modelHash)
-            
+
             -- Wait for model to load
             local attempts = 0
             while not HasModelLoaded(modelHash) and attempts < 100 do
@@ -696,7 +696,7 @@ function SpawnRobberVehicles()
                     x, y, z = vehicleSpawn.location.x, vehicleSpawn.location.y, vehicleSpawn.location.z
                     heading = vehicleSpawn.heading or 0.0
                 end
-                
+
                 local vehicle = CreateVehicle(
                     modelHash,
                     x, y, z,
@@ -704,7 +704,7 @@ function SpawnRobberVehicles()
                     true, -- isNetwork
                     false -- netMissionEntity
                 )
-                
+
                 if vehicle and DoesEntityExist(vehicle) then
                     -- Make vehicle available and persistent
                     SetEntityAsMissionEntity(vehicle, true, true)
@@ -718,7 +718,7 @@ function SpawnRobberVehicles()
             else
                 print(string.format("[CNR_CLIENT_ERROR] Failed to load model %s after 100 attempts", vehicleSpawn.model))
             end
-            
+
             SetModelAsNoLongerNeeded(modelHash)
         end
     end
@@ -744,7 +744,7 @@ end)
 
 AddEventHandler('playerSpawned', function()
     TriggerServerEvent('cnr:playerSpawned') -- Corrected event name
-    
+
     -- Only show role selection if player doesn't have a role yet
     if not role or role == "" then
         SendNUIMessage({ action = 'showRoleSelection', resourceName = GetCurrentResourceName() })
@@ -883,10 +883,10 @@ RegisterNetEvent('cnr:xpGained')
 AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
     playerData.xp = newTotalXp
     ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
-    SendNUIMessage({ 
-        action = "updateXPBar", 
-        currentXP = playerData.xp, 
-        currentLevel = playerData.level, 
+    SendNUIMessage({
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
         xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role),
         xpGained = amount
     })
@@ -898,7 +898,7 @@ AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
     playerData.level = newLevel
     playerData.xp = newTotalXp
     ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
-    SendNUIMessage({ 
+    SendNUIMessage({
         action = "updateXPBar",
         currentXP = playerData.xp,
         currentLevel = playerData.level,
@@ -990,9 +990,9 @@ AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, locat
         CreateThread(function()
              while not g_isPlayerPedReady do Citizen.Wait(500) end
             local attempts = 0
-            while not HasModelLoaded(model) and attempts < 100 do 
+            while not HasModelLoaded(model) and attempts < 100 do
                 Citizen.Wait(100)
-                attempts = attempts + 1 
+                attempts = attempts + 1
             end
             if HasModelLoaded(model) then
                 propEntity = CreateObject(model, location.x, location.y, location.z - 0.9, false, true, true)
@@ -1008,17 +1008,17 @@ end)
 
 RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
 AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
-    if activeDropBlips[dropId] then 
+    if activeDropBlips[dropId] then
         RemoveBlip(activeDropBlips[dropId])
-        activeDropBlips[dropId] = nil 
+        activeDropBlips[dropId] = nil
     end
     if clientActiveContrabandDrops[dropId] then
         if clientActiveContrabandDrops[dropId].propEntity and DoesEntityExist(clientActiveContrabandDrops[dropId].propEntity) then DeleteEntity(clientActiveContrabandDrops[dropId].propEntity) end
         clientActiveContrabandDrops[dropId] = nil
     end
-    if isCollectingFromDrop == dropId then 
+    if isCollectingFromDrop == dropId then
         isCollectingFromDrop = nil
-        collectionTimerEnd = 0 
+        collectionTimerEnd = 0
     end
     ShowNotification("~g~Contraband '" .. itemName .. "' was collected by " .. collectorName .. ".")
 end)
@@ -1039,9 +1039,9 @@ Citizen.CreateThread(function()
     while true do
         local loopWait = interactionCheckInterval
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
             Citizen.Wait(1000)
-            goto continue_contraband_loop 
+            goto continue_contraband_loop
         end
         if role == 'robber' then
             local playerCoords = GetEntityCoords(playerPed)
@@ -1061,19 +1061,19 @@ Citizen.CreateThread(function()
                 loopWait = activeCollectionWait
                 local currentDropData = clientActiveContrabandDrops[isCollectingFromDrop]
                 if currentDropData and currentDropData.location then
-                    if #(playerCoords - currentDropData.location) > 5.0 then 
+                    if #(playerCoords - currentDropData.location) > 5.0 then
                         ShowNotification("~r~Contraband collection cancelled: Moved too far.")
                         isCollectingFromDrop = nil
                         collectionTimerEnd = 0
-                    elseif GetGameTimer() >= collectionTimerEnd then 
+                    elseif GetGameTimer() >= collectionTimerEnd then
                         ShowNotification("~g~Collection complete! Verifying with server...")
                         TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop)
                         isCollectingFromDrop = nil
-                        collectionTimerEnd = 0 
+                        collectionTimerEnd = 0
                     end
-                else 
+                else
                     isCollectingFromDrop = nil
-                    collectionTimerEnd = 0 
+                    collectionTimerEnd = 0
                 end
             end
         end
@@ -1130,9 +1130,9 @@ function CalculateXpForNextLevelClient(currentLevel, playerRole)
     local maxLvl = Config.MaxLevel or 10
     if currentLevel >= maxLvl then return playerData.xp end
     if Config.XPTable and Config.XPTable[currentLevel] then return Config.XPTable[currentLevel]
-    else 
+    else
         print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn")
-        return 999999 
+        return 999999
     end
 end
 
@@ -1194,12 +1194,12 @@ end)
 
 RegisterNetEvent('cnr:spawnPlayerAt')
 AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
-    print(string.format("[CNR_CLIENT_DEBUG] cnr:spawnPlayerAt received: location=%s, heading=%s, role=%s", 
+    print(string.format("[CNR_CLIENT_DEBUG] cnr:spawnPlayerAt received: location=%s, heading=%s, role=%s",
         tostring(location), tostring(heading), tostring(role)))
-    
+
     local playerPed = PlayerPedId()
     local spawnX, spawnY, spawnZ = nil, nil, nil
-    
+
     -- Handle both vector3 and table formats for location
     if location then
         if type(location) == "vector3" then
@@ -1208,14 +1208,14 @@ AddEventHandler('cnr:spawnPlayerAt', function(location, heading, role)
             spawnX, spawnY, spawnZ = location.x, location.y, location.z
         end
     end
-    
+
     if spawnX and spawnY and spawnZ then
         SetEntityCoords(playerPed, spawnX, spawnY, spawnZ, false, false, false, true)
         if heading then
             SetEntityHeading(playerPed, heading)
         end
         ShowNotification("Spawned as " .. tostring(role or "unknown"))
-        print(string.format("[CNR_CLIENT_DEBUG] Player successfully spawned at %f, %f, %f as %s", 
+        print(string.format("[CNR_CLIENT_DEBUG] Player successfully spawned at %f, %f, %f as %s",
             spawnX, spawnY, spawnZ, tostring(role)))
     else
         print(string.format("[CNR_CLIENT_ERROR] Invalid spawn location received: %s", tostring(location)))
@@ -1419,16 +1419,16 @@ local isInventoryOpen = false
 RegisterNetEvent('cnr:openInventory')
 AddEventHandler('cnr:openInventory', function()
     if isInventoryOpen then return end
-    
+
     isInventoryOpen = true
     print("[CNR_CLIENT_DEBUG] Opening inventory UI")
-    
+
     -- Send NUI message to open inventory
     SendNUIMessage({
         action = 'openInventory',
         resourceName = GetCurrentResourceName()
     })
-    
+
     -- Set focus to UI
     SetNuiFocus(true, true)
 end)
@@ -1437,13 +1437,13 @@ end)
 RegisterNetEvent('cnr:closeInventory')
 AddEventHandler('cnr:closeInventory', function()
     if not isInventoryOpen then return end
-    
+
     isInventoryOpen = false
     print("[CNR_CLIENT_DEBUG] Closing inventory UI")
-    
+
     -- Send NUI message to close inventory
     SendNUIMessage({ action = 'closeInventory' })
-    
+
     -- Release focus
     SetNuiFocus(false, false)
 end)
@@ -1460,26 +1460,26 @@ end)
 -- NUI Callback to get player inventory for UI
 RegisterNUICallback("getPlayerInventoryForUI", function(data, cb)
     print("[CNR_CLIENT_DEBUG] Requesting inventory for UI")
-    
+
     local responded = false
     local handler
-    
+
     -- Set up event handler for server response
     handler = AddEventHandler('cnr:sendInventoryForUI', function(inventoryData, equippedItems)
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        
-        cb({ 
+
+        cb({
             success = true,
             inventory = inventoryData or {},
             equippedItems = equippedItems or {}
         })
     end)
-    
+
     -- Request inventory from server
     TriggerServerEvent('cnr:getInventoryForUI')
-    
+
     -- Timeout after 3 seconds
     Citizen.SetTimeout(3000, function()
         if not responded then
@@ -1496,24 +1496,24 @@ RegisterNUICallback("equipInventoryItem", function(data, cb)
         cb({ success = false, error = "Invalid equip request" })
         return
     end
-    
+
     print(string.format("[CNR_CLIENT_DEBUG] Equipment request: %s, equip: %s", data.itemId, tostring(data.equip)))
-    
+
     local responded = false
     local handler
-    
+
     -- Set up event handler for server response
     handler = AddEventHandler('cnr:equipItemResult', function(success, message)
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        
+
         cb({ success = success, error = message })
     end)
-    
+
     -- Send equip request to server
     TriggerServerEvent('cnr:equipItem', data.itemId, data.equip == true)
-    
+
     -- Timeout
     Citizen.SetTimeout(3000, function()
         if not responded then
@@ -1530,24 +1530,24 @@ RegisterNUICallback("useInventoryItem", function(data, cb)
         cb({ success = false, error = "Invalid use request" })
         return
     end
-    
+
     print(string.format("[CNR_CLIENT_DEBUG] Use item request: %s", data.itemId))
-    
+
     local responded = false
     local handler
-    
+
     -- Set up event handler for server response
     handler = AddEventHandler('cnr:useItemResult', function(success, message, consumed)
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        
+
         cb({ success = success, error = message, consumed = consumed })
     end)
-    
+
     -- Send use request to server
     TriggerServerEvent('cnr:useItem', data.itemId)
-    
+
     -- Timeout
     Citizen.SetTimeout(3000, function()
         if not responded then
@@ -1564,24 +1564,24 @@ RegisterNUICallback("dropInventoryItem", function(data, cb)
         cb({ success = false, error = "Invalid drop request" })
         return
     end
-    
+
     print(string.format("[CNR_CLIENT_DEBUG] Drop item request: %s x%d", data.itemId, data.quantity))
-    
+
     local responded = false
     local handler
-    
+
     -- Set up event handler for server response
     handler = AddEventHandler('cnr:dropItemResult', function(success, message)
         if responded then return end
         responded = true
         RemoveEventHandler(handler)
-        
+
         cb({ success = success, error = message })
     end)
-    
+
     -- Send drop request to server
     TriggerServerEvent('cnr:dropItem', data.itemId, data.quantity)
-    
+
     -- Timeout
     Citizen.SetTimeout(3000, function()
         if not responded then
