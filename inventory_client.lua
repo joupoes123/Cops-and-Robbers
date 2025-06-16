@@ -2,6 +2,7 @@
 -- Handles client-side custom inventory logic and NUI interaction.
 
 local clientConfigItems = nil -- Will store Config.Items from server
+local isInventoryOpen = false -- Track inventory UI state
 
 -- Function to get the items, accessible by other parts of this script
 function GetClientConfigItems()
@@ -375,7 +376,17 @@ RegisterCommand('checkconfig', function()
     Log("Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
 end, false)
 
+-- Add toggle inventory UI function
+function ToggleInventoryUI()
+    if isInventoryOpen then
+        TriggerEvent('cnr:closeInventory')
+    else
+        TriggerEvent('cnr:openInventory')
+    end
+end
+
 -- Export functions for other client scripts
 exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)
 exports('UpdateFullInventory', UpdateFullInventory)
+exports('ToggleInventoryUI', ToggleInventoryUI)

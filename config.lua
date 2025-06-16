@@ -86,10 +86,9 @@ Config.AmmuNationStores = {
 -- Defines NPC vendors, their locations, models, and items they sell.
 Config.NPCVendors = {
     {
-        location = vector3(1000.32, 0.68, 78.30), -- Behind Diamond Casino in alley - accessible city location
-        heading  = 265.0,
+        location = vector4(1005.76, 88.40, 90.24, 270.24), -- Mirror Park area - accessible city location
         model    = "s_m_y_dealer_01",
-        name     = "Black Market Dealer",        items    = { 
+        name     = "Black Market Dealer",items    = {
             -- Advanced Robber Equipment
             "weapon_knife", 
             "weapon_switchblade", 
@@ -660,9 +659,10 @@ Config.PoliceVehicleSpawns = {
 }
 
 Config.RobberVehicleSpawns = { -- Vehicles spawned for robbers near their spawn point
-    { location = vector3(2120.7, 4780.1, 40.0), heading = 180.0, model = "sultan" }, -- Fast sedan near Robber spawn
-    { location = vector3(2125.2, 4785.3, 40.0), heading = 200.0, model = "futo" },   -- Drift car
-    { location = vector3(2115.1, 4775.8, 40.0), heading = 160.0, model = "elegy2" }, -- Sports car
+    { location = vector4(2146.61, 4800.74, 41.06, 66.12), model = "sultan" }, -- Fast sedan near Robber spawn
+    { location = vector4(2141.76, 4822.40, 41.27, 138.15), model = "futo" },   -- Drift car
+    { location = vector4(2111.02, 4768.53, 40.51, 103.25), model = "elegy2" }, -- Sports car
+    { location = vector4(2059.25, 4796.49, 40.65, 202.34), model = "banshee" }, -- Additional sports car
     -- Add more spawn points as needed
 }
 

@@ -287,6 +287,9 @@ local function GetPlayerRole(playerId)
 end
 
 local function CalculateDynamicPrice(itemId, basePrice)
+    -- Ensure basePrice is a number
+    basePrice = tonumber(basePrice) or 0
+    
     if not Config.DynamicEconomy or not Config.DynamicEconomy.enabled then
         return basePrice
     end
@@ -1227,10 +1230,8 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
         Log(string.format("Player %s (Role: %s) tried to buy %s but it's cop-only", src, pData.role, itemConfig.name), "warn")
         TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
-    end
-
-    -- Calculate cost with dynamic pricing
-    local totalCost = CalculateDynamicPrice(itemConfig.basePrice, itemId) * quantity
+    end    -- Calculate cost with dynamic pricing
+    local totalCost = CalculateDynamicPrice(itemId, itemConfig.basePrice) * quantity
 
     if not RemovePlayerMoney(src, totalCost) then
         TriggerClientEvent('cops_and_robbers:buyResult', src, false)

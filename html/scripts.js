@@ -1255,6 +1255,28 @@ function closeInventoryMenu() {
     }
 }
 
+function closeInventoryUI() {
+    if (!isInventoryOpen) return;
+    
+    isInventoryOpen = false;
+    console.log('[CNR_INVENTORY] Closing inventory UI');
+    
+    const inventoryMenu = document.getElementById('inventory-menu');
+    if (inventoryMenu) {
+        inventoryMenu.style.display = 'none';
+        document.body.classList.remove('inventory-open');
+    }
+    
+    // Send close message to Lua
+    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/closeInventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).catch(error => {
+        console.error('[CNR_INVENTORY] Failed to send close message:', error);
+    });
+}
+
 // Update player info in inventory
 function updateInventoryPlayerInfo() {
     const cashElement = document.getElementById('inventory-player-cash-amount');
@@ -1661,36 +1683,46 @@ function renderEquippedItems() {
 function handleInventoryMessage(data) {
     switch (data.action) {
         case 'openInventory':
-            showInventoryMenu();
+            openInventoryUI(data);
             break;
         case 'closeInventory':
-            closeInventoryMenu();
+            closeInventoryUI();
             break;
         case 'updateInventory':
-            if (data.inventory) {
-                playerInventoryData = data.inventory;
-                renderInventoryGrid();
-                renderEquippedItems();
-                renderCategoryFilter();
-                updateInventoryPlayerInfo();
-            }
+            updateInventoryUI(data.inventory);
             break;
         case 'updateEquippedItems':
-            if (data.equippedItems) {
-                equippedItems = new Set(data.equippedItems);
-                renderInventoryGrid();
-                renderEquippedItems();
-            }
+            updateEquippedItemsUI(data.equippedItems);
             break;
     }
 }
 
-// Initialize inventory system when document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    initInventorySystem();
-});
-
-// Export functions for global access
-window.showInventoryMenu = showInventoryMenu;
-window.closeInventoryMenu = closeInventoryMenu;
-window.handleInventoryMessage = handleInventoryMessage;
+function openInventoryUI(data) {
+    if (isInventoryOpen) return;
+    
+    isInventoryOpen = true;
+    console.log('[CNR_INVENTORY] Opening inventory UI');
+    
+    // Create inventory UI if it doesn't exist    createInventoryUI();
+      // Show the inventory
+    const inventoryContainer = document.getElementById('inventory-menu');
+    if (inventoryContainer) {
+        inventoryContainer.style.display = 'block';
+        document.body.classList.add('inventory-open');
+    }
+    
+    // Request initial inventory data
+    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/getPlayerInventoryForUI`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            updateInventoryUI(result.inventory);
+            updateEquippedItemsUI(result.equippedItems);
+        }
+    }).catch(error => {
+        console.error('[CNR_INVENTORY] Failed to load inventory:', error);
+    });
+}
