@@ -36,12 +36,30 @@ function InitializePlayerInventory(pData, playerId)
     end
 end
 
--- CanCarryItem: Checks if a player can carry an item (placeholder)
--- Note: This function was not part of the refactor request but shown for context.
--- If it were to be refactored, it would also take pData.
+-- CanCarryItem: Checks if a player can carry an item
 function CanCarryItem(playerId, itemId, quantity)
-    -- TODO: Implement weight/slot logic if desired
-    return true -- Placeholder
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory then return false end
+    
+    -- Check if Config.Items exists for the item
+    if not Config.Items[itemId] then
+        Log("CanCarryItem: Unknown item ID: " .. tostring(itemId))
+        return false
+    end
+    
+    -- Calculate current inventory count
+    local currentCount = 0
+    for _, item in pairs(pData.inventory) do
+        currentCount = currentCount + (item.quantity or 0)
+    end
+    
+    -- Basic slot limit check (50 items max for simplicity)
+    local maxSlots = 50
+    if (currentCount + quantity) > maxSlots then
+        return false
+    end
+    
+    return true
 end
 
 -- AddItem: Adds an item to player's inventory
@@ -427,8 +445,31 @@ function HandleItemDrop(playerId, itemId, quantity)
 
     local coords = GetEntityCoords(playerPed)
 
-    -- TODO: Create world object for dropped item
-    -- For now, just log it
+    -- Create world object for dropped item
+    local itemConfig = Config.Items[itemId]
+    if itemConfig then
+        -- Use a generic pickup model or item-specific model if available
+        local modelHash = GetHashKey("prop_money_bag_01") -- Default pickup model
+        
+        -- Try to use item-specific model if available
+        if itemConfig.worldModel then
+            modelHash = GetHashKey(itemConfig.worldModel)
+        end
+        
+        -- Create the pickup object
+        local pickup = CreatePickup(modelHash, coords.x, coords.y, coords.z - 1.0, 0, quantity, true, modelHash)
+        
+        if pickup then
+            Log(string.format("Created pickup for %dx %s at coords %s (pickup ID: %d)", 
+                quantity, itemId, coords, pickup))
+            
+            -- Store pickup info for potential collection by other players
+            -- This could be expanded to allow other players to pick up dropped items
+        else
+            Log(string.format("Failed to create pickup for %dx %s", quantity, itemId))
+        end
+    end
+    
     Log(string.format("Player %d dropped %dx %s at coords %s", playerId, quantity, itemId, coords))
 end
 
