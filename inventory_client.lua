@@ -390,3 +390,31 @@ exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)
 exports('UpdateFullInventory', UpdateFullInventory)
 exports('ToggleInventoryUI', ToggleInventoryUI)
+
+-- Event handlers for inventory UI
+RegisterNetEvent('cnr:openInventory')
+AddEventHandler('cnr:openInventory', function()
+    Log("Received cnr:openInventory event", "info")
+    if not isInventoryOpen then
+        isInventoryOpen = true
+        SendNUIMessage({
+            action = 'openInventory',
+            inventory = localPlayerInventory
+        })
+        SetNuiFocus(true, true)
+        Log("Inventory UI opened via event", "info")
+    end
+end)
+
+RegisterNetEvent('cnr:closeInventory')
+AddEventHandler('cnr:closeInventory', function()
+    Log("Received cnr:closeInventory event", "info")
+    if isInventoryOpen then
+        isInventoryOpen = false
+        SendNUIMessage({
+            action = 'closeInventory'
+        })
+        SetNuiFocus(false, false)
+        Log("Inventory UI closed via event", "info")
+    end
+end)

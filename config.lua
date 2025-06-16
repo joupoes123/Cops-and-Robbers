@@ -139,9 +139,8 @@ Config.NPCVendors = {
             "mask",
             "heavy_armor"
         }
-    },
-    {        location = vector3(1961.48, 3740.69, 32.34),  -- Sandy Shores, near barber
-        heading  = 300.0,
+    },    {
+        location = vector4(1961.48, 3740.69, 32.34, 300.0),  -- Sandy Shores, near barber
         model    = "g_m_y_mexgang_01",
         name     = "Gang Supplier",
         items    = {
@@ -182,10 +181,8 @@ Config.NPCVendors = {
             "mask",
             "gloves"
         }
-    },
-    {
-        location = vector3(451.39, -974.42, 30.69),
-        heading  = 125.60,
+    },    {
+        location = vector4(451.39, -974.42, 30.69, 125.60),
         model    = "s_m_y_cop_01",
         name     = "Cop Store",
         items    = {

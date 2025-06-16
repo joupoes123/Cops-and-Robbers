@@ -240,12 +240,17 @@ end)
 -- Inventory Key Binding (I Key)
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100) -- Reduced frequency to prevent performance issues
         if IsControlJustPressed(0, 170) then -- I Key (INPUT_MELEE_ATTACK_LIGHT)
+            print("[CNR_CLIENT_DEBUG] I key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
+            print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
+            
             if exports[currentResourceName] and exports[currentResourceName].ToggleInventoryUI then
+                print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export found, calling it")
                 exports[currentResourceName]:ToggleInventoryUI()
             else
+                print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export not found, using fallback event")
                 -- Fallback: try to trigger inventory event
                 TriggerEvent('cnr:openInventory')
             end
@@ -272,6 +277,34 @@ RegisterCommand('equipweapns', function()
     else
         print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
     end
+end, false)
+
+-- Debug command to test inventory system
+RegisterCommand('testinv', function()
+    print("[CNR_CLIENT_DEBUG] Testing inventory system...")
+    local currentResourceName = GetCurrentResourceName()
+    
+    -- Test export existence
+    if exports[currentResourceName] and exports[currentResourceName].ToggleInventoryUI then
+        print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export exists")
+    else
+        print("[CNR_CLIENT_ERROR] ToggleInventoryUI export missing")
+    end
+    
+    if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
+        print("[CNR_CLIENT_DEBUG] EquipInventoryWeapons export exists")
+    else
+        print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export missing")
+    end
+    
+    -- Test inventory
+    TriggerEvent('cnr:openInventory')
+end, false)
+
+-- Debug command to test vehicle spawning
+RegisterCommand('testveh', function()
+    print("[CNR_CLIENT_DEBUG] Testing vehicle spawning...")
+    SpawnRobberVehicles()
 end, false)
 
 -- =====================================
@@ -376,9 +409,14 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
-        GiveWeaponToPed(playerPed, batHash, 1, false, true)
-        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
+        GiveWeaponToPed(playerPed, batHash, 1, false, true)        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
+        
+        -- Spawn robber vehicles when player becomes a robber
+        Citizen.CreateThread(function()
+            Citizen.Wait(1000) -- Wait a bit to ensure player is fully spawned
+            SpawnRobberVehicles()
+        end)
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
 
@@ -591,15 +629,21 @@ end
 
 -- Helper to spawn Robber Store peds and protect them from suppression
 function SpawnRobberStorePeds()
+    print("[CNR_CLIENT_DEBUG] SpawnRobberStorePeds called")
     if not Config or not Config.NPCVendors then
         print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
         return
     end
     
+    print(string.format("[CNR_CLIENT_DEBUG] Found %d NPCVendors in config", #Config.NPCVendors))
+    
     for _, vendor in ipairs(Config.NPCVendors) do
+        print(string.format("[CNR_CLIENT_DEBUG] Checking vendor: %s", vendor.name or "unknown"))
         if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+            print(string.format("[CNR_CLIENT_DEBUG] Processing %s NPC", vendor.name))
             -- Check if already spawned
             if g_spawnedNPCs[vendor.name] then
+                print(string.format("[CNR_CLIENT_DEBUG] %s already spawned, skipping", vendor.name))
                 goto continue
             end
               local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
