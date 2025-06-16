@@ -386,20 +386,24 @@ LoadPlayerData = function(playerId)
     else
         Log("No save file found for " .. pIdNum .. " at " .. filename .. ". Initializing default data.")
         playersData[pIdNum] = nil -- Force default initialization
-    end
-
-    if not playersData[pIdNum] then
+    end    if not playersData[pIdNum] then
         -- Log(string.format("LoadPlayerData: Initializing new default data structure for player %s.", pIdNum), "info")
-        local playerPed = GetPlayerPed(pIdNum)
-        local initialCoords = playerPed and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
+        local playerPed = GetPlayerPed(tostring(pIdNum))
+        local initialCoords = (playerPed and playerPed ~= 0) and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
 
         playersData[pIdNum] = {
             xp = 0, level = 1, role = "citizen",
             lastKnownPosition = initialCoords, -- Use current coords or a default spawn
             perks = {}, armorModifier = 1.0, bountyCooldownUntil = 0,
-            money = Config.DefaultStartMoney or 5000 -- Use a config value for starting money
+            money = Config.DefaultStartMoney or 5000, -- Use a config value for starting money
+            inventory = {
+                -- Give some default items to all new players
+                ["armor"] = { count = 1, name = "Body Armor", category = "Armor" },
+                ["weapon_pistol"] = { count = 1, name = "Pistol", category = "Weapons" },
+                ["ammo_pistol"] = { count = 50, name = "Pistol Ammo", category = "Ammunition" }
+            }
         }
-        Log("Initialized default data for player " .. pIdNum .. ". Money: " .. playersData[pIdNum].money)
+        Log("Initialized default data for player " .. pIdNum .. ". Money: " .. playersData[pIdNum].money .. ", Default inventory added.")
     else
         -- Ensure money is set if loaded from file, otherwise use default (already handled by loadedMoney init)
         playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartMoney or 5000
@@ -1426,10 +1430,19 @@ end
 RegisterServerEvent('cnr:requestConfigItems')
 AddEventHandler('cnr:requestConfigItems', function()
     local source = source
-    if Config and Config.Items then
+    Log(string.format("Received Config.Items request from player %s", source), "info")
+    
+    -- Give some time for Config to be fully loaded if this is early in startup
+    Citizen.Wait(100)
+    
+    if Config and Config.Items and type(Config.Items) == "table" then
+        local itemCount = 0
+        for _ in pairs(Config.Items) do itemCount = itemCount + 1 end
         TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
-        Log(string.format("Sent Config.Items to player %s (%d items)", source, tablelength(Config.Items)), "info")
+        Log(string.format("Sent Config.Items to player %s (%d items)", source, itemCount), "info")
     else
-        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found", source), "error")
+        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found or invalid. Config exists: %s, Config.Items type: %s", source, tostring(Config ~= nil), type(Config and Config.Items)), "error")
+        -- Send empty table as fallback
+        TriggerClientEvent('cnr:receiveConfigItems', source, {})
     end
 end)

@@ -12,7 +12,7 @@ Config = Config or {}
 --        General Settings
 -- =========================
 
-Config.DebugLogging   = false -- Set to true to enable detailed server console logging (may cause spam)
+Config.DebugLogging   = true -- Set to true to enable detailed server console logging (may cause spam)
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.

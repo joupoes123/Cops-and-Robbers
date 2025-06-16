@@ -395,6 +395,15 @@ exports('ToggleInventoryUI', ToggleInventoryUI)
 RegisterNetEvent('cnr:openInventory')
 AddEventHandler('cnr:openInventory', function()
     Log("Received cnr:openInventory event", "info")
+    
+    -- Check if we have Config.Items available
+    if not clientConfigItems or not next(clientConfigItems) then
+        -- Show error message to player
+        TriggerEvent('chat:addMessage', { args = {"^1[Inventory]", "Inventory system is still loading. Please try again in a few seconds."} })
+        Log("Inventory open failed: Config.Items not yet available", "warn")
+        return
+    end
+    
     if not isInventoryOpen then
         isInventoryOpen = true
         SendNUIMessage({

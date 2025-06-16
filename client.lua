@@ -242,7 +242,7 @@ end)
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(100) -- Reduced frequency to prevent performance issues
-        if IsControlJustPressed(0, 170) then -- I Key (INPUT_MELEE_ATTACK_LIGHT)
+        if IsControlJustPressed(0, 311) then -- I Key (INPUT_VEH_CIN_CAM which is usually I)
             print("[CNR_CLIENT_DEBUG] I key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
             print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
@@ -381,15 +381,10 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         playerWeapons["weapon_stungun"] = true; playerAmmo["weapon_stungun"] = 5
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
     elseif newRole == "robber" then
-        local batHash = GetHashKey("weapon_bat")
-        GiveWeaponToPed(playerPed, batHash, 1, false, true)        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
+        local batHash = GetHashKey("weapon_bat")        GiveWeaponToPed(playerPed, batHash, 1, false, true)        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
         
-        -- Spawn robber vehicles when player becomes a robber
-        Citizen.CreateThread(function()
-            Citizen.Wait(1000) -- Wait a bit to ensure player is fully spawned
-            SpawnRobberVehicles()
-        end)
+        -- Note: Robber vehicles are spawned on resource start, not per-player
     end
     ShowNotification(string.format("~g~Role changed to %s. Model and basic loadout applied.", newRole))
 
@@ -1192,7 +1187,7 @@ Citizen.CreateThread(function()
                     local playerPed = PlayerPedId()
                     if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
                         local playerCoords = GetEntityCoords(playerPed)
-                        -- Handle both vector3 and vector4 formats for vendor location
+                        -- Safely handle vector4 location
                         local vendorPos = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
                         local dist = #(playerCoords - vendorPos)
                         if dist < 2.0 then
@@ -1236,7 +1231,7 @@ Citizen.CreateThread(function()
                     local playerPed = PlayerPedId()
                     if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
                         local playerCoords = GetEntityCoords(playerPed)
-                        -- Handle both vector3 and vector4 formats for vendor location
+                        -- Safely handle vector4 location
                         local vendorPos = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
                         local dist = #(playerCoords - vendorPos)
                         if dist < 2.0 then
@@ -1605,3 +1600,25 @@ AddEventHandler('cnr:forceEquipWeapons', function()
         exports[currentResourceName]:EquipInventoryWeapons()
     end
 end)
+
+-- Debug commands for testing
+RegisterCommand('testinventory', function()
+    print("[CNR_CLIENT_DEBUG] Manual inventory test triggered")
+    TriggerEvent('cnr:openInventory')
+end, false)
+
+RegisterCommand('testwanted', function()
+    print("[CNR_CLIENT_DEBUG] Manual wanted level test triggered")
+    -- Simulate wanted level change
+    local testWantedData = { stars = 3, wantedLevel = 50 }
+    TriggerEvent('cnr:wantedLevelSync', testWantedData)
+end, false)
+
+RegisterCommand('testmoney', function()
+    print("[CNR_CLIENT_DEBUG] Manual money UI test triggered")
+    -- Test the money display
+    SendNUIMessage({
+        action = 'updateMoney',
+        money = 12345
+    })
+end, false)
