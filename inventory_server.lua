@@ -49,7 +49,10 @@ end
 function AddItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData then Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error"); return false end
+    if not pData then 
+        Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error")
+        return false 
+    end
     -- Ensure inventory table exists on pData
     if not pData.inventory then InitializePlayerInventory(pData, playerId) end
 
@@ -66,7 +69,10 @@ function AddItem(pData, itemId, quantity, playerId)
         return false
     end
 
-    if not itemConfig then Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn"); return false end
+    if not itemConfig then 
+        Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn")
+        return false 
+    end
 
     if not pData.inventory[itemId] then
         pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
@@ -87,7 +93,10 @@ end
 function RemoveItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData or not pData.inventory then Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error"); return false end
+    if not pData or not pData.inventory then 
+        Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error")
+        return false 
+    end
 
     if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
         Log(string.format("RemoveItem: Player %s does not have %dx %s. Has: %d", playerId or "Unknown", quantity, itemId, (pData.inventory[itemId] and pData.inventory[itemId].count or 0)), "warn")

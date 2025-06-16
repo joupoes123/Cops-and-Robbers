@@ -378,10 +378,14 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if newRole == "cop" then
         local taserHash = GetHashKey("weapon_stungun")
         GiveWeaponToPed(playerPed, taserHash, 5, false, true)
-        playerWeapons["weapon_stungun"] = true; playerAmmo["weapon_stungun"] = 5
+        playerWeapons["weapon_stungun"] = true
+        playerAmmo["weapon_stungun"] = 5
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
     elseif newRole == "robber" then
-        local batHash = GetHashKey("weapon_bat")        GiveWeaponToPed(playerPed, batHash, 1, false, true)        playerWeapons["weapon_bat"] = true; playerAmmo["weapon_bat"] = 1
+        local batHash = GetHashKey("weapon_bat")
+        GiveWeaponToPed(playerPed, batHash, 1, false, true)
+        playerWeapons["weapon_bat"] = true
+        playerAmmo["weapon_bat"] = 1
         print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
         
         -- Note: Robber vehicles are spawned on resource start, not per-player
@@ -563,10 +567,18 @@ function SpawnCopStorePed()
     local vendor = nil
     if Config and Config.NPCVendors then
         for _, v in ipairs(Config.NPCVendors) do
-            if v.name == "Cop Store" then vendor = v; break end
+            if v.name == "Cop Store" then 
+                vendor = v
+                break 
+            end
         end
     end
-    if not vendor then print("[CNR_CLIENT_ERROR] Cop Store vendor not found in Config.NPCVendors"); return end    local model = GetHashKey("s_m_m_ciasec_01") -- Use a unique cop-like model not used by NPC police
+    if not vendor then 
+        print("[CNR_CLIENT_ERROR] Cop Store vendor not found in Config.NPCVendors")
+        return 
+    end
+    
+    local model = GetHashKey("s_m_m_ciasec_01") -- Use a unique cop-like model not used by NPC police
     RequestModel(model)
     while not HasModelLoaded(model) do Citizen.Wait(10) end
     
@@ -887,9 +899,9 @@ AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
     playerData.xp = newTotalXp
     ShowNotification("~g~LEVEL UP!~w~ You reached Level " .. newLevel .. "!" )
     SendNUIMessage({ 
-        action = "updateXPBar", 
-        currentXP = playerData.xp, 
-        currentLevel = playerData.level, 
+        action = "updateXPBar",
+        currentXP = playerData.xp,
+        currentLevel = playerData.level,
         xpForNextLevel = CalculateXpForNextLevelClient(playerData.level, playerData.role),
         xpGained = 0 -- Level up doesn't show XP gain, just the level animation
     })
@@ -899,9 +911,13 @@ RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
 AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     currentWantedStarsClient = stars
     currentWantedPointsClient = points
-    local newUiLabel = ""
-    if stars > 0 then
-        for _, levelData in ipairs(Config.WantedSettings.levels) do if levelData.stars == stars then newUiLabel = levelData.uiLabel; break end end
+    local newUiLabel = ""    if stars > 0 then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do
+            if levelData.stars == stars then
+                newUiLabel = levelData.uiLabel
+                break
+            end
+        end
         if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("*", stars) end
     end
     wantedUiLabel = newUiLabel
@@ -917,25 +933,23 @@ AddEventHandler('cnr:wantedLevelSync', function(wantedData)
         currentWantedPointsClient = wantedData.wantedLevel or 0
         local newUiLabel = ""
         if wantedData.stars > 0 then
-            for _, levelData in ipairs(Config.WantedSettings.levels) do 
-                if levelData.stars == wantedData.stars then 
+            for _, levelData in ipairs(Config.WantedSettings.levels) do
+                if levelData.stars == wantedData.stars then
                     newUiLabel = levelData.uiLabel
-                    break 
-                end 
+                    break
+                end
             end
             if newUiLabel == "" then newUiLabel = "Wanted: " .. string.rep("★", wantedData.stars) end
         end
         wantedUiLabel = newUiLabel
         SetWantedLevelForPlayerRole(wantedData.stars, wantedData.wantedLevel)
-        print(string.format("[CNR_CLIENT_DEBUG] Wanted level synced: Stars=%d, Points=%d", wantedData.stars, wantedData.wantedLevel))
-        
         -- Show wanted level notification UI
         if wantedData.stars > oldStars and wantedData.stars > 0 then
             -- Wanted level increased - show notification
             ShowNotification(string.format("~r~WANTED LEVEL: %s", newUiLabel))
             -- Also show on-screen display
             Citizen.CreateThread(function()
-                local endTime = GetGameTimer() + 5000 -- Show for 5 seconds
+                local endTime = GetGameTimer() + 10000 -- Show for 10 seconds
                 while GetGameTimer() < endTime do
                     Citizen.Wait(0)
                     DrawText2D(0.5, 0.1, newUiLabel, 0.8, {255, 0, 0, 255})
@@ -961,8 +975,13 @@ RegisterNetEvent('cops_and_robbers:contrabandDropSpawned')
 AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, location, itemName, itemModelHash)
     if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]) end
     local blip = AddBlipForCoord(location.x, location.y, location.z)
-    SetBlipSprite(blip, 1); SetBlipColour(blip, 2); SetBlipScale(blip, 1.5); SetBlipAsShortRange(blip, true)
-    BeginTextCommandSetBlipName("STRING"); AddTextComponentSubstringPlayerName("Contraband: " .. itemName); EndTextCommandSetBlipName(blip)
+    SetBlipSprite(blip, 1)
+    SetBlipColour(blip, 2)
+    SetBlipScale(blip, 1.5)
+    SetBlipAsShortRange(blip, true)
+    BeginTextCommandSetBlipName("STRING")
+    AddTextComponentSubstringPlayerName("Contraband: " .. itemName)
+    EndTextCommandSetBlipName(blip)
     activeDropBlips[dropId] = blip
     local propEntity = nil
     if itemModelHash then
@@ -970,7 +989,11 @@ AddEventHandler('cops_and_robbers:contrabandDropSpawned', function(dropId, locat
         RequestModel(model)
         CreateThread(function()
              while not g_isPlayerPedReady do Citizen.Wait(500) end
-            local attempts = 0; while not HasModelLoaded(model) and attempts < 100 do Citizen.Wait(100); attempts = attempts + 1 end
+            local attempts = 0
+            while not HasModelLoaded(model) and attempts < 100 do 
+                Citizen.Wait(100)
+                attempts = attempts + 1 
+            end
             if HasModelLoaded(model) then
                 propEntity = CreateObject(model, location.x, location.y, location.z - 0.9, false, true, true)
                 PlaceObjectOnGroundProperly(propEntity)
@@ -985,29 +1008,41 @@ end)
 
 RegisterNetEvent('cops_and_robbers:contrabandDropCollected')
 AddEventHandler('cops_and_robbers:contrabandDropCollected', function(dropId, collectorName, itemName)
-    if activeDropBlips[dropId] then RemoveBlip(activeDropBlips[dropId]); activeDropBlips[dropId] = nil end
+    if activeDropBlips[dropId] then 
+        RemoveBlip(activeDropBlips[dropId])
+        activeDropBlips[dropId] = nil 
+    end
     if clientActiveContrabandDrops[dropId] then
         if clientActiveContrabandDrops[dropId].propEntity and DoesEntityExist(clientActiveContrabandDrops[dropId].propEntity) then DeleteEntity(clientActiveContrabandDrops[dropId].propEntity) end
         clientActiveContrabandDrops[dropId] = nil
     end
-    if isCollectingFromDrop == dropId then isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+    if isCollectingFromDrop == dropId then 
+        isCollectingFromDrop = nil
+        collectionTimerEnd = 0 
+    end
     ShowNotification("~g~Contraband '" .. itemName .. "' was collected by " .. collectorName .. ".")
 end)
 
 RegisterNetEvent('cops_and_robbers:collectingContrabandStarted')
 AddEventHandler('cops_and_robbers:collectingContrabandStarted', function(dropId, collectionTime)
-    isCollectingFromDrop = dropId; collectionTimerEnd = GetGameTimer() + collectionTime
+    isCollectingFromDrop = dropId
+    collectionTimerEnd = GetGameTimer() + collectionTime
     ShowNotification("~b~Collecting contraband... Hold position.")
 end)
 
 Citizen.CreateThread(function()
     while not g_isPlayerPedReady do Citizen.Wait(500) end
     print("[CNR_CLIENT] Thread for Contraband Interaction now starting its main loop.")
-    local lastInteractionCheck = 0; local interactionCheckInterval = 250; local activeCollectionWait = 50
+    local lastInteractionCheck = 0
+    local interactionCheckInterval = 250
+    local activeCollectionWait = 50
     while true do
         local loopWait = interactionCheckInterval
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then Citizen.Wait(1000); goto continue_contraband_loop end
+        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then 
+            Citizen.Wait(1000)
+            goto continue_contraband_loop 
+        end
         if role == 'robber' then
             local playerCoords = GetEntityCoords(playerPed)
             if not isCollectingFromDrop then
@@ -1016,17 +1051,30 @@ Citizen.CreateThread(function()
                         if dropData.location and #(playerCoords - dropData.location) < 3.0 then
                             DisplayHelpText("Press ~INPUT_CONTEXT~ to collect contraband (" .. dropData.name .. ")")
                             if IsControlJustReleased(0, 51) then TriggerServerEvent('cops_and_robbers:startCollectingContraband', dropId) end
-                            loopWait = activeCollectionWait; break
+                            loopWait = activeCollectionWait
+                            break
                         end
-                    end; lastInteractionCheck = GetGameTimer()
+                    end
+                    lastInteractionCheck = GetGameTimer()
                 end
             else
                 loopWait = activeCollectionWait
                 local currentDropData = clientActiveContrabandDrops[isCollectingFromDrop]
                 if currentDropData and currentDropData.location then
-                    if #(playerCoords - currentDropData.location) > 5.0 then ShowNotification("~r~Contraband collection cancelled: Moved too far."); isCollectingFromDrop = nil; collectionTimerEnd = 0
-                    elseif GetGameTimer() >= collectionTimerEnd then ShowNotification("~g~Collection complete! Verifying with server..."); TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop); isCollectingFromDrop = nil; collectionTimerEnd = 0 end
-                else isCollectingFromDrop = nil; collectionTimerEnd = 0 end
+                    if #(playerCoords - currentDropData.location) > 5.0 then 
+                        ShowNotification("~r~Contraband collection cancelled: Moved too far.")
+                        isCollectingFromDrop = nil
+                        collectionTimerEnd = 0
+                    elseif GetGameTimer() >= collectionTimerEnd then 
+                        ShowNotification("~g~Collection complete! Verifying with server...")
+                        TriggerServerEvent('cops_and_robbers:finishCollectingContraband', isCollectingFromDrop)
+                        isCollectingFromDrop = nil
+                        collectionTimerEnd = 0 
+                    end
+                else 
+                    isCollectingFromDrop = nil
+                    collectionTimerEnd = 0 
+                end
             end
         end
         Citizen.Wait(loopWait)
@@ -1082,7 +1130,10 @@ function CalculateXpForNextLevelClient(currentLevel, playerRole)
     local maxLvl = Config.MaxLevel or 10
     if currentLevel >= maxLvl then return playerData.xp end
     if Config.XPTable and Config.XPTable[currentLevel] then return Config.XPTable[currentLevel]
-    else print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn"); return 999999 end
+    else 
+        print("CalculateXpForNextLevelClient: XP requirement for level " .. currentLevel .. " not found. Returning high value.", "warn")
+        return 999999 
+    end
 end
 
 -- Handle role selection from NUI
