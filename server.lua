@@ -101,7 +101,7 @@ local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberI
 -- Forward declaration for functions that might be called before definition due to event handlers
 local GetPlayerLevelAndXP, AddXP, SetPlayerRole, IsPlayerCop, IsPlayerRobber, SavePlayerData, LoadPlayerData, CheckAndPlaceBounty, UpdatePlayerWantedLevel, ReduceWantedLevel, SendToJail
 
-local SafeGetPlayerName = SafeGetPlayerName or function(id) return GetPlayerName(id) end
+-- SafeGetPlayerName is provided by safe_utils.lua (loaded before this script)
 
 
 -- Function to load bans from bans.json
@@ -441,12 +441,10 @@ SavePlayerData = function(playerId)
     if not license then
         Log("SavePlayerData: Could not find license for player " .. pIdNum .. ". Using numeric ID as fallback filename. Data might not persist correctly across sessions if ID changes.", "warn")
         license = "pid_" .. pIdNum -- Fallback, not ideal for persistence if server IDs are not static
-    end
-
-    local filename = "player_data/" .. license:gsub(":", "") .. ".json"
+    end    local filename = "player_data/" .. license:gsub(":", "") .. ".json"
     -- Ensure lastKnownPosition is updated before saving
-    local playerPed = GetPlayerPed(pIdNum)
-    if playerPed and GetEntityCoords(playerPed) then
+    local playerPed = GetPlayerPed(tostring(pIdNum))
+    if playerPed and playerPed ~= 0 and GetEntityCoords(playerPed) then
         pData.lastKnownPosition = GetEntityCoords(playerPed)
     end
     local success = SaveResourceFile(GetCurrentResourceName(), filename, json.encode(pData), -1)
@@ -643,16 +641,16 @@ function CheckAndPlaceBounty(playerId)
     local pIdNum = tonumber(playerId)
     if not Config.BountySettings.enabled then return end
     local wantedData = wantedPlayers[pIdNum]; local pData = GetCnrPlayerData(pIdNum)
-    if not wantedData or not pData then return end
-
-    if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
+    if not wantedData or not pData then return end    if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
        not activeBounties[pIdNum] and (pData.bountyCooldownUntil or 0) < os.time() then
         local bountyAmount = Config.BountySettings.baseAmount
-        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"
-        activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (Config.BountySettings.durationMinutes * 60) }
-        Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
-        TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
-        TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY PLACED]", string.format("A bounty of $%d has been placed on %s!", bountyAmount, targetName)} })
+        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"        local durationMinutes = Config.BountySettings.durationMinutes
+        if durationMinutes and activeBounties and pIdNum then
+            activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (durationMinutes * 60) }
+            Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
+            TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
+            TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY PLACED]", string.format("A bounty of $%d has been placed on %s!", bountyAmount, targetName)} })
+        end
     end
 end
 
@@ -664,17 +662,27 @@ CreateThread(function() -- Bounty Increase & Expiry Loop
             local playerId = tonumber(playerIdStr)
             -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
             local pData = GetCnrPlayerData(playerId); local wantedData = wantedPlayers[playerId]
-            local isPlayerOnline = GetPlayerName(playerId) ~= nil -- Check if player is online
+            local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
 
             if isPlayerOnline and pData and wantedData and wantedData.stars >= Config.BountySettings.wantedLevelThreshold and currentTime < bountyData.expiresAt then
                 if bountyData.amount < Config.BountySettings.maxBounty then
                     bountyData.amount = math.min(bountyData.amount + Config.BountySettings.increasePerMinute, Config.BountySettings.maxBounty)
                     bountyData.lastIncreasedTimestamp = currentTime
                     Log(string.format("Bounty for %s (ID: %d) increased to $%d.", bountyData.name, playerId, bountyData.amount)); bountyUpdatedThisCycle = true
+                end            elseif currentTime >= bountyData.expiresAt or (isPlayerOnline and pData and wantedData and wantedData.stars < Config.BountySettings.wantedLevelThreshold) then
+                local bountyAmount = bountyData.amount or 0
+                local bountyName = bountyData.name or "Unknown"
+                local starCount = (wantedData and wantedData.stars) or "N/A"                Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyAmount, bountyName, tostring(playerId), tostring(isPlayerOnline), tostring(starCount)))
+                if activeBounties and playerId then
+                    activeBounties[playerId] = nil
                 end
-            elseif currentTime >= bountyData.expiresAt or (isPlayerOnline and pData and wantedData and wantedData.stars < Config.BountySettings.wantedLevelThreshold) then
-                Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyData.amount, bountyData.name, playerId, tostring(isPlayerOnline), wantedData and wantedData.stars or "N/A")); activeBounties[playerId] = nil
-                if pData then pData.bountyCooldownUntil = currentTime + (Config.BountySettings.cooldownMinutes * 60); if isPlayerOnline then SavePlayerData(playerId) end end
+                if pData then 
+                    local cooldownMinutes = Config.BountySettings.cooldownMinutes
+                    if cooldownMinutes then
+                        pData.bountyCooldownUntil = currentTime + (cooldownMinutes * 60)
+                    end
+                    if isPlayerOnline then SavePlayerData(playerId) end 
+                end
                 bountyUpdatedThisCycle = true
             end
         end
