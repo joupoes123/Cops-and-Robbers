@@ -88,7 +88,8 @@ Config.NPCVendors = {
     {
         location = vector4(1005.76, 88.40, 90.24, 270.24), -- Mirror Park area - accessible city location
         model    = "s_m_y_dealer_01",
-        name     = "Black Market Dealer",items    = {
+        name     = "Black Market Dealer",
+        items    = {
             -- Advanced Robber Equipment
             "weapon_knife",
             "weapon_switchblade",
@@ -136,10 +137,10 @@ Config.NPCVendors = {
             "drill",
             "thermite",
             "c4",
-            "mask",
-            "heavy_armor"
+            "mask",            "heavy_armor"
         }
-    },    {
+    },
+    {
         location = vector4(1961.48, 3740.69, 32.34, 300.0),  -- Sandy Shores, near barber
         model    = "g_m_y_mexgang_01",
         name     = "Gang Supplier",
@@ -178,10 +179,10 @@ Config.NPCVendors = {
             "armor",
             "lockpick",
             "bandana",
-            "mask",
-            "gloves"
+            "mask",            "gloves"
         }
-    },    {
+    },
+    {
         location = vector4(451.39, -974.42, 30.69, 125.60),
         model    = "s_m_y_cop_01",
         name     = "Cop Store",
