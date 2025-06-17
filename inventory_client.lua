@@ -24,8 +24,21 @@ RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to rec
 local localPlayerInventory = {} -- This will store the RECONSTRUCTED rich inventory
 
 -- Event handler for receiving inventory from server
-AddEventHandler('cnr:receiveMyInventory', function(minimalInventoryData)
+AddEventHandler('cnr:receiveMyInventory', function(minimalInventoryData, equippedItemsArray)
     Log("Received cnr:receiveMyInventory event. Processing inventory data...", "info")
+    
+    -- Update equipped items if provided
+    if equippedItemsArray and type(equippedItemsArray) == "table" then
+        Log("Received equipped items list with " .. #equippedItemsArray .. " items", "info")
+        
+        -- Convert array to dictionary for faster lookups
+        localPlayerEquippedItems = {}
+        for _, itemId in ipairs(equippedItemsArray) do
+            localPlayerEquippedItems[itemId] = true
+        end
+    end
+    
+    -- Process the inventory data
     UpdateFullInventory(minimalInventoryData)
 end)
 
@@ -213,6 +226,9 @@ function EquipInventoryWeapons()
         return
     end
 
+    -- Reset equipped items tracking
+    localPlayerEquippedItems = {}
+
     Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")
 
     if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
@@ -320,11 +336,13 @@ function EquipInventoryWeapons()
                             SetPedAmmo(playerPed, weaponHash, ammoCount)
                         end
                     end
-                    
-                    if hasWeapon then
+                      if hasWeapon then
                         weaponsEquipped = weaponsEquipped + 1
+                        -- Track this as equipped for UI
+                        localPlayerEquippedItems[itemId] = true
                         Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d (Retries: %d)", itemData.name or itemId, itemId, weaponHash, ammoCount, retryCount), "info")
                     else
+                        localPlayerEquippedItems[itemId] = false
                         Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false after %d retries", itemData.name or itemId, itemId, weaponHash, maxRetries), "error")
                     end
                 else
@@ -427,25 +445,47 @@ function ToggleInventoryUI()
     end
 end
 
+-- Track equipped items
+local localPlayerEquippedItems = {}
+
 -- Register NUI callback for retrieving player inventory
 RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
     Log("NUI requested inventory via getPlayerInventoryForUI", "info")
     
     -- Check if inventory data is available
     if localPlayerInventory and next(localPlayerInventory) then
+        -- Collect equipped weapons for UI
+        local equippedItems = {}
+        local playerPed = PlayerPedId()
+        
+        -- Check each weapon in inventory to see if it's equipped
+        for itemId, itemData in pairs(localPlayerInventory) do
+            if itemData.type == "weapon" and itemData.weaponHash then
+                if HasPedGotWeapon(playerPed, itemData.weaponHash, false) then
+                    table.insert(equippedItems, itemId)
+                    localPlayerEquippedItems[itemId] = true
+                else
+                    localPlayerEquippedItems[itemId] = false
+                end
+            end
+        end
+        
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items and " .. #equippedItems .. " equipped items", "info")
+        
         cb({
             success = true,
-            inventory = localPlayerInventory
+            inventory = localPlayerInventory,
+            equippedItems = equippedItems
         })
-    else
-        -- Request inventory from server if not available locally
+    else        -- Request inventory from server if not available locally
         TriggerServerEvent('cnr:requestMyInventory')
         
         -- Return empty inventory with error message
         cb({
             success = false,
             error = "Inventory data not available, requesting from server",
-            inventory = {}
+            inventory = {},
+            equippedItems = {} -- Return empty equipped items array to prevent undefined
         })
     end
 end)

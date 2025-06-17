@@ -1137,6 +1137,38 @@ RegisterNUICallback('selectRole', function(data, cb)
     cb({ success = true })
 end)
 
+-- Register NUI callback for setting NUI focus
+RegisterNUICallback('setNuiFocus', function(data, cb)
+    print("[CNR_CLIENT_DEBUG] NUI setNuiFocus called with hasFocus: " .. tostring(data.hasFocus) .. ", hasCursor: " .. tostring(data.hasCursor))
+    SetNuiFocus(data.hasFocus, data.hasCursor)
+    cb({success = true})
+end)
+
+-- Register NUI callbacks for robber menu actions
+RegisterNUICallback('startHeist', function(data, cb)
+    print("[CNR_CLIENT_DEBUG] NUI startHeist called")
+    TriggerEvent('cnr:startHeist')
+    cb({success = true})
+end)
+
+RegisterNUICallback('viewBounties', function(data, cb)
+    print("[CNR_CLIENT_DEBUG] NUI viewBounties called")
+    TriggerEvent('cnr:viewBounties')
+    cb({success = true})
+end)
+
+RegisterNUICallback('findHideout', function(data, cb)
+    print("[CNR_CLIENT_DEBUG] NUI findHideout called")
+    TriggerEvent('cnr:findHideout')
+    cb({success = true})
+end)
+
+RegisterNUICallback('buyContraband', function(data, cb)
+    print("[CNR_CLIENT_DEBUG] NUI buyContraband called")
+    TriggerEvent('cnr:buyContraband')
+    cb({success = true})
+end)
+
 -- =====================================
 --           EVENT HANDLERS
 -- =====================================
@@ -1149,4 +1181,107 @@ AddEventHandler('cnr:showRoleSelection', function()
         resourceName = GetCurrentResourceName() 
     })
     SetNuiFocus(true, true)
+end)
+
+-- =====================================
+--           ROBBER MENU ACTIONS
+-- =====================================
+
+RegisterNetEvent('cnr:startHeist')
+AddEventHandler('cnr:startHeist', function()
+    print("[CNR_CLIENT_DEBUG] Robber is attempting to start a heist")
+    -- Check if player is near a heist location
+    local playerPos = GetEntityCoords(PlayerPedId())
+    local nearHeist = false
+    local heistType = nil
+    
+    -- Example: Check if player is near a bank
+    for _, location in pairs(Config.HeistLocations or {}) do
+        local distance = #(playerPos - vector3(location.x, location.y, location.z))
+        if distance < 20.0 then
+            nearHeist = true
+            heistType = location.type
+            break
+        end
+    end
+    
+    if nearHeist then
+        TriggerServerEvent('cnr:initiateHeist', heistType)
+    else
+        ShowNotification("~r~You must be near a valid heist location to start a heist.")
+    end
+end)
+
+RegisterNetEvent('cnr:viewBounties')
+AddEventHandler('cnr:viewBounties', function()
+    print("[CNR_CLIENT_DEBUG] Viewing available bounties")
+    TriggerServerEvent('cnr:requestBountyList')
+end)
+
+RegisterNetEvent('cnr:findHideout')
+AddEventHandler('cnr:findHideout', function()
+    print("[CNR_CLIENT_DEBUG] Searching for hideout locations")
+    
+    -- Example: Show the nearest hideout on the map
+    local nearestHideout = nil
+    local shortestDistance = 1000000
+    local playerPos = GetEntityCoords(PlayerPedId())
+    
+    for _, hideout in pairs(Config.RobberHideouts or {}) do
+        local hideoutPos = vector3(hideout.x, hideout.y, hideout.z)
+        local distance = #(playerPos - hideoutPos)
+        
+        if distance < shortestDistance then
+            shortestDistance = distance
+            nearestHideout = hideout
+        end
+    end
+    
+    if nearestHideout then
+        -- Create a temporary blip for the hideout
+        local blip = AddBlipForCoord(nearestHideout.x, nearestHideout.y, nearestHideout.z)
+        SetBlipSprite(blip, 40) -- House icon
+        SetBlipColour(blip, 1) -- Red
+        SetBlipAsShortRange(blip, false)
+        BeginTextCommandSetBlipName("STRING")
+        AddTextComponentString("Robber Hideout")
+        EndTextCommandSetBlipName(blip)
+        
+        -- Show notification
+        ShowNotification("~g~Hideout location marked on your map.")
+        
+        -- Remove blip after 60 seconds
+        Citizen.SetTimeout(60000, function()
+            RemoveBlip(blip)
+            ShowNotification("~y~Hideout location removed from map.")
+        end)
+    else
+        ShowNotification("~r~No hideout locations found.")
+    end
+end)
+
+RegisterNetEvent('cnr:buyContraband')
+AddEventHandler('cnr:buyContraband', function()
+    print("[CNR_CLIENT_DEBUG] Attempting to buy contraband")
+    
+    -- Check if player is near a contraband dealer
+    local playerPos = GetEntityCoords(PlayerPedId())
+    local nearDealer = false
+    
+    for _, dealer in pairs(Config.ContrabandDealers or {}) do
+        local dealerPos = vector3(dealer.x, dealer.y, dealer.z)
+        local distance = #(playerPos - dealerPos)
+        
+        if distance < 5.0 then
+            nearDealer = true
+            break
+        end
+    end
+    
+    if nearDealer then
+        -- Open the store with contraband items
+        TriggerServerEvent('cnr:openContrabandStore')
+    else
+        ShowNotification("~r~You must be near a contraband dealer to buy contraband.")
+    end
 end)

@@ -126,8 +126,7 @@ window.addEventListener('message', function(event) {
             if (storeMenuElement && storeMenuElement.style.display === 'block' && window.currentTab === 'sell') {
                 loadSellItems();
             }
-            break;
-        case 'showWantedNotification':
+            break;        case 'showWantedNotification':
             showWantedNotification(data.stars, data.points, data.level);
             break;        case 'hideWantedNotification':
             hideWantedNotification();
@@ -137,6 +136,9 @@ window.addEventListener('message', function(event) {
         case 'updateInventory':
         case 'updateEquippedItems':
             handleInventoryMessage(data);
+            break;
+        case 'showRobberMenu':
+            showRobberMenu();
             break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
@@ -1844,4 +1846,106 @@ function openInventoryUI(data) {
     }).catch(error => {
         console.error('[CNR_INVENTORY] Failed to load inventory:', error);
     });
+}
+
+// ==============================================
+// Robber Menu Functions
+// ==============================================
+let isRobberMenuOpen = false;
+
+function showRobberMenu() {
+    console.log('[CNR_ROBBER_MENU] Opening robber menu');
+    
+    // Display the menu
+    const robberMenu = document.getElementById('robber-menu');
+    if (robberMenu) {
+        robberMenu.classList.remove('hidden');
+        document.body.classList.add('menu-open');
+        isRobberMenuOpen = true;
+        
+        // Set up event listeners if they don't exist yet
+        setupRobberMenuListeners();
+    } else {
+        console.error('[CNR_ROBBER_MENU] Could not find robber-menu element in the DOM');
+    }
+}
+
+function hideRobberMenu() {
+    console.log('[CNR_ROBBER_MENU] Closing robber menu');
+    
+    const robberMenu = document.getElementById('robber-menu');
+    if (robberMenu) {
+        robberMenu.classList.add('hidden');
+        document.body.classList.remove('menu-open');
+        isRobberMenuOpen = false;
+    }
+    
+    // Reset NUI focus
+    fetchSetNuiFocus(false, false);
+}
+
+function setupRobberMenuListeners() {
+    // Close button
+    const closeBtn = document.getElementById('robber-menu-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            hideRobberMenu();
+        });
+    }
+    
+    // Start heist button
+    const startHeistBtn = document.getElementById('start-heist-btn');
+    if (startHeistBtn) {
+        startHeistBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Start heist button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/startHeist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error triggering heist:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // View bounties button
+    const viewBountiesBtn = document.getElementById('view-bounties-btn');
+    if (viewBountiesBtn) {
+        viewBountiesBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] View bounties button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/viewBounties`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error viewing bounties:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // Find hideout button
+    const findHideoutBtn = document.getElementById('find-hideout-btn');
+    if (findHideoutBtn) {
+        findHideoutBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Find hideout button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/findHideout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error finding hideout:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // Buy contraband button
+    const buyContrabandBtn = document.getElementById('buy-contraband-btn');
+    if (buyContrabandBtn) {
+        buyContrabandBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Buy contraband button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/buyContraband`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error buying contraband:', error));
+            hideRobberMenu();
+        });
+    }
 }

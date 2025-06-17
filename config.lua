@@ -853,99 +853,38 @@ Config.LevelUnlocks = {
     }
 }
 
--- Weapon names mapping for display purposes (e.g., notifications, UI)
-Config.WeaponNames = {
-    -- Pistols
-    ["weapon_pistol"] = "Pistol",
-    ["weapon_combatpistol"] = "Combat Pistol",
-    ["weapon_appistol"] = "AP Pistol",
-    ["weapon_pistol_mk2"] = "Pistol Mk II",
-    ["weapon_heavypistol"] = "Heavy Pistol",
-    ["weapon_doubleaction"] = "Double-Action Revolver",
-    ["weapon_revolver_mk2"] = "Heavy Revolver Mk II",
-    ["weapon_vintagepistol"] = "Vintage Pistol",
-    ["weapon_snspistol"] = "SNS Pistol",
-    ["weapon_machinepistol"] = "Machine Pistol",
-
-    -- SMGs & Rifles
-    ["weapon_smg"] = "SMG",
-    ["weapon_microsmg"] = "Micro SMG",
-    ["weapon_assaultrifle"] = "Assault Rifle",
-    ["weapon_carbinerifle"] = "Carbine Rifle",
-    ["weapon_specialcarbine_mk2"] = "Special Carbine Mk II",
-    ["weapon_combatmg"] = "Combat MG",
-    ["weapon_sniperrifle"] = "Sniper Rifle",
-    ["weapon_heavysniper"] = "Heavy Sniper",
-    ["weapon_heavysniper_mk2"] = "Heavy Sniper Mk II",
-    ["weapon_marksmanrifle"] = "Marksman Rifle",
-    ["weapon_marksmanrifle_mk2"] = "Marksman Rifle Mk II",
-    ["weapon_compactrifle"] = "Compact Rifle",
-    ["weapon_bullpuprifle"] = "Bullpup Rifle",
-    ["weapon_advancedrifle"] = "Advanced Rifle",
-    ["weapon_specialcarbine"] = "Special Carbine",
-    ["weapon_machinegun"] = "Machine Gun",
-    ["weapon_combatmg_mk2"] = "Combat MG Mk II",
-    ["weapon_minigun"] = "Minigun",
-    ["weapon_minismg"] = "Mini SMG",
-    ["weapon_gusenberg"] = "Gusenberg Sweeper",
-
-    -- Shotguns
-    ["weapon_pumpshotgun"] = "Pump Shotgun",
-    ["weapon_combatshotgun"] = "Combat Shotgun",
-    ["weapon_heavyshotgun"] = "Heavy Shotgun",
-    ["weapon_assaultshotgun"] = "Assault Shotgun",
-    ["weapon_sawnoffshotgun"] = "Sawed-Off Shotgun",
-    ["weapon_bullpupshotgun"] = "Bullpup Shotgun",
-    ["weapon_autoshotgun"] = "Auto Shotgun",
-    ["weapon_dbshotgun"] = "Double Barrel Shotgun",
-    ["weapon_musket"] = "Musket",
-
-    -- Melee Weapons
-    ["weapon_knife"] = "Knife",
-    ["weapon_bat"] = "Baseball Bat",
-    ["weapon_crowbar"] = "Crowbar",
-    ["weapon_switchblade"] = "Switchblade",
-    ["weapon_nightstick"] = "Nightstick",
-    ["weapon_flashlight"] = "Flashlight",
-    ["weapon_stungun"] = "Stun Gun",
-    ["weapon_stunrod"] = "The Shocker",
-    ["weapon_dagger"] = "Dagger",
-    ["weapon_hatchet"] = "Hatchet",
-    ["weapon_machete"] = "Machete",
-    ["weapon_katana"] = "Katana",
-    ["weapon_wrench"] = "Wrench",
-    ["weapon_hammer"] = "Hammer",
-    ["weapon_poolcue"] = "Pool Cue",
-
-    -- Special Weapons
-    ["weapon_flaregun"] = "Flare Gun",
-    ["weapon_fireextinguisher"] = "Fire Extinguisher",
-    ["weapon_emplauncher"] = "Compact EMP Launcher",
-    ["weapon_snowball"] = "Snowball Launcher",
-    ["weapon_stickybomb"] = "Sticky Bomb",
-    ["weapon_grenade"] = "Grenade",
-    ["weapon_rpg"] = "RPG",
-    ["weapon_grenadelauncher"] = "Grenade Launcher",
-    ["weapon_hominglauncher"] = "Homing Launcher",
-    ["weapon_firework"] = "Firework Launcher",
-    ["weapon_railgun"] = "Railgun",
-
-    -- Throwables
-    ["weapon_flare"] = "Flare",
-    ["weapon_smokegrenade"] = "Tear Gas",
-    ["weapon_bzgas"] = "BZ Gas"
+-- =========================
+--      Robber Hideouts
+-- =========================
+-- Locations for robber hideouts and safe houses
+Config.RobberHideouts = {
+    { x = 1536.63, y = 3582.91, z = 38.73, name = "Sandy Shores Hideout" },
+    { x = -14.21, y = -1442.61, z = 31.10, name = "South LS Hideout" },
+    { x = 1943.45, y = 3150.58, z = 46.78, name = "Desert Hideout" },
+    { x = -1165.45, y = -1565.98, z = 4.37, name = "Vespucci Hideout" },
+    { x = 139.53, y = 6366.54, z = 31.53, name = "Paleto Bay Hideout" },
 }
 
 -- =========================
---      Bounty Settings
+--      Heist Locations
 -- =========================
-Config.BountySettings = {
-    enabled = true,
-    wantedLevelThreshold = 4,  -- Min wanted stars to get a bounty.
-    baseAmount = 5000,
-    increasePerMinute = 100,   -- How much bounty increases per minute.
-    maxBounty = 50000,
-    claimMethod = "arrest",    -- Current options: "arrest". Could be "kill" if PvP is different.
-    durationMinutes = 60,      -- How long a bounty stays active if player maintains wanted level (or is offline). Refreshed if wanted level drops then re-triggers.
-    cooldownMinutes = 30       -- Cooldown on a player before a *new* bounty can be placed on them after one is claimed or expires.
+-- Locations for different types of heists
+Config.HeistLocations = {
+    { x = 254.11, y = 225.14, z = 101.87, type = "bank", name = "Pacific Standard Bank" },
+    { x = -1210.85, y = -336.43, z = 37.78, type = "bank", name = "Fleeca Bank (Vinewood)" },
+    { x = -2956.54, y = 481.01, z = 15.69, type = "bank", name = "Fleeca Bank (Great Ocean)" },
+    { x = -104.87, y = 6477.83, z = 31.62, type = "bank", name = "Fleeca Bank (Paleto Bay)" },
+    { x = -622.25, y = -229.95, z = 38.05, type = "jewelry", name = "Vangelico Jewelry Store" },
+    { x = 1659.24, y = 4851.48, z = 41.99, type = "store", name = "Grapeseed Convenience Store" },
+    { x = 2549.39, y = 384.83, z = 108.62, type = "store", name = "Highway Convenience Store" },
+}
+
+-- =========================
+--    Contraband Dealers
+-- =========================
+-- Locations for contraband dealers where robbers can buy special items
+Config.ContrabandDealers = {
+    { x = 1005.76, y = 88.4, z = 90.24, heading = 270.24, name = "Downtown Dealer" },
+    { x = 728.38, y = 4170.17, z = 40.09, heading = 92.45, name = "Northern Dealer" },
+    { x = -1337.25, y = -1277.94, z = 4.87, heading = 110.23, name = "Beach Dealer" },
 }

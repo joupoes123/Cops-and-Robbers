@@ -333,11 +333,21 @@ AddEventHandler('cnr:requestMyInventory', function()
     local playerId = source
     local pData = GetCnrPlayerData(playerId)
     
-    if pData and pData.inventory then
-        Log(string.format("Player %d requested their inventory. Sending data...", playerId))
+    if pData and pData.inventory then        Log(string.format("Player %d requested their inventory. Sending data...", playerId))
+        
+        -- Get equipped items for this player
+        local equippedItems = playerEquippedItems[playerId] or {}
+        local equippedItemsArray = {}
+        
+        -- Convert equipped items table to array
+        for itemId, isEquipped in pairs(equippedItems) do
+            if isEquipped then
+                table.insert(equippedItemsArray, itemId)
+            end
+        end
         
         -- Send the inventory data to the client
-        TriggerClientEvent('cnr:receiveMyInventory', playerId, pData.inventory)
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, pData.inventory, equippedItemsArray)
     else
         Log(string.format("Player %d requested inventory but no data was found!", playerId), "warn")
         -- Send an empty inventory to prevent UI errors
