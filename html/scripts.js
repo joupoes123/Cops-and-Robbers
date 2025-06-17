@@ -4,6 +4,11 @@
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
 let fullItemConfig = null; // Will store Config.Items
 
+// Inventory state variables
+let isInventoryOpen = false;
+let currentInventoryData = null;
+let currentEquippedItems = null;
+
 // ====================================================================
 // NUI Message Handling & Security
 // ====================================================================
@@ -1039,6 +1044,13 @@ window.addEventListener('keydown', function(event) {
     }
 });
 
+// Global escape key listener for inventory
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && isInventoryOpen) {
+        closeInventoryUI();
+    }
+});
+
 let heistTimerInterval = null;
 function startHeistTimer(duration, bankName) {
     const heistTimerEl = document.getElementById('heist-timer');
@@ -1264,8 +1276,12 @@ function closeInventoryUI() {
     const inventoryMenu = document.getElementById('inventory-menu');
     if (inventoryMenu) {
         inventoryMenu.style.display = 'none';
+        inventoryMenu.classList.add('hidden');
         document.body.classList.remove('inventory-open');
     }
+    
+    // Remove NUI focus
+    fetchSetNuiFocus(false, false);
     
     // Send close message to Lua
     fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/closeInventory`, {
@@ -1314,6 +1330,95 @@ async function requestPlayerInventoryForUI() {
         console.error('[CNR_INVENTORY] Error requesting inventory:', error);
         showToast('Error loading inventory', 'error', 3000);
     }
+}
+
+// Create inventory UI elements if they don't exist
+function createInventoryUI() {
+    // Check if inventory menu already exists
+    const existingInventory = document.getElementById('inventory-menu');
+    if (existingInventory) {
+        console.log('[CNR_INVENTORY] Inventory UI already exists, setting up event listeners');
+        
+        // Add close button event listener if not already added
+        const closeBtn = document.getElementById('inventory-close-btn');
+        if (closeBtn && !closeBtn.hasEventListener) {
+            closeBtn.addEventListener('click', closeInventoryUI);
+            closeBtn.hasEventListener = true;
+        }
+        
+        return;
+    }
+    
+    console.log('[CNR_INVENTORY] Creating inventory UI');
+    
+    // Create the main inventory container
+    const inventoryMenu = document.createElement('div');
+    inventoryMenu.id = 'inventory-menu';
+    inventoryMenu.className = 'inventory-container';
+    inventoryMenu.style.display = 'none';
+    
+    inventoryMenu.innerHTML = `
+        <div class="inventory-panel">
+            <div class="inventory-header">
+                <h2>Inventory</h2>
+                <button id="inventory-close-btn" class="close-btn">×</button>
+            </div>
+            <div class="inventory-content">
+                <div class="inventory-player-info">
+                    <div class="player-stats">
+                        <span id="inventory-player-cash-amount">$0</span>
+                        <span id="inventory-player-level-text">Level 1</span>
+                    </div>
+                </div>
+                <div class="inventory-categories">
+                    <div id="inventory-category-list" class="category-buttons">
+                        <button class="category-btn active" data-category="all">All</button>
+                    </div>
+                </div>
+                <div class="inventory-grid" id="inventory-grid">
+                    <!-- Inventory items will be populated here -->
+                </div>
+                <div class="equipped-items" id="equipped-items">
+                    <h3>Equipped Items</h3>
+                    <div id="equipped-items-container">
+                        <!-- Equipped items will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(inventoryMenu);
+    
+    // Add close button event listener
+    const closeBtn = document.getElementById('inventory-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeInventoryUI);
+        closeBtn.hasEventListener = true;
+    }
+}
+
+// Update inventory UI with new inventory data
+function updateInventoryUI(inventory) {
+    console.log('[CNR_INVENTORY] Updating inventory UI', inventory);
+    
+    currentInventoryData = inventory || {};
+    
+    // Update player info
+    updateInventoryPlayerInfo();
+    
+    // Render inventory grid
+    renderInventoryGrid();
+}
+
+// Update equipped items UI
+function updateEquippedItemsUI(equippedItems) {
+    console.log('[CNR_INVENTORY] Updating equipped items UI', equippedItems);
+    
+    currentEquippedItems = equippedItems || {};
+    
+    // Render equipped items
+    renderEquippedItems();
 }
 
 // Render category filter buttons
@@ -1411,28 +1516,6 @@ function createInventoryItemElement(itemId, itemData) {
     item.addEventListener('click', () => selectInventoryItem(itemId, itemData, item));
     
     return item;
-}
-
-// Get item icon based on category or specific item
-function getItemIcon(itemData) {
-    // Check if item has specific icon
-    if (itemData.icon) {
-        return itemData.icon;
-    }
-    
-    // Category-based icons
-    const categoryIcons = {
-        'Weapons': '🔫',
-        'Melee Weapons': '⚔️',
-        'Ammunition': '📦',
-        'Armor': '🛡️',
-        'Utility': '🔧',
-        'Explosives': '💣',
-        'Accessories': '🎭',
-        'Cop Gear': '👮'
-    };
-    
-    return categoryIcons[itemData.category] || '📦';
 }
 
 // Select inventory item
@@ -1703,12 +1786,18 @@ function openInventoryUI(data) {
     isInventoryOpen = true;
     console.log('[CNR_INVENTORY] Opening inventory UI');
     
-    // Create inventory UI if it doesn't exist    createInventoryUI();
-      // Show the inventory
+    // Set up inventory UI (this will handle both existing and new UI creation)
+    createInventoryUI();
+    
+    // Show the inventory
     const inventoryContainer = document.getElementById('inventory-menu');
     if (inventoryContainer) {
         inventoryContainer.style.display = 'block';
+        inventoryContainer.classList.remove('hidden');
         document.body.classList.add('inventory-open');
+        
+        // Set NUI focus
+        fetchSetNuiFocus(true, true);
     }
     
     // Request initial inventory data
