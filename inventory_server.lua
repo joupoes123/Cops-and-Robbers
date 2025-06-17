@@ -327,6 +327,24 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
     end
 end)
 
+-- Register server event for players requesting their inventory
+RegisterServerEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    
+    if pData and pData.inventory then
+        Log(string.format("Player %d requested their inventory. Sending data...", playerId))
+        
+        -- Send the inventory data to the client
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, pData.inventory)
+    else
+        Log(string.format("Player %d requested inventory but no data was found!", playerId), "warn")
+        -- Send an empty inventory to prevent UI errors
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, {})
+    end
+end)
+
 -- Helper function to get item config
 function GetItemConfig(itemId)
     if Config and Config.Items and type(Config.Items) == "table" then

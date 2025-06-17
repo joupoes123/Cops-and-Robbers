@@ -23,6 +23,12 @@ end
 RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to receive this event from server
 local localPlayerInventory = {} -- This will store the RECONSTRUCTED rich inventory
 
+-- Event handler for receiving inventory from server
+AddEventHandler('cnr:receiveMyInventory', function(minimalInventoryData)
+    Log("Received cnr:receiveMyInventory event. Processing inventory data...", "info")
+    UpdateFullInventory(minimalInventoryData)
+end)
+
 -- Add the missing cnr:syncInventory event handler
 RegisterNetEvent('cnr:syncInventory')
 AddEventHandler('cnr:syncInventory', function(minimalInventoryData)
@@ -444,6 +450,32 @@ RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
     end
 end)
 
+-- Register NUI callback for setting NUI focus (called from JavaScript)
+RegisterNUICallback('setNuiFocus', function(data, cb)
+    Log("NUI requested SetNuiFocus: " .. tostring(data.hasFocus) .. ", " .. tostring(data.hasCursor), "info")
+    
+    -- Set NUI focus based on the data received
+    SetNuiFocus(data.hasFocus or false, data.hasCursor or false)
+    
+    -- Acknowledge the request
+    cb({
+        success = true
+    })
+end)
+
+-- Register NUI callback for closing inventory (called from JavaScript)
+RegisterNUICallback('closeInventory', function(data, cb)
+    Log("NUI requested to close inventory", "info")
+    
+    -- Trigger the close inventory event
+    TriggerEvent('cnr:closeInventory')
+    
+    -- Acknowledge the request
+    cb({
+        success = true
+    })
+end)
+
 -- Export functions for other client scripts
 exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)
@@ -482,7 +514,13 @@ AddEventHandler('cnr:closeInventory', function()
         SendNUIMessage({
             action = 'closeInventory'
         })
+        
+        -- Ensure the NUI focus is properly reset
         SetNuiFocus(false, false)
+        
+        -- Ensure the game controls are re-enabled
+        SetPlayerControl(PlayerId(), true, 0)
+        
         Log("Inventory UI closed via event", "info")
     end
 end)
