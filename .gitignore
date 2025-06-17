@@ -4,6 +4,8 @@
 docs/*
 # Exception: track README.md in docs folder
 !docs/README.md
+!docs/SECURITY.md
+!docs/LICENSE
 
 # Common files to ignore
 *.log
