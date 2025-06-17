@@ -1,0 +1,7 @@
+# Auto-detect text files and perform LF normalization
+* text=auto
+
+# Hide issue templates, workflows, and dependabot.yml from GitHub UI
+.github/ISSUE_TEMPLATE linguist-generated export-ignore
+.github/workflows linguist-generated export-ignore
+.github/dependabot.yml linguist-generated export-ignore
