@@ -537,11 +537,10 @@ RegisterNUICallback("buyItem", function(data, cb)
     print(string.format("[CNR_CLIENT_DEBUG] Buying item: %s x%d", data.itemId, data.quantity))
     
     local responded = false
-    local handler
-    handler = AddEventHandler('cops_and_robbers:buyResult', function(success, message, newCash)
+    local handler = AddEventHandler('cops_and_robbers:buyResult', function(success, message, newCash)
         if responded then return end
         responded = true
-        if handler then RemoveEventHandler(handler) end
+        RemoveEventHandler(handler)
         cb({ success = success, message = message, newCash = newCash })
     end)
     
@@ -551,7 +550,7 @@ RegisterNUICallback("buyItem", function(data, cb)
     Citizen.SetTimeout(5000, function()
         if not responded then
             responded = true
-            if handler then RemoveEventHandler(handler) end
+            RemoveEventHandler(handler)
             cb({ success = false, error = "Purchase request timed out" })
         end
     end)
@@ -567,11 +566,10 @@ RegisterNUICallback("sellItem", function(data, cb)
     print(string.format("[CNR_CLIENT_DEBUG] Selling item: %s x%d", data.itemId, data.quantity))
     
     local responded = false
-    local handler
-    handler = AddEventHandler('cops_and_robbers:sellResult', function(success, message, newCash)
+    local handler = AddEventHandler('cops_and_robbers:sellResult', function(success, message, newCash)
         if responded then return end
         responded = true
-        if handler then RemoveEventHandler(handler) end
+        RemoveEventHandler(handler)
         cb({ success = success, message = message, newCash = newCash })
         
         -- Refresh inventory in NUI after successful sell
@@ -579,13 +577,14 @@ RegisterNUICallback("sellItem", function(data, cb)
             SendNUIMessage({ action = 'refreshInventory' })
         end
     end)
-      TriggerServerEvent('cops_and_robbers:sellItem', data.itemId, data.quantity)
+    
+    TriggerServerEvent('cops_and_robbers:sellItem', data.itemId, data.quantity)
     
     -- Timeout
     Citizen.SetTimeout(5000, function()
         if not responded then
             responded = true
-            if handler then RemoveEventHandler(handler) end
+            RemoveEventHandler(handler)
             cb({ success = false, error = "Sell request timed out" })
         end
     end)

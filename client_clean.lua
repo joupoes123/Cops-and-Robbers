@@ -1,0 +1,1 @@
+-- Truncate the file at the end of the last good function and add proper completion
