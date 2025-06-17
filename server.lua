@@ -765,6 +765,36 @@ CreateThread(function() -- Bounty Increase & Expiry Loop
     end
 end)
 
+-- Handle bounty list request
+RegisterNetEvent('cnr:requestBountyList')
+AddEventHandler('cnr:requestBountyList', function()
+    local source = source
+    -- Send the list of all active bounties to the player who requested it
+    local bountyList = {}
+    
+    -- If there are no active bounties, return an empty list
+    if not next(activeBounties) then
+        TriggerClientEvent('cnr:receiveBountyList', source, {})
+        return
+    end
+    
+    -- Convert the activeBounties table to an array format for the UI
+    for playerId, bountyData in pairs(activeBounties) do
+        table.insert(bountyList, {
+            id = playerId,
+            name = bountyData.name,
+            amount = bountyData.amount,
+            expiresAt = bountyData.expiresAt
+        })
+    end
+    
+    -- Sort bounties by amount (highest first)
+    table.sort(bountyList, function(a, b) return a.amount > b.amount end)
+    
+    -- Send the formatted bounty list to the client
+    TriggerClientEvent('cnr:receiveBountyList', source, bountyList)
+end)
+
 -- =================================================================================================
 -- WANTED SYSTEM
 -- =================================================================================================

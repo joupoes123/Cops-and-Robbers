@@ -1325,6 +1325,21 @@ AddEventHandler('cnr:viewBounties', function()
     TriggerServerEvent('cnr:requestBountyList')
 end)
 
+-- Add new event handler for receiving bounty list
+RegisterNetEvent('cnr:receiveBountyList')
+AddEventHandler('cnr:receiveBountyList', function(bountyList)
+    print("[CNR_CLIENT_DEBUG] Received bounty list with " .. #bountyList .. " bounties")
+    
+    -- Send the bounty list to the UI
+    SendNUIMessage({
+        action = 'showBountyList',
+        bounties = bountyList
+    })
+    
+    -- Set focus to the UI
+    SetNuiFocus(true, true)
+end)
+
 RegisterNetEvent('cnr:findHideout')
 AddEventHandler('cnr:findHideout', function()
     print("[CNR_CLIENT_DEBUG] Searching for hideout locations")
@@ -1601,12 +1616,95 @@ Citizen.CreateThread(function()
                 
                 -- Only report for actual weapons, not non-lethal ones
                 if weapon ~= GetHashKey('WEAPON_STUNGUN') and weapon ~= GetHashKey('WEAPON_FLASHLIGHT') then
-                    -- Report weapon discharge
-                    TriggerServerEvent('cops_and_robbers:reportCrime', 'weapons_discharge')
+                    -- Report weapon discharge                    TriggerServerEvent('cops_and_robbers:reportCrime', 'weapons_discharge')
                     -- Wait a bit to avoid spamming events
                     Citizen.Wait(5000)
                 end
             end
         end
     end
+end)
+
+-- ====================================================================
+-- Speedometer Functions
+-- ====================================================================
+
+-- Speedometer settings
+local showSpeedometer = true
+local speedometerUpdateInterval = 200 -- ms
+local lastVehicleSpeed = 0
+
+-- Cache for vehicle types we don't want to show speedometer for
+local excludedVehicleTypes = {
+    [8] = true,  -- Boats
+    [14] = true, -- Boats
+    [15] = true, -- Helicopters
+    [16] = true, -- Planes
+}
+
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(speedometerUpdateInterval)
+        
+        if showSpeedometer then
+            local player = PlayerPedId()
+            
+            if IsPedInAnyVehicle(player, false) then
+                local vehicle = GetVehiclePedIsIn(player, false)
+                local vehicleClass = GetVehicleClass(vehicle)
+                
+                -- Only show speedometer for allowed vehicle types
+                if not excludedVehicleTypes[vehicleClass] then
+                    local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert to MPH
+                    
+                    -- Only update the UI if the speed has changed significantly
+                    if math.abs(speed - lastVehicleSpeed) > 0.5 then
+                        lastVehicleSpeed = speed
+                        
+                        -- Round to integer
+                        local roundedSpeed = math.floor(speed + 0.5)
+                        
+                        -- Update UI
+                        SendNUIMessage({
+                            action = "updateSpeedometer",
+                            speed = roundedSpeed
+                        })
+                        
+                        -- Show speedometer if not already visible
+                        SendNUIMessage({
+                            action = "toggleSpeedometer",
+                            show = true
+                        })
+                    end
+                else
+                    -- Hide speedometer for excluded vehicle types
+                    SendNUIMessage({
+                        action = "toggleSpeedometer",
+                        show = false
+                    })
+                end
+            else
+                -- Hide speedometer when not in vehicle
+                SendNUIMessage({
+                    action = "toggleSpeedometer",
+                    show = false
+                })
+            end
+        end
+    end
+end)
+
+-- Command to toggle speedometer
+RegisterCommand('togglespeedometer', function()
+    showSpeedometer = not showSpeedometer
+    TriggerEvent('cnr:notification', 'Speedometer ' .. (showSpeedometer and 'enabled' or 'disabled'))
+end, false)
+
+-- Register event handler for receiving bounty list
+RegisterNetEvent('cnr:receiveBountyList')
+AddEventHandler('cnr:receiveBountyList', function(bounties)
+    SendNUIMessage({
+        action = 'showBountyList',
+        bounties = bounties
+    })
 end)
