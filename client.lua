@@ -61,7 +61,7 @@ local currentWantedStarsClient = 0
 local currentWantedPointsClient = 0
 local wantedUiLabel = ""
 local lastSpeedCheckTime = 0
-local speedLimit = 40.0 -- mph
+local speedLimit = 80.0 -- mph
 local lastWantedLevelTime = 0
 
 local xpForNextLevelDisplay = 0
@@ -313,6 +313,11 @@ AddEventHandler('cnr:hideWantedLevel', function()
 end)
 
 AddEventHandler('cnr:updateWantedLevel', function(stars, points, level)
+    -- Ensure all parameters have default values to prevent nil concatenation errors
+    stars = stars or 0
+    points = points or 0
+    level = level or ("" .. stars .. " star" .. (stars ~= 1 and "s" or ""))
+    
     print("[CNR_CLIENT_DEBUG] Updating wanted level: " .. stars .. " stars, " .. points .. " points, level " .. level)
     SendNUIMessage({
         action = 'showWantedNotification', 
@@ -502,27 +507,47 @@ Citizen.CreateThread(function()
                 local currentTime = GetGameTimer()
                 
                 -- Check for speeding (increase wanted level)
-                if speed > speedLimit and (currentTime - lastWantedLevelTime) > 5000 then -- 5 second cooldown
+                if speed > speedLimit and (currentTime - lastWantedLevelTime) > 10000 then -- 10 second cooldown
                     if currentWantedLevel < 5 then
+                        -- Increase wanted level more gradually
                         currentWantedLevel = currentWantedLevel + 1
                         lastWantedLevelTime = currentTime
-                        TriggerEvent('cnr:updateWantedLevel', currentWantedLevel)
-                        ShowNotification("~r~Wanted Level Increased: " .. currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or ""))
+                        
+                        -- Calculate wanted points (10 points per star level)
+                        local wantedPoints = currentWantedLevel * 10
+                        local wantedLabel = currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")
+                        
+                        -- Update local variables
+                        currentWantedStarsClient = currentWantedLevel
+                        currentWantedPointsClient = wantedPoints
+                        wantedUiLabel = wantedLabel
+                        
+                        -- Only use NUI notification, not GTA notification
+                        TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
                         print(string.format("[CNR_CLIENT_DEBUG] Wanted level increased to %d due to speeding (%.1f mph)", currentWantedLevel, speed))
                     end
                 end
             end
-              -- Decrease wanted level over time when not committing crimes (check outside vehicle too)
+            
+            -- Decrease wanted level over time when not committing crimes (more gradually)
             local currentTime = GetGameTimer()
-            if currentWantedLevel > 0 and (currentTime - lastWantedLevelTime) > 30000 then -- 30 seconds without new crimes
+            if currentWantedLevel > 0 and (currentTime - lastWantedLevelTime) > 60000 then -- 60 seconds without new crimes
                 currentWantedLevel = math.max(0, currentWantedLevel - 1)
                 lastWantedLevelTime = currentTime
-                TriggerEvent('cnr:updateWantedLevel', currentWantedLevel)
-                if currentWantedLevel > 0 then
-                    ShowNotification("~y~Wanted Level Decreased: " .. currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or ""))
-                else
-                    ShowNotification("~g~Wanted Level Cleared")
-                end
+                
+                -- Calculate wanted points (10 points per star level)
+                local wantedPoints = currentWantedLevel * 10
+                local wantedLabel = currentWantedLevel > 0 
+                    and (currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")) 
+                    or "Cleared"
+                
+                -- Update local variables
+                currentWantedStarsClient = currentWantedLevel
+                currentWantedPointsClient = wantedPoints
+                wantedUiLabel = wantedLabel
+                
+                -- Only use NUI notification, not GTA notification
+                TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
                 print(string.format("[CNR_CLIENT_DEBUG] Wanted level decreased to %d", currentWantedLevel))
             end
         end
