@@ -421,6 +421,29 @@ function ToggleInventoryUI()
     end
 end
 
+-- Register NUI callback for retrieving player inventory
+RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventoryForUI", "info")
+    
+    -- Check if inventory data is available
+    if localPlayerInventory and next(localPlayerInventory) then
+        cb({
+            success = true,
+            inventory = localPlayerInventory
+        })
+    else
+        -- Request inventory from server if not available locally
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        -- Return empty inventory with error message
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {}
+        })
+    end
+end)
+
 -- Export functions for other client scripts
 exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)

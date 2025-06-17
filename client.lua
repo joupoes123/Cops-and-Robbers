@@ -442,12 +442,12 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Inventory Key Binding (I Key)
+-- Inventory Key Binding (M Key)
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(100) -- Reduced frequency to prevent performance issues
         if IsControlJustPressed(0, Config.Keybinds.openInventory or 244) then -- M Key (INPUT_INTERACTION_MENU)
-            print("[CNR_CLIENT_DEBUG] I key pressed, attempting to open inventory")
+            print("[CNR_CLIENT_DEBUG] M key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
             print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
 
