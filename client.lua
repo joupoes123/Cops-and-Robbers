@@ -1708,3 +1708,285 @@ AddEventHandler('cnr:receiveBountyList', function(bounties)
         bounties = bounties
     })
 end)
+
+-- ====================================================================
+-- Robber Hideouts
+-- ====================================================================
+
+local hideoutBlips = {}
+local isHideoutVisible = false
+
+-- Create a blip for the nearest robber hideout
+function FindNearestHideout()
+    -- Check if player is a robber
+    GetCurrentPlayerRole(function(role)
+        if role ~= "robber" then
+            TriggerEvent('cnr:notification', "Only robbers can access hideouts.", "error")
+            return
+        end
+        
+        -- Clean up any existing hideout blips
+        RemoveHideoutBlips()
+        
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local nearestHideout = nil
+        local nearestDistance = 9999.0
+        
+        -- Find the nearest hideout
+        for _, hideout in ipairs(Config.RobberHideouts) do
+            local hideoutCoords = vector3(hideout.x, hideout.y, hideout.z)
+            local distance = #(playerCoords - hideoutCoords)
+            
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestHideout = hideout
+            end
+        end
+        
+        if nearestHideout then
+            local hideoutCoords = vector3(nearestHideout.x, nearestHideout.y, nearestHideout.z)
+            
+            -- Create blip for the hideout
+            local blip = AddBlipForCoord(hideoutCoords.x, hideoutCoords.y, hideoutCoords.z)
+            SetBlipSprite(blip, 492) -- House icon
+            SetBlipColour(blip, 1) -- Red
+            SetBlipScale(blip, 0.8)
+            SetBlipAsShortRange(blip, false)
+            BeginTextCommandSetBlipName("STRING")
+            AddTextComponentString(nearestHideout.name)
+            EndTextCommandSetBlipName(blip)
+            
+            -- Set route to the hideout
+            SetBlipRoute(blip, true)
+            SetBlipRouteColour(blip, 1) -- Red route
+            
+            -- Add to hideout blips table
+            table.insert(hideoutBlips, blip)
+            
+            -- Notify player
+            TriggerEvent('cnr:notification', "Route set to " .. nearestHideout.name .. ".")
+            
+            -- Set timer to remove the blip after 2 minutes
+            Citizen.SetTimeout(120000, function()
+                RemoveHideoutBlips()
+                TriggerEvent('cnr:notification', "Hideout marker removed from map.")
+            end)
+            
+            isHideoutVisible = true
+        else
+            TriggerEvent('cnr:notification', "No hideouts found nearby.", "error")
+        end
+    end)
+end
+
+-- Remove all hideout blips
+function RemoveHideoutBlips()
+    for _, blip in ipairs(hideoutBlips) do
+        if DoesBlipExist(blip) then
+            RemoveBlip(blip)
+        end
+    end
+    hideoutBlips = {}
+    isHideoutVisible = false
+end
+
+-- NUI Callback for Find Hideout button
+RegisterNUICallback('findHideout', function(data, cb)
+    FindNearestHideout()
+    cb({})
+end)
+
+-- Function to get player's current role from server
+function GetCurrentPlayerRole(callback)
+    TriggerServerEvent('cnr:getPlayerRole')
+    
+    local eventHandler
+    eventHandler = RegisterNetEvent('cnr:returnPlayerRole')
+    AddEventHandler('cnr:returnPlayerRole', function(role)
+        callback(role)
+        -- Remove handler to avoid memory leaks
+        if eventHandler then
+            RemoveEventHandler(eventHandler)
+        end
+    end)
+end
+
+-- ====================================================================
+-- Contraband Dealers
+-- ====================================================================
+
+local contrabandDealerBlips = {}
+local contrabandDealerPeds = {}
+
+-- Create contraband dealer blips and peds
+Citizen.CreateThread(function()
+    -- Wait for client to fully initialize
+    Citizen.Wait(5000)
+    
+    -- Create dealers
+    for _, dealer in ipairs(Config.ContrabandDealers) do
+        -- Create blip
+        local blip = AddBlipForCoord(dealer.x, dealer.y, dealer.z)
+        SetBlipSprite(blip, 378) -- Mask icon
+        SetBlipColour(blip, 1) -- Red
+        SetBlipScale(blip, 0.7)
+        SetBlipAsShortRange(blip, true)
+        BeginTextCommandSetBlipName("STRING")
+        AddTextComponentString(dealer.name or "Contraband Dealer")
+        EndTextCommandSetBlipName(blip)
+        
+        -- Add to dealer blips table
+        table.insert(contrabandDealerBlips, blip)
+        
+        -- Create dealer ped
+        local pedHash = GetHashKey("s_m_y_dealer_01") -- Default dealer model
+        
+        -- Request the model
+        RequestModel(pedHash)
+        while not HasModelLoaded(pedHash) do
+            Citizen.Wait(10)
+        end
+        
+        -- Create ped
+        local ped = CreatePed(4, pedHash, dealer.x, dealer.y, dealer.z - 1.0, dealer.heading, false, true)
+        FreezeEntityPosition(ped, true)
+        SetEntityInvincible(ped, true)
+        SetBlockingOfNonTemporaryEvents(ped, true)
+        
+        -- Add to dealer peds table
+        table.insert(contrabandDealerPeds, ped)
+    end
+end)
+
+-- Interaction with contraband dealers
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        
+        for _, dealer in ipairs(Config.ContrabandDealers) do
+            local dealerCoords = vector3(dealer.x, dealer.y, dealer.z)
+            local distance = #(playerCoords - dealerCoords)            if distance < 3.0 then
+                -- Draw a simpler marker
+                DrawSphere(dealer.x, dealer.y, dealer.z - 0.5, 0.5, 255, 0, 0, 0.2)
+                
+                -- Display help text
+                BeginTextCommandDisplayHelp("STRING")
+                AddTextComponentSubstringPlayerName("Press ~INPUT_CONTEXT~ to access the contraband dealer")
+                EndTextCommandDisplayHelp(0, false, true, -1)
+                
+                -- Check for interaction key
+                if IsControlJustReleased(0, 38) then -- E key
+                    TriggerServerEvent('cnr:accessContrabandDealer')
+                end
+            end
+        end
+    end
+end)
+
+-- NUI Callback for Buy Contraband button
+RegisterNUICallback('buyContraband', function(data, cb)
+    TriggerServerEvent('cnr:accessContrabandDealer')
+    cb({})
+end)
+
+-- ====================================================================
+-- Robber Hideouts
+-- ====================================================================
+
+local hideoutBlips = {}
+local isHideoutVisible = false
+
+-- Function to get player's current role from server
+function GetCurrentPlayerRole(callback)
+    TriggerServerEvent('cnr:getPlayerRole')
+    
+    RegisterNetEvent('cnr:returnPlayerRole')
+    AddEventHandler('cnr:returnPlayerRole', function(role)
+        callback(role)
+    end)
+end
+
+-- Create a blip for the nearest robber hideout
+function FindNearestHideout()
+    -- Check if player is a robber
+    GetCurrentPlayerRole(function(role)
+        if role ~= "robber" then
+            TriggerEvent('cnr:notification', "Only robbers can access hideouts.", "error")
+            return
+        end
+        
+        -- Clean up any existing hideout blips
+        RemoveHideoutBlips()
+        
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local nearestHideout = nil
+        local nearestDistance = 9999.0
+        
+        -- Find the nearest hideout
+        for _, hideout in ipairs(Config.RobberHideouts) do
+            local hideoutCoords = vector3(hideout.x, hideout.y, hideout.z)
+            local distance = #(playerCoords - hideoutCoords)
+            
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestHideout = hideout
+            end
+        end
+        
+        if nearestHideout then
+            local hideoutCoords = vector3(nearestHideout.x, nearestHideout.y, nearestHideout.z)
+            
+            -- Create blip for the hideout
+            local blip = AddBlipForCoord(hideoutCoords.x, hideoutCoords.y, hideoutCoords.z)
+            SetBlipSprite(blip, 492) -- House icon
+            SetBlipColour(blip, 1) -- Red
+            SetBlipScale(blip, 0.8)
+            SetBlipAsShortRange(blip, false)
+            BeginTextCommandSetBlipName("STRING")
+            AddTextComponentString(nearestHideout.name)
+            EndTextCommandSetBlipName(blip)
+            
+            -- Set route to the hideout
+            SetBlipRoute(blip, true)
+            SetBlipRouteColour(blip, 1) -- Red route
+            
+            -- Add to hideout blips table
+            table.insert(hideoutBlips, blip)
+            
+            -- Notify player
+            TriggerEvent('cnr:notification', "Route set to " .. nearestHideout.name .. ".")
+            
+            -- Set timer to remove the blip after 2 minutes
+            Citizen.SetTimeout(120000, function()
+                RemoveHideoutBlips()
+                TriggerEvent('cnr:notification', "Hideout marker removed from map.")
+            end)
+            
+            isHideoutVisible = true
+        else
+            TriggerEvent('cnr:notification', "No hideouts found nearby.", "error")
+        end
+    end)
+end
+
+-- Remove all hideout blips
+function RemoveHideoutBlips()
+    for _, blip in ipairs(hideoutBlips) do
+        if DoesBlipExist(blip) then
+            RemoveBlip(blip)
+        end
+    end
+    hideoutBlips = {}
+    isHideoutVisible = false
+end
+
+-- NUI Callback for Find Hideout button
+RegisterNUICallback('findHideout', function(data, cb)
+    FindNearestHideout()
+    cb({})
+end)

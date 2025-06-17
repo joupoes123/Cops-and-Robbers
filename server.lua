@@ -10,6 +10,7 @@
 -- - Added missing XP awards for Armored Car Heist & Contraband.
 -- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
 -- - Refined Cop Arrest XP based on wanted level.
+-- - Added server-side handler for role requests, hideout finding, and contraband dealers.
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -93,6 +94,215 @@ local activeBounties = {}
 local playerDeployedSpikeStripsCount = {} -- For extra_spike_strips perk
 local activeSpikeStrips = {} -- To manage strip IDs and removal: {stripId = {copId = src, location = ...}}
 local nextSpikeStripId = 1
+
+-- ====================================================================
+-- Get Player Role Handler
+-- ====================================================================
+RegisterNetEvent('cnr:getPlayerRole')
+AddEventHandler('cnr:getPlayerRole', function()
+    local source = source
+    local role = "civilian" -- Default role
+    
+    if playersData[source] and playersData[source].role then
+        role = playersData[source].role
+    elseif copsOnDuty[source] then
+        role = "cop"
+    elseif robbersActive[source] then
+        role = "robber"
+    end
+    
+    TriggerClientEvent('cnr:returnPlayerRole', source, role)
+end)
+
+-- ====================================================================
+-- Bounty System
+-- ====================================================================
+
+-- Function to get a list of active bounties
+function GetActiveBounties()
+    local currentTime = os.time()
+    local bounties = {}
+    
+    -- Filter out expired bounties
+    for playerId, bounty in pairs(activeBounties) do
+        if bounty.expireTime > currentTime then
+            table.insert(bounties, {
+                id = playerId,
+                name = bounty.name,
+                wantedLevel = bounty.wantedLevel,
+                reward = bounty.amount,
+                timeLeft = math.floor((bounty.expireTime - currentTime) / 60) -- minutes
+            })
+        else
+            -- Remove expired bounty
+            activeBounties[playerId] = nil
+        end
+    end
+    
+    return bounties
+end
+
+-- Check if a player has a wanted level sufficient for a bounty
+function CheckPlayerWantedLevel(playerId)
+    if not wantedPlayers[playerId] then return 0 end
+    
+    -- Get the current wanted stars
+    local stars = 0
+    
+    for i, level in ipairs(Config.WantedSettings.levels) do
+        if wantedPlayers[playerId].points >= level.threshold then
+            stars = level.stars
+        end
+    end
+    
+    return stars
+end
+
+-- Place a bounty on a player
+function PlaceBounty(targetId)
+    -- Check if player exists
+    if not playersData[targetId] then
+        return false, "Player does not exist."
+    end
+    
+    -- Check if player is a robber
+    if not robbersActive[targetId] then
+        return false, "Bounties can only be placed on robbers."
+    end
+    
+    -- Check if player has minimum wanted level
+    local wantedLevel = CheckPlayerWantedLevel(targetId)
+    if wantedLevel < Config.BountySettings.wantedLevelThreshold then
+        return false, "Target must have at least " .. Config.BountySettings.wantedLevelThreshold .. " wanted stars."
+    end
+    
+    -- Check if player already has an active bounty
+    if activeBounties[targetId] then
+        local timeLeft = math.floor((activeBounties[targetId].expireTime - os.time()) / 60)
+        if timeLeft > 0 then
+            return false, "Player already has an active bounty for " .. timeLeft .. " more minutes."
+        end
+    end
+    
+    -- Calculate bounty amount based on wanted level
+    local bountyAmount = Config.BountySettings.baseAmount + 
+                         (wantedLevel - Config.BountySettings.wantedLevelThreshold) * 
+                         Config.BountySettings.baseAmount * Config.BountySettings.multiplier
+    
+    -- Cap at maximum amount
+    bountyAmount = math.min(bountyAmount, Config.BountySettings.maxAmount)
+    bountyAmount = math.floor(bountyAmount)
+    
+    -- Store the bounty
+    local expireTime = os.time() + (Config.BountySettings.duration * 60)
+    
+    activeBounties[targetId] = {
+        amount = bountyAmount,
+        wantedLevel = wantedLevel,
+        placedTime = os.time(),
+        expireTime = expireTime,
+        name = GetPlayerName(targetId)
+    }
+    
+    -- Notify all cops about the bounty
+    for cop, _ in pairs(copsOnDuty) do
+        TriggerClientEvent('cnr:notification', cop, "A $" .. bountyAmount .. " bounty has been placed on " .. GetPlayerName(targetId) .. "!")
+    end
+    
+    -- Notify the target
+    TriggerClientEvent('cnr:notification', targetId, "A $" .. bountyAmount .. " bounty has been placed on you!", "warning")
+    
+    return true, "Bounty of $" .. bountyAmount .. " placed on " .. GetPlayerName(targetId)
+end
+
+-- Claim a bounty when a cop arrests a player with a bounty
+function ClaimBounty(copId, targetId)
+    if not activeBounties[targetId] then
+        return false, "No active bounty found on this player."
+    end
+    
+    local bountyAmount = activeBounties[targetId].amount
+    
+    -- Pay the cop
+    AddPlayerMoney(copId, bountyAmount)
+    
+    -- Add XP to the cop
+    AddPlayerXP(copId, bountyAmount / 100) -- 1 XP per $100 of bounty
+    
+    -- Notify the cop
+    TriggerClientEvent('cnr:notification', copId, "You claimed a $" .. bountyAmount .. " bounty on " .. GetPlayerName(targetId) .. "!")
+    
+    -- Remove the bounty
+    activeBounties[targetId] = nil
+    
+    return true, "Bounty of $" .. bountyAmount .. " claimed successfully."
+end
+
+-- Register server event to get bounty list
+RegisterNetEvent('cnr:requestBountyList')
+AddEventHandler('cnr:requestBountyList', function()
+    local source = source
+    local bounties = GetActiveBounties()
+    TriggerClientEvent('cnr:receiveBountyList', source, bounties)
+end)
+
+-- Automatically check for placing bounties on players with high wanted levels
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(60000) -- Check every minute
+        
+        for playerId, wantedData in pairs(wantedPlayers) do
+            -- If player is not already bountied and meets threshold
+            if playersData[playerId] and robbersActive[playerId] and not activeBounties[playerId] then
+                local wantedLevel = CheckPlayerWantedLevel(playerId)
+                
+                -- Automatically place a bounty if wanted level is high enough
+                if wantedLevel >= 4 then -- Auto-bounty for 4+ stars
+                    PlaceBounty(playerId)
+                end
+            end
+        end
+    end
+end)
+
+-- ====================================================================
+-- Contraband Dealers Implementation
+-- ====================================================================
+
+-- Register NUI callback for accessing contraband dealer
+RegisterNetEvent('cnr:accessContrabandDealer')
+AddEventHandler('cnr:accessContrabandDealer', function()
+    local source = source
+    
+    -- Check if player is a robber
+    if not robbersActive[source] then
+        TriggerClientEvent('cnr:notification', source, "Only robbers can access contraband dealers.", "error")
+        return
+    end
+    
+    -- Get player level
+    local playerLevel = 1
+    if playersData[source] and playersData[source].level then
+        playerLevel = playersData[source].level
+    end
+    
+    -- Filter items based on player level
+    local availableItems = {}
+    for _, item in ipairs(Config.Items) do
+        if item.minLevelRobber and playerLevel >= item.minLevelRobber then
+            table.insert(availableItems, item)
+        end
+    end
+    
+    -- Get player money
+    local playerMoney = 0
+    if playersData[source] and playersData[source].money then
+        playerMoney = playersData[source].money
+    end
+    
+    -- Send contraband menu to client
+    TriggerClientEvent('cnr:openContrabandMenu', source, availableItems, playerMoney)
+end)
 
 -- Table to store last report times for specific crimes per player
 local clientReportCooldowns = {}
