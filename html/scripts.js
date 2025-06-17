@@ -485,23 +485,44 @@ function loadGridItems() {
 
 function loadSellGridItems() {
     const sellGrid = document.getElementById('sell-inventory-grid');
-    if (!sellGrid) return;
+    if (!sellGrid) {
+        console.error('[CNR_NUI] sell-inventory-grid element not found!');
+        return;
+    }
+    
+    console.log('[CNR_NUI] Loading sell grid items...');
+    
+    // Show loading state
+    sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Loading inventory...</div>';
     
     // Fetch player inventory from server
     const resName = window.cnrResourceName || 'cops-and-robbers';
+    console.log('[CNR_NUI] Fetching inventory from resource:', resName);
+    
     fetch(`https://${resName}/getPlayerInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
-    }).then(response => response.json())    .then(data => {
+    }).then(response => {
+        console.log('[CNR_NUI] Received response from getPlayerInventory:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    }).then(data => {
+        console.log('[CNR_NUI] Inventory data received:', data);
         sellGrid.innerHTML = '';
         const minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
         
         if (!fullItemConfig) {
             console.error('[CNR_NUI] fullItemConfig not available. Cannot reconstruct sell list details.');
-            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error: Item configuration not loaded.</div>';
+            console.log('[CNR_NUI] fullItemConfig is:', fullItemConfig);
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error: Item configuration not loaded. Please try reopening the store.</div>';
             return;
         }
+        
+        console.log('[CNR_NUI] Processing', minimalInventory.length, 'inventory items');
+        console.log('[CNR_NUI] fullItemConfig type:', typeof fullItemConfig, 'has items:', fullItemConfig ? Object.keys(fullItemConfig).length : 0);
         
         if (!minimalInventory || minimalInventory.length === 0) {
             sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Your inventory is empty.</div>';
@@ -509,6 +530,8 @@ function loadSellGridItems() {
         }
         
         const fragment = document.createDocumentFragment();
+        let itemsProcessed = 0;
+        
         minimalInventory.forEach(minItem => {
             if (minItem.count > 0) {
                 // Look up full item details from config
@@ -539,15 +562,22 @@ function loadSellGridItems() {
                     };
                     
                     fragment.appendChild(createInventorySlot(richItem, 'sell'));
+                    itemsProcessed++;
                 } else {
                     console.warn(`[CNR_NUI] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Skipping.`);
                 }
             }
         });
+        
+        console.log('[CNR_NUI] Created', itemsProcessed, 'sell item slots');
         sellGrid.appendChild(fragment);
+        
+        if (itemsProcessed === 0) {
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No sellable items in inventory.</div>';
+        }
     }).catch(error => {
-        console.error('Error loading sell inventory:', error);
-        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error loading inventory.</div>';
+        console.error('[CNR_NUI] Error loading sell inventory:', error);
+        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); padding: 40px;">Error loading inventory. Please try again.<br><small>Error: ' + error.message + '</small></div>';
     });
 }
 

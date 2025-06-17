@@ -209,7 +209,7 @@ function EquipInventoryWeapons()
 
     Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")
 
-if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
         Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
     end
@@ -223,7 +223,7 @@ if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
     RemoveAllPedWeapons(playerPed, true)
 
-Citizen.Wait(200) -- Longer wait to ensure weapons are removed
+    Citizen.Wait(500) -- Longer wait to ensure weapons are removed and game state is clean
 
     local processedItemCount = 0
     local weaponsEquipped = 0
@@ -248,16 +248,30 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
             -- Handle weapon items (including gas weapons in Utility category)
             elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or
                    (itemData.category == "Utility" and string.find(itemId, "weapon_"))) and itemData.count > 0 then
-                -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
-                local upperItemId = string.upper(itemId)
-                local weaponHash = GetHashKey(upperItemId)
-
-                -- Also try the original itemId if uppercase doesn't work
+                
+                -- Multiple hash attempts for better compatibility
+                local weaponHash = 0
+                local attemptedHashes = {}
+                
+                -- Try original itemId
+                weaponHash = GetHashKey(itemId)
+                table.insert(attemptedHashes, itemId .. " -> " .. weaponHash)
+                
+                -- Try uppercase version
                 if weaponHash == 0 or weaponHash == -1 then
-                    weaponHash = GetHashKey(itemId)
+                    local upperItemId = string.upper(itemId)
+                    weaponHash = GetHashKey(upperItemId)
+                    table.insert(attemptedHashes, upperItemId .. " -> " .. weaponHash)
+                end
+                
+                -- Try with WEAPON_ prefix if not present
+                if (weaponHash == 0 or weaponHash == -1) and not string.find(itemId, "weapon_") then
+                    local prefixedId = "weapon_" .. itemId
+                    weaponHash = GetHashKey(prefixedId)
+                    table.insert(attemptedHashes, prefixedId .. " -> " .. weaponHash)
                 end
 
-                Log(string.format("  DEBUG_HASH: ItemId: %s, UpperCase: %s, Hash: %s", itemId, upperItemId, weaponHash), "info")
+                Log(string.format("  DEBUG_HASH: ItemId: %s, Attempted hashes: %s, Final hash: %s", itemId, table.concat(attemptedHashes, ", "), weaponHash), "info")
 
                 if weaponHash ~= 0 and weaponHash ~= -1 then
                     -- Determine ammo: use itemData.ammo if present, else default
@@ -266,24 +280,46 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
                         if Config and Config.DefaultWeaponAmmo and Config.DefaultWeaponAmmo[itemId] then
                            ammoCount = Config.DefaultWeaponAmmo[itemId]
                         else
-                           ammoCount = 150 -- Increased default ammo for better testing
+                           ammoCount = 250 -- Increased default ammo for better testing
                         end
                     end
 
                     -- Give weapon with ammo (without immediately equipping)
                     GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
-                    Citizen.Wait(100) -- Wait between weapons
+                    Citizen.Wait(200) -- Wait between weapons for better compatibility
 
-                    -- Ensure ammo is set correctly
+                    -- Ensure ammo is set correctly with multiple attempts
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
+                    Citizen.Wait(100)
+                    
+                    -- Verify and retry if needed
+                    local actualAmmo = GetAmmoInPedWeapon(playerPed, weaponHash)
+                    if actualAmmo ~= ammoCount then
+                        SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        Citizen.Wait(100)
+                    end
 
-                    -- Verify the weapon was equipped
-                    local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                    -- Verify the weapon was equipped with retries
+                    local hasWeapon = false
+                    local maxRetries = 3
+                    local retryCount = 0
+                    
+                    while retryCount < maxRetries and not hasWeapon do
+                        hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                        if not hasWeapon then
+                            retryCount = retryCount + 1
+                            Citizen.Wait(200)
+                            -- Re-attempt giving the weapon
+                            GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
+                            SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        end
+                    end
+                    
                     if hasWeapon then
                         weaponsEquipped = weaponsEquipped + 1
-                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info")
+                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d (Retries: %d)", itemData.name or itemId, itemId, weaponHash, ammoCount, retryCount), "info")
                     else
-                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false", itemData.name or itemId, itemId, weaponHash), "error")
+                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false after %d retries", itemData.name or itemId, itemId, weaponHash, maxRetries), "error")
                     end
                 else
                     Log(string.format("  ✗ INVALID_HASH: ItemId: %s (Name: %s) - Could not get valid weapon hash", itemId, itemData.name), "error")

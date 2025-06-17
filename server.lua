@@ -1128,8 +1128,11 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local src = source
     local pData = GetCnrPlayerData(src)
 
+    print(string.format("[CNR_SERVER_DEBUG] getPlayerInventory called by player %s", src))
+
     if not pData or not pData.inventory then
         print(string.format("[CNR_SERVER_ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
+        print(string.format("[CNR_SERVER_DEBUG] pData exists: %s, pData.inventory exists: %s", tostring(pData ~= nil), tostring(pData and pData.inventory ~= nil)))
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
@@ -1138,7 +1141,9 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     -- No need to check Config.Items here on server for this specific NUI message,
     -- as NUI will do the lookup. Server just provides IDs and counts from player's actual inventory.
 
+    local inventoryCount = 0
     for itemId, invItemData in pairs(pData.inventory) do
+        inventoryCount = inventoryCount + 1
         -- invItemData is now { count = X, name = "Item Name", category = "Category", itemId = "itemId" }
         if invItemData and invItemData.count and invItemData.count > 0 then
             table.insert(processedInventoryForNui, {
@@ -1148,7 +1153,7 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
         end
     end
 
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))
+    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s has %d total inventory items, sending %d items with count > 0 to NUI for Sell Tab", src, inventoryCount, #processedInventoryForNui))
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
@@ -1562,4 +1567,64 @@ AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
             string.format("~o~Target player doesn't have enough money for the fine ($%d required, has $%d)", 
                 fineAmount, targetData.money))
     end
+end)
+
+-- Handle admin status check for F2 keybind
+RegisterServerEvent('cnr:checkAdminStatus')
+RegisterNetEvent('cnr:checkAdminStatus')
+AddEventHandler('cnr:checkAdminStatus', function()
+    local source = source
+    local pData = GetCnrPlayerData(source)
+    
+    if not pData then
+        Log(string.format("Admin status check failed - no player data for %s", source), "warn")
+        return
+    end
+    
+    -- Check if player is admin (you can customize this check based on your admin system)
+    local isAdmin = false
+    
+    -- Method 1: Check ace permissions
+    if IsPlayerAceAllowed(source, "cnr.admin") then
+        isAdmin = true
+    end
+    
+    -- Method 2: Check if they have admin role in player data (if you store it there)
+    if pData.isAdmin or pData.role == "admin" then
+        isAdmin = true
+    end
+    
+    -- Method 3: Check against admin list in config (if you have one)
+    if Config.AdminPlayers then
+        local identifier = GetPlayerIdentifier(source, 0) -- Steam ID
+        for _, adminId in ipairs(Config.AdminPlayers) do
+            if identifier == adminId then
+                isAdmin = true
+                break
+            end
+        end
+    end
+    
+    if isAdmin then
+        TriggerClientEvent('cnr:showAdminPanel', source)
+        Log(string.format("Admin panel opened for player %s", source), "info")
+    else
+        -- Show robber menu if they're a robber, otherwise generic message
+        if pData.role == "robber" then
+            TriggerClientEvent('cnr:showRobberMenu', source)
+        else
+            SafeTriggerClientEvent('cnr:showNotification', source, "~r~No special menu available for your role.")
+        end
+    end
+end)
+
+-- Handle role selection request
+RegisterServerEvent('cnr:requestRoleSelection')
+RegisterNetEvent('cnr:requestRoleSelection')
+AddEventHandler('cnr:requestRoleSelection', function()
+    local source = source
+    Log(string.format("Role selection requested by player %s", source), "info")
+    
+    -- Send role selection UI to client
+    TriggerClientEvent('cnr:showRoleSelection', source)
 end)
