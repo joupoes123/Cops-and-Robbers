@@ -439,11 +439,11 @@ Config.WantedSettings = {
     crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
         -- Traffic Violations
         speeding                   = 2,    -- For receiving a speeding ticket.
-        reckless_driving           = 3,    -- Example: driving on sidewalk, excessive near misses.
-        hit_and_run_vehicle        = 5,    -- Hitting a vehicle and fleeing.
+        reckless_driving           = 3,    -- Example: driving on sidewalk, excessive near misses.        hit_and_run_vehicle        = 5,    -- Hitting a vehicle and fleeing.
         hit_and_run_ped            = 8,    -- Hitting a pedestrian and fleeing.
         hit_and_run_civilian       = 8,    -- Hitting a civilian pedestrian and fleeing.
         hit_and_run_cop            = 15,   -- Hitting a police officer and fleeing.
+        hit_and_run                = 5,    -- General hit and run incident
         -- Property Crimes
         grand_theft_auto           = 8,    -- Stealing an occupied vehicle.
         store_robbery_small        = 6,    -- Example: For smaller, less risky store robberies.
@@ -893,8 +893,8 @@ Config.HeistLocations = {
 -- =========================
 -- Locations for contraband dealers where robbers can buy special items
 Config.ContrabandDealers = {
-    { x = 1005.76, y = 88.4, z = 90.24, heading = 270.24, name = "Downtown Dealer" },
-    { x = 728.38, y = 4170.17, z = 40.09, heading = 92.45, name = "Northern Dealer" },
+    { x = 812.61, y = -285.70, z = 66.46, heading = 96.74, name = "Downtown Dealer" },
+    { x = 728.01, y = 4170.95, z = 40.71, heading = 329.96, name = "Northern Dealer" },
     { x = -1337.25, y = -1277.94, z = 4.87, heading = 110.23, name = "Beach Dealer" },
 }
 

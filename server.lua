@@ -146,11 +146,14 @@ end
 function CheckPlayerWantedLevel(playerId)
     if not wantedPlayers[playerId] then return 0 end
     
+    local wantedData = wantedPlayers[playerId]
+    if not wantedData.wantedLevel then return 0 end
+    
     -- Get the current wanted stars
     local stars = 0
     
     for i, level in ipairs(Config.WantedSettings.levels) do
-        if wantedPlayers[playerId].points >= level.threshold then
+        if wantedData.wantedLevel >= level.threshold then
             stars = level.stars
         end
     end
@@ -273,35 +276,59 @@ end)
 RegisterNetEvent('cnr:accessContrabandDealer')
 AddEventHandler('cnr:accessContrabandDealer', function()
     local source = source
+    local pData = GetCnrPlayerData(source)
     
-    -- Check if player is a robber
-    if not robbersActive[source] then
-        TriggerClientEvent('cnr:notification', source, "Only robbers can access contraband dealers.", "error")
+    if not pData then
+        TriggerClientEvent('cnr:showNotification', source, "~r~Player data not found.")
         return
     end
     
-    -- Get player level
-    local playerLevel = 1
-    if playersData[source] and playersData[source].level then
-        playerLevel = playersData[source].level
+    -- Check if player is a robber
+    if pData.role ~= "robber" then
+        TriggerClientEvent('cnr:showNotification', source, "~r~Only robbers can access contraband dealers.")
+        return
     end
     
-    -- Filter items based on player level
-    local availableItems = {}
-    for _, item in ipairs(Config.Items) do
-        if item.minLevelRobber and playerLevel >= item.minLevelRobber then
-            table.insert(availableItems, item)
-        end
-    end
+    -- Get contraband items (high-end weapons and tools)
+    local contrabandItems = {
+        "weapon_compactrifle",
+        "weapon_bullpuprifle", 
+        "weapon_advancedrifle",
+        "weapon_specialcarbine",
+        "weapon_machinegun",
+        "weapon_combatmg_mk2",
+        "weapon_minigun",
+        "weapon_grenade",
+        "weapon_rpg",
+        "weapon_grenadelauncher",
+        "weapon_hominglauncher",
+        "weapon_firework",
+        "weapon_railgun",
+        "weapon_autoshotgun",
+        "weapon_bullpupshotgun",
+        "weapon_dbshotgun",
+        "weapon_musket",
+        "weapon_heavysniper",
+        "weapon_heavysniper_mk2",
+        "weapon_marksmanrifle",
+        "weapon_marksmanrifle_mk2",
+        "ammo_smg",
+        "ammo_rifle",
+        "ammo_sniper",
+        "ammo_explosive",
+        "ammo_minigun",
+        "lockpick",
+        "adv_lockpick",
+        "hacking_device",
+        "drill",
+        "thermite",
+        "c4",
+        "mask",
+        "heavy_armor"
+    }
     
-    -- Get player money
-    local playerMoney = 0
-    if playersData[source] and playersData[source].money then
-        playerMoney = playersData[source].money
-    end
-    
-    -- Send contraband menu to client
-    TriggerClientEvent('cnr:openContrabandMenu', source, availableItems, playerMoney)
+    -- Send to client to open contraband store
+    TriggerClientEvent('cnr:openContrabandStoreUI', source, contrabandItems)
 end)
 
 -- Table to store last report times for specific crimes per player
@@ -2079,3 +2106,4 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     -- Update wanted level for this crime
     UpdatePlayerWantedLevel(src, crimeType)
 end)
+

@@ -498,6 +498,31 @@ RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
     end
 end)
 
+-- Register NUI callback for getting player inventory (used by store sell tab)
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventory", "info")
+    
+    -- Check if inventory data is available
+    if localPlayerInventory and next(localPlayerInventory) then
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items for sell tab", "info")
+        
+        cb({
+            success = true,
+            inventory = localPlayerInventory
+        })
+    else
+        -- Request inventory from server if not available locally
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        -- Return empty inventory with error message
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {}
+        })
+    end
+end)
+
 -- Register NUI callback for setting NUI focus (called from JavaScript)
 RegisterNUICallback('setNuiFocus', function(data, cb)
     Log("NUI requested SetNuiFocus: " .. tostring(data.hasFocus) .. ", " .. tostring(data.hasCursor), "info")

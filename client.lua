@@ -28,6 +28,8 @@ RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
 RegisterNetEvent('cnr:heistAlert')
 RegisterNetEvent('cnr:startHeistTimer')
 RegisterNetEvent('cnr:heistCompleted')
+RegisterNetEvent('cops_and_robbers:sendItemList')
+RegisterNetEvent('cnr:openContrabandStoreUI')
 
 -- =====================================
 --           VARIABLES
@@ -1152,7 +1154,7 @@ AddEventHandler('cnr:heistAlert', function(heistType, coords)
 
     -- Default location if no coords provided
     if not coords then
-        coords = {x = 0, y = 0, z = 0}
+        coords = {x = 0, y = 0}
     end
     
     local heistName = ""
@@ -1272,7 +1274,29 @@ end)
 
 RegisterNUICallback('buyContraband', function(data, cb)
     print("[CNR_CLIENT_DEBUG] NUI buyContraband called")
-    TriggerEvent('cnr:buyContraband')
+    print("[CNR_CLIENT_DEBUG] Attempting to buy contraband")
+    
+    -- Check if player is near a contraband dealer
+    local playerPos = GetEntityCoords(PlayerPedId())
+    local nearDealer = false
+    
+    for _, dealer in pairs(Config.ContrabandDealers or {}) do
+        local dealerPos = vector3(dealer.x, dealer.y, dealer.z)
+        local distance = #(playerPos - dealerPos)
+        
+        if distance < 5.0 then
+            nearDealer = true
+            break
+        end
+    end
+    
+    if nearDealer then
+        -- Open the store with contraband items
+        TriggerServerEvent('cnr:accessContrabandDealer')
+    else
+        ShowNotification("~r~You must be near a contraband dealer to buy contraband.")
+    end
+    
     cb({success = true})
 end)
 
@@ -1501,6 +1525,43 @@ RegisterNUICallback('closeStore', function(data, cb)
     SetNuiFocus(false, false)
     
     cb({success = true})
+end)
+
+-- Handle detailed item list from server for store UI
+RegisterNetEvent('cops_and_robbers:sendItemList')
+AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList, playerInfo)
+    Log("Received detailed item list for store: " .. tostring(storeName) .. " with " .. (#itemList or 0) .. " items", "info")
+    
+    if not itemList or #itemList == 0 then
+        Log("Received empty item list for store: " .. tostring(storeName), "warning")
+        return
+    end
+    
+    -- Send the complete item data to NUI
+    SendNUIMessage({
+        action = "updateStoreData",
+        storeName = storeName,
+        items = itemList,
+        playerInfo = playerInfo or {
+            level = playerData.level or 1,
+            role = playerData.role or "citizen",
+            cash = playerCash or 0
+        }
+    })
+    
+    Log("Sent store data to NUI for " .. tostring(storeName), "info")
+end)
+
+-- Handle contraband store UI opening
+RegisterNetEvent('cnr:openContrabandStoreUI')
+AddEventHandler('cnr:openContrabandStoreUI', function(contrabandItems)
+    Log("Opening contraband store UI with " .. #contrabandItems .. " items", "info")
+    
+    -- Open store menu as a special contraband store
+    OpenStoreMenu("contraband", contrabandItems, "Contraband Dealer")
+    
+    -- Trigger server event to get detailed item information
+    TriggerServerEvent('cops_and_robbers:getItemList', "contraband", contrabandItems, "Contraband Dealer")
 end)
 
 -- Thread to check for nearby stores
@@ -1796,21 +1857,6 @@ RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
 end)
-
--- Function to get player's current role from server
-function GetCurrentPlayerRole(callback)
-    TriggerServerEvent('cnr:getPlayerRole')
-    
-    local eventHandler
-    eventHandler = RegisterNetEvent('cnr:returnPlayerRole')
-    AddEventHandler('cnr:returnPlayerRole', function(role)
-        callback(role)
-        -- Remove handler to avoid memory leaks
-        if eventHandler then
-            RemoveEventHandler(eventHandler)
-        end
-    end)
-end
 
 -- ====================================================================
 -- Contraband Dealers

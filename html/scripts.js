@@ -58,8 +58,7 @@ window.addEventListener('message', function(event) {
                     window.playerInfo.cash = data.cash;
                 }
             }
-            break;case 'showStoreMenu':
-        case 'openStore':
+            break;case 'showStoreMenu':        case 'openStore':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
@@ -68,6 +67,20 @@ window.addEventListener('message', function(event) {
                 }
             }
             openStoreMenu(data.storeName, data.items, data.playerInfo);
+            break;
+        case 'updateStoreData':
+            console.log('[CNR_NUI] Received updateStoreData with', data.items ? data.items.length : 0, 'items');
+            if (data.items && data.items.length > 0) {
+                // Update the current store data
+                window.currentStoreItems = data.items;
+                window.currentPlayerInfo = data.playerInfo;
+                // Refresh the currently displayed tab
+                if (window.currentTab === 'buy') {
+                    loadGridItems(data.items);
+                } else if (window.currentTab === 'sell') {
+                    loadSellItems();
+                }
+            }
             break;
         case 'closeStore':
             closeStoreMenu();
