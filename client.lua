@@ -1084,3 +1084,44 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     wantedUiLabel = newUiLabel
     SetWantedLevelForPlayerRole(stars, points)
 end)
+
+-- =====================================
+--           NUI CALLBACKS
+-- =====================================
+
+-- NUI Callback for Role Selection
+RegisterNUICallback('selectRole', function(data, cb)
+    if not data or not data.role then
+        cb({ success = false, error = "Invalid role data received" })
+        return
+    end
+    
+    local selectedRole = data.role
+    if selectedRole ~= "cop" and selectedRole ~= "robber" then
+        cb({ success = false, error = "Invalid role selected" })
+        return
+    end
+    
+    -- Send role selection to server
+    TriggerServerEvent('cnr:selectRole', selectedRole)
+    
+    -- Hide the UI
+    SetNuiFocus(false, false)
+    
+    -- Return success to NUI
+    cb({ success = true })
+end)
+
+-- =====================================
+--           EVENT HANDLERS
+-- =====================================
+
+-- Event handler for showing role selection UI
+RegisterNetEvent('cnr:showRoleSelection')
+AddEventHandler('cnr:showRoleSelection', function()
+    SendNUIMessage({ 
+        action = 'showRoleSelection', 
+        resourceName = GetCurrentResourceName() 
+    })
+    SetNuiFocus(true, true)
+end)
