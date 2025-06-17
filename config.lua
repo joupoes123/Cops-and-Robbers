@@ -435,8 +435,7 @@ Config.WantedSettings = {
         { stars = 3, threshold = 80,  uiLabel = "Wanted: ★★★☆☆", minPunishment = 240, maxPunishment = 480 }, -- Increased from 60
         { stars = 4, threshold = 130, uiLabel = "Wanted: ★★★★☆", minPunishment = 480, maxPunishment = 720 }, -- Increased from 100
         { stars = 5, threshold = 200, uiLabel = "Wanted: ★★★★★", minPunishment = 720, maxPunishment = 1000 }  -- Increased from 150
-    },
-    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.        -- Traffic Violations (increased values)
+    },    crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.        -- Traffic Violations (increased values)
         speeding                   = 3,    -- For receiving a speeding ticket. (increased from 1)
         reckless_driving           = 5,    -- Example: driving on sidewalk, excessive near misses. (increased from 2)
         hit_and_run_vehicle        = 8,    -- Hitting a vehicle and fleeing. (increased from 3)
@@ -460,9 +459,16 @@ Config.WantedSettings = {
         cop_murder                 = 40,   -- Alternative name for killing a police officer.
         -- Other (increased values)
         resisting_arrest           = 10,   -- Fleeing from police after being told to stop. (increased from 5)
-        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
+        jailbreak_attempt          = 50,   -- Attempting to break someone out of jail. (increased from 30)        
+        emp_used_on_police         = 15,   -- Using EMP that affects police vehicles. (increased from 8)
         power_grid_sabotaged_crime = 15,   -- Sabotaging power grid (distinct from XP action). (increased from 8)
-        restricted_area_entry      = 15    -- Entering restricted areas like Fort Zancudo. (increased from 6)
+        restricted_area_entry      = 15,   -- Entering restricted areas like Fort Zancudo. (increased from 6)
+        -- Additional crimes that were missing
+        weapons_discharge          = 5,    -- Firing a weapon in public
+        assault                    = 8,    -- General assault (non-specific)
+        trespassing                = 3,    -- Entering private property
+        vandalism                  = 2,    -- Damaging property
+        shoplifting                = 3     -- Stealing from shops without armed robbery
     },
     decayRatePoints      = 1,    -- Amount of wanted points to decay per interval.
     decayIntervalMs      = 25000,-- Milliseconds (25 seconds) - how often the decay check runs. (decreased from 45000)

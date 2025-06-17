@@ -194,6 +194,7 @@ local function GetPlayerMoney(playerId)
     return 0
 end
 
+-- Function to add money to a player
 local function AddPlayerMoney(playerId, amount, type)
     type = type or 'cash' -- Assuming 'cash' is the primary type. Add handling for 'bank' if needed.
     local pId = tonumber(playerId)
@@ -223,6 +224,51 @@ local function AddPlayerMoney(playerId, amount, type)
         return false
     end
 end
+
+-- Export AddPlayerMoney for potential use by other resources (if needed)
+_G.AddPlayerMoney = AddPlayerMoney
+
+-- Function to add XP to a player
+local function AddPlayerXP(playerId, amount)
+    local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        Log(string.format("AddPlayerXP: Invalid player ID %s.", tostring(playerId)), "error")
+        return false
+    end
+
+    local pData = playersData[pId]
+    if pData then
+        -- Add XP
+        pData.xp = (pData.xp or 0) + amount
+        
+        -- Check if player leveled up
+        local oldLevel = pData.level or 1
+        -- Use a simple level calculation formula if CalculatePlayerLevel is not defined
+        local newLevel = math.floor(math.sqrt(pData.xp / 100)) + 1
+        pData.level = newLevel
+        
+        -- Send XP notification to client
+        SafeTriggerClientEvent('cnr:xpGained', pId, amount)
+        
+        -- Send level up notification if needed
+        if newLevel > oldLevel then
+            SafeTriggerClientEvent('cnr:levelUp', pId, newLevel)
+        end
+        
+        -- Update client with new player data
+        local pDataForBasicInfo = shallowcopy(pData)
+        pDataForBasicInfo.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+        
+        return true
+    else
+        Log(string.format("AddPlayerXP: Player data not found for %s.", pId), "error")
+        return false
+    end
+end
+
+-- Export AddPlayerXP for potential use by other resources
+_G.AddPlayerXP = AddPlayerXP
 
 local function RemovePlayerMoney(playerId, amount, type)
     type = type or 'cash'
@@ -1155,6 +1201,133 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
 
     print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s has %d total inventory items, sending %d items with count > 0 to NUI for Sell Tab", src, inventoryCount, #processedInventoryForNui))
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
+end)
+
+-- =====================================
+--           HEIST FUNCTIONALITY
+-- =====================================
+
+-- Handle heist initiation requests from clients
+RegisterServerEvent('cnr:initiateHeist')
+AddEventHandler('cnr:initiateHeist', function(heistType)
+    local playerId = source
+    local playerData = GetCnrPlayerData(playerId)
+    
+    if not playerData then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Error: Cannot start heist - player data not found.")
+        return
+    end
+    
+    if playerData.role ~= 'robber' then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Only robbers can initiate heists.")
+        return
+    end
+    
+    -- Check for cooldown
+    local currentTime = os.time()
+    if playerData.lastHeistTime and (currentTime - playerData.lastHeistTime) < Config.HeistCooldown then
+        local remainingTime = math.ceil((playerData.lastHeistTime + Config.HeistCooldown - currentTime) / 60)
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Heist cooldown active. Try again in " .. remainingTime .. " minutes.")
+        return
+    end
+    
+    -- Check if heist type is valid
+    if not heistType or (heistType ~= "bank" and heistType ~= "jewelry" and heistType ~= "store") then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Invalid heist type.")
+        return
+    end
+    
+    -- Set cooldown for player
+    playerData.lastHeistTime = currentTime
+    
+    -- Determine heist details based on type
+    local heistDuration = 0
+    local rewardBase = 0
+    local heistName = ""
+    
+    if heistType == "bank" then
+        heistDuration = 180  -- 3 minutes
+        rewardBase = 15000   -- Base reward $15,000
+        heistName = "Bank Heist"
+    elseif heistType == "jewelry" then
+        heistDuration = 120  -- 2 minutes
+        rewardBase = 10000   -- Base reward $10,000
+        heistName = "Jewelry Store Robbery"
+    elseif heistType == "store" then
+        heistDuration = 60   -- 1 minute
+        rewardBase = 5000    -- Base reward $5,000
+        heistName = "Store Robbery"    end
+      -- Alert all cops about the heist
+    for _, targetPlayerId in ipairs(GetPlayers()) do
+        local targetId = tonumber(targetPlayerId)
+        local targetData = GetCnrPlayerData(targetId)
+        
+        if targetData and targetData.role == 'cop' then
+            local playerPed = GetPlayerPed(playerId)
+            if playerPed and playerPed > 0 then
+                local playerCoords = GetEntityCoords(playerPed)
+                if playerCoords then
+                    local coordsTable = {
+                        x = playerCoords.x,
+                        y = playerCoords.y,
+                        z = playerCoords.z
+                    }
+                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+                else
+                    local defaultCoords = {x = 0, y = 0, z = 0}
+                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+                end
+            else
+                local defaultCoords = {x = 0, y = 0, z = 0}
+                TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+            end
+        end
+    end
+    
+    -- Start the heist for the player
+    TriggerClientEvent('cnr:startHeistTimer', playerId, heistDuration, heistName)
+    
+    -- Set a timer to complete the heist
+    SetTimeout(heistDuration * 1000, function()
+        local playerStillConnected = GetPlayerPing(playerId) > 0
+        
+        if playerStillConnected then
+            -- Calculate final reward based on player level and add randomness
+            local levelMultiplier = 1.0 + (playerData.level * 0.05)  -- 5% more per level
+            local randomVariation = math.random(80, 120) / 100  -- 0.8 to 1.2 multiplier
+            local finalReward = math.floor(rewardBase * levelMultiplier * randomVariation)
+            
+            -- Award the player
+            if AddPlayerMoney(playerId, finalReward) then
+                -- Update heist statistics
+                if not playerData.stats then playerData.stats = {} end
+                if not playerData.stats.heists then playerData.stats.heists = 0 end
+                playerData.stats.heists = playerData.stats.heists + 1
+                      -- Award XP for the heist
+                local xpReward = 0
+                if heistType == "bank" then xpReward = 500
+                elseif heistType == "jewelry" then xpReward = 300
+                elseif heistType == "store" then xpReward = 150
+                end
+                
+                -- Add XP if the function exists
+                if _G.AddPlayerXP then
+                    _G.AddPlayerXP(playerId, xpReward)
+                else
+                    -- Fallback if global function doesn't exist
+                    if playerData.xp then
+                        playerData.xp = playerData.xp + xpReward
+                    end
+                end
+                
+                -- Notify the player
+                TriggerClientEvent('cnr:notifyPlayer', playerId, "~g~Heist completed! Earned $" .. finalReward)
+                TriggerClientEvent('cnr:heistCompleted', playerId, finalReward, xpReward)
+            else
+                TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Error processing heist reward. Contact an admin.")
+            end
+        end
+    end)
 end)
 
 -- OLD HANDLERS REMOVED - Using enhanced versions below with inventory saving

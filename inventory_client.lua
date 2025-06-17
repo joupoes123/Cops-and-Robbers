@@ -115,21 +115,29 @@ function UpdateFullInventory(minimalInventoryData)
     local configItems = GetClientConfigItems()
 
     if not configItems then
-        Log("UpdateFullInventory: clientConfigItems not yet available. Requesting from server and storing minimal inventory.", "error")
+        -- Store the minimal inventory data for now
         localPlayerInventory = minimalInventoryData or {}
-
-        -- Request config items from server with retry logic
-        local attempts = 0
-        local maxAttempts = 5
-
+        
+        -- Request config items from server
         TriggerServerEvent('cnr:requestConfigItems')
         Log("Requested Config.Items from server due to missing data.", "info")
-
-        -- Set up a timer to retry if needed
+        
+        -- Display a subtle notification to the player
+        TriggerEvent('chat:addMessage', {
+            color = {255, 165, 0},
+            multiline = true,
+            args = {"System", "Loading inventory data..."}
+        })
+        
+        -- Set up a timer to retry if needed, but with reduced frequency
         Citizen.CreateThread(function()
+            local attempts = 0
+            local maxAttempts = 3
+            
             while not GetClientConfigItems() and attempts < maxAttempts do
-                Citizen.Wait(2000)
+                Citizen.Wait(3000) -- Wait longer between attempts (3 seconds)
                 attempts = attempts + 1
+                
                 if not GetClientConfigItems() then
                     TriggerServerEvent('cnr:requestConfigItems')
                     Log("Retry requesting Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "warn")

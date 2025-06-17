@@ -114,11 +114,50 @@ window.addEventListener('message', function(event) {
             break;
         case 'roleSelectionFailed':
             showToast(data.error || 'Failed to select role. Please try again.', 'error', 4000);
-            showRoleSelection();
-            break;        case 'storeFullItemConfig':
+            showRoleSelection();            break;        case 'storeFullItemConfig':
             if (data.itemConfig) {
                 fullItemConfig = data.itemConfig;
                 console.log('[CNR_NUI] Stored full item config. Item count:', fullItemConfig ? Object.keys(fullItemConfig).length : 0);
+                
+                // Fix any missing item images by setting default images
+                for (const itemId in fullItemConfig) {
+                    if (fullItemConfig.hasOwnProperty(itemId)) {
+                        const item = fullItemConfig[itemId];
+                        
+                        // Check if image is missing or invalid
+                        if (!item.image || item.image.includes('404') || item.image === 'img/default.png') {
+                            // Set default image based on category
+                            switch (item.category) {
+                                case 'weapons':
+                                    item.image = 'img/items/weapon_pistol.png';
+                                    break;
+                                case 'ammo':
+                                    item.image = 'img/items/ammo.png';
+                                    break;
+                                case 'armor':
+                                    item.image = 'img/items/armor.png';
+                                    break;
+                                case 'tools':
+                                    item.image = 'img/items/tool.png';
+                                    break;
+                                default:
+                                    item.image = 'img/items/default.png';
+                                    break;
+                            }
+                            console.log(`[CNR_NUI] Fixed missing image for item ${itemId}`);
+                        }
+                    }
+                }
+                
+                // Refresh the store if it's open
+                const storeMenuElement = document.getElementById('store-menu');
+                if (storeMenuElement && storeMenuElement.style.display === 'block') {
+                    if (window.currentTab === 'buy') {
+                        loadGridItems();
+                    } else if (window.currentTab === 'sell') {
+                        loadSellItems();
+                    }
+                }
             }
             break;        case 'refreshInventory':
             // Refresh the sell tab if it's currently active
@@ -633,11 +672,27 @@ function createInventorySlot(item, type = 'buy') {
     const iconContainer = document.createElement('div');
     iconContainer.className = 'item-icon-container';
     
-    const itemIcon = document.createElement('div');
-    itemIcon.className = 'item-icon';
-    itemIcon.textContent = item.icon || getItemIcon(item.category, item.name);
-    
-    iconContainer.appendChild(itemIcon);
+    // Check if item has a valid image
+    if (item.image && !item.image.includes('404')) {
+        const imgElement = document.createElement('img');
+        imgElement.src = item.image;
+        imgElement.className = 'item-image';
+        imgElement.alt = item.name;
+        imgElement.onerror = function() {
+            console.log(`[CNR_NUI] Image load error for ${item.itemId}, using fallback`);
+            this.style.display = 'none';
+            const fallbackIcon = document.createElement('div');
+            fallbackIcon.className = 'item-icon';
+            fallbackIcon.textContent = getItemIcon(item.category, item.name);
+            this.parentNode.appendChild(fallbackIcon);
+        };
+        iconContainer.appendChild(imgElement);
+    } else {
+        const itemIcon = document.createElement('div');
+        itemIcon.className = 'item-icon';
+        itemIcon.textContent = item.icon || getItemIcon(item.category, item.name);
+        iconContainer.appendChild(itemIcon);
+    }
     
     // Add level requirement badge if locked
     if (isLocked) {

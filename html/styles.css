@@ -916,8 +916,7 @@ button:hover {
 .item-icon-container {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center;    justify-content: center;
     position: relative;
     margin-bottom: 8px;
 }
@@ -935,7 +934,19 @@ button:hover {
     transition: all 0.3s ease;
 }
 
-.inventory-slot:hover .item-icon {
+.item-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    padding: 4px;
+}
+
+.inventory-slot:hover .item-icon,
+.inventory-slot:hover .item-image {
     background: rgba(233, 69, 96, 0.2);
     border-color: rgba(233, 69, 96, 0.5);
     transform: scale(1.05);

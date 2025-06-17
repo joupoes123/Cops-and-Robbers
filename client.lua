@@ -25,6 +25,9 @@ RegisterNetEvent('cnr:showRobberMenu')
 RegisterNetEvent('cnr:xpGained')
 RegisterNetEvent('cnr:levelUp')
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
+RegisterNetEvent('cnr:heistAlert')
+RegisterNetEvent('cnr:startHeistTimer')
+RegisterNetEvent('cnr:heistCompleted')
 
 -- =====================================
 --           VARIABLES
@@ -276,12 +279,26 @@ end
 -- Ensure SetWantedLevelForPlayerRole is defined before all uses
 local function SetWantedLevelForPlayerRole(stars, points)
     local playerId = PlayerId()
-    if role == 'cop' then
-        SetPlayerWantedLevel(playerId, 0, false)
-        SetPlayerWantedLevelNow(playerId, false)
-    elseif role == 'robber' then
-        SetPlayerWantedLevel(playerId, stars, false)
-        SetPlayerWantedLevelNow(playerId, false)
+    
+    -- Always set the game's wanted level to 0 to prevent the native wanted UI from showing
+    SetPlayerWantedLevel(playerId, 0, false)
+    SetPlayerWantedLevelNow(playerId, false)
+    
+    -- Instead, we use our custom UI based on the stars parameter
+    currentWantedStarsClient = stars
+    currentWantedPointsClient = points
+    
+    -- Only show our custom wanted UI if player has stars
+    if stars > 0 then
+        SendNUIMessage({
+            action = 'showWantedUI',
+            stars = stars,
+            points = points
+        })
+    else
+        SendNUIMessage({
+            action = 'hideWantedUI'
+        })
     end
 end
 
@@ -1123,6 +1140,81 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
     end
     wantedUiLabel = newUiLabel
     SetWantedLevelForPlayerRole(stars, points)
+end)
+
+-- =====================================
+--           HEIST ALERT SYSTEM
+-- =====================================
+
+-- Handler for receiving heist alerts (for cops)
+AddEventHandler('cnr:heistAlert', function(heistType, coords)
+    if role ~= 'cop' then return end
+
+    -- Default location if no coords provided
+    if not coords then
+        coords = {x = 0, y = 0, z = 0}
+    end
+    
+    local heistName = ""
+    if heistType == "bank" then
+        heistName = "Bank Heist"
+    elseif heistType == "jewelry" then
+        heistName = "Jewelry Store Robbery"
+    elseif heistType == "store" then
+        heistName = "Store Robbery"
+    else
+        heistName = "Unknown Heist"
+    end
+    
+    -- Show notification to cop
+    local message = string.format("~r~ALERT:~w~ %s in progress! Check your map for location.", heistName)
+    ShowNotification(message)
+    
+    -- Create a temporary blip at the heist location
+    local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
+    SetBlipSprite(blip, 161) -- Red circle
+    SetBlipColour(blip, 1)   -- Red color
+    SetBlipScale(blip, 1.5)  -- Larger size
+    SetBlipAsShortRange(blip, false)
+    
+    -- Add blip name/label
+    BeginTextCommandSetBlipName("STRING")
+    AddTextComponentString(heistName)
+    EndTextCommandSetBlipName(blip)
+    
+    -- Flash blip for attention
+    SetBlipFlashes(blip, true)
+    
+    -- Remove blip after 2 minutes
+    Citizen.SetTimeout(120000, function()
+        if DoesBlipExist(blip) then
+            RemoveBlip(blip)
+        end
+    end)
+end)
+
+-- Handler for heist timer display
+AddEventHandler('cnr:startHeistTimer', function(duration, heistName)
+    -- Show heist timer UI for robber
+    SendNUIMessage({
+        action = 'startHeistTimer',
+        duration = duration,
+        bankName = heistName
+    })
+end)
+
+-- Handler for heist completion
+AddEventHandler('cnr:heistCompleted', function(reward, xpEarned)
+    -- Show completion message
+    local message = string.format("~g~Heist completed!~w~ You earned ~g~$%s~w~ and ~b~%d XP~w~.", reward, xpEarned)
+    ShowNotification(message)
+      -- Play success sound
+    PlaySoundFrontend(-1, "MISSION_PASS_NOTIFY", "HUD_AWARDS", true)
+    
+    -- Update stats UI if needed
+    if playerStats then
+        playerStats.heists = (playerStats.heists or 0) + 1
+    end
 end)
 
 -- =====================================
