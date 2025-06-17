@@ -1,9 +1,6 @@
 /* style.css - Cops & Robbers FiveM Game Mode UI Styles */
 /* Updated: 2025-02-11 */
 
-/* style.css - Cops & Robbers FiveM Game Mode UI Styles */
-/* Updated: 2025-02-11 */
-
 /* ==========================================================================
    Global Styles & Animations
    ========================================================================== */
@@ -1667,50 +1664,87 @@ body::before {
     opacity: 0.5;
 }
 
-/* Responsive Design for Inventory */
-@media (max-width: 1024px) {
-    #inventory-menu {
-        width: 95vw;
-        height: 85vh;
-    }
-    
-    #player-inventory-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    }
-    
-    #inventory-grid-section {
-        flex-direction: column;
-    }
-    
-    .equipment-panel {
-        max-height: 200px;
-    }
+/* =========================================================================
+   Robber Menu Styles
+   ========================================================================== */
+
+#robber-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    background-color: rgba(20, 20, 20, 0.9);
+    border: 2px solid #bf1e2d; /* Robber red */
+    border-radius: 10px;
+    color: white;
+    padding: 20px;
+    z-index: 1000;
+    animation: fadeInMenu 0.3s ease-out;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
 }
 
-@media (max-width: 768px) {
-    #inventory-menu {
-        width: 98vw;
-        height: 90vh;
-    }
-    
-    .inventory-header {
-        padding: 15px 20px;
-    }
-    
-    .inventory-header h1 {
-        font-size: 20px;
-    }
-    
-    #player-inventory-grid {
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    }
-    
-    .inventory-item {
-        min-height: 100px;
-        padding: 8px;
-    }
-    
-    .item-icon {
-        font-size: 24px;
-    }
+#robber-menu.hidden {
+    display: none;
+}
+
+#robber-menu .menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #bf1e2d;
+    padding-bottom: 10px;
+}
+
+#robber-menu h1 {
+    margin: 0;
+    font-size: 24px;
+    text-transform: uppercase;
+    color: #bf1e2d;
+    text-shadow: 0 0 5px rgba(191, 30, 45, 0.5);
+}
+
+#robber-menu .close-btn {
+    background: none;
+    border: none;
+    color: #bf1e2d;
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+#robber-menu .close-btn:hover {
+    color: #ff3040;
+}
+
+#robber-menu .menu-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#robber-menu .menu-btn {
+    background-color: rgba(40, 40, 40, 0.8);
+    border: 1px solid #bf1e2d;
+    border-radius: 5px;
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+#robber-menu .menu-btn:hover {
+    background-color: rgba(60, 60, 60, 0.8);
+    border-color: #ff3040;
+    transform: translateX(5px);
+}
+
+#robber-menu .menu-btn .icon {
+    font-size: 20px;
+    margin-right: 10px;
 }
