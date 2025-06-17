@@ -242,7 +242,7 @@ end)
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(100) -- Reduced frequency to prevent performance issues
-        if IsControlJustPressed(0, 311) then -- I Key (INPUT_VEH_CIN_CAM which is usually I)
+        if IsControlJustPressed(0, Config.Keybinds.openInventory or 244) then -- M Key (INPUT_INTERACTION_MENU)
             print("[CNR_CLIENT_DEBUG] I key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
             print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
@@ -1673,3 +1673,241 @@ RegisterCommand('testmoney', function()
         money = 12345
     })
 end, false)
+
+-- =====================================
+--     SPEED RADAR SYSTEM
+-- =====================================
+
+local speedRadarActive = false
+local speedRadarData = {
+    targetVehicle = nil,
+    targetSpeed = 0,
+    lastUpdate = 0,
+    lastSpeedingPlayer = nil,
+    lastSpeedingSpeed = 0
+}
+
+-- Convert rotation to direction vector
+local function RotationToDirection(rotation)
+    local adjustedRotation = vector3(
+        (math.pi / 180) * rotation.x,
+        (math.pi / 180) * rotation.y,
+        (math.pi / 180) * rotation.z
+    )
+    
+    local direction = vector3(
+        -math.sin(adjustedRotation.z) * math.abs(math.cos(adjustedRotation.x)),
+        math.cos(adjustedRotation.z) * math.abs(math.cos(adjustedRotation.x)),
+        math.sin(adjustedRotation.x)
+    )
+    
+    return direction
+end
+
+-- Check if player has inventory item (helper function)
+local function HasInventoryItem(itemId)
+    -- Check player's inventory for the item
+    if playerData and playerData.inventory then
+        for _, item in pairs(playerData.inventory) do
+            if item.itemId == itemId and item.count and item.count > 0 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Toggle speed radar
+function ToggleSpeedRadar()
+    if not role or role ~= "cop" then
+        ShowNotification("~r~Speed radar is only available to police officers!")
+        return
+    end
+    
+    -- Check if player has speed radar gun
+    if not HasInventoryItem("speedradar_gun") then
+        ShowNotification("~r~You need a Speed Radar Gun to use this feature!")
+        return
+    end
+    
+    speedRadarActive = not speedRadarActive
+    
+    if speedRadarActive then
+        ShowNotification("~g~Speed Radar: ~w~ACTIVE - Aim at vehicles to measure speed")
+        StartSpeedRadarLoop()
+    else
+        ShowNotification("~o~Speed Radar: ~w~DISABLED")
+        speedRadarData.targetVehicle = nil
+    end
+end
+
+-- Main speed radar loop
+function StartSpeedRadarLoop()
+    Citizen.CreateThread(function()
+        while speedRadarActive do
+            Citizen.Wait(100) -- Update every 100ms
+            
+            local playerPed = PlayerPedId()
+            local playerPos = GetEntityCoords(playerPed)
+            
+            -- Get camera direction for aiming
+            local cam = GetGameplayCamCoord()
+            local camRot = GetGameplayCamRot(2)
+            local camDirection = RotationToDirection(camRot)
+            local raycast = StartShapeTestRay(cam.x, cam.y, cam.z, cam.x + camDirection.x * 100.0, cam.y + camDirection.y * 100.0, cam.z + camDirection.z * 100.0, 10, playerPed, 0)
+            local _, hit, endCoords, surfaceNormal, entityHit = GetShapeTestResult(raycast)
+            
+            if hit and entityHit and IsEntityAVehicle(entityHit) then
+                -- Calculate distance
+                local vehiclePos = GetEntityCoords(entityHit)
+                local distance = #(playerPos - vehiclePos)
+                
+                if distance <= 150.0 then -- Max radar range 150 meters
+                    speedRadarData.targetVehicle = entityHit
+                    
+                    -- Get vehicle speed and convert from m/s to mph
+                    local speedMs = GetEntitySpeed(entityHit)
+                    local speedMph = speedMs * 2.236936 -- Convert m/s to mph
+                    speedRadarData.targetSpeed = math.floor(speedMph + 0.5) -- Round to nearest whole number
+                    speedRadarData.lastUpdate = GetGameTimer()
+                    
+                    -- Display radar reading
+                    DisplaySpeedRadarHUD(speedRadarData.targetSpeed, distance)
+                    
+                    -- Check for speeding
+                    CheckForSpeeding(entityHit, speedMph)
+                else
+                    speedRadarData.targetVehicle = nil
+                end
+            else
+                speedRadarData.targetVehicle = nil
+            end
+        end
+    end)
+end
+
+-- Display speed radar HUD
+function DisplaySpeedRadarHUD(speed, distance)
+    local speedColor = "~w~"
+    if speed > Config.SpeedLimitMph then
+        speedColor = "~r~" -- Red for speeding
+    elseif speed > (Config.SpeedLimitMph * 0.9) then
+        speedColor = "~o~" -- Orange for close to limit
+    else
+        speedColor = "~g~" -- Green for legal speed
+    end
+    
+    local radarText = string.format(
+        "~b~SPEED RADAR~n~" ..
+        "Target: %s%d MPH~n~" ..
+        "~w~Limit: %d MPH~n~" ..
+        "~w~Distance: %.1fm",
+        speedColor, speed, Config.SpeedLimitMph, distance
+    )
+      -- Display text in top-right corner
+    SetTextFont(4)
+    SetTextProportional(true)
+    SetTextScale(0.45, 0.45)
+    SetTextColour(255, 255, 255, 255)
+    SetTextEdge(1, 0, 0, 0, 255)
+    SetTextDropShadow()
+    SetTextOutline()
+    SetTextEntry("STRING")
+    AddTextComponentString(radarText)
+    DrawText(0.85, 0.05)
+end
+
+-- Check for speeding violations
+function CheckForSpeeding(vehicle, speed)
+    if speed > Config.SpeedLimitMph then
+        local driver = GetPedInVehicleSeat(vehicle, -1)
+        if driver and driver ~= 0 and IsPedAPlayer(driver) then
+            local playerId = NetworkGetPlayerIndexFromPed(driver)
+            if playerId and playerId ~= -1 then
+                local serverPlayerId = GetPlayerServerId(playerId)
+                
+                -- Show speeding notification to police officer
+                local excessSpeed = math.floor(speed - Config.SpeedLimitMph)
+                ShowSpeedingDetection(serverPlayerId, speed, excessSpeed)
+            end
+        end
+    end
+end
+
+-- Show speeding detection notification
+function ShowSpeedingDetection(targetPlayerId, speed, excessSpeed)
+    local message = string.format(
+        "~r~SPEEDING DETECTED!~n~" ..
+        "~w~Player ID: %d~n~" ..
+        "~w~Speed: %d MPH~n~" ..
+        "~w~Over Limit: %d MPH~n~" ..
+        "~g~Press H to issue fine",
+        targetPlayerId, speed, excessSpeed
+    )
+    
+    ShowNotification(message)
+    
+    -- Store target for fining
+    speedRadarData.lastSpeedingPlayer = targetPlayerId
+    speedRadarData.lastSpeedingSpeed = speed
+end
+
+-- Fine speeding player
+function FineSpeeder()
+    if not role or role ~= "cop" then
+        ShowNotification("~r~Only police officers can issue fines!")
+        return
+    end
+    
+    if not speedRadarData.lastSpeedingPlayer then
+        ShowNotification("~r~No speeding violation detected recently!")
+        return
+    end
+      -- Send fine to server
+    TriggerServerEvent('cnr:issueSpeedingFine', 
+        speedRadarData.lastSpeedingPlayer, 
+        speedRadarData.lastSpeedingSpeed
+    )
+    
+    ShowNotification(string.format(
+        "~g~Speeding fine issued!~n~~w~Player ID: %d~n~~w~Fine: $%d",
+        speedRadarData.lastSpeedingPlayer,
+        Config.SpeedingFine
+    ))
+    
+    -- Clear the target
+    speedRadarData.lastSpeedingPlayer = nil
+    speedRadarData.lastSpeedingSpeed = 0
+end
+
+-- Register keybinds
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        -- Toggle speed radar (LEFT ALT)
+        if IsControlJustPressed(0, Config.Keybinds.toggleSpeedRadar or 19) then
+            ToggleSpeedRadar()
+        end
+        
+        -- Fine speeder (H key)
+        if IsControlJustPressed(0, Config.Keybinds.fineSpeeder or 74) then
+            FineSpeeder()
+        end
+    end
+end)
+
+-- Event handlers for speed radar
+RegisterNetEvent('cnr:speedRadarToggle')
+AddEventHandler('cnr:speedRadarToggle', function()
+    ToggleSpeedRadar()
+end)
+
+RegisterNetEvent('cnr:speedingFineResult')
+AddEventHandler('cnr:speedingFineResult', function(success, message)
+    if success then
+        ShowNotification("~g~" .. message)
+    else
+        ShowNotification("~r~" .. message)
+    end
+end)

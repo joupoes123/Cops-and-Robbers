@@ -16,7 +16,7 @@ Config.DebugLogging   = true -- Set to true to enable detailed server console lo
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
-Config.DefaultStartMoney = 2500 -- Starting cash for new players.
+Config.DefaultStartMoney = 5000 -- Starting cash for new players.
 
 -- Spawn locations based on roles
 Config.SpawnPoints = {
@@ -48,18 +48,6 @@ Config.BankVaults = {
 -- Lists of vehicle models used for various game mode mechanics.
 Config.PoliceVehicles   = { "police", "police2", "police3", "fbi", "fbi2", "policet", "sheriff", "sheriff2" }
 Config.CivilianVehicles = { "sultan", "futo", "blista", "banshee", "elegy2", "stratum", "issi2", "prairie" }
-
-
--- =========================
--- Experience and Leveling System (Legacy)
--- =========================
--- Legacy Config.Experience table removed.
-
-
--- =========================
---    Wanted Level System (Legacy/Simple)
--- =========================
--- Legacy Config.WantedLevels table removed.
 
 
 -- =========================
@@ -137,7 +125,8 @@ Config.NPCVendors = {
             "drill",
             "thermite",
             "c4",
-            "mask",            "heavy_armor"
+            "mask",
+            "heavy_armor"
         }
     },
     {
@@ -179,7 +168,8 @@ Config.NPCVendors = {
             "armor",
             "lockpick",
             "bandana",
-            "mask",            "gloves"
+            "mask",
+            "gloves"
         }
     },
     {
@@ -380,16 +370,16 @@ Config.Items = {
 -- =========================
 -- Cop Feature Settings
 -- =========================
-Config.SpikeStripDuration     = 60000  -- milliseconds (60 seconds) until a spike strip automatically despawns.
+Config.SpikeStripDuration     = 120000  -- milliseconds (120 seconds) until a spike strip automatically despawns.
 Config.MaxDeployedSpikeStrips = 3      -- Max spike strips a cop can have deployed simultaneously (server-side check).
 
-Config.SpeedLimitKmh          = 80.0   -- km/h for speed radar. Client uses this for display, server for fine logic. (Renamed from SpeedLimit for clarity)
+Config.SpeedLimitMph          = 50.0   -- mph for speed radar. Client uses this for display, server for fine logic. (Changed from KmH to MPH)
 Config.SpeedingFine           = 250    -- Amount of fine for speeding.
 
 Config.TackleDistance         = 2.0    -- meters, max distance for a cop to initiate a tackle/subdue.
 Config.SubdueTimeMs           = 3000   -- milliseconds, time it takes to complete a subdue action (before arrest is processed). (Renamed from SubdueTime for clarity)
 
-Config.K9FollowDistance       = 3.0    -- meters, how far K9 will stay behind cop when following. (Adjusted from 5.0 for closer follow)
+Config.K9FollowDistance       = 4.0    -- meters, how far K9 will stay behind cop when following. (Adjusted from 5.0 for closer follow)
 Config.K9AttackSearchRadius   = 50.0   -- meters, radius cop can command K9 to search for a target.
 Config.K9AttackDistance       = 2.0    -- meters, how close K9 needs to be to initiate an attack (visual/gameplay feel).
 Config.K9AssistWindowSeconds  = 30     -- seconds, time window after K9 engagement for an arrest to be considered K9 assisted.
@@ -673,22 +663,28 @@ Config.PerkEffects = {
 }
 
 -- =========================
--- Keybind Configuration (Client-Side Usage Primarily)
+--     Keybind Configuration
 -- =========================
--- Define default control inputs for various actions.
--- These can be used by client-side RegisterKeyMapping if players are allowed to change them.
--- Otherwise, client scripts will use IsControlJustPressed with these defaults.
+-- All keybinds use FiveM control IDs. Reference: https://docs.fivem.net/docs/game-references/controls/
+-- These can be customized by server administrators.
+-- Note: Some keys may conflict with other resources - test thoroughly.
+
+-- Keybind Layout Summary:
+-- M: Open Inventory | E: Interact | LEFT ALT: Police Radar | H: Fine Driver
+-- G: Deploy Spikes | K: Toggle K9 | F1: EMP Device | F2: Admin Panel
+
 -- See FiveM native docs for control list: https://docs.fivem.net/docs/game-references/controls/
 Config.Keybinds = {
-    toggleSpeedRadar    = 17,  -- INPUT_CELLPHONE_SCROLL_BACKWARD (PageUp)
-    fineSpeeder         = 74,  -- INPUT_VEH_HEADLIGHT (H)
+    toggleSpeedRadar    = 19,  -- INPUT_CHARACTER_WHEEL (LEFT ALT) - Better for police radar
+    fineSpeeder         = 74,  -- INPUT_VEH_HEADLIGHT (H) - Correct
     fineSpeederKeyName  = "H", -- Display name for the fine key
-    deploySpikeStrip    = 19,  -- INPUT_PREV_WEAPON (Home) - Placeholder, consider a less common key
-    tackleSubdue        = 47,  -- INPUT_WEAPON_SPECIAL_TWO (G) - Placeholder
-    toggleK9            = 311, -- INPUT_VEH_CIN_CAM (K) - Placeholder, may conflict
-    commandK9Attack     = 38,  -- INPUT_CONTEXT (E) - Placeholder, often used for general interaction
-    activateEMP         = 121, -- INPUT_SELECT_WEAPON_UNARMED (Numpad 0) - Placeholder
-    toggleAdminPanel    = 289  -- INPUT_REPLAY_STOPRECORDING (F10) - Placeholder
+    deploySpikeStrip    = 47,  -- INPUT_DETONATE (G) - Better for spike strips
+    tackleSubdue        = 38,  -- INPUT_PICKUP (E) - Standard interaction key  
+    toggleK9            = 311, -- INPUT_REPLAY_SHOWHOTKEY (K) - Correct for K key
+    commandK9Attack     = 51,  -- INPUT_CONTEXT (E) - Alternative context action
+    activateEMP         = 288, -- INPUT_REPLAY_START_STOP_RECORDING (F1) - Better key for EMP
+    toggleAdminPanel    = 289, -- INPUT_REPLAY_START_STOP_RECORDING_SECONDARY (F2) - Admin panel
+    openInventory       = 244  -- INPUT_INTERACTION_MENU (M) - Standard for inventory/menus
     -- Add other keybinds as needed
 }
 

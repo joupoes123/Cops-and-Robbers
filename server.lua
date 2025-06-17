@@ -1488,3 +1488,78 @@ AddEventHandler('cnr:requestConfigItems', function()
         TriggerClientEvent('cnr:receiveConfigItems', source, {})
     end
 end)
+
+-- Handle speeding fine issuance
+RegisterServerEvent('cnr:issueSpeedingFine')
+RegisterNetEvent('cnr:issueSpeedingFine')
+AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
+    local source = source
+    local pData = GetCnrPlayerData(source)
+    local targetData = GetCnrPlayerData(targetPlayerId)
+    
+    -- Validate cop issuing the fine
+    if not pData or pData.role ~= "cop" then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~You must be a cop to issue fines!")
+        return
+    end
+    
+    -- Validate target player
+    if not targetData then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~Target player not found!")
+        return
+    end
+    
+    -- Validate speed parameter
+    if not speed or type(speed) ~= "number" or speed <= Config.SpeedLimitMph then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~Invalid speed data!")
+        return
+    end
+    
+    -- Calculate fine amount
+    local fineAmount = Config.SpeedingFine or 250
+    local excessSpeed = speed - Config.SpeedLimitMph
+    
+    -- Add bonus fine for excessive speeding (optional enhancement)
+    if excessSpeed > 20 then
+        fineAmount = fineAmount + math.floor(excessSpeed * 5) -- $5 per mph over 20mph excess
+    end
+    
+    -- Deduct money from target player
+    if targetData.money >= fineAmount then
+        targetData.money = targetData.money - fineAmount
+        pData.money = pData.money + math.floor(fineAmount * 0.5) -- Cop gets 50% commission
+          -- Award XP to the cop
+        local xpAmount = (Config.XPRewards and Config.XPRewards.speeding_fine_issued) or 8
+        AddXP(source, xpAmount, "speeding_fine_issued")
+        
+        -- Save both players' data
+        SavePlayerData(source)
+        SavePlayerData(targetPlayerId)
+        
+        -- Update both players' data
+        local copDataForSync = shallowcopy(pData)
+        copDataForSync.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', source, copDataForSync)
+        
+        local targetDataForSync = shallowcopy(targetData)
+        targetDataForSync.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', targetPlayerId, targetDataForSync)
+        
+        -- Send notifications
+        SafeTriggerClientEvent('cnr:showNotification', source, 
+            string.format("~g~Speeding fine issued! $%d collected (~b~%d mph in %d mph zone~g~). You earned $%d commission.", 
+                fineAmount, speed, Config.SpeedLimitMph, math.floor(fineAmount * 0.5)))
+        
+        SafeTriggerClientEvent('cnr:showNotification', targetPlayerId, 
+            string.format("~r~You were fined $%d for speeding! (~o~%d mph in %d mph zone~r~)", 
+                fineAmount, speed, Config.SpeedLimitMph))
+        
+        -- Log the fine for admin purposes
+        Log(string.format("Speeding fine issued: Cop %s fined Player %s $%d for %d mph in %d mph zone", 
+            source, targetPlayerId, fineAmount, speed, Config.SpeedLimitMph))
+    else
+        SafeTriggerClientEvent('cnr:showNotification', source, 
+            string.format("~o~Target player doesn't have enough money for the fine ($%d required, has $%d)", 
+                fineAmount, targetData.money))
+    end
+end)
