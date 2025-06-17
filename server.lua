@@ -1391,10 +1391,10 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     if Config.Items and type(Config.Items) == 'table' then
         for _, itemIdFromVendor in ipairs(vendorItemIds) do
             local foundItem = nil
-            for _, configItem in ipairs(Config.Items) do
-                if configItem.itemId == itemIdFromVendor then
+            for _, configItem in ipairs(Config.Items) do                if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
-                    foundItem = {                        itemId = configItem.itemId,
+                    foundItem = {
+                        itemId = configItem.itemId,
                         name = configItem.name,
                         basePrice = configItem.basePrice, -- NUI will use this as 'price'
                         price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
@@ -1403,6 +1403,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                         minLevelCop = configItem.minLevelCop,
                         minLevelRobber = configItem.minLevelRobber,
                         icon = configItem.icon, -- Add icon field for modern UI
+                        image = configItem.image or configItem.icon, -- Fallback to icon if no image
                         -- Add any other fields the NUI might need, like description, weight, etc.
                         -- e.g., description = configItem.description or ""
                     }
@@ -1428,9 +1429,14 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         level = pData and pData.level or 1,
         role = pData and pData.role or "citizen",
         cash = pData and (pData.cash or pData.money) or 0
-    }
-
-    -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    }    -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    
+    -- Debug: Print the first item structure to see what's being sent
+    if #fullItemDetailsList > 0 then
+        print('[CNR_SERVER_DEBUG] Sample item structure for debugging:')
+        print(json.encode(fullItemDetailsList[1], {indent = true}))
+    end
+    
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
     -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')

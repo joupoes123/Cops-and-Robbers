@@ -1101,6 +1101,8 @@ end)
 
 RegisterNetEvent('cnr:xpGained')
 AddEventHandler('cnr:xpGained', function(amount, newTotalXp)
+    amount = amount or 0
+    newTotalXp = newTotalXp or 0
     playerData.xp = newTotalXp
     ShowNotification(string.format("~g~+%d XP! (Total: %d)", amount, newTotalXp))
     SendNUIMessage({
@@ -1495,6 +1497,9 @@ function OpenStoreMenu(storeType, storeItems, storeName)
     elseif storeType == "robber" then
         isRobberStoreUiOpen = true
     end
+    
+    -- Ensure fullItemConfig is available to NUI before opening store
+    TriggerEvent('cnr:ensureConfigItems')
     
     -- Send message to NUI to open store
     SendNUIMessage({

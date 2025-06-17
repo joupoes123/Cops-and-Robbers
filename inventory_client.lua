@@ -549,6 +549,23 @@ RegisterNUICallback('closeInventory', function(data, cb)
     })
 end)
 
+-- Ensure Config.Items are available to NUI when stores open
+RegisterNetEvent('cnr:ensureConfigItems')
+AddEventHandler('cnr:ensureConfigItems', function()
+    if clientConfigItems and next(clientConfigItems) then
+        -- Config is available, send to NUI
+        SendNUIMessage({
+            action = 'storeFullItemConfig',
+            itemConfig = clientConfigItems
+        })
+        Log("Re-sent Config.Items to NUI to ensure availability", "info")
+    else
+        -- Config not available, request from server
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Config.Items not available, requested from server", "warn")
+    end
+end)
+
 -- Export functions for other client scripts
 exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)

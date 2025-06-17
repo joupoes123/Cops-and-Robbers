@@ -800,7 +800,7 @@ button:hover {
    ========================================================================== */
 #xp-level-container {
     position: fixed;
-    bottom: 20px;
+    bottom: 80px; /* Moved higher to avoid clipping */
     left: 50%;
     transform: translateX(-50%);
     display: none; /* Hidden by default */
@@ -815,7 +815,9 @@ button:hover {
     border: 1px solid #0f3460; /* New Accent Color 2 for border */
     opacity: 0;
     transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-    position: relative; /* For XP gain indicator positioning */
+    /* Ensure it doesn't go off-screen */
+    max-width: calc(100vw - 40px);
+    min-width: 300px;
 }
 
 #xp-level-container.show {
