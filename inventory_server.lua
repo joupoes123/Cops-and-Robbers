@@ -348,11 +348,26 @@ AddEventHandler('cnr:requestMyInventory', function()
         
         -- Send the inventory data to the client
         TriggerClientEvent('cnr:receiveMyInventory', playerId, pData.inventory, equippedItemsArray)
-    else
-        Log(string.format("Player %d requested inventory but no data was found!", playerId), "warn")
+    else        Log(string.format("Player %d requested inventory but no data was found!", playerId), "warn")
         -- Send an empty inventory to prevent UI errors
-        TriggerClientEvent('cnr:receiveMyInventory', playerId, {})
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, {}, {}) -- Return empty array for equipped items as well
     end
+end)
+
+-- Register handler for config items request
+RegisterServerEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local source = source
+    
+    -- Ensure Config.Items exists
+    if not Config or not Config.Items then
+        Log("Config.Items not available when requested by player " .. source, "error")
+        return
+    end
+    
+    -- Send the items configuration to the client
+    TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
+    Log("Sent Config.Items to player " .. source, "info")
 end)
 
 -- Helper function to get item config

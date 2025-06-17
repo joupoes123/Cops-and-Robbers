@@ -888,3 +888,15 @@ Config.ContrabandDealers = {
     { x = 728.38, y = 4170.17, z = 40.09, heading = 92.45, name = "Northern Dealer" },
     { x = -1337.25, y = -1277.94, z = 4.87, heading = 110.23, name = "Beach Dealer" },
 }
+
+-- =========================
+--        Bounty Settings
+-- =========================
+Config.BountySettings = {
+    wantedLevelThreshold = 2, -- Minimum wanted level (stars) to trigger a bounty
+    baseAmount = 1000,        -- Base bounty amount
+    multiplier = 1.5,         -- Multiplier per wanted level above threshold
+    maxAmount = 10000,        -- Maximum bounty that can be placed
+    duration = 30,            -- Minutes that a bounty remains active
+    cooldownMinutes = 10      -- Cooldown before another bounty can be placed on the same player
+}

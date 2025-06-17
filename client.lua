@@ -679,9 +679,23 @@ function UpdateRobberStoreBlips()
     if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
         print("[CNR_CLIENT_ERROR] UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
-    end
-    for i, vendor in ipairs(Config.NPCVendors) do
-        if vendor and vendor.location and vendor.name and (vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier") then
+    end    for i, vendor in ipairs(Config.NPCVendors) do
+        if not vendor then
+            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Nil vendor entry at index %d.", i))
+            goto continue_robber_blips_loop
+        end
+
+        if not vendor.location then
+            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing location for vendor at index %d.", i))
+            goto continue_robber_blips_loop
+        end
+
+        if not vendor.name then
+            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing name for vendor at index %d.", i))
+            goto continue_robber_blips_loop
+        end
+
+        if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
             local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
             if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
                 if not robberStoreBlips[blipKey] or not DoesBlipExist(robberStoreBlips[blipKey]) then
@@ -1283,5 +1297,223 @@ AddEventHandler('cnr:buyContraband', function()
         TriggerServerEvent('cnr:openContrabandStore')
     else
         ShowNotification("~r~You must be near a contraband dealer to buy contraband.")
+    end
+end)
+
+-- Function to check for nearby stores and display help text
+function CheckNearbyStores()
+    local playerPed = PlayerPedId()
+    if not playerPed or not DoesEntityExist(playerPed) then return end
+    
+    local playerPos = GetEntityCoords(playerPed)
+    local isNearStore = false
+    local storeType = nil
+    local storeName = nil
+    local storeItems = nil
+    
+    if Config and Config.NPCVendors then
+        for _, vendor in ipairs(Config.NPCVendors) do
+            if vendor and vendor.location then
+                -- Handle both vector3 and vector4 formats
+                local storePos
+                if vendor.location.w then
+                    storePos = vector3(vendor.location.x, vendor.location.y, vendor.location.z)
+                else
+                    storePos = vendor.location
+                end
+                
+                local distance = #(playerPos - storePos)
+                -- Check if player is within proximity radius (3.0 units)
+                if distance <= 3.0 then
+                    isNearStore = true
+                    storeType = vendor.name == "Cop Store" and "cop" or "robber"
+                    storeName = vendor.name
+                    storeItems = vendor.items
+                    
+                    -- Display help text when near store
+                    DisplayHelpText("Press ~INPUT_CONTEXT~ to open " .. storeName)
+                    
+                    -- Check for E key press (INPUT_CONTEXT = 38)
+                    if IsControlJustPressed(0, 38) then
+                        if (storeType == "cop" and role == "cop") or 
+                           (storeType == "robber" and role == "robber") or
+                           ((vendor.name == "Gang Supplier" or vendor.name == "Black Market Dealer") and role == "robber") then
+                            OpenStoreMenu(storeType, storeItems, storeName)
+                        else
+                            ShowNotification("~r~You don't have access to this store.")
+                        end
+                    end
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- Function to open the store menu
+function OpenStoreMenu(storeType, storeItems, storeName)
+    if not storeType or not storeItems or not storeName then
+        Log("OpenStoreMenu called with invalid parameters", "error")
+        return
+    end
+    
+    -- Set the appropriate UI flag
+    if storeType == "cop" then
+        isCopStoreUiOpen = true
+    elseif storeType == "robber" then
+        isRobberStoreUiOpen = true
+    end
+    
+    -- Send message to NUI to open store
+    SendNUIMessage({
+        action = "openStore",
+        storeType = storeType,
+        items = storeItems,
+        storeName = storeName,
+        playerCash = playerCash,
+        playerLevel = playerData.level
+    })
+    
+    -- Enable NUI focus
+    SetNuiFocus(true, true)
+    
+    -- Trigger server event to get detailed item information
+    TriggerServerEvent('cops_and_robbers:getItemList', storeType, storeItems, storeName)
+end
+
+-- Register NUI callback for closing the store
+RegisterNUICallback('closeStore', function(data, cb)
+    Log("closeStore NUI callback received", "info")
+    
+    -- Reset UI flags
+    isCopStoreUiOpen = false
+    isRobberStoreUiOpen = false
+    
+    -- Disable NUI focus
+    SetNuiFocus(false, false)
+    
+    cb({success = true})
+end)
+
+-- Thread to check for nearby stores
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0) -- Run every frame for responsive key detection
+        
+        -- Only check for nearby stores if player ped exists and is ready
+        if g_isPlayerPedReady then
+            CheckNearbyStores()
+        end
+    end
+end)
+
+-- Thread to detect when player commits a crime (like killing another player)
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(1000) -- Check once per second
+        
+        -- Only check if player is ready and is a robber
+        if g_isPlayerPedReady and role == "robber" then
+            local playerPed = PlayerPedId()
+            
+            -- Check for kill
+            if IsEntityDead(playerPed) then
+                -- Player died, check who killed them
+                local killer = GetPedSourceOfDeath(playerPed)
+                if killer ~= playerPed and DoesEntityExist(killer) and IsEntityAPed(killer) then
+                    local killerType = GetEntityType(killer)
+                    if killerType == 1 then -- Ped type
+                        if IsPedAPlayer(killer) then
+                            -- Player killed by another player
+                            local killerServerId = GetPlayerServerId(NetworkGetPlayerIndexFromPed(killer))
+                            if killerServerId ~= GetPlayerServerId(PlayerId()) then
+                                -- Report murder crime
+                                TriggerServerEvent('cops_and_robbers:reportCrime', 'murder')
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Check for hit and run
+            if IsPedInAnyVehicle(playerPed, false) then
+                local vehicle = GetVehiclePedIsIn(playerPed, false)
+                  -- Check if we hit a pedestrian
+                if HasEntityCollidedWithAnything(vehicle) then
+                    -- Since GetEntityHit isn't available, check if any nearby peds are injured
+                    local playerCoords = GetEntityCoords(playerPed)
+                    local nearbyPeds = GetGamePool('CPed')
+                    
+                    for i=1, #nearbyPeds do
+                        local ped = nearbyPeds[i]
+                        if ped ~= playerPed and DoesEntityExist(ped) and not IsPedAPlayer(ped) then
+                            local pedCoords = GetEntityCoords(ped)
+                            local distance = #(playerCoords - pedCoords)
+                            
+                            -- If ped is close and injured, consider it a hit and run
+                            if distance < 10.0 and (IsEntityDead(ped) or IsPedRagdoll(ped) or IsPedInjured(ped)) then
+                                TriggerServerEvent('cops_and_robbers:reportCrime', 'hit_and_run')
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Check for property damage
+            if HasPlayerDamagedAtLeastOneNonAnimalPed(PlayerId()) then
+                TriggerServerEvent('cops_and_robbers:reportCrime', 'assault')
+                -- Reset the flag
+                ClearPlayerHasDamagedAtLeastOneNonAnimalPed(PlayerId())
+            end
+            
+            -- Check for vehicle theft
+            if IsPedInAnyVehicle(playerPed, false) then
+                local vehicle = GetVehiclePedIsIn(playerPed, false)                if GetPedInVehicleSeat(vehicle, -1) == playerPed then -- If player is driver
+                    -- Check if vehicle is potentially stolen by checking common police/emergency vehicles
+                    local model = GetEntityModel(vehicle)
+                    local isEmergencyVehicle = IsVehicleModel(vehicle, GetHashKey("police")) or 
+                                               IsVehicleModel(vehicle, GetHashKey("police2")) or 
+                                               IsVehicleModel(vehicle, GetHashKey("police3")) or
+                                               IsVehicleModel(vehicle, GetHashKey("ambulance")) or
+                                               IsVehicleModel(vehicle, GetHashKey("firetruk"))
+                    
+                    -- Consider it stolen if it's an emergency vehicle or marked as stolen
+                    if isEmergencyVehicle or IsVehicleStolen(vehicle) or (DecorExistOn(vehicle, 'isStolen') and DecorGetBool(vehicle, 'isStolen')) then
+                        -- Report vehicle theft
+                        TriggerServerEvent('cops_and_robbers:reportCrime', 'grand_theft_auto')
+                        -- Mark the vehicle as stolen to prevent repeated reports
+                        if not DecorExistOn(vehicle, 'isStolen') then
+                            DecorSetBool(vehicle, 'isStolen', true)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Add detection for weapon discharge
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        -- Only check if player is ready and is a robber
+        if g_isPlayerPedReady and role == "robber" then
+            local playerPed = PlayerPedId()
+            
+            -- Check for weapon discharge
+            if IsPedShooting(playerPed) then
+                local weapon = GetSelectedPedWeapon(playerPed)
+                
+                -- Only report for actual weapons, not non-lethal ones
+                if weapon ~= GetHashKey('WEAPON_STUNGUN') and weapon ~= GetHashKey('WEAPON_FLASHLIGHT') then
+                    -- Report weapon discharge
+                    TriggerServerEvent('cops_and_robbers:reportCrime', 'weapons_discharge')
+                    -- Wait a bit to avoid spamming events
+                    Citizen.Wait(5000)
+                end
+            end
+        end
     end
 end)

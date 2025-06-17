@@ -1628,3 +1628,41 @@ AddEventHandler('cnr:requestRoleSelection', function()
     -- Send role selection UI to client
     TriggerClientEvent('cnr:showRoleSelection', source)
 end)
+
+-- Register the crime reporting event
+RegisterNetEvent('cops_and_robbers:reportCrime')
+AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
+    local src = source
+    if not src or src <= 0 then return end
+    
+    -- Verify the crime type is valid
+    local crimeConfig = Config.WantedSettings.crimes[crimeType]
+    if not crimeConfig then
+        print("[CNR_SERVER_ERROR] Invalid crime type reported: " .. tostring(crimeType))
+        return
+    end
+    
+    -- Check if player is a robber
+    if not IsPlayerRobber(src) then
+        print("[CNR_SERVER_DEBUG] Non-robber attempted to report crime: " .. GetPlayerName(src) .. " (" .. src .. ")")
+        return
+    end
+    
+    -- Check for spam (cooldown per crime type)
+    local now = os.time()
+    if not clientReportCooldowns[src] then clientReportCooldowns[src] = {} end
+    
+    local lastReportTime = clientReportCooldowns[src][crimeType] or 0
+    local cooldownTime = 5 -- 5 seconds cooldown between same crime reports
+    
+    if now - lastReportTime < cooldownTime then
+        -- Still on cooldown, ignore this report
+        return
+    end
+    
+    -- Update cooldown timestamp
+    clientReportCooldowns[src][crimeType] = now
+    
+    -- Update wanted level for this crime
+    UpdatePlayerWantedLevel(src, crimeType)
+end)
