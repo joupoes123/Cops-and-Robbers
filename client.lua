@@ -728,6 +728,7 @@ function UpdateRobberStoreBlips()
         else
             print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d.", i))
         end
+        ::continue_robber_blips_loop::
     end
     -- Clean up orphaned blips
     for blipKey, blipId in pairs(robberStoreBlips) do
