@@ -77,6 +77,16 @@
 - **Variable Difficulty**: Different banks present unique challenges and rewards.
 - **Heist Mechanics**: Coordinated bank robberies with timers and security responses.
 
+### Speed Radar System
+
+- **Real-Time Speed Detection**: Police officers can use speed radar guns to measure vehicle speeds in real-time
+- **Visual HUD Interface**: Color-coded speed display showing target speed, speed limit, and distance
+- **Automatic Speeding Detection**: System automatically detects when vehicles exceed the 50 MPH speed limit
+- **Progressive Fine System**: Base fines of $250 with additional penalties for excessive speeding
+- **Equipment Requirements**: Requires Speed Radar Gun (available to Level 2+ cops for $500)
+- **Officer Compensation**: Cops receive 50% commission on issued fines plus XP rewards
+- **Range-Based Detection**: Effective up to 150 meters with precise raycast targeting
+
 ### Administrative Tools
 
 - **Expanded Admin Commands**: Comprehensive commands for server management, including player moderation and resource control.
@@ -94,23 +104,31 @@
 
 ## Controls
 
+**Quick Reference**: M: Open Inventory | E: Interact | LEFT ALT: Police Radar | H: Fine Driver | G: Deploy Spikes | K: Toggle K9 | F1: EMP Device | F2: Admin Panel
+
 ### General Controls
 
 - **F5**: Toggle role selection menu (choose between Cop and Robber)
-- **I**: Open/close player inventory
+- **M**: Open/close player inventory
 - **E**: Interact with stores and other interactive elements
 - **H**: Toggle HUD display
 - **F6**: Open admin menu (admin only)
 
 ### Cop-Specific Controls
 
-- **F1**: Access cop menu (spawn vehicles, equipment, etc.)
+- **F1**: Access cop menu (spawn vehicles, equipment, etc.) / Activate EMP Device
+- **F2**: Admin panel (admin only)
 - **F3**: Arrest nearby robber (when close to a robber)
-- **G**: Cuff/uncuff nearby player
+- **G**: Deploy spike strips / Cuff/uncuff nearby player
+- **K**: Toggle K9 unit
+- **E**: Command K9 attack (when K9 is active)
+- **LEFT ALT**: Toggle speed radar (requires Speed Radar Gun)
+- **H**: Issue speeding fine (when speeding detected)
 
 ### Robber-Specific Controls
 
 - **F2**: Access robber menu (heist options, getaway vehicles, etc.)
+- **E**: Tackle/subdue (interaction key)
 
 ### Inventory Controls
 
@@ -221,6 +239,14 @@ Customize the gameplay experience by editing the configuration options in `confi
 - **Heist Locations**: Configure multiple bank locations with coordinates, names, and IDs (`Config.BankVaults`).
 - **Difficulty and Rewards**: Adjust security levels and rewards for each bank.
 
+### Speed Radar System
+
+- **Speed Limit**: Configure the speed limit in MPH (`Config.SpeedLimitMph` - default: 50 MPH)
+- **Fine Amount**: Set the base fine amount for speeding violations (`Config.SpeedingFine` - default: $250)
+- **Keybinds**: Customize radar toggle and fine issuance keys in `Config.Keybinds`
+- **XP Rewards**: Configure XP rewards for issuing speeding tickets in `Config.XPRewards.speeding_fine_issued`
+- **Equipment**: Speed Radar Gun availability and pricing configured in `Config.Items`
+
 ### Experience and Leveling
 
 - **XP Requirements**: XP requirements for each level are defined in `Config.XPTable`. Role-specific XP for actions are in `Config.XPActionsCop` and `Config.XPActionsRobber`.
@@ -248,7 +274,7 @@ Customize the gameplay experience by editing the configuration options in `confi
 ### Common Issues
 
 1. **Inventory Not Opening**: 
-   - Ensure the `I` key is not bound to another resource
+   - Ensure the `M` key is not bound to another resource
    - Check server console for NUI errors
    - Verify `html/` folder exists with all UI files
 
@@ -262,12 +288,18 @@ Customize the gameplay experience by editing the configuration options in `confi
    - Ensure item effects are properly configured
    - Verify server-side inventory handlers are running
 
-4. **Role Selection Issues**:
+4. **Speed Radar Not Working**:
+   - Ensure you're a police officer with a Speed Radar Gun in inventory
+   - Press LEFT ALT to toggle radar, aim at vehicles within 150m
+   - Check that `Config.SpeedLimitMph` and `Config.SpeedingFine` are properly configured
+   - Verify the server event handler `cnr:issueSpeedingFine` is registered
+
+5. **Role Selection Issues**:
    - Press `F5` to access role selection menu
    - Ensure player data is being saved properly
    - Check for conflicts with other roleplay resources
 
-5. **Performance Issues**:
+6. **Performance Issues**:
    - Reduce the number of items in stores if experiencing lag
    - Check server console for errors
    - Ensure proper resource load order in `server.cfg`
