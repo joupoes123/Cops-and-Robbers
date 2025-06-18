@@ -392,16 +392,36 @@ Citizen.CreateThread(function()
         local playerPed = PlayerPedId()
         if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_police_suppression end
         local handle, ped = FindFirstPed()
-        local success, nextPed = true, ped
-        repeat
+        local success, nextPed = true, ped        repeat
             if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) and not IsPedProtected(ped) then
                 local vehicle = GetVehiclePedIsIn(ped, false)
+                local wasDriver = false
+                
+                -- Check if this ped is the driver before deleting the ped
+                if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                    wasDriver = GetPedInVehicleSeat(vehicle, -1) == ped
+                end
+                
                 SetEntityAsMissionEntity(ped, false, true)
                 ClearPedTasksImmediately(ped)
                 DeletePed(ped)
-                if vehicle ~= 0 and DoesEntityExist(vehicle) and GetPedInVehicleSeat(vehicle, -1) == ped then
-                    SetEntityAsMissionEntity(vehicle, false, true)
-                    DeleteEntity(vehicle)
+                
+                -- Only delete the vehicle if the ped was the driver and no other player is in it
+                if wasDriver and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                    local hasPlayerInVehicle = false
+                    for i = -1, GetVehicleMaxNumberOfPassengers(vehicle) - 1 do
+                        local seat_ped = GetPedInVehicleSeat(vehicle, i)
+                        if seat_ped ~= 0 and seat_ped ~= ped and IsPedAPlayer(seat_ped) then
+                            hasPlayerInVehicle = true
+                            break
+                        end
+                    end
+                    
+                    -- Only delete if no players are using the vehicle
+                    if not hasPlayerInVehicle then
+                        SetEntityAsMissionEntity(vehicle, false, true)
+                        DeleteEntity(vehicle)
+                    end
                 end
             end
             success, nextPed = FindNextPed(handle)
@@ -1500,15 +1520,16 @@ function OpenStoreMenu(storeType, storeItems, storeName)
     
     -- Ensure fullItemConfig is available to NUI before opening store
     TriggerEvent('cnr:ensureConfigItems')
-    
-    -- Send message to NUI to open store
+      -- Send message to NUI to open store
     SendNUIMessage({
         action = "openStore",
         storeType = storeType,
         items = storeItems,
         storeName = storeName,
         playerCash = playerCash,
-        playerLevel = playerData.level
+        playerLevel = playerData.level,
+        cash = playerCash,  -- Add for backward compatibility
+        level = playerData.level  -- Add for backward compatibility
     })
     
     -- Enable NUI focus

@@ -67,19 +67,27 @@ window.addEventListener('message', function(event) {
                 }
             }
             openStoreMenu(data.storeName, data.items, data.playerInfo);
-            break;
-        case 'updateStoreData':
+            break;        case 'updateStoreData':
             console.log('[CNR_NUI] Received updateStoreData with', data.items ? data.items.length : 0, 'items');
             if (data.items && data.items.length > 0) {
                 // Update the current store data
+                window.items = data.items; // Fix: Set window.items so loadGridItems() can access it
                 window.currentStoreItems = data.items;
+                window.playerInfo = data.playerInfo; // Fix: Set window.playerInfo for level checks
                 window.currentPlayerInfo = data.playerInfo;
+                console.log('[CNR_NUI_DEBUG] Updated window.items with', data.items.length, 'items');
+                console.log('[CNR_NUI_DEBUG] Sample item IDs:', data.items.slice(0, 3).map(item => item.itemId).join(','));
+                console.log('[CNR_NUI_DEBUG] Current tab before refresh:', window.currentTab);
                 // Refresh the currently displayed tab
                 if (window.currentTab === 'buy') {
-                    loadGridItems(data.items);
+                    console.log('[CNR_NUI_DEBUG] Calling loadGridItems() for Buy tab refresh');
+                    loadGridItems(); // Fix: Call without parameters
                 } else if (window.currentTab === 'sell') {
+                    console.log('[CNR_NUI_DEBUG] Calling loadSellItems() for Sell tab refresh');
                     loadSellItems();
                 }
+            } else {
+                console.warn('[CNR_NUI] updateStoreData called with no items or empty items array');
             }
             break;
         case 'closeStore':
@@ -407,15 +415,20 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
         
         console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
-        console.log('[CNR_NUI_DEBUG] cash value:', window.playerInfo.cash);
+        
+        // Handle both property name formats (cash/playerCash, level/playerLevel)
+        const newCash = window.playerInfo.cash || window.playerInfo.playerCash || 0;
+        const newLevel = window.playerInfo.level || window.playerInfo.playerLevel || 1;
+        
+        console.log('[CNR_NUI_DEBUG] cash value:', newCash);
+        console.log('[CNR_NUI_DEBUG] level value:', newLevel);
         
         // Update player info display and check for cash changes
-        const newCash = window.playerInfo.cash || 0;
         if (playerCashEl) {
             playerCashEl.textContent = `$${newCash.toLocaleString()}`;
             console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
         }
-        if (playerLevelEl) playerLevelEl.textContent = `Level ${window.playerInfo.level || 1}`;
+        if (playerLevelEl) playerLevelEl.textContent = `Level ${newLevel}`;
           // Show cash notification if cash changed (only when store is opened)
         if (previousCash !== null && previousCash !== newCash) {
             console.log('[CNR_NUI_DEBUG] Cash changed in store from', previousCash, 'to', newCash);
@@ -507,10 +520,10 @@ function loadGridItems() {
     
     // Clear existing items
     gridContainer.innerHTML = '';
-    
-    console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
+      console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
     console.log('[CNR_NUI_DEBUG] currentCategory:', window.currentCategory);
-    console.log('[CNR_NUI_DEBUG] Sample items:', window.items ? window.items.slice(0, 3).map(item => item.itemId).join(',') : 'No items');
+    console.log('[CNR_NUI_DEBUG] currentTab:', window.currentTab);
+    console.log('[CNR_NUI_DEBUG] Sample items:', window.items ? window.items.slice(0, 3).map(item => ({id: item.itemId, name: item.name})) : 'No items');
     
     // If items is an object rather than an array, convert it to an array
     let itemsArray = window.items || [];
@@ -591,11 +604,25 @@ function loadSellGridItems() {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return response.json();
-    }).then(data => {
+        return response.json();    }).then(data => {
         console.log('[CNR_NUI] Inventory data received:', data);
         sellGrid.innerHTML = '';
-        const minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
+        let minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
+        
+        // Convert object to array if necessary (for backward compatibility)
+        if (typeof minimalInventory === 'object' && !Array.isArray(minimalInventory)) {
+            console.log('[CNR_NUI] Converting inventory object to array format');
+            const inventoryArray = [];
+            for (const [itemId, itemData] of Object.entries(minimalInventory)) {
+                if (itemData && itemData.count > 0) {
+                    inventoryArray.push({
+                        itemId: itemId,
+                        count: itemData.count
+                    });
+                }
+            }
+            minimalInventory = inventoryArray;
+        }
         
         if (!window.fullItemConfig) {
             console.error('[CNR_NUI] fullItemConfig not available. Cannot reconstruct sell list details.');
@@ -604,10 +631,10 @@ function loadSellGridItems() {
             return;
         }
         
-        console.log('[CNR_NUI] Processing', minimalInventory.length, 'inventory items');
+        console.log('[CNR_NUI] Processing', Array.isArray(minimalInventory) ? minimalInventory.length : 'unknown', 'inventory items');
         console.log('[CNR_NUI] fullItemConfig type:', typeof window.fullItemConfig, 'has items:', window.fullItemConfig ? Object.keys(window.fullItemConfig).length : 0);
         
-        if (!minimalInventory || minimalInventory.length === 0) {
+        if (!minimalInventory || !Array.isArray(minimalInventory) || minimalInventory.length === 0) {
             sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Your inventory is empty.</div>';
             return;
         }

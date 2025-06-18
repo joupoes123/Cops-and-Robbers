@@ -1153,9 +1153,12 @@ button:hover {
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: all 0.3s ease;    border-radius: 12px;
+    transition: all 0.3s ease;
+    border-radius: 12px;
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
+    padding: 8px; /* Add padding to prevent content from touching edges */
+    box-sizing: border-box; /* Include padding in size calculations */
 }
 
 .inventory-slot:hover .action-overlay {
@@ -1176,6 +1179,7 @@ button:hover {
     background: rgba(255, 255, 255, 0.9);
     color: #333333;
     font-weight: bold;
+    flex-shrink: 0; /* Prevent input from shrinking */
 }
 
 .action-overlay .action-btn {
@@ -1188,6 +1192,10 @@ button:hover {
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
+    flex-shrink: 0; /* Prevent button from shrinking */
+    width: auto; /* Let button size naturally */
+    min-width: 50px; /* Minimum width for readability */
+    max-width: 80px; /* Prevent button from getting too wide */
 }
 
 .action-overlay .action-btn:hover {
