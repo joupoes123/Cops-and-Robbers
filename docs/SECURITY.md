@@ -15,7 +15,7 @@ We actively support the latest major release of **Cops and Robbers**. Please ens
 
 If you discover a security vulnerability in the **Cops and Robbers** game mode, please help us keep the community safe by following these steps:
 
-1. **Report Privately**: Do not create public issues for vulnerabilities. Instead, email us at `security@indom-hub.com` with the details.
+1. **Report Privately**: Do not create public issues for vulnerabilities. Instead, email us at `support@axiomrp.dev` with the details.
    
 2. **Include Details**: When reporting, please include as much information as possible:
    - A description of the vulnerability and its impact.
@@ -30,7 +30,7 @@ If you discover a security vulnerability in the **Cops and Robbers** game mode, 
 
 ## Security Improvements in Version 2.0
 
-Version **2.0** includes several important security enhancements:
+Version **1.2.0** includes several important security enhancements:
 
 - **Input Validation**: Improved validation of all player inputs to prevent exploits, injections, and unauthorized access.
 - **Admin Command Security**: Ensured that all admin commands have consistent security checks and proper input validation to prevent misuse.
