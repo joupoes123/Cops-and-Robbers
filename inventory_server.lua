@@ -36,12 +36,30 @@ function InitializePlayerInventory(pData, playerId)
     end
 end
 
--- CanCarryItem: Checks if a player can carry an item (placeholder)
--- Note: This function was not part of the refactor request but shown for context.
--- If it were to be refactored, it would also take pData.
+-- CanCarryItem: Checks if a player can carry an item
 function CanCarryItem(playerId, itemId, quantity)
-    -- TODO: Implement weight/slot logic if desired
-    return true -- Placeholder
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory then return false end
+    
+    -- Check if Config.Items exists for the item
+    if not Config.Items[itemId] then
+        Log("CanCarryItem: Unknown item ID: " .. tostring(itemId))
+        return false
+    end
+    
+    -- Calculate current inventory count
+    local currentCount = 0
+    for _, item in pairs(pData.inventory) do
+        currentCount = currentCount + (item.quantity or 0)
+    end
+    
+    -- Basic slot limit check (50 items max for simplicity)
+    local maxSlots = 50
+    if (currentCount + quantity) > maxSlots then
+        return false
+    end
+    
+    return true
 end
 
 -- AddItem: Adds an item to player's inventory
@@ -49,7 +67,10 @@ end
 function AddItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData then Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error"); return false end
+    if not pData then
+        Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error")
+        return false
+    end
     -- Ensure inventory table exists on pData
     if not pData.inventory then InitializePlayerInventory(pData, playerId) end
 
@@ -66,14 +87,17 @@ function AddItem(pData, itemId, quantity, playerId)
         return false
     end
 
-    if not itemConfig then Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn"); return false end
+    if not itemConfig then
+        Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn")
+        return false
+    end
 
     if not pData.inventory[itemId] then
         pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
     end
     pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
     Log(string.format("Added %dx %s to player %s's inventory. New count: %d", quantity, itemId, playerId or "Unknown", pData.inventory[itemId].count))
-    if playerId then 
+    if playerId then
         local playerIdNum = tonumber(playerId)
         if playerIdNum then
             TriggerClientEvent('cnr:inventoryUpdated', playerIdNum, pData.inventory) -- Notify client of change
@@ -87,7 +111,10 @@ end
 function RemoveItem(pData, itemId, quantity, playerId)
     quantity = tonumber(quantity) or 1
 
-    if not pData or not pData.inventory then Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error"); return false end
+    if not pData or not pData.inventory then
+        Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error")
+        return false
+    end
 
     if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
         Log(string.format("RemoveItem: Player %s does not have %dx %s. Has: %d", playerId or "Unknown", quantity, itemId, (pData.inventory[itemId] and pData.inventory[itemId].count or 0)), "warn")
@@ -99,7 +126,7 @@ function RemoveItem(pData, itemId, quantity, playerId)
         pData.inventory[itemId] = nil -- Remove item if count is zero
     end
     Log(string.format("Removed %dx %s from player %s's inventory.", quantity, itemId, playerId or "Unknown"))
-    if playerId then 
+    if playerId then
         local playerIdNum = tonumber(playerId)
         if playerIdNum then
             TriggerClientEvent('cnr:inventoryUpdated', playerIdNum, pData.inventory) -- Notify client of change
@@ -142,19 +169,19 @@ RegisterNetEvent('cnr:getInventoryForUI')
 AddEventHandler('cnr:getInventoryForUI', function()
     local source = source
     local pData = GetCnrPlayerData(source)
-    
+
     if not pData then
         Log("Failed to get player data for inventory UI request", "error")
         return
     end
-    
+
     -- Get equipped items for this player
     local equipped = playerEquippedItems[source] or {}
     local equippedItemsArray = {}
     for itemId, _ in pairs(equipped) do
         table.insert(equippedItemsArray, itemId)
     end
-    
+
     -- Send inventory and equipped items to client
     TriggerClientEvent('cnr:sendInventoryForUI', source, pData.inventory or {}, equippedItemsArray)
     Log(string.format("Sent inventory UI data to player %d", source))
@@ -165,61 +192,61 @@ RegisterNetEvent('cnr:equipItem')
 AddEventHandler('cnr:equipItem', function(itemId, shouldEquip)
     local source = source
     local pData = GetCnrPlayerData(source)
-    
+
     if not pData or not pData.inventory then
         TriggerClientEvent('cnr:equipItemResult', source, false, "Player data not found")
         return
     end
-    
+
     -- Check if player has the item
     if not HasItem(pData, itemId, 1, source) then
         TriggerClientEvent('cnr:equipItemResult', source, false, "You don't have this item")
         return
     end
-    
+
     -- Initialize equipped items for player if not exists
     if not playerEquippedItems[source] then
         playerEquippedItems[source] = {}
     end
-    
+
     local itemConfig = GetItemConfig(itemId)
     if not itemConfig then
         TriggerClientEvent('cnr:equipItemResult', source, false, "Invalid item")
         return
     end
-    
+
     -- Check if item can be equipped
     if not CanItemBeEquipped(itemConfig) then
         TriggerClientEvent('cnr:equipItemResult', source, false, "This item cannot be equipped")
         return
     end
-    
+
     local isCurrentlyEquipped = playerEquippedItems[source][itemId] == true
-    
+
     if shouldEquip and not isCurrentlyEquipped then
         -- Equip item
         playerEquippedItems[source][itemId] = true
-        
+
         -- Handle special equipment logic
         HandleItemEquip(source, itemId, itemConfig, pData)
-        
+
         TriggerClientEvent('cnr:equipItemResult', source, true, "Item equipped")
         Log(string.format("Player %d equipped item %s", source, itemId))
-        
+
     elseif not shouldEquip and isCurrentlyEquipped then
         -- Unequip item
         playerEquippedItems[source][itemId] = nil
-        
+
         -- Handle special unequip logic
         HandleItemUnequip(source, itemId, itemConfig, pData)
-        
+
         TriggerClientEvent('cnr:equipItemResult', source, true, "Item unequipped")
         Log(string.format("Player %d unequipped item %s", source, itemId))
     else
         TriggerClientEvent('cnr:equipItemResult', source, false, isCurrentlyEquipped and "Item already equipped" or "Item not equipped")
         return
     end
-    
+
     -- Update inventory UI
     UpdateInventoryUI(source)
 end)
@@ -229,33 +256,33 @@ RegisterNetEvent('cnr:useItem')
 AddEventHandler('cnr:useItem', function(itemId)
     local source = source
     local pData = GetCnrPlayerData(source)
-    
+
     if not pData or not pData.inventory then
         TriggerClientEvent('cnr:useItemResult', source, false, "Player data not found", false)
         return
     end
-    
+
     -- Check if player has the item
     if not HasItem(pData, itemId, 1, source) then
         TriggerClientEvent('cnr:useItemResult', source, false, "You don't have this item", false)
         return
     end
-    
+
     local itemConfig = GetItemConfig(itemId)
     if not itemConfig then
         TriggerClientEvent('cnr:useItemResult', source, false, "Invalid item", false)
         return
     end
-    
+
     -- Handle item usage
     local success, message, consumed = HandleItemUse(source, itemId, itemConfig, pData)
-    
+
     if success and consumed then
         -- Remove item from inventory if it was consumed
         RemoveItem(pData, itemId, 1, source)
         UpdateInventoryUI(source)
     end
-    
+
     TriggerClientEvent('cnr:useItemResult', source, success, message, consumed)
 end)
 
@@ -264,25 +291,25 @@ RegisterNetEvent('cnr:dropItem')
 AddEventHandler('cnr:dropItem', function(itemId, quantity)
     local source = source
     local pData = GetCnrPlayerData(source)
-    
+
     if not pData or not pData.inventory then
         TriggerClientEvent('cnr:dropItemResult', source, false, "Player data not found")
         return
     end
-    
+
     quantity = tonumber(quantity) or 1
-    
+
     -- Check if player has enough of the item
     if not HasItem(pData, itemId, quantity, source) then
         TriggerClientEvent('cnr:dropItemResult', source, false, "You don't have enough of this item")
         return
     end
-    
+
     -- Remove item from inventory
     if RemoveItem(pData, itemId, quantity, source) then
         -- Handle dropping logic (e.g., create world object)
         HandleItemDrop(source, itemId, quantity)
-        
+
         -- If item was equipped and quantity drops to 0, unequip it
         if playerEquippedItems[source] and playerEquippedItems[source][itemId] then
             local remainingCount = GetInventory(pData, itemId, source)
@@ -291,13 +318,56 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
                 Log(string.format("Auto-unequipped %s for player %d (item dropped to 0)", itemId, source))
             end
         end
-        
+
         UpdateInventoryUI(source)
         TriggerClientEvent('cnr:dropItemResult', source, true, "Item dropped")
         Log(string.format("Player %d dropped %dx %s", source, quantity, itemId))
     else
         TriggerClientEvent('cnr:dropItemResult', source, false, "Failed to drop item")
     end
+end)
+
+-- Register server event for players requesting their inventory
+RegisterServerEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    
+    if pData and pData.inventory then        Log(string.format("Player %d requested their inventory. Sending data...", playerId))
+        
+        -- Get equipped items for this player
+        local equippedItems = playerEquippedItems[playerId] or {}
+        local equippedItemsArray = {}
+        
+        -- Convert equipped items table to array
+        for itemId, isEquipped in pairs(equippedItems) do
+            if isEquipped then
+                table.insert(equippedItemsArray, itemId)
+            end
+        end
+        
+        -- Send the inventory data to the client
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, pData.inventory, equippedItemsArray)
+    else        Log(string.format("Player %d requested inventory but no data was found!", playerId), "warn")
+        -- Send an empty inventory to prevent UI errors
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, {}, {}) -- Return empty array for equipped items as well
+    end
+end)
+
+-- Register handler for config items request
+RegisterServerEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local source = source
+    
+    -- Ensure Config.Items exists
+    if not Config or not Config.Items then
+        Log("Config.Items not available when requested by player " .. source, "error")
+        return
+    end
+    
+    -- Send the items configuration to the client
+    TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
+    Log("Sent Config.Items to player " .. source, "info")
 end)
 
 -- Helper function to get item config
@@ -315,13 +385,13 @@ end
 -- Helper function to check if item can be equipped
 function CanItemBeEquipped(itemConfig)
     local equipableCategories = {"Weapons", "Melee Weapons", "Armor", "Cop Gear", "Utility"}
-    
+
     for _, category in ipairs(equipableCategories) do
         if itemConfig.category == category then
             return true
         end
     end
-    
+
     return false
 end
 
@@ -331,7 +401,7 @@ function HandleItemEquip(playerId, itemId, itemConfig, pData)
     if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
         -- Weapons are handled by the existing EquipInventoryWeapons function
         TriggerClientEvent('cnr:forceEquipWeapons', playerId)
-        
+
     elseif itemConfig.category == "Armor" then
         -- Apply armor to player
         local armorAmount = 100
@@ -339,7 +409,7 @@ function HandleItemEquip(playerId, itemId, itemConfig, pData)
             armorAmount = 200
         end
         TriggerClientEvent('cnr:applyArmor', playerId, armorAmount)
-        
+
     elseif itemConfig.category == "Cop Gear" then
         -- Handle cop gear
         if itemId == "spikestrip_item" then
@@ -354,7 +424,7 @@ function HandleItemUnequip(playerId, itemId, itemConfig, pData)
     if itemConfig.category == "Weapons" or itemConfig.category == "Melee Weapons" then
         -- Re-equip all weapons to update weapon wheel
         TriggerClientEvent('cnr:forceEquipWeapons', playerId)
-        
+
     elseif itemConfig.category == "Armor" then
         -- Remove armor from player
         TriggerClientEvent('cnr:removeArmor', playerId)
@@ -365,32 +435,32 @@ end
 function HandleItemUse(playerId, itemId, itemConfig, pData)
     local consumed = false
     local message = "Item used"
-    
+
     -- Handle different item types
     if itemId == "medkit" then
         -- Heal player
         TriggerClientEvent('cnr:healPlayer', playerId, 100)
         consumed = true
         message = "Medkit used - Health restored"
-        
+
     elseif itemId == "firstaidkit" then
         -- Heal player partially
         TriggerClientEvent('cnr:healPlayer', playerId, 50)
         consumed = true
         message = "First aid kit used - Health partially restored"
-        
+
     elseif itemId == "armor" then
         -- Apply armor
         TriggerClientEvent('cnr:applyArmor', playerId, 100)
         consumed = true
         message = "Armor applied"
-        
+
     elseif itemId == "heavy_armor" then
         -- Apply heavy armor
         TriggerClientEvent('cnr:applyArmor', playerId, 200)
         consumed = true
         message = "Heavy armor applied"
-        
+
     elseif itemId == "spikestrip_item" then
         -- Deploy spike strip
         local success = TriggerClientEvent('cnr:deploySpikeStrip', playerId)
@@ -401,12 +471,12 @@ function HandleItemUse(playerId, itemId, itemConfig, pData)
             message = "Failed to deploy spike strip"
             return false, message, consumed
         end
-        
+
     else
         message = "This item cannot be used directly"
         return false, message, consumed
     end
-    
+
     return true, message, consumed
 end
 
@@ -415,11 +485,34 @@ function HandleItemDrop(playerId, itemId, quantity)
     -- Get player position
     local playerPed = GetPlayerPed(playerId)
     if not playerPed then return end
-    
+
     local coords = GetEntityCoords(playerPed)
+
+    -- Create world object for dropped item
+    local itemConfig = Config.Items[itemId]
+    if itemConfig then
+        -- Use a generic pickup model or item-specific model if available
+        local modelHash = GetHashKey("prop_money_bag_01") -- Default pickup model
+        
+        -- Try to use item-specific model if available
+        if itemConfig.worldModel then
+            modelHash = GetHashKey(itemConfig.worldModel)
+        end
+        
+        -- Create the pickup object
+        local pickup = CreatePickup(modelHash, coords.x, coords.y, coords.z - 1.0, 0, quantity, true, modelHash)
+        
+        if pickup then
+            Log(string.format("Created pickup for %dx %s at coords %s (pickup ID: %d)", 
+                quantity, itemId, coords, pickup))
+            
+            -- Store pickup info for potential collection by other players
+            -- This could be expanded to allow other players to pick up dropped items
+        else
+            Log(string.format("Failed to create pickup for %dx %s", quantity, itemId))
+        end
+    end
     
-    -- TODO: Create world object for dropped item
-    -- For now, just log it
     Log(string.format("Player %d dropped %dx %s at coords %s", playerId, quantity, itemId, coords))
 end
 
@@ -427,13 +520,13 @@ end
 function UpdateInventoryUI(playerId)
     local pData = GetCnrPlayerData(playerId)
     if not pData then return end
-    
+
     local equipped = playerEquippedItems[playerId] or {}
     local equippedItemsArray = {}
     for itemId, _ in pairs(equipped) do
         table.insert(equippedItemsArray, itemId)
     end
-    
+
     TriggerClientEvent('cnr:updateInventoryUI', playerId, pData.inventory or {}, equippedItemsArray)
 end
 

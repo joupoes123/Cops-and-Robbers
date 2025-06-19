@@ -68,7 +68,7 @@ RegisterCommand("kick", function(source, args, rawCommand)
 
     local targetIdStr = args[1]
     local targetId = tonumber(targetIdStr)
-    
+
     if targetId and IsValidPlayer(targetId) then
         TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand) -- Log before action
         DropPlayer(tostring(targetId), "You have been kicked by an admin.")
@@ -310,15 +310,13 @@ RegisterCommand("setlevel", function(source, args, rawCommand)
     end    if newLevel < 1 or newLevel > 100 then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Level must be between 1 and 100." } })
         return
-    end
+    end    TriggerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
 
-    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
-    TriggerServerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
-    
-    TriggerClientEvent('chat:addMessage', source, { 
-        args = { "^1Admin", string.format("Set level for %s to %d", GetSafePlayerName(targetId), newLevel) } 
+    TriggerClientEvent('chat:addMessage', source, {
+        args = { "^1Admin", string.format("Set level for %s to %d", GetSafePlayerName(targetId), newLevel) }
     })
-    TriggerClientEvent('chat:addMessage', targetId, { 
-        args = { "^1Admin", string.format("Admin set your level to %d", newLevel) } 
+    TriggerClientEvent('chat:addMessage', targetId, {
+        args = { "^1Admin", string.format("Admin set your level to %d", newLevel) }
     })
 end, false)

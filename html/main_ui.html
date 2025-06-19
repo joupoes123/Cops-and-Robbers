@@ -74,11 +74,28 @@
             <div id="xp-bar-fill"></div>        </div>
         <span id="xp-text">0 / 100 XP</span>
         <div id="xp-gain-indicator" class="xp-gain-indicator">+0 XP</div>
-    </div>
-
-    <!-- Heist Timer HUD (Moved from index.html) -->
+    </div>    <!-- Heist Timer HUD (Moved from index.html) -->
     <div id="heist-timer" class="hud heist-timer-hidden" role="status" aria-live="polite"> <!-- Initially hidden via CSS -->
         <p id="timer-text"></p>
+    </div>
+
+    <!-- Bounty List UI -->
+    <div id="bounty-list-container" class="bounty-list-container hidden" role="dialog" aria-labelledby="bountyListTitle" aria-modal="true">
+        <div class="bounty-list-header">
+            <h2 id="bountyListTitle">Most Wanted Criminals</h2>
+            <button id="close-bounty-list-btn" class="close-btn" aria-label="Close Bounty List">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        <div id="bounty-list" class="bounty-list">
+            <!-- Bounties will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Speedometer HUD -->
+    <div id="speedometer" class="speedometer hidden">
+        <span id="speed-value">0</span>
+        <span id="speed-unit">MPH</span>
     </div>
 
     <script src="scripts.js"></script>
@@ -190,5 +207,29 @@
 
     <!-- Toast Notification Container -->
     <div id="toast" class="toast-notification toast-hidden"></div>
+
+    <!-- Robber Menu Section -->
+    <section id="robber-menu" class="menu hidden" role="dialog" aria-labelledby="robberMenuHeading" aria-modal="true">
+        <div class="menu-header">
+            <h1 id="robberMenuHeading">Robber Menu</h1>
+            <button id="robber-menu-close-btn" class="close-btn" aria-label="Close Robber Menu">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+        <div class="menu-options">
+            <button id="start-heist-btn" class="menu-btn">
+                <span class="icon">💰</span>Start Heist
+            </button>
+            <button id="view-bounties-btn" class="menu-btn">
+                <span class="icon">🔍</span>View Bounties
+            </button>
+            <button id="find-hideout-btn" class="menu-btn">
+                <span class="icon">🏠</span>Find Hideout
+            </button>
+            <button id="buy-contraband-btn" class="menu-btn">
+                <span class="icon">📦</span>Buy Contraband
+            </button>
+        </div>
+    </section>
 </body>
 </html>

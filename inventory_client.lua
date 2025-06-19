@@ -2,6 +2,7 @@
 -- Handles client-side custom inventory logic and NUI interaction.
 
 local clientConfigItems = nil -- Will store Config.Items from server
+local isInventoryOpen = false -- Track inventory UI state
 
 -- Function to get the items, accessible by other parts of this script
 function GetClientConfigItems()
@@ -21,6 +22,25 @@ end
 
 RegisterNetEvent('cnr:receiveMyInventory') -- Ensure client is registered to receive this event from server
 local localPlayerInventory = {} -- This will store the RECONSTRUCTED rich inventory
+
+-- Event handler for receiving inventory from server
+AddEventHandler('cnr:receiveMyInventory', function(minimalInventoryData, equippedItemsArray)
+    Log("Received cnr:receiveMyInventory event. Processing inventory data...", "info")
+    
+    -- Update equipped items if provided
+    if equippedItemsArray and type(equippedItemsArray) == "table" then
+        Log("Received equipped items list with " .. #equippedItemsArray .. " items", "info")
+        
+        -- Convert array to dictionary for faster lookups
+        localPlayerEquippedItems = {}
+        for _, itemId in ipairs(equippedItemsArray) do
+            localPlayerEquippedItems[itemId] = true
+        end
+    end
+    
+    -- Process the inventory data
+    UpdateFullInventory(minimalInventoryData)
+end)
 
 -- Add the missing cnr:syncInventory event handler
 RegisterNetEvent('cnr:syncInventory')
@@ -45,7 +65,7 @@ AddEventHandler('cnr:receiveConfigItems', function(receivedConfigItems)
         itemConfig = clientConfigItems
     })
     Log("Sent Config.Items to NUI via SendNUIMessage.", "info")
-    
+
     -- Check if localPlayerInventory currently holds minimal data (e.g. from an early sync before config arrived)
     -- A simple heuristic: if an item exists and its 'name' field is the same as its 'itemId', it's likely minimal.
     if localPlayerInventory and next(localPlayerInventory) then
@@ -69,21 +89,21 @@ Citizen.CreateThread(function()
     while not NetworkIsPlayerActive(PlayerId()) do
         Citizen.Wait(500)
     end
-    
+
     Citizen.Wait(3000) -- Wait 3 seconds after player is active
-    
+
     local attempts = 0
     local maxAttempts = 10
-    
+
     while not clientConfigItems and attempts < maxAttempts do
         attempts = attempts + 1
         TriggerServerEvent('cnr:requestConfigItems')
         Log("Requested Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "info")
-        
+
         -- Wait 3 seconds for response
         Citizen.Wait(3000)
     end
-    
+
     if not clientConfigItems then
         Log("Failed to receive Config.Items from server after " .. maxAttempts .. " attempts", "error")
     end
@@ -95,34 +115,42 @@ function UpdateFullInventory(minimalInventoryData)
     local configItems = GetClientConfigItems()
 
     if not configItems then
-        Log("UpdateFullInventory: clientConfigItems not yet available. Requesting from server and storing minimal inventory.", "error")
+        -- Store the minimal inventory data for now
         localPlayerInventory = minimalInventoryData or {}
         
-        -- Request config items from server with retry logic
-        local attempts = 0
-        local maxAttempts = 5
-        
+        -- Request config items from server
         TriggerServerEvent('cnr:requestConfigItems')
         Log("Requested Config.Items from server due to missing data.", "info")
         
-        -- Set up a timer to retry if needed
+        -- Display a subtle notification to the player
+        TriggerEvent('chat:addMessage', {
+            color = {255, 165, 0},
+            multiline = true,
+            args = {"System", "Loading inventory data..."}
+        })
+        
+        -- Set up a timer to retry if needed, but with reduced frequency
         Citizen.CreateThread(function()
+            local attempts = 0
+            local maxAttempts = 3
+            
             while not GetClientConfigItems() and attempts < maxAttempts do
-                Citizen.Wait(2000)
+                Citizen.Wait(3000) -- Wait longer between attempts (3 seconds)
                 attempts = attempts + 1
+                
                 if not GetClientConfigItems() then
                     TriggerServerEvent('cnr:requestConfigItems')
                     Log("Retry requesting Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "warn")
                 end
             end
-            
+
             -- If we got the config items, try to update inventory again
             if GetClientConfigItems() and localPlayerInventory and next(localPlayerInventory) then
                 Log("Config.Items received after retry, attempting inventory reconstruction again", "info")
                 UpdateFullInventory(localPlayerInventory)
             end
         end)
-        
+
         return
     end
 
@@ -206,9 +234,12 @@ function EquipInventoryWeapons()
         return
     end
 
+    -- Reset equipped items tracking
+    localPlayerEquippedItems = {}
+
     Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info")
-    
-if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+
+    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
         Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info")
         return
     end
@@ -221,17 +252,17 @@ if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
     -- First, remove all weapons from the player to ensure clean state (armor is preserved)
     Log("EquipInventoryWeapons: Removing all existing weapons to ensure clean state.", "info")
     RemoveAllPedWeapons(playerPed, true)
-    
-Citizen.Wait(200) -- Longer wait to ensure weapons are removed
-    
+
+    Citizen.Wait(500) -- Longer wait to ensure weapons are removed and game state is clean
+
     local processedItemCount = 0
     local weaponsEquipped = 0
     local armorApplied = false
-    
+
     -- Process each inventory item once
     for itemId, itemData in pairs(localPlayerInventory) do
         processedItemCount = processedItemCount + 1
-        
+
         if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
             -- Handle Armor items first (apply to player's armor bar)
             if itemData.category == "Armor" and itemData.count > 0 and not armorApplied then
@@ -239,25 +270,39 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
                 if itemId == "heavy_armor" then
                     armorAmount = 200 -- Heavy armor gives more protection
                 end
-                
+
                 SetPedArmour(playerPed, armorAmount)
                 armorApplied = true
                 Log(string.format("  ✓ APPLIED ARMOR: %s (Amount: %d)", itemData.name or itemId, armorAmount), "info")
-            
+
             -- Handle weapon items (including gas weapons in Utility category)
-            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or 
+            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or
                    (itemData.category == "Utility" and string.find(itemId, "weapon_"))) and itemData.count > 0 then
-                -- Convert itemId to uppercase for hash calculation (GTA weapon names are typically uppercase)
-                local upperItemId = string.upper(itemId)
-                local weaponHash = GetHashKey(upperItemId)
                 
-                -- Also try the original itemId if uppercase doesn't work
+                -- Multiple hash attempts for better compatibility
+                local weaponHash = 0
+                local attemptedHashes = {}
+                
+                -- Try original itemId
+                weaponHash = GetHashKey(itemId)
+                table.insert(attemptedHashes, itemId .. " -> " .. weaponHash)
+                
+                -- Try uppercase version
                 if weaponHash == 0 or weaponHash == -1 then
-                    weaponHash = GetHashKey(itemId)
+                    local upperItemId = string.upper(itemId)
+                    weaponHash = GetHashKey(upperItemId)
+                    table.insert(attemptedHashes, upperItemId .. " -> " .. weaponHash)
                 end
                 
-                Log(string.format("  DEBUG_HASH: ItemId: %s, UpperCase: %s, Hash: %s", itemId, upperItemId, weaponHash), "info")
-                
+                -- Try with WEAPON_ prefix if not present
+                if (weaponHash == 0 or weaponHash == -1) and not string.find(itemId, "weapon_") then
+                    local prefixedId = "weapon_" .. itemId
+                    weaponHash = GetHashKey(prefixedId)
+                    table.insert(attemptedHashes, prefixedId .. " -> " .. weaponHash)
+                end
+
+                Log(string.format("  DEBUG_HASH: ItemId: %s, Attempted hashes: %s, Final hash: %s", itemId, table.concat(attemptedHashes, ", "), weaponHash), "info")
+
                 if weaponHash ~= 0 and weaponHash ~= -1 then
                     -- Determine ammo: use itemData.ammo if present, else default
                     local ammoCount = itemData.ammo
@@ -265,24 +310,48 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
                         if Config and Config.DefaultWeaponAmmo and Config.DefaultWeaponAmmo[itemId] then
                            ammoCount = Config.DefaultWeaponAmmo[itemId]
                         else
-                           ammoCount = 150 -- Increased default ammo for better testing
+                           ammoCount = 250 -- Increased default ammo for better testing
                         end
                     end
-                    
+
                     -- Give weapon with ammo (without immediately equipping)
                     GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
-                    Citizen.Wait(100) -- Wait between weapons
-                    
-                    -- Ensure ammo is set correctly
+                    Citizen.Wait(200) -- Wait between weapons for better compatibility
+
+                    -- Ensure ammo is set correctly with multiple attempts
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
+                    Citizen.Wait(100)
                     
-                    -- Verify the weapon was equipped
-                    local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
-                    if hasWeapon then
+                    -- Verify and retry if needed
+                    local actualAmmo = GetAmmoInPedWeapon(playerPed, weaponHash)
+                    if actualAmmo ~= ammoCount then
+                        SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        Citizen.Wait(100)
+                    end
+
+                    -- Verify the weapon was equipped with retries
+                    local hasWeapon = false
+                    local maxRetries = 3
+                    local retryCount = 0
+                    
+                    while retryCount < maxRetries and not hasWeapon do
+                        hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                        if not hasWeapon then
+                            retryCount = retryCount + 1
+                            Citizen.Wait(200)
+                            -- Re-attempt giving the weapon
+                            GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
+                            SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        end
+                    end
+                      if hasWeapon then
                         weaponsEquipped = weaponsEquipped + 1
-                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info")
+                        -- Track this as equipped for UI
+                        localPlayerEquippedItems[itemId] = true
+                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d (Retries: %d)", itemData.name or itemId, itemId, weaponHash, ammoCount, retryCount), "info")
                     else
-                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false", itemData.name or itemId, itemId, weaponHash), "error")
+                        localPlayerEquippedItems[itemId] = false
+                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s) - HasPedGotWeapon returned false after %d retries", itemData.name or itemId, itemId, weaponHash, maxRetries), "error")
                     end
                 else
                     Log(string.format("  ✗ INVALID_HASH: ItemId: %s (Name: %s) - Could not get valid weapon hash", itemId, itemData.name), "error")
@@ -294,9 +363,9 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
             Log(string.format("  WARNING: Item ID: %s missing data (Name: %s, Category: %s, Count: %s).", itemId, tostring(itemData.name), tostring(itemData.category), tostring(itemData.count)), "warn")
         end
     end
-    
+
     Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info")
-    
+
     -- Select the first weapon if any weapons were equipped
     if weaponsEquipped > 0 then
         Citizen.Wait(200)
@@ -319,7 +388,7 @@ Citizen.Wait(200) -- Longer wait to ensure weapons are removed
             end
         end
     end
-    
+
     -- Final verification - list all weapons the player currently has
     Citizen.Wait(100)
     Log("EquipInventoryWeapons: Final weapon check:", "info")
@@ -371,11 +440,177 @@ RegisterCommand('checkconfig', function()
     else
         Log("Config.Items NOT available!", "error")
     end
-    
+
     Log("Current localPlayerInventory item count: " .. tablelength(localPlayerInventory), "info")
 end, false)
+
+-- Add toggle inventory UI function
+function ToggleInventoryUI()
+    if isInventoryOpen then
+        TriggerEvent('cnr:closeInventory')
+    else
+        TriggerEvent('cnr:openInventory')
+    end
+end
+
+-- Track equipped items
+local localPlayerEquippedItems = {}
+
+-- Register NUI callback for retrieving player inventory
+RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventoryForUI", "info")
+    
+    -- Check if inventory data is available
+    if localPlayerInventory and next(localPlayerInventory) then
+        -- Collect equipped weapons for UI
+        local equippedItems = {}
+        local playerPed = PlayerPedId()
+        
+        -- Check each weapon in inventory to see if it's equipped
+        for itemId, itemData in pairs(localPlayerInventory) do
+            if itemData.type == "weapon" and itemData.weaponHash then
+                if HasPedGotWeapon(playerPed, itemData.weaponHash, false) then
+                    table.insert(equippedItems, itemId)
+                    localPlayerEquippedItems[itemId] = true
+                else
+                    localPlayerEquippedItems[itemId] = false
+                end
+            end
+        end
+        
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items and " .. #equippedItems .. " equipped items", "info")
+        
+        cb({
+            success = true,
+            inventory = localPlayerInventory,
+            equippedItems = equippedItems
+        })
+    else        -- Request inventory from server if not available locally
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        -- Return empty inventory with error message
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {},
+            equippedItems = {} -- Return empty equipped items array to prevent undefined
+        })
+    end
+end)
+
+-- Register NUI callback for getting player inventory (used by store sell tab)
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventory", "info")
+    
+    -- Check if inventory data is available
+    if localPlayerInventory and next(localPlayerInventory) then
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items for sell tab", "info")
+        
+        cb({
+            success = true,
+            inventory = localPlayerInventory
+        })
+    else
+        -- Request inventory from server if not available locally
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        -- Return empty inventory with error message
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {}
+        })
+    end
+end)
+
+-- Register NUI callback for setting NUI focus (called from JavaScript)
+RegisterNUICallback('setNuiFocus', function(data, cb)
+    Log("NUI requested SetNuiFocus: " .. tostring(data.hasFocus) .. ", " .. tostring(data.hasCursor), "info")
+    
+    -- Set NUI focus based on the data received
+    SetNuiFocus(data.hasFocus or false, data.hasCursor or false)
+    
+    -- Acknowledge the request
+    cb({
+        success = true
+    })
+end)
+
+-- Register NUI callback for closing inventory (called from JavaScript)
+RegisterNUICallback('closeInventory', function(data, cb)
+    Log("NUI requested to close inventory", "info")
+    
+    -- Trigger the close inventory event
+    TriggerEvent('cnr:closeInventory')
+    
+    -- Acknowledge the request
+    cb({
+        success = true
+    })
+end)
+
+-- Ensure Config.Items are available to NUI when stores open
+RegisterNetEvent('cnr:ensureConfigItems')
+AddEventHandler('cnr:ensureConfigItems', function()
+    if clientConfigItems and next(clientConfigItems) then
+        -- Config is available, send to NUI
+        SendNUIMessage({
+            action = 'storeFullItemConfig',
+            itemConfig = clientConfigItems
+        })
+        Log("Re-sent Config.Items to NUI to ensure availability", "info")
+    else
+        -- Config not available, request from server
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Config.Items not available, requested from server", "warn")
+    end
+end)
 
 -- Export functions for other client scripts
 exports('EquipInventoryWeapons', EquipInventoryWeapons)
 exports('GetClientConfigItems', GetClientConfigItems)
 exports('UpdateFullInventory', UpdateFullInventory)
+exports('ToggleInventoryUI', ToggleInventoryUI)
+
+-- Event handlers for inventory UI
+RegisterNetEvent('cnr:openInventory')
+AddEventHandler('cnr:openInventory', function()
+    Log("Received cnr:openInventory event", "info")
+
+    -- Check if we have Config.Items available
+    if not clientConfigItems or not next(clientConfigItems) then
+        -- Show error message to player
+        TriggerEvent('chat:addMessage', { args = {"^1[Inventory]", "Inventory system is still loading. Please try again in a few seconds."} })
+        Log("Inventory open failed: Config.Items not yet available", "warn")
+        return
+    end
+
+    if not isInventoryOpen then
+        isInventoryOpen = true
+        SendNUIMessage({
+            action = 'openInventory',
+            inventory = localPlayerInventory
+        })
+        SetNuiFocus(true, true)
+        Log("Inventory UI opened via event", "info")
+    end
+end)
+
+RegisterNetEvent('cnr:closeInventory')
+AddEventHandler('cnr:closeInventory', function()
+    Log("Received cnr:closeInventory event", "info")
+    if isInventoryOpen then
+        isInventoryOpen = false
+        SendNUIMessage({
+            action = 'closeInventory'
+        })
+        
+        -- Ensure the NUI focus is properly reset
+        SetNuiFocus(false, false)
+        
+        -- Ensure the game controls are re-enabled
+        SetPlayerControl(PlayerId(), true, 0)
+        
+        Log("Inventory UI closed via event", "info")
+    end
+end)

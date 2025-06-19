@@ -10,6 +10,7 @@
 -- - Added missing XP awards for Armored Car Heist & Contraband.
 -- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
 -- - Refined Cop Arrest XP based on wanted level.
+-- - Added server-side handler for role requests, hideout finding, and contraband dealers.
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -94,6 +95,242 @@ local playerDeployedSpikeStripsCount = {} -- For extra_spike_strips perk
 local activeSpikeStrips = {} -- To manage strip IDs and removal: {stripId = {copId = src, location = ...}}
 local nextSpikeStripId = 1
 
+-- ====================================================================
+-- Get Player Role Handler
+-- ====================================================================
+RegisterNetEvent('cnr:getPlayerRole')
+AddEventHandler('cnr:getPlayerRole', function()
+    local source = source
+    local role = "civilian" -- Default role
+    
+    if playersData[source] and playersData[source].role then
+        role = playersData[source].role
+    elseif copsOnDuty[source] then
+        role = "cop"
+    elseif robbersActive[source] then
+        role = "robber"
+    end
+    
+    TriggerClientEvent('cnr:returnPlayerRole', source, role)
+end)
+
+-- ====================================================================
+-- Bounty System
+-- ====================================================================
+
+-- Function to get a list of active bounties
+function GetActiveBounties()
+    local currentTime = os.time()
+    local bounties = {}
+    
+    -- Filter out expired bounties
+    for playerId, bounty in pairs(activeBounties) do
+        if bounty.expireTime > currentTime then
+            table.insert(bounties, {
+                id = playerId,
+                name = bounty.name,
+                wantedLevel = bounty.wantedLevel,
+                reward = bounty.amount,
+                timeLeft = math.floor((bounty.expireTime - currentTime) / 60) -- minutes
+            })
+        else
+            -- Remove expired bounty
+            activeBounties[playerId] = nil
+        end
+    end
+    
+    return bounties
+end
+
+-- Check if a player has a wanted level sufficient for a bounty
+function CheckPlayerWantedLevel(playerId)
+    if not wantedPlayers[playerId] then return 0 end
+    
+    local wantedData = wantedPlayers[playerId]
+    if not wantedData.wantedLevel then return 0 end
+    
+    -- Get the current wanted stars
+    local stars = 0
+    
+    for i, level in ipairs(Config.WantedSettings.levels) do
+        if wantedData.wantedLevel >= level.threshold then
+            stars = level.stars
+        end
+    end
+    
+    return stars
+end
+
+-- Place a bounty on a player
+function PlaceBounty(targetId)
+    -- Check if player exists
+    if not playersData[targetId] then
+        return false, "Player does not exist."
+    end
+    
+    -- Check if player is a robber
+    if not robbersActive[targetId] then
+        return false, "Bounties can only be placed on robbers."
+    end
+    
+    -- Check if player has minimum wanted level
+    local wantedLevel = CheckPlayerWantedLevel(targetId)
+    if wantedLevel < Config.BountySettings.wantedLevelThreshold then
+        return false, "Target must have at least " .. Config.BountySettings.wantedLevelThreshold .. " wanted stars."
+    end
+    
+    -- Check if player already has an active bounty
+    if activeBounties[targetId] then
+        local timeLeft = math.floor((activeBounties[targetId].expireTime - os.time()) / 60)
+        if timeLeft > 0 then
+            return false, "Player already has an active bounty for " .. timeLeft .. " more minutes."
+        end
+    end
+    
+    -- Calculate bounty amount based on wanted level
+    local bountyAmount = Config.BountySettings.baseAmount + 
+                         (wantedLevel - Config.BountySettings.wantedLevelThreshold) * 
+                         Config.BountySettings.baseAmount * Config.BountySettings.multiplier
+    
+    -- Cap at maximum amount
+    bountyAmount = math.min(bountyAmount, Config.BountySettings.maxAmount)
+    bountyAmount = math.floor(bountyAmount)
+    
+    -- Store the bounty
+    local expireTime = os.time() + (Config.BountySettings.duration * 60)
+    
+    activeBounties[targetId] = {
+        amount = bountyAmount,
+        wantedLevel = wantedLevel,
+        placedTime = os.time(),
+        expireTime = expireTime,
+        name = GetPlayerName(targetId)
+    }
+    
+    -- Notify all cops about the bounty
+    for cop, _ in pairs(copsOnDuty) do
+        TriggerClientEvent('cnr:notification', cop, "A $" .. bountyAmount .. " bounty has been placed on " .. GetPlayerName(targetId) .. "!")
+    end
+    
+    -- Notify the target
+    TriggerClientEvent('cnr:notification', targetId, "A $" .. bountyAmount .. " bounty has been placed on you!", "warning")
+    
+    return true, "Bounty of $" .. bountyAmount .. " placed on " .. GetPlayerName(targetId)
+end
+
+-- Claim a bounty when a cop arrests a player with a bounty
+function ClaimBounty(copId, targetId)
+    if not activeBounties[targetId] then
+        return false, "No active bounty found on this player."
+    end
+    
+    local bountyAmount = activeBounties[targetId].amount
+    
+    -- Pay the cop
+    AddPlayerMoney(copId, bountyAmount)
+    
+    -- Add XP to the cop
+    AddPlayerXP(copId, bountyAmount / 100) -- 1 XP per $100 of bounty
+    
+    -- Notify the cop
+    TriggerClientEvent('cnr:notification', copId, "You claimed a $" .. bountyAmount .. " bounty on " .. GetPlayerName(targetId) .. "!")
+    
+    -- Remove the bounty
+    activeBounties[targetId] = nil
+    
+    return true, "Bounty of $" .. bountyAmount .. " claimed successfully."
+end
+
+-- Register server event to get bounty list
+RegisterNetEvent('cnr:requestBountyList')
+AddEventHandler('cnr:requestBountyList', function()
+    local source = source
+    local bounties = GetActiveBounties()
+    TriggerClientEvent('cnr:receiveBountyList', source, bounties)
+end)
+
+-- Automatically check for placing bounties on players with high wanted levels
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(60000) -- Check every minute
+        
+        for playerId, wantedData in pairs(wantedPlayers) do
+            -- If player is not already bountied and meets threshold
+            if playersData[playerId] and robbersActive[playerId] and not activeBounties[playerId] then
+                local wantedLevel = CheckPlayerWantedLevel(playerId)
+                
+                -- Automatically place a bounty if wanted level is high enough
+                if wantedLevel >= 4 then -- Auto-bounty for 4+ stars
+                    PlaceBounty(playerId)
+                end
+            end
+        end
+    end
+end)
+
+-- ====================================================================
+-- Contraband Dealers Implementation
+-- ====================================================================
+
+-- Register NUI callback for accessing contraband dealer
+RegisterNetEvent('cnr:accessContrabandDealer')
+AddEventHandler('cnr:accessContrabandDealer', function()
+    local source = source
+    local pData = GetCnrPlayerData(source)
+    
+    if not pData then
+        TriggerClientEvent('cnr:showNotification', source, "~r~Player data not found.")
+        return
+    end
+    
+    -- Check if player is a robber
+    if pData.role ~= "robber" then
+        TriggerClientEvent('cnr:showNotification', source, "~r~Only robbers can access contraband dealers.")
+        return
+    end
+    
+    -- Get contraband items (high-end weapons and tools)
+    local contrabandItems = {
+        "weapon_compactrifle",
+        "weapon_bullpuprifle", 
+        "weapon_advancedrifle",
+        "weapon_specialcarbine",
+        "weapon_machinegun",
+        "weapon_combatmg_mk2",
+        "weapon_minigun",
+        "weapon_grenade",
+        "weapon_rpg",
+        "weapon_grenadelauncher",
+        "weapon_hominglauncher",
+        "weapon_firework",
+        "weapon_railgun",
+        "weapon_autoshotgun",
+        "weapon_bullpupshotgun",
+        "weapon_dbshotgun",
+        "weapon_musket",
+        "weapon_heavysniper",
+        "weapon_heavysniper_mk2",
+        "weapon_marksmanrifle",
+        "weapon_marksmanrifle_mk2",
+        "ammo_smg",
+        "ammo_rifle",
+        "ammo_sniper",
+        "ammo_explosive",
+        "ammo_minigun",
+        "lockpick",
+        "adv_lockpick",
+        "hacking_device",
+        "drill",
+        "thermite",
+        "c4",
+        "mask",
+        "heavy_armor"
+    }
+    
+    -- Send to client to open contraband store
+    TriggerClientEvent('cnr:openContrabandStoreUI', source, contrabandItems)
+end)
+
 -- Table to store last report times for specific crimes per player
 local clientReportCooldowns = {}
 local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberId] = { copId = copId, expiryTimer = timer }
@@ -101,7 +338,7 @@ local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberI
 -- Forward declaration for functions that might be called before definition due to event handlers
 local GetPlayerLevelAndXP, AddXP, SetPlayerRole, IsPlayerCop, IsPlayerRobber, SavePlayerData, LoadPlayerData, CheckAndPlaceBounty, UpdatePlayerWantedLevel, ReduceWantedLevel, SendToJail
 
-local SafeGetPlayerName = SafeGetPlayerName or function(id) return GetPlayerName(id) end
+-- SafeGetPlayerName is provided by safe_utils.lua (loaded before this script)
 
 
 -- Function to load bans from bans.json
@@ -194,6 +431,7 @@ local function GetPlayerMoney(playerId)
     return 0
 end
 
+-- Function to add money to a player
 local function AddPlayerMoney(playerId, amount, type)
     type = type or 'cash' -- Assuming 'cash' is the primary type. Add handling for 'bank' if needed.
     local pId = tonumber(playerId)
@@ -201,7 +439,7 @@ local function AddPlayerMoney(playerId, amount, type)
         Log(string.format("AddPlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
         return false
     end
-    
+
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
@@ -224,6 +462,51 @@ local function AddPlayerMoney(playerId, amount, type)
     end
 end
 
+-- Export AddPlayerMoney for potential use by other resources (if needed)
+_G.AddPlayerMoney = AddPlayerMoney
+
+-- Function to add XP to a player
+local function AddPlayerXP(playerId, amount)
+    local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        Log(string.format("AddPlayerXP: Invalid player ID %s.", tostring(playerId)), "error")
+        return false
+    end
+
+    local pData = playersData[pId]
+    if pData then
+        -- Add XP
+        pData.xp = (pData.xp or 0) + amount
+        
+        -- Check if player leveled up
+        local oldLevel = pData.level or 1
+        -- Use a simple level calculation formula if CalculatePlayerLevel is not defined
+        local newLevel = math.floor(math.sqrt(pData.xp / 100)) + 1
+        pData.level = newLevel
+        
+        -- Send XP notification to client
+        SafeTriggerClientEvent('cnr:xpGained', pId, amount)
+        
+        -- Send level up notification if needed
+        if newLevel > oldLevel then
+            SafeTriggerClientEvent('cnr:levelUp', pId, newLevel)
+        end
+        
+        -- Update client with new player data
+        local pDataForBasicInfo = shallowcopy(pData)
+        pDataForBasicInfo.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+        
+        return true
+    else
+        Log(string.format("AddPlayerXP: Player data not found for %s.", pId), "error")
+        return false
+    end
+end
+
+-- Export AddPlayerXP for potential use by other resources
+_G.AddPlayerXP = AddPlayerXP
+
 local function RemovePlayerMoney(playerId, amount, type)
     type = type or 'cash'
     local pId = tonumber(playerId)
@@ -231,7 +514,7 @@ local function RemovePlayerMoney(playerId, amount, type)
         Log(string.format("RemovePlayerMoney: Invalid player ID %s.", tostring(playerId)), "error")
         return false
     end
-    
+
     local pData = playersData[pId]
     if pData then
         if type == 'cash' then
@@ -287,6 +570,9 @@ local function GetPlayerRole(playerId)
 end
 
 local function CalculateDynamicPrice(itemId, basePrice)
+    -- Ensure basePrice is a number
+    basePrice = tonumber(basePrice) or 0
+
     if not Config.DynamicEconomy or not Config.DynamicEconomy.enabled then
         return basePrice
     end
@@ -341,7 +627,7 @@ LoadPlayerData = function(playerId)
         Log(string.format("LoadPlayerData: Invalid player ID %s", tostring(playerId)), "error")
         return
     end
-    
+
     -- Check if player is still online
     if not GetPlayerName(pIdNum) then
         Log(string.format("LoadPlayerData: Player %s is not online", pIdNum), "warn")
@@ -385,18 +671,24 @@ LoadPlayerData = function(playerId)
         playersData[pIdNum] = nil -- Force default initialization
     end
 
-    if not playersData[pIdNum] then
+if not playersData[pIdNum] then
         -- Log(string.format("LoadPlayerData: Initializing new default data structure for player %s.", pIdNum), "info")
-        local playerPed = GetPlayerPed(pIdNum)
-        local initialCoords = playerPed and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
+        local playerPed = GetPlayerPed(tostring(pIdNum))
+        local initialCoords = (playerPed and playerPed ~= 0) and GetEntityCoords(playerPed) or vector3(0,0,70) -- Fallback coords
 
         playersData[pIdNum] = {
             xp = 0, level = 1, role = "citizen",
             lastKnownPosition = initialCoords, -- Use current coords or a default spawn
             perks = {}, armorModifier = 1.0, bountyCooldownUntil = 0,
-            money = Config.DefaultStartMoney or 5000 -- Use a config value for starting money
+            money = Config.DefaultStartMoney or 5000, -- Use a config value for starting money
+            inventory = {
+                -- Give some default items to all new players
+                ["armor"] = { count = 1, name = "Body Armor", category = "Armor" },
+                ["weapon_pistol"] = { count = 1, name = "Pistol", category = "Weapons" },
+                ["ammo_pistol"] = { count = 50, name = "Pistol Ammo", category = "Ammunition" }
+            }
         }
-        Log("Initialized default data for player " .. pIdNum .. ". Money: " .. playersData[pIdNum].money)
+        Log("Initialized default data for player " .. pIdNum .. ". Money: " .. playersData[pIdNum].money .. ", Default inventory added.")
     else
         -- Ensure money is set if loaded from file, otherwise use default (already handled by loadedMoney init)
         playersData[pIdNum].money = playersData[pIdNum].money or Config.DefaultStartMoney or 5000
@@ -420,7 +712,9 @@ LoadPlayerData = function(playerId)
         InitializePlayerInventory(playersData[pIdNum], pIdNum)
     else
         Log("LoadPlayerData: CRITICAL - playersData[pIdNum] became nil before InitializePlayerInventory for " .. pIdNum, "error")
-    end    local pDataForLoad = shallowcopy(playersData[pIdNum])
+    end
+
+local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
@@ -431,7 +725,10 @@ end
 SavePlayerData = function(playerId)
     local pIdNum = tonumber(playerId)
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then Log("SavePlayerData: No data for player " .. pIdNum, "warn"); return end
+    if not pData then
+        Log("SavePlayerData: No data for player " .. pIdNum, "warn")
+        return
+    end
 
     local license = GetPlayerLicense(pIdNum) -- Use helper
 
@@ -440,10 +737,10 @@ SavePlayerData = function(playerId)
         license = "pid_" .. pIdNum -- Fallback, not ideal for persistence if server IDs are not static
     end
 
-    local filename = "player_data/" .. license:gsub(":", "") .. ".json"
+local filename = "player_data/" .. license:gsub(":", "") .. ".json"
     -- Ensure lastKnownPosition is updated before saving
-    local playerPed = GetPlayerPed(pIdNum)
-    if playerPed and GetEntityCoords(playerPed) then
+    local playerPed = GetPlayerPed(tostring(pIdNum))
+    if playerPed and playerPed ~= 0 and GetEntityCoords(playerPed) then
         pData.lastKnownPosition = GetEntityCoords(playerPed)
     end
     local success = SaveResourceFile(GetCurrentResourceName(), filename, json.encode(pData), -1)
@@ -460,13 +757,13 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log(string.format("SetPlayerRole: Invalid player ID %s", tostring(playerId)), "error")
         return
     end
-    
+
     -- Check if player is still online
     if not GetPlayerName(pIdNum) then
         Log(string.format("SetPlayerRole: Player %s is not online", pIdNum), "warn")
         return
     end
-    
+
     local playerName = GetPlayerName(pIdNum) or "Unknown"
     -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
@@ -542,9 +839,12 @@ AddXP = function(playerId, amount, type)
         Log("AddXP: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     local pData = GetCnrPlayerData(pIdNum)
-    if not pData then Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error"); return end
+    if not pData then
+        Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error")
+        return
+    end
     if type and pData.role ~= type and type ~= "general" then return end
 
     pData.xp = pData.xp + amount
@@ -573,8 +873,11 @@ ApplyPerks = function(playerId, level, role)
         Log("ApplyPerks: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
-    local pData = GetCnrPlayerData(pIdNum); if not pData then return end
+
+    local pData = GetCnrPlayerData(pIdNum)
+    if not pData then
+        return
+    end
     pData.perks = {} -- Reset perks
     pData.extraSpikeStrips = 0 -- Reset specific perk values
     pData.contrabandCollectionModifier = 1.0 -- Reset specific perk values
@@ -639,45 +942,94 @@ end
 function CheckAndPlaceBounty(playerId)
     local pIdNum = tonumber(playerId)
     if not Config.BountySettings.enabled then return end
-    local wantedData = wantedPlayers[pIdNum]; local pData = GetCnrPlayerData(pIdNum)
-    if not wantedData or not pData then return end
+    local wantedData = wantedPlayers[pIdNum]
+    local pData = GetCnrPlayerData(pIdNum)
+    if not wantedData or not pData then
+        return
+    end
 
     if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
        not activeBounties[pIdNum] and (pData.bountyCooldownUntil or 0) < os.time() then
         local bountyAmount = Config.BountySettings.baseAmount
-        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"
-        activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (Config.BountySettings.durationMinutes * 60) }
-        Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
-        TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
-        TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY PLACED]", string.format("A bounty of $%d has been placed on %s!", bountyAmount, targetName)} })
+        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"        local durationMinutes = Config.BountySettings.durationMinutes
+        if durationMinutes and activeBounties and pIdNum then
+            activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (durationMinutes * 60) }
+            Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
+            TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
+            TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY PLACED]", string.format("A bounty of $%d has been placed on %s!", bountyAmount, targetName)} })
+        end
     end
 end
 
 CreateThread(function() -- Bounty Increase & Expiry Loop
     while true do Wait(60000)
         if not Config.BountySettings.enabled then goto continue_bounty_loop end
-        local bountyUpdatedThisCycle = false; local currentTime = os.time()
+        local bountyUpdatedThisCycle = false
+        local currentTime = os.time()
         for playerIdStr, bountyData in pairs(activeBounties) do
             local playerId = tonumber(playerIdStr)
             -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
-            local pData = GetCnrPlayerData(playerId); local wantedData = wantedPlayers[playerId]
-            local isPlayerOnline = GetPlayerName(playerId) ~= nil -- Check if player is online
+            local pData = GetCnrPlayerData(playerId)
+            local wantedData = wantedPlayers[playerId]
+            local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
 
             if isPlayerOnline and pData and wantedData and wantedData.stars >= Config.BountySettings.wantedLevelThreshold and currentTime < bountyData.expiresAt then
                 if bountyData.amount < Config.BountySettings.maxBounty then
                     bountyData.amount = math.min(bountyData.amount + Config.BountySettings.increasePerMinute, Config.BountySettings.maxBounty)
                     bountyData.lastIncreasedTimestamp = currentTime
-                    Log(string.format("Bounty for %s (ID: %d) increased to $%d.", bountyData.name, playerId, bountyData.amount)); bountyUpdatedThisCycle = true
+                    Log(string.format("Bounty for %s (ID: %d) increased to $%d.", bountyData.name, playerId, bountyData.amount))
+                    bountyUpdatedThisCycle = true
                 end
             elseif currentTime >= bountyData.expiresAt or (isPlayerOnline and pData and wantedData and wantedData.stars < Config.BountySettings.wantedLevelThreshold) then
-                Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyData.amount, bountyData.name, playerId, tostring(isPlayerOnline), wantedData and wantedData.stars or "N/A")); activeBounties[playerId] = nil
-                if pData then pData.bountyCooldownUntil = currentTime + (Config.BountySettings.cooldownMinutes * 60); if isPlayerOnline then SavePlayerData(playerId) end end
+                local bountyAmount = bountyData.amount or 0
+                local bountyName = bountyData.name or "Unknown"
+                local starCount = (wantedData and wantedData.stars) or "N/A"                Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyAmount, bountyName, tostring(playerId), tostring(isPlayerOnline), tostring(starCount)))
+                if activeBounties and playerId then
+                    activeBounties[playerId] = nil
+                end
+                if pData then
+                    local cooldownMinutes = Config.BountySettings.cooldownMinutes
+                    if cooldownMinutes then
+                        pData.bountyCooldownUntil = currentTime + (cooldownMinutes * 60)
+                    end
+                    if isPlayerOnline then SavePlayerData(playerId) end
+                end
                 bountyUpdatedThisCycle = true
             end
         end
         if bountyUpdatedThisCycle then TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties) end
         ::continue_bounty_loop::
     end
+end)
+
+-- Handle bounty list request
+RegisterNetEvent('cnr:requestBountyList')
+AddEventHandler('cnr:requestBountyList', function()
+    local source = source
+    -- Send the list of all active bounties to the player who requested it
+    local bountyList = {}
+    
+    -- If there are no active bounties, return an empty list
+    if not next(activeBounties) then
+        TriggerClientEvent('cnr:receiveBountyList', source, {})
+        return
+    end
+    
+    -- Convert the activeBounties table to an array format for the UI
+    for playerId, bountyData in pairs(activeBounties) do
+        table.insert(bountyList, {
+            id = playerId,
+            name = bountyData.name,
+            amount = bountyData.amount,
+            expiresAt = bountyData.expiresAt
+        })
+    end
+    
+    -- Sort bounties by amount (highest first)
+    table.sort(bountyList, function(a, b) return a.amount > b.amount end)
+    
+    -- Send the formatted bounty list to the client
+    TriggerClientEvent('cnr:receiveBountyList', source, bountyList)
 end)
 
 -- =================================================================================================
@@ -693,7 +1045,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
         Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if Config.DebugLogging then
         print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
     end
@@ -703,7 +1055,10 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     if Config.DebugLogging then
         print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
     end
-    if not crimeConfig then Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error"); return end
+    if not crimeConfig then
+        Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error")
+        return
+    end
 
     if not wantedPlayers[pIdNum] then wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } end
     local currentWanted = wantedPlayers[pIdNum]
@@ -730,15 +1085,19 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
                 break
             end
         end
-    end    currentWanted.stars = newStars
+    end
+
+currentWanted.stars = newStars
     -- Reduced logging: Only log on significant changes to reduce spam
     if newStars ~= (currentWanted.previousStars or 0) then
         Log(string.format("Player %s committed crime '%s'. Points: %s. Wanted Lvl: %d, Stars: %d", pIdNum, crimeKey, pointsToAdd, currentWanted.wantedLevel, newStars))
         currentWanted.previousStars = newStars
-    end    SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
+    end
+
+SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wantedLevel points and stars
     -- The [CNR_SERVER_DEBUG] print previously here is now covered by the TRACE print above.
     SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, currentWanted.wantedLevel) -- Explicitly update client UI
-    
+
     -- Send UI notification instead of chat message
     local uiLabel = ""
     for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
@@ -750,7 +1109,7 @@ UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
     if uiLabel == "" then
         uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
     end
-    
+
     SafeTriggerClientEvent('cnr:showWantedNotification', pIdNum, newStars, currentWanted.wantedLevel, uiLabel)
 
     local crimeDescription = (type(crimeConfig) == "table" and crimeConfig.description) or crimeKey:gsub("_"," "):gsub("%a", string.upper, 1)
@@ -792,7 +1151,7 @@ ReduceWantedLevel = function(playerId, amount)
         Log("ReduceWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if wantedPlayers[pIdNum] then
         wantedPlayers[pIdNum].wantedLevel = math.max(0, wantedPlayers[pIdNum].wantedLevel - amount)
         local newStars = 0
@@ -841,7 +1200,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         Log("SendToJail: Invalid player ID " .. tostring(playerId), "error")
         return
     end
-    
+
     if GetPlayerName(pIdNum) == nil then return end -- Check player online
     local jailedPlayerName = GetPlayerName(pIdNum) or "Unknown Suspect"
     arrestOptions = arrestOptions or {} -- Ensure options table exists
@@ -876,7 +1235,7 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
             Log("SendToJail: Invalid arresting officer ID " .. tostring(arrestingOfficerId), "warn")
             return
         end
-        
+
         local arrestXP = 0
 
         -- Use originalWantedData.stars for XP calculation
@@ -906,13 +1265,20 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
             Log(string.format("Cop %s Subdue Arrest XP %d for robber %s.", officerIdNum, subdueBonusXP, pIdNum))
         end
         if Config.BountySettings.enabled and Config.BountySettings.claimMethod == "arrest" and activeBounties[pIdNum] then
-            local bountyInfo = activeBounties[pIdNum]; local bountyAmt = bountyInfo.amount
+            local bountyInfo = activeBounties[pIdNum]
+            local bountyAmt = bountyInfo.amount
             AddPlayerMoney(officerIdNum, bountyAmt)
             Log(string.format("Cop %s claimed $%d bounty on %s.", officerIdNum, bountyAmt, bountyInfo.name))
             local officerNameForBounty = GetPlayerName(officerIdNum) or "An officer"
             TriggerClientEvent('chat:addMessage', -1, { args = {"^1[BOUNTY CLAIMED]", string.format("%s claimed $%d bounty on %s!", officerNameForBounty, bountyAmt, bountyInfo.name)} })
-            activeBounties[pIdNum] = nil; local robberPData = GetCnrPlayerData(pIdNum)
-            if robberPData then robberPData.bountyCooldownUntil = os.time() + (Config.BountySettings.cooldownMinutes*60); if GetPlayerName(pIdNum) then SavePlayerData(pIdNum) end end
+            activeBounties[pIdNum] = nil
+            local robberPData = GetCnrPlayerData(pIdNum)
+            if robberPData then
+                robberPData.bountyCooldownUntil = os.time() + (Config.BountySettings.cooldownMinutes*60)
+                if GetPlayerName(pIdNum) then
+                    SavePlayerData(pIdNum)
+                end
+            end
             TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties)
         end
     end
@@ -920,13 +1286,14 @@ end
 
 CreateThread(function() -- Jail time update loop
     while true do Wait(1000)
-        for playerId, jailData in pairs(jail) do 
+        for playerId, jailData in pairs(jail) do
             local pIdNum = tonumber(playerId)
             if pIdNum and pIdNum > 0 and GetPlayerName(pIdNum) ~= nil then -- Check player online
                 jailData.remainingTime = jailData.remainingTime - 1
                 if jailData.remainingTime <= 0 then
                     SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
-                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} }); Log("Player " .. pIdNum .. " released.")
+                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} })
+                    Log("Player " .. pIdNum .. " released.")
                     jail[pIdNum] = nil
                 elseif jailData.remainingTime % 60 == 0 then
                     SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
@@ -964,7 +1331,7 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
         TriggerClientEvent('cnr:roleSelected', src, false, "Invalid role selected.")
         return
     end
-    
+
     -- Handle civilian role (no special spawn handling needed)
     if selectedRole == "civilian" then
         SetPlayerRole(pIdNum, nil) -- Clear role
@@ -977,7 +1344,7 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     -- Teleport to spawn and set ped model (client will handle visuals, but send spawn info)
     local spawnLocation = nil
     local spawnHeading = 0.0
-    
+
     if selectedRole == "cop" and Config.SpawnPoints and Config.SpawnPoints.cop then
         spawnLocation = Config.SpawnPoints.cop
         spawnHeading = 270.0 -- Facing west (common for Mission Row PD)
@@ -985,11 +1352,11 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
         spawnLocation = Config.SpawnPoints.robber
         spawnHeading = 180.0 -- Facing south
     end
-    
+
     if spawnLocation then
         TriggerClientEvent('cnr:spawnPlayerAt', src, spawnLocation, spawnHeading, selectedRole)
         Log(string.format("Player %s spawned as %s at %s", GetPlayerName(src), selectedRole, tostring(spawnLocation)))
-        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s", 
+        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s",
             GetPlayerName(src), src, selectedRole))
     else
         Log(string.format("No spawn point found for role %s", selectedRole), "warn")
@@ -1024,10 +1391,10 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     if Config.Items and type(Config.Items) == 'table' then
         for _, itemIdFromVendor in ipairs(vendorItemIds) do
             local foundItem = nil
-            for _, configItem in ipairs(Config.Items) do
-                if configItem.itemId == itemIdFromVendor then
+            for _, configItem in ipairs(Config.Items) do                if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
-                    foundItem = {                        itemId = configItem.itemId,
+                    foundItem = {
+                        itemId = configItem.itemId,
                         name = configItem.name,
                         basePrice = configItem.basePrice, -- NUI will use this as 'price'
                         price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
@@ -1036,6 +1403,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                         minLevelCop = configItem.minLevelCop,
                         minLevelRobber = configItem.minLevelRobber,
                         icon = configItem.icon, -- Add icon field for modern UI
+                        image = configItem.image or configItem.icon, -- Fallback to icon if no image
                         -- Add any other fields the NUI might need, like description, weight, etc.
                         -- e.g., description = configItem.description or ""
                     }
@@ -1062,8 +1430,24 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         role = pData and pData.role or "citizen",
         cash = pData and (pData.cash or pData.money) or 0
     }
-
-    -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    
+    -- Debug: Print player info being sent to client
+    print('[CNR_SERVER_DEBUG] Player info being sent to client:')
+    print(json.encode(playerInfo, {indent = true}))
+    print('[CNR_SERVER_DEBUG] Raw pData for debugging:')
+    if pData then
+        print(string.format("  level: %s, role: %s, cash: %s, money: %s", 
+            tostring(pData.level), tostring(pData.role), tostring(pData.cash), tostring(pData.money)))
+    else
+        print("  pData is nil!")
+    end-- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    
+    -- Debug: Print the first item structure to see what's being sent
+    if #fullItemDetailsList > 0 then
+        print('[CNR_SERVER_DEBUG] Sample item structure for debugging:')
+        print(json.encode(fullItemDetailsList[1], {indent = true}))
+    end
+    
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
     -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')
@@ -1074,8 +1458,11 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local src = source
     local pData = GetCnrPlayerData(src)
 
+    print(string.format("[CNR_SERVER_DEBUG] getPlayerInventory called by player %s", src))
+
     if not pData or not pData.inventory then
         print(string.format("[CNR_SERVER_ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
+        print(string.format("[CNR_SERVER_DEBUG] pData exists: %s, pData.inventory exists: %s", tostring(pData ~= nil), tostring(pData and pData.inventory ~= nil)))
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
@@ -1084,7 +1471,9 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     -- No need to check Config.Items here on server for this specific NUI message,
     -- as NUI will do the lookup. Server just provides IDs and counts from player's actual inventory.
 
+    local inventoryCount = 0
     for itemId, invItemData in pairs(pData.inventory) do
+        inventoryCount = inventoryCount + 1
         -- invItemData is now { count = X, name = "Item Name", category = "Category", itemId = "itemId" }
         if invItemData and invItemData.count and invItemData.count > 0 then
             table.insert(processedInventoryForNui, {
@@ -1092,7 +1481,137 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
                 count = invItemData.count
             })
         end
-    end    print(string.format("[CNR_SERVER_DEBUG] Selling: Sending %d unique item stacks to NUI for Sell Tab for player %s", #processedInventoryForNui, src))    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
+    end
+
+    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s has %d total inventory items, sending %d items with count > 0 to NUI for Sell Tab", src, inventoryCount, #processedInventoryForNui))
+    TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
+end)
+
+-- =====================================
+--           HEIST FUNCTIONALITY
+-- =====================================
+
+-- Handle heist initiation requests from clients
+RegisterServerEvent('cnr:initiateHeist')
+AddEventHandler('cnr:initiateHeist', function(heistType)
+    local playerId = source
+    local playerData = GetCnrPlayerData(playerId)
+    
+    if not playerData then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Error: Cannot start heist - player data not found.")
+        return
+    end
+    
+    if playerData.role ~= 'robber' then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Only robbers can initiate heists.")
+        return
+    end
+    
+    -- Check for cooldown
+    local currentTime = os.time()
+    if playerData.lastHeistTime and (currentTime - playerData.lastHeistTime) < Config.HeistCooldown then
+        local remainingTime = math.ceil((playerData.lastHeistTime + Config.HeistCooldown - currentTime) / 60)
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Heist cooldown active. Try again in " .. remainingTime .. " minutes.")
+        return
+    end
+    
+    -- Check if heist type is valid
+    if not heistType or (heistType ~= "bank" and heistType ~= "jewelry" and heistType ~= "store") then
+        TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Invalid heist type.")
+        return
+    end
+    
+    -- Set cooldown for player
+    playerData.lastHeistTime = currentTime
+    
+    -- Determine heist details based on type
+    local heistDuration = 0
+    local rewardBase = 0
+    local heistName = ""
+    
+    if heistType == "bank" then
+        heistDuration = 180  -- 3 minutes
+        rewardBase = 15000   -- Base reward $15,000
+        heistName = "Bank Heist"
+    elseif heistType == "jewelry" then
+        heistDuration = 120  -- 2 minutes
+        rewardBase = 10000   -- Base reward $10,000
+        heistName = "Jewelry Store Robbery"
+    elseif heistType == "store" then
+        heistDuration = 60   -- 1 minute
+        rewardBase = 5000    -- Base reward $5,000
+        heistName = "Store Robbery"    end
+      -- Alert all cops about the heist
+    for _, targetPlayerId in ipairs(GetPlayers()) do
+        local targetId = tonumber(targetPlayerId)
+        local targetData = GetCnrPlayerData(targetId)
+        
+        if targetData and targetData.role == 'cop' then
+            local playerPed = GetPlayerPed(playerId)
+            if playerPed and playerPed > 0 then
+                local playerCoords = GetEntityCoords(playerPed)
+                if playerCoords then
+                    local coordsTable = {
+                        x = playerCoords.x,
+                        y = playerCoords.y,
+                        z = playerCoords.z
+                    }
+                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+                else
+                    local defaultCoords = {x = 0, y = 0, z = 0}
+                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+                end
+            else
+                local defaultCoords = {x = 0, y = 0, z = 0}
+                TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+            end
+        end
+    end
+    
+    -- Start the heist for the player
+    TriggerClientEvent('cnr:startHeistTimer', playerId, heistDuration, heistName)
+    
+    -- Set a timer to complete the heist
+    SetTimeout(heistDuration * 1000, function()
+        local playerStillConnected = GetPlayerPing(playerId) > 0
+        
+        if playerStillConnected then
+            -- Calculate final reward based on player level and add randomness
+            local levelMultiplier = 1.0 + (playerData.level * 0.05)  -- 5% more per level
+            local randomVariation = math.random(80, 120) / 100  -- 0.8 to 1.2 multiplier
+            local finalReward = math.floor(rewardBase * levelMultiplier * randomVariation)
+            
+            -- Award the player
+            if AddPlayerMoney(playerId, finalReward) then
+                -- Update heist statistics
+                if not playerData.stats then playerData.stats = {} end
+                if not playerData.stats.heists then playerData.stats.heists = 0 end
+                playerData.stats.heists = playerData.stats.heists + 1
+                      -- Award XP for the heist
+                local xpReward = 0
+                if heistType == "bank" then xpReward = 500
+                elseif heistType == "jewelry" then xpReward = 300
+                elseif heistType == "store" then xpReward = 150
+                end
+                
+                -- Add XP if the function exists
+                if _G.AddPlayerXP then
+                    _G.AddPlayerXP(playerId, xpReward)
+                else
+                    -- Fallback if global function doesn't exist
+                    if playerData.xp then
+                        playerData.xp = playerData.xp + xpReward
+                    end
+                end
+                
+                -- Notify the player
+                TriggerClientEvent('cnr:notifyPlayer', playerId, "~g~Heist completed! Earned $" .. finalReward)
+                TriggerClientEvent('cnr:heistCompleted', playerId, finalReward, xpReward)
+            else
+                TriggerClientEvent('cnr:notifyPlayer', playerId, "~r~Error processing heist reward. Contact an admin.")
+            end
+        end
+    end)
 end)
 
 -- OLD HANDLERS REMOVED - Using enhanced versions below with inventory saving
@@ -1117,10 +1636,10 @@ local function SavePlayerDataImmediate(playerId, reason)
     reason = reason or "manual"
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then return false end
-    
+
     local pData = GetCnrPlayerData(pIdNum)
     if not pData then return false end
-    
+
     local success = SavePlayerData(pIdNum)
     if success then
         playersSavePending[pIdNum] = nil -- Clear pending save flag
@@ -1136,14 +1655,14 @@ end
 CreateThread(function()
     while true do
         Wait(30000) -- 30 seconds
-        
+
         -- Save all players who have pending saves
         for playerId, needsSave in pairs(playersSavePending) do
             if needsSave and GetPlayerName(playerId) then
                 SavePlayerDataImmediate(playerId, "periodic")
             end
         end
-        
+
         -- Clean up offline players from pending saves
         for playerId, _ in pairs(playersSavePending) do
             if not GetPlayerName(playerId) then
@@ -1157,21 +1676,30 @@ end)
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
     Log(string.format("Player connecting: %s (ID: %s)", name, src))
-    
+
     -- Clear any pending save for this player ID (in case of reconnect)
     playersSavePending[src] = nil
+
+    -- Send Config.Items to player after a short delay
+    Citizen.CreateThread(function()
+        Citizen.Wait(2000) -- Wait for player to fully connect
+        if Config and Config.Items then
+            TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+            Log(string.format("Auto-sent Config.Items to connecting player %s", src), "info")
+        end
+    end)
 end)
 
 -- Player dropped handler - immediate save on disconnect
 AddEventHandler('playerDropped', function(reason)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
-    
+
     Log(string.format("Player %s (ID: %s) disconnected. Reason: %s", playerName, src, reason))
-    
+
     -- Immediately save player data before they disconnect
     SavePlayerDataImmediate(src, "disconnect")
-    
+
     -- Clean up player from all tracking tables
     playersSavePending[src] = nil
     playersData[src] = nil
@@ -1227,10 +1755,8 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
         Log(string.format("Player %s (Role: %s) tried to buy %s but it's cop-only", src, pData.role, itemConfig.name), "warn")
         TriggerClientEvent('cops_and_robbers:buyResult', src, false)
         return
-    end
-
-    -- Calculate cost with dynamic pricing
-    local totalCost = CalculateDynamicPrice(itemConfig.basePrice, itemId) * quantity
+    end    -- Calculate cost with dynamic pricing
+    local totalCost = CalculateDynamicPrice(itemId, itemConfig.basePrice) * quantity
 
     if not RemovePlayerMoney(src, totalCost) then
         TriggerClientEvent('cops_and_robbers:buyResult', src, false)
@@ -1240,20 +1766,34 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     -- Add to purchase history for dynamic pricing
     local currentTime = os.time()
     if not purchaseHistory[itemId] then purchaseHistory[itemId] = {} end
-    table.insert(purchaseHistory[itemId], currentTime)
-
-    -- Add item to inventory
+    table.insert(purchaseHistory[itemId], currentTime)    -- Add item to inventory
     local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
     if success then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, true)
+        -- Send success response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'buyResult',
+            success = true,
+            message = string.format("Successfully purchased %d x %s for $%d", quantity, itemConfig.name, totalCost)
+        })
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
-        
+
+        -- Update player cash in NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'updateMoney',
+            cash = pData.money
+        })
+
         -- IMMEDIATE SAVE after purchase
         SavePlayerDataImmediate(src, "purchase")
     else
         AddPlayerMoney(src, totalCost)
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'buyResult',
+            success = false,
+            message = string.format("Purchase failed: %s", msg or "Unknown error")
+        })
         Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
     end
 end)
@@ -1275,10 +1815,13 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
             itemConfig = cfgItem
             break
         end
-    end
-
-    if not itemConfig or not itemConfig.sellPrice then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
+    end    if not itemConfig or not itemConfig.sellPrice then
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = false,
+            message = "Item cannot be sold"
+        })
         return
     end
 
@@ -1286,14 +1829,32 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     if success then
         local totalEarned = itemConfig.sellPrice * quantity
         AddPlayerMoney(src, totalEarned)
-        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
+        
+        -- Send success response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = true,
+            message = string.format("Successfully sold %d x %s for $%d", quantity, itemConfig.name, totalEarned)
+        })
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalEarned))
-        
+
+        -- Update player cash in NUI
+        local updatedPData = GetCnrPlayerData(src)
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'updateMoney',
+            cash = updatedPData.money
+        })
+
         -- IMMEDIATE SAVE after sale
         SavePlayerDataImmediate(src, "sale")
     else
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = false,
+            message = string.format("Sale failed: %s", msg or "Unknown error")
+        })
         Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
     end
 end)
@@ -1303,7 +1864,7 @@ RegisterNetEvent('cnr:playerRespawned')
 AddEventHandler('cnr:playerRespawned', function()
     local src = source
     Log(string.format("Player %s respawned, restoring inventory", src))
-    
+
     -- Reload and sync player inventory
     local pData = GetCnrPlayerData(src)
     if pData and pData.inventory then
@@ -1320,10 +1881,10 @@ RegisterNetEvent('cnr:playerSpawned')
 AddEventHandler('cnr:playerSpawned', function()
     local src = source
     Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
-    
+
     -- Load player data
     LoadPlayerData(src)
-    
+
     -- Ensure inventory is properly synced after spawn
     Citizen.SetTimeout(2000, function() -- Give time for data to load
         local pData = GetCnrPlayerData(src)
@@ -1392,10 +1953,10 @@ function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     if pData.inventory[itemId].count <= 0 then
         pData.inventory[itemId] = nil
     end
-    
+
     -- Mark for save
     MarkPlayerForInventorySave(playerId)
-    
+
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     TriggerClientEvent('cnr:updatePlayerData', playerId, pDataForBasicInfo)
@@ -1403,3 +1964,198 @@ function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     Log(string.format("Removed %d of %s from player %s inventory.", quantity, itemId, playerId))
     return true, "Item removed"
 end
+
+-- Handle client request for Config.Items
+RegisterServerEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local source = source
+    Log(string.format("Received Config.Items request from player %s", source), "info")
+
+    -- Give some time for Config to be fully loaded if this is early in startup
+    Citizen.Wait(100)
+
+    if Config and Config.Items and type(Config.Items) == "table" then
+        local itemCount = 0
+        for _ in pairs(Config.Items) do itemCount = itemCount + 1 end
+        TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
+        Log(string.format("Sent Config.Items to player %s (%d items)", source, itemCount), "info")
+    else
+        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found or invalid. Config exists: %s, Config.Items type: %s", source, tostring(Config ~= nil), type(Config and Config.Items)), "error")
+        -- Send empty table as fallback
+        TriggerClientEvent('cnr:receiveConfigItems', source, {})
+    end
+end)
+
+-- Handle speeding fine issuance
+RegisterServerEvent('cnr:issueSpeedingFine')
+RegisterNetEvent('cnr:issueSpeedingFine')
+AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
+    local source = source
+    local pData = GetCnrPlayerData(source)
+    local targetData = GetCnrPlayerData(targetPlayerId)
+    
+    -- Validate cop issuing the fine
+    if not pData or pData.role ~= "cop" then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~You must be a cop to issue fines!")
+        return
+    end
+    
+    -- Validate target player
+    if not targetData then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~Target player not found!")
+        return
+    end
+    
+    -- Validate speed parameter
+    if not speed or type(speed) ~= "number" or speed <= Config.SpeedLimitMph then
+        SafeTriggerClientEvent('cnr:showNotification', source, "~r~Invalid speed data!")
+        return
+    end
+    
+    -- Calculate fine amount
+    local fineAmount = Config.SpeedingFine or 250
+    local excessSpeed = speed - Config.SpeedLimitMph
+    
+    -- Add bonus fine for excessive speeding (optional enhancement)
+    if excessSpeed > 20 then
+        fineAmount = fineAmount + math.floor(excessSpeed * 5) -- $5 per mph over 20mph excess
+    end
+    
+    -- Deduct money from target player
+    if targetData.money >= fineAmount then
+        targetData.money = targetData.money - fineAmount
+        pData.money = pData.money + math.floor(fineAmount * 0.5) -- Cop gets 50% commission
+          -- Award XP to the cop
+        local xpAmount = (Config.XPRewards and Config.XPRewards.speeding_fine_issued) or 8
+        AddXP(source, xpAmount, "speeding_fine_issued")
+        
+        -- Save both players' data
+        SavePlayerData(source)
+        SavePlayerData(targetPlayerId)
+        
+        -- Update both players' data
+        local copDataForSync = shallowcopy(pData)
+        copDataForSync.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', source, copDataForSync)
+        
+        local targetDataForSync = shallowcopy(targetData)
+        targetDataForSync.inventory = nil
+        SafeTriggerClientEvent('cnr:updatePlayerData', targetPlayerId, targetDataForSync)
+        
+        -- Send notifications
+        SafeTriggerClientEvent('cnr:showNotification', source, 
+            string.format("~g~Speeding fine issued! $%d collected (~b~%d mph in %d mph zone~g~). You earned $%d commission.", 
+                fineAmount, speed, Config.SpeedLimitMph, math.floor(fineAmount * 0.5)))
+        
+        SafeTriggerClientEvent('cnr:showNotification', targetPlayerId, 
+            string.format("~r~You were fined $%d for speeding! (~o~%d mph in %d mph zone~r~)", 
+                fineAmount, speed, Config.SpeedLimitMph))
+        
+        -- Log the fine for admin purposes
+        Log(string.format("Speeding fine issued: Cop %s fined Player %s $%d for %d mph in %d mph zone", 
+            source, targetPlayerId, fineAmount, speed, Config.SpeedLimitMph))
+    else
+        SafeTriggerClientEvent('cnr:showNotification', source, 
+            string.format("~o~Target player doesn't have enough money for the fine ($%d required, has $%d)", 
+                fineAmount, targetData.money))
+    end
+end)
+
+-- Handle admin status check for F2 keybind
+RegisterServerEvent('cnr:checkAdminStatus')
+RegisterNetEvent('cnr:checkAdminStatus')
+AddEventHandler('cnr:checkAdminStatus', function()
+    local source = source
+    local pData = GetCnrPlayerData(source)
+    
+    if not pData then
+        Log(string.format("Admin status check failed - no player data for %s", source), "warn")
+        return
+    end
+    
+    -- Check if player is admin (you can customize this check based on your admin system)
+    local isAdmin = false
+    
+    -- Method 1: Check ace permissions
+    if IsPlayerAceAllowed(source, "cnr.admin") then
+        isAdmin = true
+    end
+    
+    -- Method 2: Check if they have admin role in player data (if you store it there)
+    if pData.isAdmin or pData.role == "admin" then
+        isAdmin = true
+    end
+    
+    -- Method 3: Check against admin list in config (if you have one)
+    if Config.AdminPlayers then
+        local identifier = GetPlayerIdentifier(source, 0) -- Steam ID
+        for _, adminId in ipairs(Config.AdminPlayers) do
+            if identifier == adminId then
+                isAdmin = true
+                break
+            end
+        end
+    end
+    
+    if isAdmin then
+        TriggerClientEvent('cnr:showAdminPanel', source)
+        Log(string.format("Admin panel opened for player %s", source), "info")
+    else
+        -- Show robber menu if they're a robber, otherwise generic message
+        if pData.role == "robber" then
+            TriggerClientEvent('cnr:showRobberMenu', source)
+        else
+            SafeTriggerClientEvent('cnr:showNotification', source, "~r~No special menu available for your role.")
+        end
+    end
+end)
+
+-- Handle role selection request
+RegisterServerEvent('cnr:requestRoleSelection')
+RegisterNetEvent('cnr:requestRoleSelection')
+AddEventHandler('cnr:requestRoleSelection', function()
+    local source = source
+    Log(string.format("Role selection requested by player %s", source), "info")
+    
+    -- Send role selection UI to client
+    TriggerClientEvent('cnr:showRoleSelection', source)
+end)
+
+-- Register the crime reporting event
+RegisterNetEvent('cops_and_robbers:reportCrime')
+AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
+    local src = source
+    if not src or src <= 0 then return end
+    
+    -- Verify the crime type is valid
+    local crimeConfig = Config.WantedSettings.crimes[crimeType]
+    if not crimeConfig then
+        print("[CNR_SERVER_ERROR] Invalid crime type reported: " .. tostring(crimeType))
+        return
+    end
+    
+    -- Check if player is a robber
+    if not IsPlayerRobber(src) then
+        print("[CNR_SERVER_DEBUG] Non-robber attempted to report crime: " .. GetPlayerName(src) .. " (" .. src .. ")")
+        return
+    end
+    
+    -- Check for spam (cooldown per crime type)
+    local now = os.time()
+    if not clientReportCooldowns[src] then clientReportCooldowns[src] = {} end
+    
+    local lastReportTime = clientReportCooldowns[src][crimeType] or 0
+    local cooldownTime = 5 -- 5 seconds cooldown between same crime reports
+    
+    if now - lastReportTime < cooldownTime then
+        -- Still on cooldown, ignore this report
+        return
+    end
+    
+    -- Update cooldown timestamp
+    clientReportCooldowns[src][crimeType] = now
+    
+    -- Update wanted level for this crime
+    UpdatePlayerWantedLevel(src, crimeType)
+end)
+

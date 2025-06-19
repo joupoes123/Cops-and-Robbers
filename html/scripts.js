@@ -4,6 +4,11 @@
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
 let fullItemConfig = null; // Will store Config.Items
 
+// Inventory state variables
+let isInventoryOpen = false;
+let currentInventoryData = null;
+let currentEquippedItems = null;
+
 // ====================================================================
 // NUI Message Handling & Security
 // ====================================================================
@@ -53,8 +58,7 @@ window.addEventListener('message', function(event) {
                     window.playerInfo.cash = data.cash;
                 }
             }
-            break;case 'showStoreMenu':
-        case 'openStore':
+            break;case 'showStoreMenu':        case 'openStore':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
                 const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
@@ -63,6 +67,50 @@ window.addEventListener('message', function(event) {
                 }
             }
             openStoreMenu(data.storeName, data.items, data.playerInfo);
+            break;        case 'updateStoreData':
+            console.log('[CNR_NUI] Received updateStoreData with', data.items ? data.items.length : 0, 'items');
+            if (data.items && data.items.length > 0) {
+                // Update the current store data
+                window.items = data.items; // Fix: Set window.items so loadGridItems() can access it
+                window.currentStoreItems = data.items;
+                window.playerInfo = data.playerInfo; // Fix: Set window.playerInfo for level checks
+                window.currentPlayerInfo = data.playerInfo;
+                console.log('[CNR_NUI_DEBUG] Updated window.items with', data.items.length, 'items');
+                console.log('[CNR_NUI_DEBUG] Sample item IDs:', data.items.slice(0, 3).map(item => item.itemId).join(','));
+                console.log('[CNR_NUI_DEBUG] Current tab before refresh:', window.currentTab);
+                // Refresh the currently displayed tab
+                if (window.currentTab === 'buy') {
+                    console.log('[CNR_NUI_DEBUG] Calling loadGridItems() for Buy tab refresh');
+                    loadGridItems(); // Fix: Call without parameters
+                } else if (window.currentTab === 'sell') {
+                    console.log('[CNR_NUI_DEBUG] Calling loadSellItems() for Sell tab refresh');
+                    loadSellItems();
+                }
+            } else {
+                console.warn('[CNR_NUI] updateStoreData called with no items or empty items array');
+            }
+            break;
+        case 'buyResult':
+            if (data.success) {
+                showToast(data.message || 'Purchase successful!', 'success');
+                // Refresh the sell tab in case new items were added to inventory
+                if (window.currentTab === 'sell') {
+                    loadSellItems();
+                }
+            } else {
+                showToast(data.message || 'Purchase failed!', 'error');
+            }
+            break;
+        case 'sellResult':
+            if (data.success) {
+                showToast(data.message || 'Sale successful!', 'success');
+                // Refresh the sell tab to update inventory
+                if (window.currentTab === 'sell') {
+                    loadSellItems();
+                }
+            } else {
+                showToast(data.message || 'Sale failed!', 'error');
+            }
             break;
         case 'closeStore':
             closeStoreMenu();
@@ -87,8 +135,7 @@ window.addEventListener('message', function(event) {
                 }
             }
             showAdminPanel(data.players);
-            break;
-        case 'showBountyBoard':
+            break;        case 'showBountyBoard':
             if (data.resourceName) {
                 window.cnrResourceName = data.resourceName;
                 if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
@@ -102,18 +149,66 @@ window.addEventListener('message', function(event) {
             break;
         case 'updateBountyList':
              if (typeof updateBountyListUI === 'function') updateBountyListUI(data.bounties);
+            break;        case 'showBountyList':
+            showBountyList(data.bounties || []);
+            break;
+        case 'updateSpeedometer':
+            updateSpeedometer(data.speed);
+            break;
+        case 'toggleSpeedometer':
+            toggleSpeedometer(data.show);
             break;
         case 'hideRoleSelection':
             const roleMenu = document.getElementById('roleSelectionMenu');
-            if (roleMenu) roleMenu.style.display = 'none';
-            break;
+            if (roleMenu) roleMenu.style.display = 'none';            break;
         case 'roleSelectionFailed':
             showToast(data.error || 'Failed to select role. Please try again.', 'error', 4000);
             showRoleSelection();
-            break;        case 'storeFullItemConfig':
+            break;
+        case 'storeFullItemConfig':
             if (data.itemConfig) {
-                fullItemConfig = data.itemConfig;
-                console.log('[CNR_NUI] Stored full item config. Item count:', fullItemConfig ? Object.keys(fullItemConfig).length : 0);
+                window.fullItemConfig = data.itemConfig;
+                console.log('[CNR_NUI] Stored full item config. Item count:', window.fullItemConfig ? Object.keys(window.fullItemConfig).length : 0);
+                
+                // Fix any missing item images by setting default images
+                for (const itemId in window.fullItemConfig) {
+                    if (window.fullItemConfig.hasOwnProperty(itemId)) {
+                        const item = window.fullItemConfig[itemId];
+                        
+                        // Check if image is missing or invalid
+                        if (!item.image || item.image.includes('404') || item.image === 'img/default.png') {
+                            // Set default image based on category
+                            switch (item.category) {
+                                case 'weapons':
+                                    item.image = 'img/items/weapon_pistol.png';
+                                    break;
+                                case 'ammo':
+                                    item.image = 'img/items/ammo.png';
+                                    break;
+                                case 'armor':
+                                    item.image = 'img/items/armor.png';
+                                    break;
+                                case 'tools':
+                                    item.image = 'img/items/tool.png';
+                                    break;
+                                default:
+                                    item.image = 'img/items/default.png';
+                                    break;
+                            }
+                            console.log(`[CNR_NUI] Fixed missing image for item ${itemId}`);
+                        }
+                    }
+                }
+                
+                // Refresh the store if it's open
+                const storeMenuElement = document.getElementById('store-menu');
+                if (storeMenuElement && storeMenuElement.style.display === 'block') {
+                    if (window.currentTab === 'buy') {
+                        loadGridItems();
+                    } else if (window.currentTab === 'sell') {
+                        loadSellItems();
+                    }
+                }
             }
             break;        case 'refreshInventory':
             // Refresh the sell tab if it's currently active
@@ -121,8 +216,7 @@ window.addEventListener('message', function(event) {
             if (storeMenuElement && storeMenuElement.style.display === 'block' && window.currentTab === 'sell') {
                 loadSellItems();
             }
-            break;
-        case 'showWantedNotification':
+            break;        case 'showWantedNotification':
             showWantedNotification(data.stars, data.points, data.level);
             break;        case 'hideWantedNotification':
             hideWantedNotification();
@@ -132,6 +226,9 @@ window.addEventListener('message', function(event) {
         case 'updateInventory':
         case 'updateEquippedItems':
             handleInventoryMessage(data);
+            break;
+        case 'showRobberMenu':
+            showRobberMenu();
             break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
@@ -340,15 +437,20 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
         
         console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
-        console.log('[CNR_NUI_DEBUG] cash value:', window.playerInfo.cash);
+        
+        // Handle both property name formats (cash/playerCash, level/playerLevel)
+        const newCash = window.playerInfo.cash || window.playerInfo.playerCash || 0;
+        const newLevel = window.playerInfo.level || window.playerInfo.playerLevel || 1;
+        
+        console.log('[CNR_NUI_DEBUG] cash value:', newCash);
+        console.log('[CNR_NUI_DEBUG] level value:', newLevel);
         
         // Update player info display and check for cash changes
-        const newCash = window.playerInfo.cash || 0;
         if (playerCashEl) {
             playerCashEl.textContent = `$${newCash.toLocaleString()}`;
             console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
         }
-        if (playerLevelEl) playerLevelEl.textContent = `Level ${window.playerInfo.level || 1}`;
+        if (playerLevelEl) playerLevelEl.textContent = `Level ${newLevel}`;
           // Show cash notification if cash changed (only when store is opened)
         if (previousCash !== null && previousCash !== newCash) {
             console.log('[CNR_NUI_DEBUG] Cash changed in store from', previousCash, 'to', newCash);
@@ -440,20 +542,24 @@ function loadGridItems() {
     
     // Clear existing items
     gridContainer.innerHTML = '';
-    
-    console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
+      console.log('[CNR_NUI_DEBUG] loadGridItems called. Items count:', window.items ? window.items.length : 0);
     console.log('[CNR_NUI_DEBUG] currentCategory:', window.currentCategory);
-    console.log('[CNR_NUI_DEBUG] Sample items:', window.items ? window.items.slice(0, 3) : 'No items');
+    console.log('[CNR_NUI_DEBUG] currentTab:', window.currentTab);
+    console.log('[CNR_NUI_DEBUG] Sample items:', window.items ? window.items.slice(0, 3).map(item => ({id: item.itemId, name: item.name})) : 'No items');
     
-    let itemsToRender = window.items || [];
+    // If items is an object rather than an array, convert it to an array
+    let itemsArray = window.items || [];
+    if (!Array.isArray(itemsArray) && typeof itemsArray === 'object') {
+        itemsArray = Object.keys(itemsArray).map(key => itemsArray[key]);
+    }
     
     // Filter by category if one is selected
     if (window.currentCategory) {
-        itemsToRender = itemsToRender.filter(item => item.category === window.currentCategory);
-        console.log('[CNR_NUI_DEBUG] Filtered items by category', window.currentCategory, ':', itemsToRender.length);
+        itemsArray = itemsArray.filter(item => item.category === window.currentCategory);
+        console.log('[CNR_NUI_DEBUG] Filtered items by category', window.currentCategory, ':', itemsArray.length);
     }
     
-    if (itemsToRender.length === 0) {
+    if (itemsArray.length === 0) {
         console.log('[CNR_NUI_DEBUG] No items to render, showing empty message');
         gridContainer.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No items available.</div>';
         return;
@@ -462,7 +568,24 @@ function loadGridItems() {
     // Create document fragment for better performance
     const fragment = document.createDocumentFragment();
     
-    itemsToRender.forEach((item, index) => {
+    // Make sure each item has required properties
+    itemsArray.forEach((item, index) => {
+        if (!item) {
+            console.error('[CNR_NUI_DEBUG] Null item at index', index);
+            return;
+        }
+        
+        // Ensure the item has an itemId
+        if (!item.itemId) {
+            console.error('[CNR_NUI_DEBUG] Item missing itemId at index', index, item);
+            return;
+        }
+        
+        // Add a name if missing
+        if (!item.name) {
+            item.name = item.itemId;
+        }
+        
         console.log('[CNR_NUI_DEBUG] Creating slot for item:', item.itemId, item.name);
         const slot = createInventorySlot(item, 'buy');
         if (slot) {
@@ -474,46 +597,84 @@ function loadGridItems() {
     });
     
     gridContainer.appendChild(fragment);
-    console.log('[CNR_NUI_DEBUG] Rendered', itemsToRender.length, 'items to grid');
+    console.log('[CNR_NUI_DEBUG] Rendered', itemsArray.length, 'items to grid');
     console.log('[CNR_NUI_DEBUG] Grid container children count:', gridContainer.children.length);
 }
 
 function loadSellGridItems() {
     const sellGrid = document.getElementById('sell-inventory-grid');
-    if (!sellGrid) return;
+    if (!sellGrid) {
+        console.error('[CNR_NUI] sell-inventory-grid element not found!');
+        return;
+    }
+    
+    console.log('[CNR_NUI] Loading sell grid items...');
+    
+    // Show loading state
+    sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Loading inventory...</div>';
     
     // Fetch player inventory from server
     const resName = window.cnrResourceName || 'cops-and-robbers';
+    console.log('[CNR_NUI] Fetching inventory from resource:', resName);
+    
     fetch(`https://${resName}/getPlayerInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
-    }).then(response => response.json())    .then(data => {
+    }).then(response => {
+        console.log('[CNR_NUI] Received response from getPlayerInventory:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();    }).then(data => {
+        console.log('[CNR_NUI] Inventory data received:', data);
         sellGrid.innerHTML = '';
-        const minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
+        let minimalInventory = data.inventory || []; // Server returns { inventory: [...] }
         
-        if (!fullItemConfig) {
+        // Convert object to array if necessary (for backward compatibility)
+        if (typeof minimalInventory === 'object' && !Array.isArray(minimalInventory)) {
+            console.log('[CNR_NUI] Converting inventory object to array format');
+            const inventoryArray = [];
+            for (const [itemId, itemData] of Object.entries(minimalInventory)) {
+                if (itemData && itemData.count > 0) {
+                    inventoryArray.push({
+                        itemId: itemId,
+                        count: itemData.count
+                    });
+                }
+            }
+            minimalInventory = inventoryArray;
+        }
+        
+        if (!window.fullItemConfig) {
             console.error('[CNR_NUI] fullItemConfig not available. Cannot reconstruct sell list details.');
-            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error: Item configuration not loaded.</div>';
+            console.log('[CNR_NUI] fullItemConfig is:', window.fullItemConfig);
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error: Item configuration not loaded. Please try reopening the store.</div>';
             return;
         }
         
-        if (!minimalInventory || minimalInventory.length === 0) {
+        console.log('[CNR_NUI] Processing', Array.isArray(minimalInventory) ? minimalInventory.length : 'unknown', 'inventory items');
+        console.log('[CNR_NUI] fullItemConfig type:', typeof window.fullItemConfig, 'has items:', window.fullItemConfig ? Object.keys(window.fullItemConfig).length : 0);
+        
+        if (!minimalInventory || !Array.isArray(minimalInventory) || minimalInventory.length === 0) {
             sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Your inventory is empty.</div>';
             return;
         }
         
         const fragment = document.createDocumentFragment();
+        let itemsProcessed = 0;
+        
         minimalInventory.forEach(minItem => {
-            if (minItem.count > 0) {
+            if (minItem && minItem.count > 0) {
                 // Look up full item details from config
                 let itemDetails = null;
-                if (Array.isArray(fullItemConfig)) {
+                
+                if (Array.isArray(window.fullItemConfig)) {
                     // If fullItemConfig is an array
-                    itemDetails = fullItemConfig.find(configItem => configItem.itemId === minItem.itemId);
-                } else {
+                    itemDetails = window.fullItemConfig.find(configItem => configItem.itemId === minItem.itemId);
+                } else if (typeof window.fullItemConfig === 'object' && window.fullItemConfig !== null) {
                     // If fullItemConfig is an object
-                    itemDetails = fullItemConfig[minItem.itemId];
+                    itemDetails = window.fullItemConfig[minItem.itemId];
                 }
                 
                 if (itemDetails) {
@@ -527,22 +688,43 @@ function loadSellGridItems() {
                     
                     const richItem = {
                         itemId: minItem.itemId,
-                        name: itemDetails.name,
+                        name: itemDetails.name || minItem.itemId,
                         count: minItem.count,
-                        category: itemDetails.category,
-                        sellPrice: sellPrice
+                        category: itemDetails.category || 'Miscellaneous',
+                        sellPrice: sellPrice,
+                        image: itemDetails.image || null
                     };
                     
-                    fragment.appendChild(createInventorySlot(richItem, 'sell'));
+                    const slotElement = createInventorySlot(richItem, 'sell');
+                    if (slotElement) {
+                        fragment.appendChild(slotElement);
+                        itemsProcessed++;
+                    }
                 } else {
-                    console.warn(`[CNR_NUI] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Skipping.`);
+                    console.warn(`[CNR_NUI] ItemId ${minItem.itemId} from inventory not found in fullItemConfig. Creating fallback display.`);
+                    // Create a fallback display for the item
+                    const fallbackItem = {
+                        itemId: minItem.itemId,
+                        name: minItem.itemId,
+                        count: minItem.count,
+                        category: 'Unknown',
+                        sellPrice: 0
+                    };
+                    fragment.appendChild(createInventorySlot(fallbackItem, 'sell'));
+                    itemsProcessed++;
                 }
             }
         });
+        
+        console.log('[CNR_NUI] Created', itemsProcessed, 'sell item slots');
         sellGrid.appendChild(fragment);
+        
+        if (itemsProcessed === 0) {
+            sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">No sellable items in inventory.</div>';
+        }
     }).catch(error => {
-        console.error('Error loading sell inventory:', error);
-        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Error loading inventory.</div>';
+        console.error('[CNR_NUI] Error loading sell inventory:', error);
+        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); padding: 40px;">Error loading inventory. Please try again.<br><small>Error: ' + error.message + '</small></div>';
     });
 }
 
@@ -565,7 +747,12 @@ function createItemElement(item, type = 'buy') {
 
 // Modern Grid-Based Inventory Slot Creation
 function createInventorySlot(item, type = 'buy') {
-    console.log('[CNR_NUI_DEBUG] createInventorySlot called for:', item.itemId, 'type:', type, 'item data:', item);
+    console.log('[CNR_NUI_DEBUG] createInventorySlot called for:', item.itemId, 'type:', type, 'item data:', JSON.stringify(item));
+    
+    if (!item || !item.itemId) {
+        console.error('[CNR_NUI_ERROR] Invalid item data provided to createInventorySlot:', item);
+        return null;
+    }
     
     const slot = document.createElement('div');
     slot.className = 'inventory-slot';
@@ -596,13 +783,28 @@ function createInventorySlot(item, type = 'buy') {
     const iconContainer = document.createElement('div');
     iconContainer.className = 'item-icon-container';
     
-    const itemIcon = document.createElement('div');
-    itemIcon.className = 'item-icon';
-    itemIcon.textContent = item.icon || getItemIcon(item.category, item.name);
-    
-    iconContainer.appendChild(itemIcon);
-    
-    // Add level requirement badge if locked
+    // Check if item has a valid image
+    if (item.image && typeof item.image === 'string' && !item.image.includes('404')) {
+        const imgElement = document.createElement('img');
+        imgElement.src = item.image;
+        imgElement.className = 'item-image';
+        imgElement.alt = item.name || item.itemId;
+        imgElement.onerror = function() {
+            console.log(`[CNR_NUI] Image load error for ${item.itemId}, using fallback`);
+            this.style.display = 'none';
+            const fallbackIcon = document.createElement('div');
+            fallbackIcon.className = 'item-icon';
+            fallbackIcon.textContent = getItemIcon(item.category, item.name);
+            this.parentNode.appendChild(fallbackIcon);
+        };
+        iconContainer.appendChild(imgElement);
+    } else {
+        const itemIcon = document.createElement('div');
+        itemIcon.className = 'item-icon';
+        itemIcon.textContent = item.icon || getItemIcon(item.category || 'Unknown', item.name || item.itemId || 'Unknown');
+        iconContainer.appendChild(itemIcon);
+    }
+      // Add level requirement badge if locked
     if (isLocked) {
         const levelBadge = document.createElement('div');
         levelBadge.className = 'level-requirement';
@@ -626,12 +828,12 @@ function createInventorySlot(item, type = 'buy') {
     
     const itemName = document.createElement('div');
     itemName.className = 'item-name';
-    itemName.textContent = item.name;
+    itemName.textContent = item.name || item.itemId || 'Unknown Item';
     itemInfo.appendChild(itemName);
     
     const itemPrice = document.createElement('div');
     itemPrice.className = 'item-price';
-    const priceValue = type === 'buy' ? (item.price || item.basePrice) : item.sellPrice;
+    const priceValue = type === 'buy' ? (item.price || item.basePrice || 0) : (item.sellPrice || 0);
     itemPrice.textContent = `$${priceValue ? priceValue.toLocaleString() : '0'}`;
     itemInfo.appendChild(itemPrice);
     
@@ -1039,6 +1241,13 @@ window.addEventListener('keydown', function(event) {
     }
 });
 
+// Global escape key listener for inventory
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && isInventoryOpen) {
+        closeInventoryUI();
+    }
+});
+
 let heistTimerInterval = null;
 function startHeistTimer(duration, bankName) {
     const heistTimerEl = document.getElementById('heist-timer');
@@ -1255,6 +1464,32 @@ function closeInventoryMenu() {
     }
 }
 
+function closeInventoryUI() {
+    if (!isInventoryOpen) return;
+    
+    isInventoryOpen = false;
+    console.log('[CNR_INVENTORY] Closing inventory UI');
+    
+    const inventoryMenu = document.getElementById('inventory-menu');
+    if (inventoryMenu) {
+        inventoryMenu.style.display = 'none';
+        inventoryMenu.classList.add('hidden');
+        document.body.classList.remove('inventory-open');
+    }
+    
+    // Remove NUI focus
+    fetchSetNuiFocus(false, false);
+    
+    // Send close message to Lua
+    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/closeInventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).catch(error => {
+        console.error('[CNR_INVENTORY] Failed to send close message:', error);
+    });
+}
+
 // Update player info in inventory
 function updateInventoryPlayerInfo() {
     const cashElement = document.getElementById('inventory-player-cash-amount');
@@ -1292,6 +1527,95 @@ async function requestPlayerInventoryForUI() {
         console.error('[CNR_INVENTORY] Error requesting inventory:', error);
         showToast('Error loading inventory', 'error', 3000);
     }
+}
+
+// Create inventory UI elements if they don't exist
+function createInventoryUI() {
+    // Check if inventory menu already exists
+    const existingInventory = document.getElementById('inventory-menu');
+    if (existingInventory) {
+        console.log('[CNR_INVENTORY] Inventory UI already exists, setting up event listeners');
+        
+        // Add close button event listener if not already added
+        const closeBtn = document.getElementById('inventory-close-btn');
+        if (closeBtn && !closeBtn.hasEventListener) {
+            closeBtn.addEventListener('click', closeInventoryUI);
+            closeBtn.hasEventListener = true;
+        }
+        
+        return;
+    }
+    
+    console.log('[CNR_INVENTORY] Creating inventory UI');
+    
+    // Create the main inventory container
+    const inventoryMenu = document.createElement('div');
+    inventoryMenu.id = 'inventory-menu';
+    inventoryMenu.className = 'inventory-container';
+    inventoryMenu.style.display = 'none';
+    
+    inventoryMenu.innerHTML = `
+        <div class="inventory-panel">
+            <div class="inventory-header">
+                <h2>Inventory</h2>
+                <button id="inventory-close-btn" class="close-btn">×</button>
+            </div>
+            <div class="inventory-content">
+                <div class="inventory-player-info">
+                    <div class="player-stats">
+                        <span id="inventory-player-cash-amount">$0</span>
+                        <span id="inventory-player-level-text">Level 1</span>
+                    </div>
+                </div>
+                <div class="inventory-categories">
+                    <div id="inventory-category-list" class="category-buttons">
+                        <button class="category-btn active" data-category="all">All</button>
+                    </div>
+                </div>
+                <div class="inventory-grid" id="inventory-grid">
+                    <!-- Inventory items will be populated here -->
+                </div>
+                <div class="equipped-items" id="equipped-items">
+                    <h3>Equipped Items</h3>
+                    <div id="equipped-items-container">
+                        <!-- Equipped items will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(inventoryMenu);
+    
+    // Add close button event listener
+    const closeBtn = document.getElementById('inventory-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeInventoryUI);
+        closeBtn.hasEventListener = true;
+    }
+}
+
+// Update inventory UI with new inventory data
+function updateInventoryUI(inventory) {
+    console.log('[CNR_INVENTORY] Updating inventory UI', inventory);
+    
+    currentInventoryData = inventory || {};
+    
+    // Update player info
+    updateInventoryPlayerInfo();
+    
+    // Render inventory grid
+    renderInventoryGrid();
+}
+
+// Update equipped items UI
+function updateEquippedItemsUI(equippedItems) {
+    console.log('[CNR_INVENTORY] Updating equipped items UI', equippedItems);
+    
+    currentEquippedItems = equippedItems || {};
+    
+    // Render equipped items
+    renderEquippedItems();
 }
 
 // Render category filter buttons
@@ -1389,28 +1713,6 @@ function createInventoryItemElement(itemId, itemData) {
     item.addEventListener('click', () => selectInventoryItem(itemId, itemData, item));
     
     return item;
-}
-
-// Get item icon based on category or specific item
-function getItemIcon(itemData) {
-    // Check if item has specific icon
-    if (itemData.icon) {
-        return itemData.icon;
-    }
-    
-    // Category-based icons
-    const categoryIcons = {
-        'Weapons': '🔫',
-        'Melee Weapons': '⚔️',
-        'Ammunition': '📦',
-        'Armor': '🛡️',
-        'Utility': '🔧',
-        'Explosives': '💣',
-        'Accessories': '🎭',
-        'Cop Gear': '👮'
-    };
-    
-    return categoryIcons[itemData.category] || '📦';
 }
 
 // Select inventory item
@@ -1661,36 +1963,264 @@ function renderEquippedItems() {
 function handleInventoryMessage(data) {
     switch (data.action) {
         case 'openInventory':
-            showInventoryMenu();
+            openInventoryUI(data);
             break;
         case 'closeInventory':
-            closeInventoryMenu();
+            closeInventoryUI();
             break;
         case 'updateInventory':
-            if (data.inventory) {
-                playerInventoryData = data.inventory;
-                renderInventoryGrid();
-                renderEquippedItems();
-                renderCategoryFilter();
-                updateInventoryPlayerInfo();
-            }
+            updateInventoryUI(data.inventory);
             break;
         case 'updateEquippedItems':
-            if (data.equippedItems) {
-                equippedItems = new Set(data.equippedItems);
-                renderInventoryGrid();
-                renderEquippedItems();
-            }
+            updateEquippedItemsUI(data.equippedItems);
             break;
     }
 }
 
-// Initialize inventory system when document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    initInventorySystem();
-});
+function openInventoryUI(data) {
+    if (isInventoryOpen) return;
+    
+    isInventoryOpen = true;
+    console.log('[CNR_INVENTORY] Opening inventory UI');
+    
+    // Set up inventory UI (this will handle both existing and new UI creation)
+    createInventoryUI();
+    
+    // Show the inventory
+    const inventoryContainer = document.getElementById('inventory-menu');
+    if (inventoryContainer) {
+        inventoryContainer.style.display = 'block';
+        inventoryContainer.classList.remove('hidden');
+        document.body.classList.add('inventory-open');
+        
+        // Set NUI focus
+        fetchSetNuiFocus(true, true);
+    }
+    
+    // Request initial inventory data
+    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/getPlayerInventoryForUI`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            updateInventoryUI(result.inventory);
+            updateEquippedItemsUI(result.equippedItems);
+        }
+    }).catch(error => {
+        console.error('[CNR_INVENTORY] Failed to load inventory:', error);
+    });
+}
 
-// Export functions for global access
-window.showInventoryMenu = showInventoryMenu;
-window.closeInventoryMenu = closeInventoryMenu;
-window.handleInventoryMessage = handleInventoryMessage;
+// ==============================================
+// Robber Menu Functions
+// ==============================================
+let isRobberMenuOpen = false;
+
+function showRobberMenu() {
+    console.log('[CNR_ROBBER_MENU] Opening robber menu');
+    
+    // Display the menu
+    const robberMenu = document.getElementById('robber-menu');
+    if (robberMenu) {
+        robberMenu.classList.remove('hidden');
+        document.body.classList.add('menu-open');
+        isRobberMenuOpen = true;
+        
+        // Set up event listeners if they don't exist yet
+        setupRobberMenuListeners();
+    } else {
+        console.error('[CNR_ROBBER_MENU] Could not find robber-menu element in the DOM');
+    }
+}
+
+function hideRobberMenu() {
+    console.log('[CNR_ROBBER_MENU] Closing robber menu');
+    
+    const robberMenu = document.getElementById('robber-menu');
+    if (robberMenu) {
+        robberMenu.classList.add('hidden');
+        document.body.classList.remove('menu-open');
+        isRobberMenuOpen = false;
+    }
+    
+    // Reset NUI focus
+    fetchSetNuiFocus(false, false);
+}
+
+function setupRobberMenuListeners() {
+    // Close button
+    const closeBtn = document.getElementById('robber-menu-close-btn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            hideRobberMenu();
+        });
+    }
+    
+    // Start heist button
+    const startHeistBtn = document.getElementById('start-heist-btn');
+    if (startHeistBtn) {
+        startHeistBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Start heist button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/startHeist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error triggering heist:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // View bounties button
+    const viewBountiesBtn = document.getElementById('view-bounties-btn');
+    if (viewBountiesBtn) {
+        viewBountiesBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] View bounties button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/viewBounties`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error viewing bounties:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // Find hideout button
+    const findHideoutBtn = document.getElementById('find-hideout-btn');
+    if (findHideoutBtn) {
+        findHideoutBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Find hideout button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/findHideout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            }).catch(error => console.error('[CNR_ROBBER_MENU] Error finding hideout:', error));
+            hideRobberMenu();
+        });
+    }
+    
+    // Buy contraband button
+    const buyContrabandBtn = document.getElementById('buy-contraband-btn');
+    if (buyContrabandBtn) {
+        buyContrabandBtn.addEventListener('click', function() {
+            console.log('[CNR_ROBBER_MENU] Buy contraband button clicked');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/buyContraband`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})            }).catch(error => console.error('[CNR_ROBBER_MENU] Error buying contraband:', error));
+            hideRobberMenu();
+        });
+    }
+}
+
+// ====================================================================
+// Bounty List Functionality
+// ====================================================================
+
+/**
+ * Shows the bounty list UI with provided bounty data
+ * @param {Array} bounties - Array of bounty objects with player info
+ */
+function showBountyList(bounties) {
+    console.log('[CNR_UI] Showing bounty list with', bounties.length, 'bounties');
+    
+    const container = document.getElementById('bounty-list-container');
+    const list = document.getElementById('bounty-list');
+    
+    // Clear existing items
+    list.innerHTML = '';
+    
+    if (bounties.length === 0) {
+        list.innerHTML = '<div class="bounty-item"><div class="bounty-info"><span class="bounty-name">No wanted criminals at this time</span></div></div>';
+    } else {
+        // Sort bounties by wanted level/reward (highest first)
+        bounties.sort((a, b) => (b.wantedLevel || 0) - (a.wantedLevel || 0));
+        
+        bounties.forEach(bounty => {
+            const bountyItem = document.createElement('div');
+            bountyItem.className = 'bounty-item';
+            
+            // Calculate reward based on wanted level (if not provided)
+            const reward = bounty.reward || (bounty.wantedLevel * 500);
+            
+            // Create wanted level display (stars based on level)
+            const starsHTML = '⭐'.repeat(Math.min(bounty.wantedLevel || 0, 5));
+            
+            bountyItem.innerHTML = `
+                <div class="bounty-info">
+                    <span class="bounty-name">${bounty.name || 'Unknown Criminal'}</span>
+                    <span class="bounty-wanted-level">${starsHTML} Wanted Level: ${bounty.wantedLevel || 0}</span>
+                </div>
+                <div class="bounty-reward">$${reward.toLocaleString()}</div>
+            `;
+            
+            list.appendChild(bountyItem);
+        });
+    }
+    
+    // Show the container
+    container.classList.remove('hidden');
+    
+    // Set up close button
+    const closeBtn = document.getElementById('close-bounty-list-btn');
+    if (closeBtn) {
+        closeBtn.onclick = hideBountyList;
+    }
+    
+    // Set NUI focus
+    fetchSetNuiFocus(true, true);
+}
+
+/**
+ * Hides the bounty list UI
+ */
+function hideBountyList() {
+    console.log('[CNR_UI] Hiding bounty list');
+    const container = document.getElementById('bounty-list-container');
+    container.classList.add('hidden');
+    
+    // Release NUI focus
+    fetchSetNuiFocus(false, false);
+}
+
+// ====================================================================
+// Speedometer Functionality
+// ====================================================================
+
+/**
+ * Updates the speedometer display with the current speed
+ * @param {number} speed - Current speed in MPH
+ */
+function updateSpeedometer(speed) {
+    const speedValueEl = document.getElementById('speed-value');
+    if (speedValueEl) {
+        speedValueEl.textContent = Math.round(speed);
+    }
+}
+
+/**
+ * Shows or hides the speedometer based on whether player is in an appropriate vehicle
+ * @param {boolean} show - Whether to show the speedometer
+ */
+function toggleSpeedometer(show) {
+    const speedometerEl = document.getElementById('speedometer');
+    if (speedometerEl) {
+        if (show) {
+            speedometerEl.classList.remove('hidden');
+        } else {
+            speedometerEl.classList.add('hidden');
+        }
+    }
+}
+
+// Initialize speedometer update when the script loads
+document.addEventListener('DOMContentLoaded', function() {
+    // We'll receive speed updates from client.lua, no need to poll here
+    
+    // Set up the close button for bounty list if it exists
+    const closeBountyBtn = document.getElementById('close-bounty-list-btn');
+    if (closeBountyBtn) {
+        closeBountyBtn.addEventListener('click', hideBountyList);
+    }
+});

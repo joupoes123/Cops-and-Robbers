@@ -1,9 +1,6 @@
 /* style.css - Cops & Robbers FiveM Game Mode UI Styles */
 /* Updated: 2025-02-11 */
 
-/* style.css - Cops & Robbers FiveM Game Mode UI Styles */
-/* Updated: 2025-02-11 */
-
 /* ==========================================================================
    Global Styles & Animations
    ========================================================================== */
@@ -100,6 +97,133 @@ button:hover {
     color: #ffffff; /* New Text Color */
     margin-top: 0; /* Added for consistency */
     margin-bottom: 25px; /* Increased margin for h1 */
+}
+
+/* Speedometer Styles */
+.speedometer {
+    position: fixed;
+    top: 60px; /* Position above the minimap */
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+    z-index: 10;
+    min-width: 80px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#speed-value {
+    font-size: 24px;
+    margin-right: 5px;
+}
+
+#speed-unit {
+    font-size: 16px;
+    opacity: 0.8;
+}
+
+/* Bounty List Styles */
+.bounty-list-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #16213e;
+    padding: 20px;
+    border-radius: 12px;
+    width: 400px;
+    max-height: 600px;
+    border: 1px solid #0f3460;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    animation: fadeInMenu 0.3s ease-out forwards;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.bounty-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bounty-list-header h2 {
+    margin: 0;
+    color: #e94560;
+    font-size: 24px;
+}
+
+.bounty-list {
+    overflow-y: auto;
+    max-height: 500px;
+}
+
+.bounty-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(15, 52, 96, 0.6);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.bounty-item:hover {
+    background: rgba(15, 52, 96, 0.8);
+    transform: translateY(-2px);
+}
+
+.bounty-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.bounty-name {
+    font-weight: bold;
+    font-size: 18px;
+    color: #ffffff;
+}
+
+.bounty-wanted-level {
+    font-size: 14px;
+    color: #e94560;
+    margin-top: 4px;
+}
+
+.bounty-reward {
+    font-weight: bold;
+    color: #4ecca3;
+    font-size: 20px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close-btn:hover {
+    opacity: 1;
+    transform: none;
+    box-shadow: none;
+}
+
+.hidden {
+    display: none !important;
 }
 
 .menu button {
@@ -676,7 +800,7 @@ button:hover {
    ========================================================================== */
 #xp-level-container {
     position: fixed;
-    bottom: 20px;
+    bottom: 80px; /* Moved higher to avoid clipping */
     left: 50%;
     transform: translateX(-50%);
     display: none; /* Hidden by default */
@@ -691,7 +815,9 @@ button:hover {
     border: 1px solid #0f3460; /* New Accent Color 2 for border */
     opacity: 0;
     transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
-    position: relative; /* For XP gain indicator positioning */
+    /* Ensure it doesn't go off-screen */
+    max-width: calc(100vw - 40px);
+    min-width: 300px;
 }
 
 #xp-level-container.show {
@@ -919,8 +1045,7 @@ button:hover {
 .item-icon-container {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center;    justify-content: center;
     position: relative;
     margin-bottom: 8px;
 }
@@ -938,7 +1063,19 @@ button:hover {
     transition: all 0.3s ease;
 }
 
-.inventory-slot:hover .item-icon {
+.item-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    padding: 4px;
+}
+
+.inventory-slot:hover .item-icon,
+.inventory-slot:hover .item-image {
     background: rgba(233, 69, 96, 0.2);
     border-color: rgba(233, 69, 96, 0.5);
     transform: scale(1.05);
@@ -1016,9 +1153,12 @@ button:hover {
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: all 0.3s ease;    border-radius: 12px;
+    transition: all 0.3s ease;
+    border-radius: 12px;
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
+    padding: 8px; /* Add padding to prevent content from touching edges */
+    box-sizing: border-box; /* Include padding in size calculations */
 }
 
 .inventory-slot:hover .action-overlay {
@@ -1039,6 +1179,7 @@ button:hover {
     background: rgba(255, 255, 255, 0.9);
     color: #333333;
     font-weight: bold;
+    flex-shrink: 0; /* Prevent input from shrinking */
 }
 
 .action-overlay .action-btn {
@@ -1051,6 +1192,10 @@ button:hover {
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
+    flex-shrink: 0; /* Prevent button from shrinking */
+    width: auto; /* Let button size naturally */
+    min-width: 50px; /* Minimum width for readability */
+    max-width: 80px; /* Prevent button from getting too wide */
 }
 
 .action-overlay .action-btn:hover {
@@ -1667,50 +1812,87 @@ body::before {
     opacity: 0.5;
 }
 
-/* Responsive Design for Inventory */
-@media (max-width: 1024px) {
-    #inventory-menu {
-        width: 95vw;
-        height: 85vh;
-    }
-    
-    #player-inventory-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    }
-    
-    #inventory-grid-section {
-        flex-direction: column;
-    }
-    
-    .equipment-panel {
-        max-height: 200px;
-    }
+/* =========================================================================
+   Robber Menu Styles
+   ========================================================================== */
+
+#robber-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    background-color: rgba(20, 20, 20, 0.9);
+    border: 2px solid #bf1e2d; /* Robber red */
+    border-radius: 10px;
+    color: white;
+    padding: 20px;
+    z-index: 1000;
+    animation: fadeInMenu 0.3s ease-out;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
 }
 
-@media (max-width: 768px) {
-    #inventory-menu {
-        width: 98vw;
-        height: 90vh;
-    }
-    
-    .inventory-header {
-        padding: 15px 20px;
-    }
-    
-    .inventory-header h1 {
-        font-size: 20px;
-    }
-    
-    #player-inventory-grid {
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    }
-    
-    .inventory-item {
-        min-height: 100px;
-        padding: 8px;
-    }
-    
-    .item-icon {
-        font-size: 24px;
-    }
+#robber-menu.hidden {
+    display: none;
+}
+
+#robber-menu .menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #bf1e2d;
+    padding-bottom: 10px;
+}
+
+#robber-menu h1 {
+    margin: 0;
+    font-size: 24px;
+    text-transform: uppercase;
+    color: #bf1e2d;
+    text-shadow: 0 0 5px rgba(191, 30, 45, 0.5);
+}
+
+#robber-menu .close-btn {
+    background: none;
+    border: none;
+    color: #bf1e2d;
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+#robber-menu .close-btn:hover {
+    color: #ff3040;
+}
+
+#robber-menu .menu-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#robber-menu .menu-btn {
+    background-color: rgba(40, 40, 40, 0.8);
+    border: 1px solid #bf1e2d;
+    border-radius: 5px;
+    color: white;
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+#robber-menu .menu-btn:hover {
+    background-color: rgba(60, 60, 60, 0.8);
+    border-color: #ff3040;
+    transform: translateX(5px);
+}
+
+#robber-menu .menu-btn .icon {
+    font-size: 20px;
+    margin-right: 10px;
 }
