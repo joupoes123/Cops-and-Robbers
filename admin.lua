@@ -91,7 +91,9 @@ RegisterCommand("ban", function(source, args, rawCommand)
 
     if not reason or reason == "" then
         reason = "No reason provided."
-    end    if targetId and IsValidPlayer(targetId) then
+    end
+    
+    if targetId and IsValidPlayer(targetId) then
         TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand) -- Log before action
         -- Trigger server event to handle the ban
         TriggerServerEvent('cops_and_robbers:banPlayer', targetId, reason)
@@ -182,7 +184,9 @@ RegisterCommand("reassign", function(source, args, rawCommand)
     if not IsAdmin(source) then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
         return
-    end    local targetIdStr = args[1]
+    end
+    
+    local targetIdStr = args[1]
     local targetId = tonumber(targetIdStr)
     local newRole = args[2]   -- Should be "cop" or "robber"
 
@@ -254,7 +258,9 @@ RegisterCommand("triggerbankheist", function(source, args, rawCommand)
     if not bankId then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerbankheist <bankId>" } })
         return
-    end    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    end
+    
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
     TriggerServerEvent('cops_and_robbers:adminTriggerBankHeist', bankId)
     TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Bank heist event triggered for bank ID: " .. bankId } })
 end, false)
@@ -269,7 +275,9 @@ RegisterCommand("triggerstorerobbery", function(source, args, rawCommand)
     if not storeId then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerstorerobbery <storeId>" } })
         return
-    end    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    end
+    
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
     TriggerServerEvent('cops_and_robbers:adminTriggerStoreRobbery', storeId)
     TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Store robbery event triggered for store ID: " .. storeId } })
 end, false)
@@ -284,7 +292,9 @@ RegisterCommand("triggerpoweroutage", function(source, args, rawCommand)
     if not gridId then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerpoweroutage <gridId>" } })
         return
-    end    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    end
+    
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
     TriggerServerEvent('cops_and_robbers:adminTriggerPowerOutage', gridId)
     TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Power outage event triggered for grid ID: " .. gridId } })
 end, false)
@@ -307,10 +317,14 @@ RegisterCommand("setlevel", function(source, args, rawCommand)
     if not IsValidPlayer(targetId) then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID." } })
         return
-    end    if newLevel < 1 or newLevel > 100 then
+    end
+    
+    if newLevel < 1 or newLevel > 100 then
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Level must be between 1 and 100." } })
         return
-    end    TriggerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+    end
+    
+    TriggerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
     TriggerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
 
     TriggerClientEvent('chat:addMessage', source, {

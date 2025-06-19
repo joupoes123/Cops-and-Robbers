@@ -1391,7 +1391,8 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     if Config.Items and type(Config.Items) == 'table' then
         for _, itemIdFromVendor in ipairs(vendorItemIds) do
             local foundItem = nil
-            for _, configItem in ipairs(Config.Items) do                if configItem.itemId == itemIdFromVendor then
+            for _, configItem in ipairs(Config.Items) do
+                if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
                     foundItem = {
                         itemId = configItem.itemId,
@@ -1815,7 +1816,9 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
             itemConfig = cfgItem
             break
         end
-    end    if not itemConfig or not itemConfig.sellPrice then
+    end
+    
+    if not itemConfig or not itemConfig.sellPrice then
         -- Send failure response to NUI
         TriggerClientEvent('cnr:sendNUIMessage', src, {
             action = 'sellResult',
