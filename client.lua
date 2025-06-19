@@ -30,6 +30,7 @@ RegisterNetEvent('cnr:startHeistTimer')
 RegisterNetEvent('cnr:heistCompleted')
 RegisterNetEvent('cops_and_robbers:sendItemList')
 RegisterNetEvent('cnr:openContrabandStoreUI')
+RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
 
 -- =====================================
 --           VARIABLES
@@ -1322,6 +1323,51 @@ RegisterNUICallback('buyContraband', function(data, cb)
     cb({success = true})
 end)
 
+-- Register NUI callback for buying items
+RegisterNUICallback('buyItem', function(data, cb)
+    Log("buyItem NUI callback received for itemId: " .. tostring(data.itemId) .. " quantity: " .. tostring(data.quantity), "info")
+    
+    if not data.itemId or not data.quantity then
+        Log("buyItem NUI callback missing required data", "error")
+        cb({success = false, message = "Missing required data"})
+        return
+    end
+    
+    -- Trigger server event to buy the item
+    TriggerServerEvent('cops_and_robbers:buyItem', data.itemId, data.quantity)
+    
+    -- Send success response
+    cb({success = true})
+end)
+
+-- Register NUI callback for selling items
+RegisterNUICallback('sellItem', function(data, cb)
+    Log("sellItem NUI callback received for itemId: " .. tostring(data.itemId) .. " quantity: " .. tostring(data.quantity), "info")
+    
+    if not data.itemId or not data.quantity then
+        Log("sellItem NUI callback missing required data", "error")
+        cb({success = false, message = "Missing required data"})
+        return
+    end
+    
+    -- Trigger server event to sell the item
+    TriggerServerEvent('cops_and_robbers:sellItem', data.itemId, data.quantity)
+    
+    -- Send success response
+    cb({success = true})
+end)
+
+-- Register NUI callback for getting player inventory
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    Log("getPlayerInventory NUI callback received", "info")
+    
+    -- Trigger server event to get player inventory
+    TriggerServerEvent('cops_and_robbers:getPlayerInventory')
+    
+    -- Send success response (the actual inventory will be sent via a separate event)
+    cb({success = true})
+end)
+
 -- =====================================
 --           EVENT HANDLERS
 -- =====================================
@@ -1517,19 +1563,19 @@ function OpenStoreMenu(storeType, storeItems, storeName)
     elseif storeType == "robber" then
         isRobberStoreUiOpen = true
     end
-    
-    -- Ensure fullItemConfig is available to NUI before opening store
+      -- Ensure fullItemConfig is available to NUI before opening store
     TriggerEvent('cnr:ensureConfigItems')
-      -- Send message to NUI to open store
+    
+    -- Send message to NUI to open store with current player data
     SendNUIMessage({
         action = "openStore",
         storeType = storeType,
         items = storeItems,
         storeName = storeName,
-        playerCash = playerCash,
-        playerLevel = playerData.level,
-        cash = playerCash,  -- Add for backward compatibility
-        level = playerData.level  -- Add for backward compatibility
+        playerCash = playerData.money or playerCash or 0,  -- Use server data first, then client fallback
+        playerLevel = playerData.level or 1,
+        cash = playerData.money or playerCash or 0,  -- Add for backward compatibility
+        level = playerData.level or 1  -- Add for backward compatibility
     })
     
     -- Enable NUI focus
@@ -1563,6 +1609,18 @@ AddEventHandler('cops_and_robbers:sendItemList', function(storeName, itemList, p
         return
     end
     
+    -- Update local player data if server provides it
+    if playerInfo then
+        if playerInfo.cash and playerInfo.cash ~= playerCash then
+            playerCash = playerInfo.cash
+            Log("Updated playerCash from server: " .. tostring(playerCash), "info")
+        end
+        if playerInfo.level and playerData.level ~= playerInfo.level then
+            playerData.level = playerInfo.level
+            Log("Updated playerData.level from server: " .. tostring(playerData.level), "info")
+        end
+    end
+    
     -- Send the complete item data to NUI
     SendNUIMessage({
         action = "updateStoreData",
@@ -1588,6 +1646,12 @@ AddEventHandler('cnr:openContrabandStoreUI', function(contrabandItems)
     
     -- Trigger server event to get detailed item information
     TriggerServerEvent('cops_and_robbers:getItemList', "contraband", contrabandItems, "Contraband Dealer")
+end)
+
+-- Register event to send NUI messages from server
+RegisterNetEvent('cnr:sendNUIMessage')
+AddEventHandler('cnr:sendNUIMessage', function(message)
+    SendNUIMessage(message)
 end)
 
 -- Thread to check for nearby stores
@@ -1738,6 +1802,7 @@ Citizen.CreateThread(function()
             
             if IsPedInAnyVehicle(player, false) then
                 local vehicle = GetVehiclePedIsIn(player, false)
+               
                 local vehicleClass = GetVehicleClass(vehicle)
                 
                 -- Only show speedometer for allowed vehicle types
@@ -1802,6 +1867,16 @@ end)
 
 local hideoutBlips = {}
 local isHideoutVisible = false
+
+-- Function to get player's current role from server
+function GetCurrentPlayerRole(callback)
+    TriggerServerEvent('cnr:getPlayerRole')
+    
+    RegisterNetEvent('cnr:returnPlayerRole')
+    AddEventHandler('cnr:returnPlayerRole', function(role)
+        callback(role)
+    end)
+end
 
 -- Create a blip for the nearest robber hideout
 function FindNearestHideout()

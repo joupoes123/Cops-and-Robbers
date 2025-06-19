@@ -90,6 +90,28 @@ window.addEventListener('message', function(event) {
                 console.warn('[CNR_NUI] updateStoreData called with no items or empty items array');
             }
             break;
+        case 'buyResult':
+            if (data.success) {
+                showToast(data.message || 'Purchase successful!', 'success');
+                // Refresh the sell tab in case new items were added to inventory
+                if (window.currentTab === 'sell') {
+                    loadSellItems();
+                }
+            } else {
+                showToast(data.message || 'Purchase failed!', 'error');
+            }
+            break;
+        case 'sellResult':
+            if (data.success) {
+                showToast(data.message || 'Sale successful!', 'success');
+                // Refresh the sell tab to update inventory
+                if (window.currentTab === 'sell') {
+                    loadSellItems();
+                }
+            } else {
+                showToast(data.message || 'Sale failed!', 'error');
+            }
+            break;
         case 'closeStore':
             closeStoreMenu();
             break;

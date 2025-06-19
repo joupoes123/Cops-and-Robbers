@@ -1429,7 +1429,18 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         level = pData and pData.level or 1,
         role = pData and pData.role or "citizen",
         cash = pData and (pData.cash or pData.money) or 0
-    }    -- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
+    }
+    
+    -- Debug: Print player info being sent to client
+    print('[CNR_SERVER_DEBUG] Player info being sent to client:')
+    print(json.encode(playerInfo, {indent = true}))
+    print('[CNR_SERVER_DEBUG] Raw pData for debugging:')
+    if pData then
+        print(string.format("  level: %s, role: %s, cash: %s, money: %s", 
+            tostring(pData.level), tostring(pData.role), tostring(pData.cash), tostring(pData.money)))
+    else
+        print("  pData is nil!")
+    end-- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
     
     -- Debug: Print the first item structure to see what's being sent
     if #fullItemDetailsList > 0 then
@@ -1755,20 +1766,34 @@ AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     -- Add to purchase history for dynamic pricing
     local currentTime = os.time()
     if not purchaseHistory[itemId] then purchaseHistory[itemId] = {} end
-    table.insert(purchaseHistory[itemId], currentTime)
-
-    -- Add item to inventory
+    table.insert(purchaseHistory[itemId], currentTime)    -- Add item to inventory
     local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
     if success then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, true)
+        -- Send success response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'buyResult',
+            success = true,
+            message = string.format("Successfully purchased %d x %s for $%d", quantity, itemConfig.name, totalCost)
+        })
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
+
+        -- Update player cash in NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'updateMoney',
+            cash = pData.money
+        })
 
         -- IMMEDIATE SAVE after purchase
         SavePlayerDataImmediate(src, "purchase")
     else
         AddPlayerMoney(src, totalCost)
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'buyResult',
+            success = false,
+            message = string.format("Purchase failed: %s", msg or "Unknown error")
+        })
         Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
     end
 end)
@@ -1790,10 +1815,13 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
             itemConfig = cfgItem
             break
         end
-    end
-
-    if not itemConfig or not itemConfig.sellPrice then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
+    end    if not itemConfig or not itemConfig.sellPrice then
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = false,
+            message = "Item cannot be sold"
+        })
         return
     end
 
@@ -1801,14 +1829,32 @@ AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     if success then
         local totalEarned = itemConfig.sellPrice * quantity
         AddPlayerMoney(src, totalEarned)
-        TriggerClientEvent('cops_and_robbers:sellResult', src, true) -- No message
+        
+        -- Send success response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = true,
+            message = string.format("Successfully sold %d x %s for $%d", quantity, itemConfig.name, totalEarned)
+        })
         TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
         Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalEarned))
+
+        -- Update player cash in NUI
+        local updatedPData = GetCnrPlayerData(src)
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'updateMoney',
+            cash = updatedPData.money
+        })
 
         -- IMMEDIATE SAVE after sale
         SavePlayerDataImmediate(src, "sale")
     else
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
+        -- Send failure response to NUI
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = false,
+            message = string.format("Sale failed: %s", msg or "Unknown error")
+        })
         Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
     end
 end)
