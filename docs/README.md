@@ -795,7 +795,7 @@ This documentation reflects the current state of the codebase as of June 2025, i
 
 ## Version History & Changelog
 
-### Version 2.1.0 (June 2025) - "Store System Overhaul"
+### Version 1.2.0 (June 2025) - "Store System Overhaul"
 
 #### 🔧 **Major Bug Fixes**
 - **CRITICAL**: Fixed `SyntaxError: Unexpected end of JSON input` in store Buy/Sell operations
@@ -831,7 +831,7 @@ This documentation reflects the current state of the codebase as of June 2025, i
 - Standalone resource conversion
 - Modern UI implementation
 
-### Planned Updates (Version 2.2.0)
+### Planned Updates (Version 1.2.1)
 - Advanced heist mechanics
 - Enhanced role progression system
 - Improved anti-cheat measures
