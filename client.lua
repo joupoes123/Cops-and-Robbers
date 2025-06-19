@@ -719,7 +719,9 @@ function UpdateRobberStoreBlips()
     if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
         print("[CNR_CLIENT_ERROR] UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
-    end    for i, vendor in ipairs(Config.NPCVendors) do
+    end
+    
+    for i, vendor in ipairs(Config.NPCVendors) do
         if not vendor then
             print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Nil vendor entry at index %d.", i))
             goto continue_robber_blips_loop
