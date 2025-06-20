@@ -1534,26 +1534,30 @@ AddEventHandler('cnr:initiateHeist', function(heistType)
       -- Alert all cops about the heist
     for _, targetPlayerId in ipairs(GetPlayers()) do
         local targetId = tonumber(targetPlayerId)
-        local targetData = GetCnrPlayerData(targetId)
         
-        if targetData and targetData.role == 'cop' then
-            local playerPed = GetPlayerPed(playerId)
-            if playerPed and playerPed > 0 then
-                local playerCoords = GetEntityCoords(playerPed)
-                if playerCoords then
-                    local coordsTable = {
-                        x = playerCoords.x,
-                        y = playerCoords.y,
-                        z = playerCoords.z
-                    }
-                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+        -- Check if targetId is valid before proceeding
+        if targetId and targetId > 0 then
+            local targetData = GetCnrPlayerData(targetId)
+            
+            if targetData and targetData.role == 'cop' then
+                local playerPed = GetPlayerPed(playerId)
+                if playerPed and playerPed > 0 then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    if playerCoords then
+                        local coordsTable = {
+                            x = playerCoords.x,
+                            y = playerCoords.y,
+                            z = playerCoords.z
+                        }
+                        TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+                    else
+                        local defaultCoords = {x = 0, y = 0, z = 0}
+                        TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+                    end
                 else
                     local defaultCoords = {x = 0, y = 0, z = 0}
                     TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
                 end
-            else
-                local defaultCoords = {x = 0, y = 0, z = 0}
-                TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
             end
         end
     end
