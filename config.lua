@@ -28,6 +28,60 @@ Config.SpawnPoints = {
 -- Jail Location (players are sent here when jailed)
 Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5) -- Bolingbroke Penitentiary (example)
 
+-- =========================
+--        Jail System
+-- =========================
+Config.JailSystem = {
+    -- Jail area restriction radius (meters)
+    restrictionRadius = 200.0,
+    
+    -- Jail break locations (where players can attempt to break out)
+    breakoutLocations = {
+        vector3(1661.0, 2574.0, 45.5), -- Near main entrance
+        vector3(1651.0, 2565.0, 45.5), -- Side entrance
+        vector3(1645.0, 2580.0, 45.5)  -- Back entrance
+    },
+    
+    -- Jail break settings
+    breakoutSettings = {
+        enabled = true,
+        minTimeToBreakout = 60, -- Minimum seconds before breakout is possible
+        breakoutTime = 10,      -- Time in seconds to complete breakout
+        successChance = 0.7,    -- 70% chance of success
+        alertPolice = true,     -- Alert police when breakout is attempted
+        wantedLevelOnBreakout = 3, -- Wanted level given on successful breakout
+    },
+    
+    -- Jail sentences based on wanted level
+    sentenceTimes = {
+        [1] = 120, -- 2 minutes for 1 star
+        [2] = 180, -- 3 minutes for 2 stars
+        [3] = 240, -- 4 minutes for 3 stars
+        [4] = 300, -- 5 minutes for 4 stars
+        [5] = 360  -- 6 minutes for 5 stars
+    },
+    
+    -- Default sentence time if no wanted level
+    defaultSentenceTime = 60,
+    
+    -- Jail visual effects
+    visualEffects = {
+        enableScreenEffect = true,
+        screenEffectName = "REDMIST_BLEND",
+        screenEffectIntensity = 0.3,
+        enableCameraShake = false
+    },
+    
+    -- Jail restrictions
+    restrictions = {
+        disableWeapons = true,
+        disableVehicles = true,
+        disablePhoneAccess = false,
+        disableInventoryAccess = true,
+        preventRoleChange = true
+    }
+}
+
 
 -- =========================
 --       Bank Vaults
@@ -328,61 +382,8 @@ Config.Items = {
 
     -- Ammunition (ammo_X corresponds to weapon type, not specific weapon model)
     { name = "Pistol Ammo",       itemId = "ammo_pistol",           basePrice = 50,   category = "Ammunition", weaponLink = "weapon_pistol", ammoAmount = 12, icon = "📦" },
-    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition", weaponLink = "weapon_smg", ammoAmount = 30, icon = "📦" },
-    { name = "Rifle Ammo",        itemId = "ammo_rifle",            basePrice = 100,  category = "Ammunition", weaponLink = "weapon_carbinerifle", ammoAmount = 30, icon = "📦" },
-    { name = "Shotgun Ammo",      itemId = "ammo_shotgun",          basePrice = 60,   category = "Ammunition", weaponLink = "weapon_pumpshotgun", ammoAmount = 8, icon = "📦" },
-    { name = "Sniper Ammo",       itemId = "ammo_sniper",           basePrice = 200,  category = "Ammunition", weaponLink = "weapon_sniperrifle", ammoAmount = 5, icon = "📦" },
-
-    -- NEW AMMUNITION TYPES
-    { name = "Explosive Ammo",    itemId = "ammo_explosive",        basePrice = 500,  category = "Ammunition", weaponLink = "weapon_rpg", ammoAmount = 3, icon = "💥" },
-    { name = "Minigun Ammo",      itemId = "ammo_minigun",          basePrice = 300,  category = "Ammunition", weaponLink = "weapon_minigun", ammoAmount = 100, icon = "📦" },
-
-    -- Armor and Utility
-    { name = "Body Armor",           itemId = "armor",                   basePrice = 500,  category = "Armor", icon = "🛡️" },
-    { name = "Heavy Armor",          itemId = "heavy_armor",             basePrice = 1000, category = "Armor", minLevelCop = 6, minLevelRobber = 8, icon = "🛡️" },
-    { name = "Fire Extinguisher",    itemId = "weapon_fireextinguisher", basePrice = 300,  category = "Utility", minLevelCop = 1, forCop = true, icon = "🧯" },
-    { name = "Flare",                itemId = "weapon_flare",            basePrice = 25,   category = "Utility", minLevelCop = 2, forCop = true, icon = "🎇" },
-    { name = "Tear Gas",             itemId = "weapon_smokegrenade",     basePrice = 500,  category = "Utility", minLevelCop = 3, forCop = true, icon = "💨" },
-    { name = "BZ Gas",               itemId = "weapon_bzgas",            basePrice = 800,  category = "Utility", minLevelCop = 15, forCop = true, icon = "☁️" },
-    { name = "Medkit",               itemId = "medkit",                  basePrice = 250,  category = "Utility", icon = "🩹" },
-    { name = "First Aid Kit",        itemId = "firstaidkit",             basePrice = 100,  category = "Utility", icon = "❤️" },
-    { name = "Lockpick",             itemId = "lockpick",                basePrice = 150,  category = "Utility", minLevelRobber = 1, icon = "🗝️" },
-    { name = "Advanced Lockpick",    itemId = "adv_lockpick",            basePrice = 300,  category = "Utility", minLevelRobber = 4, icon = "🔐" },
-    { name = "Hacking Device",       itemId = "hacking_device",          basePrice = 800,  category = "Utility", minLevelRobber = 6, icon = "💻" },
-    { name = "Parachute",            itemId = "gadget_parachute",        basePrice = 300,  category = "Utility", icon = "🪂" },
-    { name = "Drill",                itemId = "drill",                   basePrice = 500,  category = "Utility", minLevelRobber = 3, icon = "🔧" },
-    { name = "Thermite",             itemId = "thermite",                basePrice = 1500, category = "Utility", minLevelRobber = 8, icon = "🧨" },
-    { name = "C4 Explosive",         itemId = "c4",                      basePrice = 2000, category = "Utility", minLevelRobber = 12, icon = "💣" },    { name = "Sticky Bomb",          itemId = "weapon_stickybomb",       basePrice = 2500, category = "Utility", minLevelRobber = 15, icon = "💣" },
-
-    -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
-    { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories", icon = "🎭" },
-    { name = "Gloves",            itemId = "gloves",                basePrice = 100,  category = "Accessories", icon = "🧤" },
-    { name = "Hat",               itemId = "hat",                   basePrice = 150,  category = "Accessories", icon = "🧢" },
-    { name = "Bandana",           itemId = "bandana",               basePrice = 80,   category = "Accessories", icon = "🧣" },
-    { name = "Sunglasses",        itemId = "sunglasses",            basePrice = 120,  category = "Accessories", icon = "🕶️" },
-
-    -- Cop Gear (Restricted items for Cops)
-    { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true, icon = "⚡" },
-    { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2, icon = "📡" },
-    { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3, icon = "🐕" }
+    { name = "SMG Ammo",          itemId = "ammo_smg",              basePrice = 75,   category = "Ammunition", weaponLink = "weapon_smg", ammoAmount = 30, icon = "📦" }
 }
-
--- =========================
--- Cop Feature Settings
--- =========================
-Config.SpikeStripDuration     = 120000  -- milliseconds (120 seconds) until a spike strip automatically despawns.
-Config.MaxDeployedSpikeStrips = 3      -- Max spike strips a cop can have deployed simultaneously (server-side check).
-
-Config.SpeedLimitMph          = 50.0   -- mph for speed radar. Client uses this for display, server for fine logic. (Changed from KmH to MPH)
-Config.SpeedingFine           = 250    -- Amount of fine for speeding.
-
-Config.TackleDistance         = 2.0    -- meters, max distance for a cop to initiate a tackle/subdue.
-Config.SubdueTimeMs           = 3000   -- milliseconds, time it takes to complete a subdue action (before arrest is processed). (Renamed from SubdueTime for clarity)
-
-Config.K9FollowDistance       = 4.0    -- meters, how far K9 will stay behind cop when following. (Adjusted from 5.0 for closer follow)
-Config.K9AttackSearchRadius   = 50.0   -- meters, radius cop can command K9 to search for a target.
-Config.K9AttackDistance       = 2.0    -- meters, how close K9 needs to be to initiate an attack (visual/gameplay feel).
-Config.K9AssistWindowSeconds  = 30     -- seconds, time window after K9 engagement for an arrest to be considered K9 assisted.
 
 
 -- =========================
