@@ -940,7 +940,8 @@ function CheckAndPlaceBounty(playerId)
     if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
        not activeBounties[pIdNum] and (pData.bountyCooldownUntil or 0) < os.time() then
         local bountyAmount = Config.BountySettings.baseAmount
-        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"        local durationMinutes = Config.BountySettings.durationMinutes
+        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"
+        local durationMinutes = Config.BountySettings.durationMinutes
         if durationMinutes and activeBounties and pIdNum then
             activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (durationMinutes * 60) }
             Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
@@ -1295,13 +1296,7 @@ CreateThread(function() -- Jail time update loop
         end
     end
 end)
-
-RegisterNetEvent('cnr:playerSpawned')
-AddEventHandler('cnr:playerSpawned', function()
-    local src = source
-    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
-    LoadPlayerData(src)
-end)
+-- (Removed duplicate cnr:playerSpawned handler. See consolidated handler below.)
 
 RegisterNetEvent('cnr:selectRole')
 AddEventHandler('cnr:selectRole', function(selectedRole)
