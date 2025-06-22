@@ -9,6 +9,10 @@ let isInventoryOpen = false;
 let currentInventoryData = null;
 let currentEquippedItems = null;
 
+// Jail Timer UI elements
+const jailTimerContainer = document.getElementById('jail-timer-container');
+const jailTimeRemainingElement = document.getElementById('jail-time-remaining');
+
 // ====================================================================
 // NUI Message Handling & Security
 // ====================================================================
@@ -230,10 +234,41 @@ window.addEventListener('message', function(event) {
         case 'showRobberMenu':
             showRobberMenu();
             break;
+        // Jail Timer UI Logic
+        case 'showJailTimer':
+            if (jailTimerContainer && jailTimeRemainingElement) {
+                jailTimeRemainingElement.textContent = formatJailTime(data.initialTime || 0);
+                jailTimerContainer.classList.remove('hidden');
+                console.log("Jail timer UI shown with initial time:", data.initialTime);
+            } else {
+                console.error("Jail timer elements not found in HTML.");
+            }
+            break;
+        case 'updateJailTimer':
+            if (jailTimerContainer && jailTimeRemainingElement && !jailTimerContainer.classList.contains('hidden')) {
+                jailTimeRemainingElement.textContent = formatJailTime(data.time || 0);
+            }
+            break;
+        case 'hideJailTimer':
+            if (jailTimerContainer) {
+                jailTimerContainer.classList.add('hidden');
+                console.log("Jail timer UI hidden.");
+            }
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
 });
+
+// Helper function to format seconds into MM:SS
+function formatJailTime(totalSeconds) {
+    if (isNaN(totalSeconds) || totalSeconds < 0) {
+        totalSeconds = 0;
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
 
 // NUI Focus Helper Function (remains unchanged)
 async function fetchSetNuiFocus(hasFocus, hasCursor) {

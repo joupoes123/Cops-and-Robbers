@@ -31,6 +31,8 @@ RegisterNetEvent('cnr:heistCompleted')
 RegisterNetEvent('cops_and_robbers:sendItemList')
 RegisterNetEvent('cnr:openContrabandStoreUI')
 RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
+RegisterNetEvent('cnr:sendToJail')
+RegisterNetEvent('cnr:releaseFromJail')
 
 -- =====================================
 --           VARIABLES
@@ -104,6 +106,14 @@ local collectionTimerEnd = 0
 -- Store UI state
 local isCopStoreUiOpen = false
 local isRobberStoreUiOpen = false
+
+-- Jail System Client State
+local isJailed = false
+local jailTimeRemaining = 0
+local jailTimerDisplayActive = false
+local jailReleaseLocation = nil -- To be set by config or default spawn
+local JailMainPoint = vector3(1651.0, 2570.0, 45.5) -- Default, will be updated by server
+local JailRadius = 50.0 -- Max distance from JailMainPoint before teleported back
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -1960,6 +1970,171 @@ RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
 end)
+
+-- ====================================================================
+-- Client-Side Jail System Logic
+-- ====================================================================
+
+local jailUpdateThread = nil
+
+local function StopJailUpdateThread()
+    if jailUpdateThread then
+        -- How to properly stop a thread in FiveM Lua?
+        -- For now, we'll rely on isJailed flag. A more robust solution might involve a variable.
+        -- Or simply let it run its course if it checks isJailed each iteration.
+        -- For this implementation, the loop will self-terminate if isJailed is false.
+        jailTimerDisplayActive = false -- This will hide the NUI display
+        Log("Jail update thread signaled to stop.", "info")
+    end
+    jailUpdateThread = nil -- Clear the reference
+end
+
+local function StartJailUpdateThread(duration)
+    if jailUpdateThread then
+        StopJailUpdateThread() -- Stop any existing thread first
+    end
+
+    jailTimeRemaining = duration
+    jailTimerDisplayActive = true
+
+    jailUpdateThread = Citizen.CreateThread(function()
+        Log("Jail update thread started. Duration: " .. jailTimeRemaining, "info")
+        local playerPed = PlayerPedId()
+
+        while isJailed and jailTimeRemaining > 0 do
+            Citizen.Wait(1000) -- Update every second
+
+            if not isJailed then -- Double check in case of async state change
+                break
+            end
+
+            jailTimeRemaining = jailTimeRemaining - 1
+
+            -- Send update to NUI to display remaining time
+            SendNUIMessage({
+                action = "updateJailTimer",
+                time = jailTimeRemaining
+            })
+
+            -- Enforce Jail Restrictions (Step 3 of plan)
+            -- Example: Disable combat controls
+            DisableControlAction(0, 24, true)  -- INPUT_ATTACK
+            DisableControlAction(0, 25, true)  -- INPUT_AIM
+            DisableControlAction(0, 140, true) -- INPUT_MELEE_ATTACK_LIGHT
+            DisableControlAction(0, 141, true) -- INPUT_MELEE_ATTACK_HEAVY
+            DisableControlAction(0, 142, true) -- INPUT_MELEE_ATTACK_ALTERNATE
+            DisableControlAction(0, 257, true) -- INPUT_ATTACK2
+            DisableControlAction(0, 263, true) -- INPUT_MELEE_ATTACK1
+            DisableControlAction(0, 264, true) -- INPUT_MELEE_ATTACK2
+
+
+            -- Prevent equipping weapons (more robustly handled by clearing them on jail entry)
+            -- Forcing unarmed:
+             if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
+                 SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
+             end
+
+            -- TODO: Add more restrictions like preventing inventory access, vehicle entry, etc.
+            DisableControlAction(0, 23, true)    -- INPUT_ENTER_VEHICLE
+            DisableControlAction(0, 51, true)    -- INPUT_CONTEXT (E) - Be careful if E is used for other things
+            DisableControlAction(0, 22, true)    -- INPUT_JUMP
+            if Config.Keybinds and Config.Keybinds.openInventory then
+                DisableControlAction(0, Config.Keybinds.openInventory, true) -- Disable inventory key
+            else
+                DisableControlAction(0, 244, true) -- Fallback M key for inventory
+            end
+            -- Add more specific keybinds to disable if needed (e.g., phone, specific menus)
+
+            -- Confinement to jail area
+            local currentPos = GetEntityCoords(playerPed)
+            local distanceToJailCenter = #(currentPos - JailMainPoint)
+
+            if distanceToJailCenter > JailRadius then
+                Log("Jailed player attempted to escape. Teleporting back.", "warn")
+                ShowNotification("~r~You cannot leave the prison area.")
+                SetEntityCoords(playerPed, JailMainPoint.x, JailMainPoint.y, JailMainPoint.z, false, false, false, true)
+            end
+
+            if jailTimeRemaining <= 0 then
+                isJailed = false -- Ensure flag is set before potentially triggering release
+                -- Server will trigger cnr:releaseFromJail, client should not do it directly
+                Log("Jail time expired on client. Waiting for server release.", "info")
+                SendNUIMessage({ action = "hideJailTimer" })
+                jailTimerDisplayActive = false
+                break
+            end
+        end
+        Log("Jail update thread finished or player released.", "info")
+        jailTimerDisplayActive = false
+        SendNUIMessage({ action = "hideJailTimer" })
+        jailUpdateThread = nil -- Clear the reference upon completion
+    end)
+end
+
+AddEventHandler('cnr:sendToJail', function(durationSeconds, prisonLocation)
+    Log(string.format("Received cnr:sendToJail. Duration: %d, Location: %s", durationSeconds, json.encode(prisonLocation)), "info")
+    local playerPed = PlayerPedId()
+
+    isJailed = true
+    jailTimeRemaining = durationSeconds
+
+    -- Teleport player to prison
+    if prisonLocation and prisonLocation.x and prisonLocation.y and prisonLocation.z then
+        JailMainPoint = vector3(prisonLocation.x, prisonLocation.y, prisonLocation.z) -- Update the jail center point
+        RequestCollisionAtCoord(JailMainPoint.x, JailMainPoint.y, JailMainPoint.z) -- Request collision for the jail area
+        SetEntityCoords(playerPed, JailMainPoint.x, JailMainPoint.y, JailMainPoint.z, false, false, false, true)
+        SetEntityHeading(playerPed, prisonLocation.w or 0.0) -- Use heading if provided
+        ClearPedTasksImmediately(playerPed)
+    else
+        Log("cnr:sendToJail - Invalid prisonLocation received. Using default: " .. json.encode(JailMainPoint), "error")
+        ShowNotification("~r~Error: Could not teleport to jail - invalid location.")
+        isJailed = false -- Don't proceed if teleport fails
+        return
+    end
+
+    -- Remove all weapons from player
+    RemoveAllPedWeapons(playerPed, true)
+    ShowNotification("~r~All weapons have been confiscated.")
+
+    -- Send NUI message to show jail timer
+    SendNUIMessage({
+        action = "showJailTimer",
+        initialTime = jailTimeRemaining
+    })
+
+    StartJailUpdateThread(durationSeconds)
+end)
+
+AddEventHandler('cnr:releaseFromJail', function()
+    Log("Received cnr:releaseFromJail.", "info")
+    local playerPed = PlayerPedId()
+
+    isJailed = false
+    jailTimeRemaining = 0
+    StopJailUpdateThread() -- Signal the jail loop to stop and hide UI
+
+    -- Send NUI message to hide jail timer
+    SendNUIMessage({ action = "hideJailTimer" })
+
+    -- Teleport player to their role's spawn point or a general release point
+    -- For now, using role spawn. A dedicated release point could be added to Config.
+    jailReleaseLocation = Config.SpawnPoints[playerData.role] or Config.SpawnPoints["citizen"] -- Fallback to citizen spawn
+
+    if jailReleaseLocation and jailReleaseLocation.x and jailReleaseLocation.y and jailReleaseLocation.z then
+        SetEntityCoords(playerPed, jailReleaseLocation.x, jailReleaseLocation.y, jailReleaseLocation.z, false, false, false, true)
+        Log(string.format("Player released from jail. Teleported to: %s", json.encode(jailReleaseLocation)), "info")
+    else
+        Log("cnr:releaseFromJail - No valid release spawn point found. Player may be stuck.", "error")
+        ShowNotification("~r~Error: Could not determine release location.")
+    end
+
+    ClearPedTasksImmediately(playerPed)
+    -- Player's weapons are not automatically restored here.
+    -- They would get default role weapons upon next role sync or if they visit an armory.
+    -- Or, could potentially save/restore their exact weapons pre-jailing if desired (more complex).
+    ShowNotification("~g~You have been released from jail.")
+end)
+
 
 -- ====================================================================
 -- Contraband Dealers

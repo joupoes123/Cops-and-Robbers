@@ -708,6 +708,31 @@ local pDataForLoad = shallowcopy(playersData[pIdNum])
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
+
+    -- Check for persisted jail data
+    local pData = playersData[pIdNum] -- Re-fetch or use existing, ensure it's the most current
+    if pData and pData.jailData and pData.jailData.remainingTime and pData.jailData.remainingTime > 0 then
+        local timeSinceJailed = os.time() - (pData.jailData.jailedTimestamp or os.time())
+        local newRemainingTime = pData.jailData.remainingTime - timeSinceJailed
+
+        if newRemainingTime > 0 then
+            jail[pIdNum] = {
+                startTime = os.time(), -- Effectively, the re-login time becomes the new reference for server-side tick
+                duration = pData.jailData.originalDuration or newRemainingTime,
+                remainingTime = newRemainingTime,
+                arrestingOfficer = pData.jailData.jailedByOfficer or "System (Rejoin)"
+            }
+            SafeTriggerClientEvent('cnr:sendToJail', pIdNum, newRemainingTime, Config.PrisonLocation)
+            Log(string.format("Player %s re-jailed upon loading data. Original Remaining: %ds, Adjusted Remaining: %ds", pIdNum, pData.jailData.remainingTime, newRemainingTime), "info")
+            SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You are still jailed. Time remaining: %d seconds.", newRemainingTime)} })
+        else
+            Log(string.format("Player %s jail time expired while offline. Original Remaining: %ds", pIdNum, pData.jailData.remainingTime), "info")
+            pData.jailData = nil -- Clear expired jail data
+            -- Player will be spawned at their role's default spawn or last known good location by subsequent logic
+        end
+    elseif pData and pData.jailData then -- If jailData exists but remainingTime is 0 or less
+        pData.jailData = nil -- Clean up old/completed jail data
+    end
     -- Original position of isDataLoaded setting is now removed.
 end
 
@@ -1184,6 +1209,32 @@ end)
 -- =================================================================================================
 -- JAIL SYSTEM
 -- =================================================================================================
+
+-- Helper function to calculate jail term based on wanted stars
+local function CalculateJailTermFromStars(stars)
+    local minPunishment = 60 -- Default minimum
+    local maxPunishment = 120 -- Default maximum
+
+    if Config.WantedSettings and Config.WantedSettings.levels then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do
+            if levelData.stars == stars then
+                minPunishment = levelData.minPunishment or minPunishment
+                maxPunishment = levelData.maxPunishment or maxPunishment
+                break
+            end
+        end
+    else
+        Log("CalculateJailTermFromStars: Config.WantedSettings.levels not found. Using default punishments.", "warn")
+    end
+
+    if maxPunishment < minPunishment then -- Sanity check
+        maxPunishment = minPunishment
+        Log("CalculateJailTermFromStars: maxPunishment was less than minPunishment. Adjusted. Stars: " .. stars, "warn")
+    end
+
+    return math.random(minPunishment, maxPunishment)
+end
+
 SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
@@ -1204,12 +1255,32 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         originalWantedData.stars = 0
     end
 
-    jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
+    local finalDurationSeconds = durationSeconds
+    if not finalDurationSeconds or finalDurationSeconds <= 0 then
+        finalDurationSeconds = CalculateJailTermFromStars(originalWantedData.stars)
+        Log(string.format("SendToJail: Calculated jail term for player %s (%d stars) as %d seconds.", pIdNum, originalWantedData.stars, finalDurationSeconds), "info")
+    end
+
+    jail[pIdNum] = { startTime = os.time(), duration = finalDurationSeconds, remainingTime = finalDurationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } -- Reset wanted
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-    SafeTriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation)
-    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", durationSeconds)} })
-    Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
+    SafeTriggerClientEvent('cnr:sendToJail', pIdNum, finalDurationSeconds, Config.PrisonLocation)
+    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", finalDurationSeconds)} })
+    Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, finalDurationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
+
+    -- Persist jail information in player data
+    local pData = GetCnrPlayerData(pIdNum)
+    if pData then
+        pData.jailData = {
+            remainingTime = finalDurationSeconds,
+            originalDuration = finalDurationSeconds,
+            jailedByOfficer = arrestingOfficerId,
+            jailedTimestamp = os.time()
+        }
+        -- Mark for save, or SavePlayerDataImmediate if critical, though playerDropped will also save.
+        -- For now, let standard save mechanisms handle it unless issues arise.
+        MarkPlayerForInventorySave(pIdNum) -- This function name is a bit misleading but marks generic pData save
+    end
 
     local arrestingOfficerName = (arrestingOfficerId and GetPlayerName(arrestingOfficerId)) or "System"
     for copId, _ in pairs(copsOnDuty) do
@@ -1285,6 +1356,14 @@ CreateThread(function() -- Jail time update loop
                     SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} })
                     Log("Player " .. pIdNum .. " released.")
                     jail[pIdNum] = nil
+
+                    -- Clear persisted jail data
+                    local pData = GetCnrPlayerData(pIdNum)
+                    if pData and pData.jailData then
+                        pData.jailData = nil
+                        MarkPlayerForInventorySave(pIdNum) -- Mark for save
+                        Log("Cleared persisted jail data for player " .. pIdNum, "info")
+                    end
                 elseif jailData.remainingTime % 60 == 0 then
                     SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
                 end
