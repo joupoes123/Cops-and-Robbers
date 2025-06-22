@@ -1896,3 +1896,33 @@ body::before {
     font-size: 20px;
     margin-right: 10px;
 }
+
+/* ==========================================================================
+   Jail Timer Styles
+   ========================================================================== */
+.jail-timer {
+    position: fixed;
+    bottom: 120px; /* Positioned above XP bar, adjust if needed */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(40, 40, 40, 0.85); /* Darker background */
+    color: #ffae42; /* Orange/amber color for jail text */
+    padding: 12px 25px;
+    border-radius: 10px;
+    border: 2px solid #ffae42;
+    font-size: 1.3em; /* Slightly larger font */
+    font-weight: bold;
+    z-index: 950; /* Ensure it's above most game elements but potentially below critical popups */
+    box-shadow: 0 0 15px rgba(255, 174, 66, 0.6);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* Generic HUD element styling, if not already present or needing override */
+.hud-element {
+    /* Common styles for HUD elements, .jail-timer can inherit or override */
+    /* Ensure .hidden is defined and works */
+}
+
+.hud-element.hidden {
+    display: none !important;
+}
