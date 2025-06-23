@@ -1357,32 +1357,78 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
     end
 end
 
+ForceReleasePlayerFromJail = function(playerId, reason)
+    local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log(string.format("ForceReleasePlayerFromJail: Invalid player ID '%s'.", tostring(playerId)), "error")
+        return false
+    end
+
+    reason = reason or "Released by server"
+    local playerIsOnline = GetPlayerName(pIdNum) ~= nil
+
+    -- Log the attempt
+    Log(string.format("Attempting to release player %s from jail. Reason: %s. Online: %s", pIdNum, reason, tostring(playerIsOnline)), "info")
+
+    -- Clear live jail data from the `jail` table
+    if jail[pIdNum] then
+        jail[pIdNum] = nil
+        Log(string.format("Player %s removed from live jail tracking.", pIdNum), "info")
+    else
+        Log(string.format("Player %s was not in live jail tracking. Proceeding to check persisted data.", pIdNum), "info")
+    end
+
+    -- Clear persisted jail data from `playersData`
+    local pData = GetCnrPlayerData(pIdNum)
+    if pData and pData.jailData then
+        pData.jailData = nil
+        Log(string.format("Cleared persisted jail data for player %s.", pIdNum), "info")
+        -- Mark for save. If player is online, normal save mechanisms will pick it up.
+        -- If offline, this save might only happen if SavePlayerData can handle it or on next login.
+        MarkPlayerForInventorySave(pIdNum) -- This marks pData for saving
+    else
+        Log(string.format("No persisted jail data found for player %s to clear.", pIdNum), "info")
+    end
+
+    if playerIsOnline then
+        SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
+        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released. (" .. reason .. ")"} })
+        Log(string.format("Player %s (online) released. Client notified.", pIdNum), "info")
+    else
+        -- If player is offline, their data (now without jailData) will be saved by MarkPlayerForInventorySave
+        -- if the periodic saver picks them up or if SavePlayerData is called by another process for offline players.
+        -- Otherwise, it's saved on their next disconnect (if they were online briefly) or handled by LoadPlayerData on next join.
+        Log(string.format("Player %s (offline) jail data cleared. They will be free on next login.", pIdNum), "info")
+    end
+    return true
+end
+
 CreateThread(function() -- Jail time update loop
     while true do Wait(1000)
-        for playerId, jailData in pairs(jail) do
-            local pIdNum = tonumber(playerId)
-            if pIdNum and pIdNum > 0 and GetPlayerName(pIdNum) ~= nil then -- Check player online
-                jailData.remainingTime = jailData.remainingTime - 1
-                if jailData.remainingTime <= 0 then
-                    SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
-                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} })
-                    Log("Player " .. pIdNum .. " released.")
-                    jail[pIdNum] = nil
+        -- Iterate over a copy of keys if modifying the table, though here we are just checking values.
+        for playerIdKey, jailInstanceData in pairs(jail) do
+            local pIdNum = tonumber(playerIdKey) -- Ensure we use the key from pairs()
 
-                    -- Clear persisted jail data
-                    local pData = GetCnrPlayerData(pIdNum)
-                    if pData and pData.jailData then
-                        pData.jailData = nil
-                        MarkPlayerForInventorySave(pIdNum) -- Mark for save
-                        Log("Cleared persisted jail data for player " .. pIdNum, "info")
+            if pIdNum and pIdNum > 0 then
+                if GetPlayerName(pIdNum) ~= nil then -- Check player online
+                    jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
+                    if jailInstanceData.remainingTime <= 0 then
+                        ForceReleasePlayerFromJail(pIdNum, "Sentence served")
+                    elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
+                        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
                     end
-                elseif jailData.remainingTime % 60 == 0 then
-                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
+                else
+                    -- Player is in the 'jail' table but is offline.
+                    -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
+                    -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
+                    -- LoadPlayerData should handle their actual status on rejoin based on persisted pData.jailData.
+                    -- So, we can remove them from the live 'jail' table here to keep it clean.
+                    Log(string.format("Player %s found in 'jail' table but is offline. Removing from live tracking. Persisted data will determine status on rejoin.", pIdNum), "warn")
+                    jail[pIdNum] = nil
                 end
             else
-                Log("Player " .. tostring(playerId) .. " offline. Jail time paused.")
-                -- Optionally, save player data here if jail time needs to persist accurately even if server restarts while player is offline & jailed.
-                -- However, current SavePlayerData is usually tied to playerDrop.
+                 Log(string.format("Invalid player ID key '%s' found in jail table.", tostring(playerIdKey)), "error")
+                 jail[playerIdKey] = nil -- Remove invalid entry
             end
         end
     end
@@ -2108,8 +2154,8 @@ AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
         targetData.money = targetData.money - fineAmount
         pData.money = pData.money + math.floor(fineAmount * 0.5) -- Cop gets 50% commission
           -- Award XP to the cop
-        local xpAmount = (Config.XPRewards and Config.XPRewards.speeding_fine_issued) or 8
-        AddXP(source, xpAmount, "speeding_fine_issued")
+        local xpAmount = (Config.XPActionsCop and Config.XPActionsCop.speeding_fine_issued) or 8 -- Standardized to XPActionsCop
+        AddXP(source, xpAmount, "cop") -- XP type should be "cop"
         
         -- Save both players' data
         SavePlayerData(source)

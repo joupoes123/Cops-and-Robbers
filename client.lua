@@ -69,7 +69,7 @@ local currentWantedStarsClient = 0
 local currentWantedPointsClient = 0
 local wantedUiLabel = ""
 local lastSpeedCheckTime = 0
-local speedLimit = 80.0 -- mph
+local speedLimit = Config.SpeedLimitMph or 60.0 -- mph, now from config with a fallback
 local lastWantedLevelTime = 0
 
 local xpForNextLevelDisplay = 0
@@ -2090,10 +2090,7 @@ local function ApplyPlayerModel(modelHash)
     local playerPed = PlayerPedId()
     RequestModel(modelHash)
     local attempts = 0
-    local maxAttempts = MAX_MODEL_LOAD_ATTEMPTS or 100
-    local maxTime = MAX_MODEL_LOAD_TIME_MS or 5000
-    local startTime = GetGameTimer()
-    while not HasModelLoaded(modelHash) and attempts < maxAttempts and (GetGameTimer() - startTime) < maxTime do
+    while not HasModelLoaded(modelHash) and attempts < 100 do
         Citizen.Wait(50)
         attempts = attempts + 1
     end
@@ -2169,28 +2166,51 @@ AddEventHandler('cnr:releaseFromJail', function()
     -- Send NUI message to hide jail timer
     SendNUIMessage({ action = "hideJailTimer" })
 
-    -- Restore original player model
+    -- Restore player model
     if originalPlayerModelHash and originalPlayerModelHash ~= 0 then
         Log("Restoring original player model: " .. originalPlayerModelHash, "info")
         ApplyPlayerModel(originalPlayerModelHash)
-        originalPlayerModelHash = nil -- Clear stored model
     else
-        Log("No original player model stored or invalid, cannot restore. Player might need to re-select role or use default.", "warn")
-        -- As a fallback, could try to apply role's default model if playerData.role is reliable here.
-        -- This is now implicitly handled by ApplyRoleVisualsAndLoadout if a player data sync occurs,
-        -- or the player keeps the jail uniform until they change role or relog if originalPlayerModelHash was nil.
+        Log("No original player model stored or it was invalid. Attempting to restore to role default or citizen model.", "warn")
+        if playerData and playerData.role and playerData.role ~= "" and playerData.role ~= "citizen" then
+            Log("Attempting to apply model for role: " .. playerData.role, "info")
+            ApplyRoleVisualsAndLoadout(playerData.role, nil) -- Applies role default model & basic loadout
+        else
+            Log("Player role unknown or citizen, applying default citizen model.", "info")
+            ApplyRoleVisualsAndLoadout("citizen", nil) -- Fallback to citizen visuals
+        end
+    end
+    originalPlayerModelHash = nil -- Clear stored model hash after attempting restoration
+
+    -- Determine release location
+    local determinedReleaseLocation = nil
+    local hardcodedDefaultSpawn = vector3(186.0, -946.0, 30.0) -- Legion Square, a very safe fallback
+
+    if playerData and playerData.role and Config.SpawnPoints and Config.SpawnPoints[playerData.role] then
+        determinedReleaseLocation = Config.SpawnPoints[playerData.role]
+        Log(string.format("Using spawn point for role '%s'.", playerData.role), "info")
+    elseif Config.SpawnPoints and Config.SpawnPoints["citizen"] then
+        determinedReleaseLocation = Config.SpawnPoints["citizen"]
+        Log("Role spawn not found or role invalid, using citizen spawn point.", "warn")
+        ShowNotification("~y~Your role spawn was not found, using default citizen spawn.")
+    else
+        determinedReleaseLocation = hardcodedDefaultSpawn
+        Log("Citizen spawn point also not found in Config. Using hardcoded default spawn.", "error")
+        ShowNotification("~r~Error: Default spawn locations not configured. Using a fallback location.")
     end
 
-    -- Teleport player to their role's spawn point or a general release point
-    -- For now, using role spawn. A dedicated release point could be added to Config.
-    jailReleaseLocation = Config.SpawnPoints[playerData.role] or Config.SpawnPoints["citizen"] -- Fallback to citizen spawn
-
-    if jailReleaseLocation and jailReleaseLocation.x and jailReleaseLocation.y and jailReleaseLocation.z then
-        SetEntityCoords(playerPed, jailReleaseLocation.x, jailReleaseLocation.y, jailReleaseLocation.z, false, false, false, true)
-        Log(string.format("Player released from jail. Teleported to: %s", json.encode(jailReleaseLocation)), "info")
+    if determinedReleaseLocation and determinedReleaseLocation.x and determinedReleaseLocation.y and determinedReleaseLocation.z then
+        SetEntityCoords(playerPed, determinedReleaseLocation.x, determinedReleaseLocation.y, determinedReleaseLocation.z, false, false, false, true)
+        SetEntityHeading(playerPed, determinedReleaseLocation.w or 0.0) -- Apply heading if available
+        Log(string.format("Player released from jail. Teleported to: %s", json.encode(determinedReleaseLocation)), "info")
     else
-        Log("cnr:releaseFromJail - No valid release spawn point found. Player may be stuck.", "error")
-        ShowNotification("~r~Error: Could not determine release location.")
+        -- This case should be rare given the fallbacks, but as a last resort:
+        Log("cnr:releaseFromJail - CRITICAL: No valid release spawn point determined even with fallbacks. Player may be stuck or at Zero Coords.", "error")
+        ShowNotification("~r~CRITICAL ERROR: Could not determine release location. Please contact an admin.")
+        -- As an absolute last measure, teleport to a known safe spot if playerPed is valid
+        if playerPed and playerPed ~= 0 then
+             SetEntityCoords(playerPed, hardcodedDefaultSpawn.x, hardcodedDefaultSpawn.y, hardcodedDefaultSpawn.z, false, false, false, true)
+        end
     end
 
     ClearPedTasksImmediately(playerPed)

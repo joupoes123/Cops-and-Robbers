@@ -334,3 +334,119 @@ RegisterCommand("setlevel", function(source, args, rawCommand)
         args = { "^1Admin", string.format("Admin set your level to %d", newLevel) }
     })
 end, false)
+
+-- Jail command
+RegisterCommand("jail", function(source, args, rawCommand)
+    if not IsAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local durationStr = args[2]
+    local reason = table.concat(args, " ", 3)
+
+    local targetId = tonumber(targetIdStr)
+    local durationSeconds = tonumber(durationStr)
+
+    if not targetId or not IsValidPlayer(targetId) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid or offline player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    if not durationSeconds or durationSeconds <= 0 then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid duration. Must be a positive number of seconds." } })
+        return
+    end
+
+    reason = (reason and reason ~= "") and reason or "Jailed by Admin"
+
+    -- Assuming cops_and_robbers:logAdminCommand is a valid server event for logging
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+
+    -- Call the global SendToJail function from server.lua
+    -- SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
+    local adminName = GetSafePlayerName(source)
+    SendToJail(targetId, durationSeconds, adminName .. " (Admin)", {isAdminAction = true})
+
+    TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", string.format("Player %s (ID: %d) has been jailed by %s for %d seconds. Reason: %s", GetSafePlayerName(targetId), targetId, adminName, durationSeconds, reason) } })
+end, false)
+
+-- Unjail command
+RegisterCommand("unjail", function(source, args, rawCommand)
+    if not IsAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local reason = table.concat(args, " ", 2)
+    local targetId = tonumber(targetIdStr)
+
+    if not targetId then -- No need to check IsValidPlayer here, can unjail offline players by clearing their persisted data
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    local targetName = GetSafePlayerName(targetId) -- Get name if online, otherwise will be "Unknown Player" or based on GetCnrPlayerData if enhanced
+    local pData = GetCnrPlayerData(targetId)
+    if not pData or not pData.jailData then
+        if not jail[targetId] then -- Check live jail table too
+             TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", string.format("Player %s (ID: %d) is not currently jailed.", targetName, targetId) } })
+             return
+        end
+    end
+
+    reason = (reason and reason ~= "") and reason or "Unjailed by Admin"
+
+    TriggerServerEvent('cops_and_robbers:logAdminCommand', GetSafePlayerName(source), source, rawCommand)
+
+    -- Call the global ForceReleasePlayerFromJail function from server.lua
+    local success = ForceReleasePlayerFromJail(targetId, GetSafePlayerName(source) .. " (Admin - Reason: " .. reason .. ")")
+
+    if success then
+        TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", string.format("Player %s (ID: %d) has been unjailed by %s. Reason: %s", targetName, targetId, GetSafePlayerName(source), reason) } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", string.format("Failed to unjail player %s (ID: %d). Check server console.", targetName, targetId) } })
+    end
+end, false)
+
+-- Checkjail command
+RegisterCommand("checkjail", function(source, args, rawCommand)
+    if not IsAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+
+    if not targetId then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    local targetName = GetSafePlayerName(targetId) -- Works if player is online
+
+    -- Check live jail table first (for online players)
+    if jail[targetId] and jail[targetId].remainingTime then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Online) has %d seconds remaining.", targetName, targetId, jail[targetId].remainingTime) } })
+        return
+    end
+
+    -- If not in live jail, check persisted data (for offline players or if not in live table for some reason)
+    local pData = GetCnrPlayerData(targetId)
+    if pData and pData.jailData and pData.jailData.originalDuration and pData.jailData.jailedTimestamp then
+        local totalTimeElapsedSinceJailing = os.time() - pData.jailData.jailedTimestamp
+        local calculatedRemainingTime = math.max(0, pData.jailData.originalDuration - totalTimeElapsedSinceJailing)
+
+        if calculatedRemainingTime > 0 then
+            TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Offline/Persisted) has approximately %d seconds remaining.", targetName, targetId, calculatedRemainingTime) } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Offline/Persisted) should be released (jail time expired).", targetName, targetId) } })
+        end
+        return
+    end
+
+    TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d) is not found in jail records.", targetName, targetId) } })
+end, false)
