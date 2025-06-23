@@ -114,6 +114,7 @@ local jailTimerDisplayActive = false
 local jailReleaseLocation = nil -- To be set by config or default spawn
 local JailMainPoint = vector3(1651.0, 2570.0, 45.5) -- Default, will be updated by server
 local JailRadius = 50.0 -- Max distance from JailMainPoint before teleported back
+local originalPlayerModelHash = nil -- Variable to store the player's model before jailing
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -2041,8 +2042,17 @@ local function StartJailUpdateThread(duration)
             if Config.Keybinds and Config.Keybinds.openInventory then
                 DisableControlAction(0, Config.Keybinds.openInventory, true) -- Disable inventory key
             else
-                DisableControlAction(0, 244, true) -- Fallback M key for inventory
+                DisableControlAction(0, 244, true) -- Fallback M key for inventory (INPUT_INTERACTION_MENU)
             end
+
+            -- Additional restrictions for phone, weapon selection, cover, reload
+            DisableControlAction(0, 246, true)   -- INPUT_PHONE (Up Arrow/Cellphone)
+            DisableControlAction(0, 12, true)    -- INPUT_WEAPON_WHEEL_NEXT
+            DisableControlAction(0, 13, true)    -- INPUT_WEAPON_WHEEL_PREV
+            DisableControlAction(0, 14, true)    -- INPUT_SELECT_PREV_WEAPON
+            DisableControlAction(0, 15, true)    -- INPUT_SELECT_NEXT_WEAPON
+            DisableControlAction(0, 44, true)    -- INPUT_COVER (Q)
+            DisableControlAction(0, 45, true)    -- INPUT_RELOAD (R)
             -- Add more specific keybinds to disable if needed (e.g., phone, specific menus)
 
             -- Confinement to jail area
@@ -2071,12 +2081,51 @@ local function StartJailUpdateThread(duration)
     end)
 end
 
+local function ApplyPlayerModel(modelHash)
+    if not modelHash or modelHash == 0 then
+        Log("ApplyPlayerModel: Invalid modelHash received: " .. tostring(modelHash), "error")
+        return
+    end
+
+    local playerPed = PlayerPedId()
+    RequestModel(modelHash)
+    local attempts = 0
+    while not HasModelLoaded(modelHash) and attempts < 100 do
+        Citizen.Wait(50)
+        attempts = attempts + 1
+    end
+
+    if HasModelLoaded(modelHash) then
+        Log("ApplyPlayerModel: Model " .. modelHash .. " loaded. Setting player model.", "info")
+        SetPlayerModel(PlayerId(), modelHash)
+        Citizen.Wait(100) -- Allow model to apply
+        SetPedDefaultComponentVariation(playerPed) -- Reset components to default for the new model
+        SetModelAsNoLongerNeeded(modelHash)
+    else
+        Log("ApplyPlayerModel: Failed to load model " .. modelHash .. " after 100 attempts.", "error")
+        ShowNotification("~r~Error applying appearance change.")
+    end
+end
+
 AddEventHandler('cnr:sendToJail', function(durationSeconds, prisonLocation)
     Log(string.format("Received cnr:sendToJail. Duration: %d, Location: %s", durationSeconds, json.encode(prisonLocation)), "info")
     local playerPed = PlayerPedId()
 
     isJailed = true
     jailTimeRemaining = durationSeconds
+
+    -- Store original player model
+    originalPlayerModelHash = GetEntityModel(playerPed)
+    Log("Stored original player model: " .. originalPlayerModelHash, "info")
+
+    -- Apply jail uniform
+    local jailUniformModelKey = Config.JailUniformModel or "a_m_m_prisoner_01" -- Fallback if config is missing
+    local jailUniformModelHash = GetHashKey(jailUniformModelKey)
+    if jailUniformModelHash ~= 0 then
+        ApplyPlayerModel(jailUniformModelHash)
+    else
+        Log("Invalid JailUniformModel in Config: " .. jailUniformModelKey, "error")
+    end
 
     -- Teleport player to prison
     if prisonLocation and prisonLocation.x and prisonLocation.y and prisonLocation.z then
@@ -2089,6 +2138,7 @@ AddEventHandler('cnr:sendToJail', function(durationSeconds, prisonLocation)
         Log("cnr:sendToJail - Invalid prisonLocation received. Using default: " .. json.encode(JailMainPoint), "error")
         ShowNotification("~r~Error: Could not teleport to jail - invalid location.")
         isJailed = false -- Don't proceed if teleport fails
+        originalPlayerModelHash = nil -- Clear stored model if jailing fails
         return
     end
 
@@ -2115,6 +2165,18 @@ AddEventHandler('cnr:releaseFromJail', function()
 
     -- Send NUI message to hide jail timer
     SendNUIMessage({ action = "hideJailTimer" })
+
+    -- Restore original player model
+    if originalPlayerModelHash and originalPlayerModelHash ~= 0 then
+        Log("Restoring original player model: " .. originalPlayerModelHash, "info")
+        ApplyPlayerModel(originalPlayerModelHash)
+        originalPlayerModelHash = nil -- Clear stored model
+    else
+        Log("No original player model stored or invalid, cannot restore. Player might need to re-select role or use default.", "warn")
+        -- As a fallback, could try to apply role's default model if playerData.role is reliable here.
+        -- This is now implicitly handled by ApplyRoleVisualsAndLoadout if a player data sync occurs,
+        -- or the player keeps the jail uniform until they change role or relog if originalPlayerModelHash was nil.
+    end
 
     -- Teleport player to their role's spawn point or a general release point
     -- For now, using role spawn. A dedicated release point could be added to Config.

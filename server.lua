@@ -711,27 +711,39 @@ local pDataForLoad = shallowcopy(playersData[pIdNum])
 
     -- Check for persisted jail data
     local pData = playersData[pIdNum] -- Re-fetch or use existing, ensure it's the most current
-    if pData and pData.jailData and pData.jailData.remainingTime and pData.jailData.remainingTime > 0 then
-        local timeSinceJailed = os.time() - (pData.jailData.jailedTimestamp or os.time())
-        local newRemainingTime = pData.jailData.remainingTime - timeSinceJailed
+    if pData and pData.jailData and pData.jailData.originalDuration and pData.jailData.jailedTimestamp then
+        -- Calculate how much time should be remaining based on the original sentence and total time elapsed.
+        -- This correctly accounts for time passed while the player was offline (if the server was running).
+        local totalTimeElapsedSinceJailing = os.time() - pData.jailData.jailedTimestamp
+        local calculatedRemainingTime = math.max(0, pData.jailData.originalDuration - totalTimeElapsedSinceJailing)
 
-        if newRemainingTime > 0 then
+        Log(string.format("Player %s jail check: OriginalDuration=%s, JailedTimestamp=%s, CurrentTime=%s, TotalElapsed=%s, CalculatedRemaining=%s, SavedRemaining=%s",
+            pIdNum,
+            tostring(pData.jailData.originalDuration),
+            tostring(pData.jailData.jailedTimestamp),
+            tostring(os.time()),
+            tostring(totalTimeElapsedSinceJailing),
+            tostring(calculatedRemainingTime),
+            tostring(pData.jailData.remainingTime) -- For comparison logging
+        ), "info")
+
+        if calculatedRemainingTime > 0 then
             jail[pIdNum] = {
-                startTime = os.time(), -- Effectively, the re-login time becomes the new reference for server-side tick
-                duration = pData.jailData.originalDuration or newRemainingTime,
-                remainingTime = newRemainingTime,
+                startTime = os.time(), -- Current login time becomes the new reference for this session's server-side tick
+                duration = pData.jailData.originalDuration, -- Always use the original full duration
+                remainingTime = calculatedRemainingTime, -- The actual time left to serve
                 arrestingOfficer = pData.jailData.jailedByOfficer or "System (Rejoin)"
             }
-            SafeTriggerClientEvent('cnr:sendToJail', pIdNum, newRemainingTime, Config.PrisonLocation)
-            Log(string.format("Player %s re-jailed upon loading data. Original Remaining: %ds, Adjusted Remaining: %ds", pIdNum, pData.jailData.remainingTime, newRemainingTime), "info")
-            SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You are still jailed. Time remaining: %d seconds.", newRemainingTime)} })
+            SafeTriggerClientEvent('cnr:sendToJail', pIdNum, calculatedRemainingTime, Config.PrisonLocation)
+            Log(string.format("Player %s re-jailed upon loading data. Calculated Remaining: %ds", pIdNum, calculatedRemainingTime), "info")
+            SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You are still jailed. Time remaining: %d seconds.", calculatedRemainingTime)} })
         else
-            Log(string.format("Player %s jail time expired while offline. Original Remaining: %ds", pIdNum, pData.jailData.remainingTime), "info")
+            Log(string.format("Player %s jail time expired while offline or on load. Original Duration: %ds, Total Elapsed: %ds", pIdNum, pData.jailData.originalDuration, totalTimeElapsedSinceJailing), "info")
             pData.jailData = nil -- Clear expired jail data
-            -- Player will be spawned at their role's default spawn or last known good location by subsequent logic
         end
-    elseif pData and pData.jailData then -- If jailData exists but remainingTime is 0 or less
-        pData.jailData = nil -- Clean up old/completed jail data
+    elseif pData and pData.jailData then -- If jailData exists but is incomplete (e.g., missing originalDuration or jailedTimestamp) or remainingTime was already <=0
+        Log(string.format("Player %s had incomplete or already expired jailData. Clearing. Data: %s", pIdNum, json.encode(pData.jailData)), "warn")
+        pData.jailData = nil -- Clean up old/completed/invalid jail data
     end
     -- Original position of isDataLoaded setting is now removed.
 end
