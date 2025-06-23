@@ -2090,7 +2090,10 @@ local function ApplyPlayerModel(modelHash)
     local playerPed = PlayerPedId()
     RequestModel(modelHash)
     local attempts = 0
-    while not HasModelLoaded(modelHash) and attempts < 100 do
+    local maxAttempts = MAX_MODEL_LOAD_ATTEMPTS or 100
+    local maxTime = MAX_MODEL_LOAD_TIME_MS or 5000
+    local startTime = GetGameTimer()
+    while not HasModelLoaded(modelHash) and attempts < maxAttempts and (GetGameTimer() - startTime) < maxTime do
         Citizen.Wait(50)
         attempts = attempts + 1
     end
