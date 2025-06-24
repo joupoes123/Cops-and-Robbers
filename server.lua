@@ -1400,7 +1400,14 @@ ForceReleasePlayerFromJail = function(playerId, reason)
         -- Otherwise, it's saved on their next disconnect (if they were online briefly) or handled by LoadPlayerData on next join.
         Log(string.format("Player %s (offline) jail data cleared. They will be free on next login.", pIdNum), "info")
         -- Persist the updated data immediately so they won't be jailed again on reconnect
-        SavePlayerDataImmediate(pIdNum, "unjail_offline")
+        local saveSuccess = SavePlayerDataImmediate(pIdNum, "unjail_offline")
+        if not saveSuccess then
+            Log(string.format("Failed to save data for player %s after unjailing. Retrying...", pIdNum), "error")
+            saveSuccess = SavePlayerDataImmediate(pIdNum, "unjail_offline")
+            if not saveSuccess then
+                Log(string.format("Retry failed: Could not save data for player %s after unjailing. Manual intervention may be required.", pIdNum), "error")
+            end
+        end
     end
     return true
 end
