@@ -2197,11 +2197,9 @@ AddEventHandler('cnr:releaseFromJail', function()
         determinedReleaseLocation = hardcodedDefaultSpawn
         Log("Citizen spawn point also not found in Config. Using hardcoded default spawn.", "error")
         ShowNotification("~r~Error: Default spawn locations not configured. Using a fallback location.")
-    end
-
-    if determinedReleaseLocation and determinedReleaseLocation.x and determinedReleaseLocation.y and determinedReleaseLocation.z then
+    end    if determinedReleaseLocation and determinedReleaseLocation.x and determinedReleaseLocation.y and determinedReleaseLocation.z then
         SetEntityCoords(playerPed, determinedReleaseLocation.x, determinedReleaseLocation.y, determinedReleaseLocation.z, false, false, false, true)
-        SetEntityHeading(playerPed, determinedReleaseLocation.w or 0.0) -- Apply heading if available
+        SetEntityHeading(playerPed, 0.0) -- Set default heading since spawn points don't include rotation
         Log(string.format("Player released from jail. Teleported to: %s", json.encode(determinedReleaseLocation)), "info")
     else
         -- This case should be rare given the fallbacks, but as a last resort:
