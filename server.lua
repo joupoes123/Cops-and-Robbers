@@ -1566,21 +1566,16 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         cash = pData and (pData.cash or pData.money) or 0
     }
     
-    -- Debug: Print player info being sent to client
-    print('[CNR_SERVER_DEBUG] Player info being sent to client:')
-    print(json.encode(playerInfo, {indent = true}))
-    print('[CNR_SERVER_DEBUG] Raw pData for debugging:')
-    if pData then
-        print(string.format("  level: %s, role: %s, cash: %s, money: %s", 
-            tostring(pData.level), tostring(pData.role), tostring(pData.cash), tostring(pData.money)))
-    else
-        print("  pData is nil!")
-    end-- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
-    
-    -- Debug: Print the first item structure to see what's being sent
-    if #fullItemDetailsList > 0 then
-        print('[CNR_SERVER_DEBUG] Sample item structure for debugging:')
-        print(json.encode(fullItemDetailsList[1], {indent = true}))
+    -- Ensure level is calculated correctly based on current XP
+    if pData and pData.xp then
+        local calculatedLevel = CalculateLevel(pData.xp, pData.role)
+        if calculatedLevel ~= pData.level then
+            pData.level = calculatedLevel
+            playerInfo.level = calculatedLevel
+            -- Only log critical level corrections
+            print(string.format("[CNR_CRITICAL_LOG] Level correction for player %s: was %d, corrected to %d based on XP %d", 
+                src, pData.level or 1, calculatedLevel, pData.xp))
+        end
     end
     
     -- Send the constructed list of full item details to the client
@@ -1593,11 +1588,8 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local src = source
     local pData = GetCnrPlayerData(src)
 
-    print(string.format("[CNR_SERVER_DEBUG] getPlayerInventory called by player %s", src))
-
     if not pData or not pData.inventory then
-        print(string.format("[CNR_SERVER_ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
-        print(string.format("[CNR_SERVER_DEBUG] pData exists: %s, pData.inventory exists: %s", tostring(pData ~= nil), tostring(pData and pData.inventory ~= nil)))
+        print(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
