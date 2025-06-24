@@ -1976,29 +1976,27 @@ end)
 -- Client-Side Jail System Logic
 -- ====================================================================
 
-local jailUpdateThread = nil
+-- Track if the jail update thread is running
+local jailThreadRunning = false
 
 local function StopJailUpdateThread()
-    if jailUpdateThread then
-        -- How to properly stop a thread in FiveM Lua?
-        -- For now, we'll rely on isJailed flag. A more robust solution might involve a variable.
-        -- Or simply let it run its course if it checks isJailed each iteration.
-        -- For this implementation, the loop will self-terminate if isJailed is false.
-        jailTimerDisplayActive = false -- This will hide the NUI display
-        Log("Jail update thread signaled to stop.", "info")
-    end
-    jailUpdateThread = nil -- Clear the reference
+    -- Thread checks the isJailed flag, so simply hide the timer display
+    jailTimerDisplayActive = false
+    Log("Jail update thread signaled to stop.", "info")
 end
 
 local function StartJailUpdateThread(duration)
-    if jailUpdateThread then
-        StopJailUpdateThread() -- Stop any existing thread first
-    end
-
     jailTimeRemaining = duration
     jailTimerDisplayActive = true
 
-    jailUpdateThread = Citizen.CreateThread(function()
+    -- Avoid spawning multiple threads
+    if jailThreadRunning then
+        Log("Jail update thread already running. Timer updated to " .. jailTimeRemaining, "info")
+        return
+    end
+
+    jailThreadRunning = true
+    Citizen.CreateThread(function()
         Log("Jail update thread started. Duration: " .. jailTimeRemaining, "info")
         local playerPed = PlayerPedId()
 
@@ -2077,7 +2075,7 @@ local function StartJailUpdateThread(duration)
         Log("Jail update thread finished or player released.", "info")
         jailTimerDisplayActive = false
         SendNUIMessage({ action = "hideJailTimer" })
-        jailUpdateThread = nil -- Clear the reference upon completion
+        jailThreadRunning = false
     end)
 end
 
