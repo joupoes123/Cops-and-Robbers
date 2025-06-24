@@ -12,7 +12,7 @@ Config = Config or {}
 --        General Settings
 -- =========================
 
-Config.DebugLogging   = true -- Set to true to enable detailed server console logging (may cause spam)
+Config.DebugLogging   = false -- Set to true to enable detailed server console logging (may cause spam)
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
@@ -27,6 +27,9 @@ Config.SpawnPoints = {
 
 -- Jail Location (players are sent here when jailed)
 Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5) -- Bolingbroke Penitentiary (example)
+
+-- Jail Uniform Model
+Config.JailUniformModel = "a_m_m_prisoner_01" -- Model to use for jailed players. Ensure this model is available.
 
 
 -- =========================

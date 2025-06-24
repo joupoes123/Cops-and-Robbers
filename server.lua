@@ -1,16 +1,5 @@
 -- server.lua
--- Version: <current_version_after_bounty_implementation_and_xp_perk_fixes>
--- Main changes in this version:
--- - Integrated Cop XP awards.
--- - Implemented server-side item/vehicle access restrictions based on level and role.
--- - Added server-side perk example: Increased Armor Durability for Cops.
--- - Added new crime 'power_grid_sabotaged_crime' handling.
--- - Added K9 Engagement tracking for K9 assist XP.
--- - Implemented Bounty System (Phase 2).
--- - Added missing XP awards for Armored Car Heist & Contraband.
--- - Implemented server-side logic for "extra_spike_strips" & "faster_contraband_collection" perks.
--- - Refined Cop Arrest XP based on wanted level.
--- - Added server-side handler for role requests, hideout finding, and contraband dealers.
+-- Version: 1.2.0
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -79,6 +68,10 @@ local function SafeTriggerClientEvent(eventName, playerId, ...)
         return false
     end
 end
+
+-- Forward declarations for functions defined later
+local MarkPlayerForInventorySave
+local SavePlayerDataImmediate
 
 -- Global state tables
 local playersData = {}
@@ -719,6 +712,43 @@ local pDataForLoad = shallowcopy(playersData[pIdNum])
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
+
+    -- Check for persisted jail data
+    local pData = playersData[pIdNum] -- Re-fetch or use existing, ensure it's the most current
+    if pData and pData.jailData and pData.jailData.originalDuration and pData.jailData.jailedTimestamp then
+        -- Calculate how much time should be remaining based on the original sentence and total time elapsed.
+        -- This correctly accounts for time passed while the player was offline (if the server was running).
+        local totalTimeElapsedSinceJailing = os.time() - pData.jailData.jailedTimestamp
+        local calculatedRemainingTime = math.max(0, pData.jailData.originalDuration - totalTimeElapsedSinceJailing)
+
+        Log(string.format("Player %s jail check: OriginalDuration=%s, JailedTimestamp=%s, CurrentTime=%s, TotalElapsed=%s, CalculatedRemaining=%s, SavedRemaining=%s",
+            pIdNum,
+            tostring(pData.jailData.originalDuration),
+            tostring(pData.jailData.jailedTimestamp),
+            tostring(os.time()),
+            tostring(totalTimeElapsedSinceJailing),
+            tostring(calculatedRemainingTime),
+            tostring(pData.jailData.remainingTime) -- For comparison logging
+        ), "info")
+
+        if calculatedRemainingTime > 0 then
+            jail[pIdNum] = {
+                startTime = os.time(), -- Current login time becomes the new reference for this session's server-side tick
+                duration = pData.jailData.originalDuration, -- Always use the original full duration
+                remainingTime = calculatedRemainingTime, -- The actual time left to serve
+                arrestingOfficer = pData.jailData.jailedByOfficer or "System (Rejoin)"
+            }
+            SafeTriggerClientEvent('cnr:sendToJail', pIdNum, calculatedRemainingTime, Config.PrisonLocation)
+            Log(string.format("Player %s re-jailed upon loading data. Calculated Remaining: %ds", pIdNum, calculatedRemainingTime), "info")
+            SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You are still jailed. Time remaining: %d seconds.", calculatedRemainingTime)} })
+        else
+            Log(string.format("Player %s jail time expired while offline or on load. Original Duration: %ds, Total Elapsed: %ds", pIdNum, pData.jailData.originalDuration, totalTimeElapsedSinceJailing), "info")
+            pData.jailData = nil -- Clear expired jail data
+        end
+    elseif pData and pData.jailData then -- If jailData exists but is incomplete (e.g., missing originalDuration or jailedTimestamp) or remainingTime was already <=0
+        Log(string.format("Player %s had incomplete or already expired jailData. Clearing. Data: %s", pIdNum, json.encode(pData.jailData)), "warn")
+        pData.jailData = nil -- Clean up old/completed/invalid jail data
+    end
     -- Original position of isDataLoaded setting is now removed.
 end
 
@@ -951,7 +981,8 @@ function CheckAndPlaceBounty(playerId)
     if wantedData.stars >= Config.BountySettings.wantedLevelThreshold and
        not activeBounties[pIdNum] and (pData.bountyCooldownUntil or 0) < os.time() then
         local bountyAmount = Config.BountySettings.baseAmount
-        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"        local durationMinutes = Config.BountySettings.durationMinutes
+        local targetName = SafeGetPlayerName(pIdNum) or "Unknown Target"
+        local durationMinutes = Config.BountySettings.durationMinutes
         if durationMinutes and activeBounties and pIdNum then
             activeBounties[pIdNum] = { name = targetName, amount = bountyAmount, issueTimestamp = os.time(), lastIncreasedTimestamp = os.time(), expiresAt = os.time() + (durationMinutes * 60) }
             Log(string.format("Bounty of $%d placed on %s (ID: %d) for reaching %d stars.", bountyAmount, targetName, pIdNum, wantedData.stars))
@@ -1194,6 +1225,32 @@ end)
 -- =================================================================================================
 -- JAIL SYSTEM
 -- =================================================================================================
+
+-- Helper function to calculate jail term based on wanted stars
+local function CalculateJailTermFromStars(stars)
+    local minPunishment = 60 -- Default minimum
+    local maxPunishment = 120 -- Default maximum
+
+    if Config.WantedSettings and Config.WantedSettings.levels then
+        for _, levelData in ipairs(Config.WantedSettings.levels) do
+            if levelData.stars == stars then
+                minPunishment = levelData.minPunishment or minPunishment
+                maxPunishment = levelData.maxPunishment or maxPunishment
+                break
+            end
+        end
+    else
+        Log("CalculateJailTermFromStars: Config.WantedSettings.levels not found. Using default punishments.", "warn")
+    end
+
+    if maxPunishment < minPunishment then -- Sanity check
+        maxPunishment = minPunishment
+        Log("CalculateJailTermFromStars: maxPunishment was less than minPunishment. Adjusted. Stars: " .. stars, "warn")
+    end
+
+    return math.random(minPunishment, maxPunishment)
+end
+
 SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
@@ -1214,12 +1271,32 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
         originalWantedData.stars = 0
     end
 
-    jail[pIdNum] = { startTime = os.time(), duration = durationSeconds, remainingTime = durationSeconds, arrestingOfficer = arrestingOfficerId }
+    local finalDurationSeconds = durationSeconds
+    if not finalDurationSeconds or finalDurationSeconds <= 0 then
+        finalDurationSeconds = CalculateJailTermFromStars(originalWantedData.stars)
+        Log(string.format("SendToJail: Calculated jail term for player %s (%d stars) as %d seconds.", pIdNum, originalWantedData.stars, finalDurationSeconds), "info")
+    end
+
+    jail[pIdNum] = { startTime = os.time(), duration = finalDurationSeconds, remainingTime = finalDurationSeconds, arrestingOfficer = arrestingOfficerId }
     wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} } -- Reset wanted
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
-    SafeTriggerClientEvent('cnr:sendToJail', pIdNum, durationSeconds, Config.PrisonLocation)
-    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", durationSeconds)} })
-    Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, durationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
+    SafeTriggerClientEvent('cnr:sendToJail', pIdNum, finalDurationSeconds, Config.PrisonLocation)
+    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^1Jail", string.format("You have been jailed for %d seconds.", finalDurationSeconds)} })
+    Log(string.format("Player %s jailed for %ds. Officer: %s. Options: %s", pIdNum, finalDurationSeconds, arrestingOfficerId or "N/A", json.encode(arrestOptions)))
+
+    -- Persist jail information in player data
+    local pData = GetCnrPlayerData(pIdNum)
+    if pData then
+        pData.jailData = {
+            remainingTime = finalDurationSeconds,
+            originalDuration = finalDurationSeconds,
+            jailedByOfficer = arrestingOfficerId,
+            jailedTimestamp = os.time()
+        }
+        -- Mark for save, or SavePlayerDataImmediate if critical, though playerDropped will also save.
+        -- For now, let standard save mechanisms handle it unless issues arise.
+        MarkPlayerForInventorySave(pIdNum) -- This function name is a bit misleading but marks generic pData save
+    end
 
     local arrestingOfficerName = (arrestingOfficerId and GetPlayerName(arrestingOfficerId)) or "System"
     for copId, _ in pairs(copsOnDuty) do
@@ -1284,35 +1361,92 @@ SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptio
     end
 end
 
+ForceReleasePlayerFromJail = function(playerId, reason)
+    local pIdNum = tonumber(playerId)
+    if not pIdNum or pIdNum <= 0 then
+        Log(string.format("ForceReleasePlayerFromJail: Invalid player ID '%s'.", tostring(playerId)), "error")
+        return false
+    end
+
+    reason = reason or "Released by server"
+    local playerIsOnline = GetPlayerName(pIdNum) ~= nil
+
+    -- Log the attempt
+    Log(string.format("Attempting to release player %s from jail. Reason: %s. Online: %s", pIdNum, reason, tostring(playerIsOnline)), "info")
+
+    -- Clear live jail data from the `jail` table
+    if jail[pIdNum] then
+        jail[pIdNum] = nil
+        Log(string.format("Player %s removed from live jail tracking.", pIdNum), "info")
+    else
+        Log(string.format("Player %s was not in live jail tracking. Proceeding to check persisted data.", pIdNum), "info")
+    end
+
+    -- Clear persisted jail data from `playersData`
+    local pData = GetCnrPlayerData(pIdNum)
+    if pData and pData.jailData then
+        pData.jailData = nil
+        Log(string.format("Cleared persisted jail data for player %s.", pIdNum), "info")
+        -- Mark for save. If player is online, normal save mechanisms will pick it up.
+        -- If offline, this save might only happen if SavePlayerData can handle it or on next login.
+        MarkPlayerForInventorySave(pIdNum) -- This marks pData for saving
+    else
+        Log(string.format("No persisted jail data found for player %s to clear.", pIdNum), "info")
+    end
+
+    if playerIsOnline then
+        SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
+        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released. (" .. reason .. ")"} })
+        Log(string.format("Player %s (online) released. Client notified.", pIdNum), "info")
+    else
+        -- If player is offline, their data (now without jailData) will be saved by MarkPlayerForInventorySave
+        -- if the periodic saver picks them up or if SavePlayerData is called by another process for offline players.
+        -- Otherwise, it's saved on their next disconnect (if they were online briefly) or handled by LoadPlayerData on next join.
+        Log(string.format("Player %s (offline) jail data cleared. They will be free on next login.", pIdNum), "info")
+        -- Persist the updated data immediately so they won't be jailed again on reconnect
+        local saveSuccess = SavePlayerDataImmediate(pIdNum, "unjail_offline")
+        if not saveSuccess then
+            Log(string.format("Failed to save data for player %s after unjailing. Retrying...", pIdNum), "error")
+            saveSuccess = SavePlayerDataImmediate(pIdNum, "unjail_offline")
+            if not saveSuccess then
+                Log(string.format("Retry failed: Could not save data for player %s after unjailing. Manual intervention may be required.", pIdNum), "error")
+            end
+        end
+    end
+    return true
+end
+
 CreateThread(function() -- Jail time update loop
     while true do Wait(1000)
-        for playerId, jailData in pairs(jail) do
-            local pIdNum = tonumber(playerId)
-            if pIdNum and pIdNum > 0 and GetPlayerName(pIdNum) ~= nil then -- Check player online
-                jailData.remainingTime = jailData.remainingTime - 1
-                if jailData.remainingTime <= 0 then
-                    SafeTriggerClientEvent('cnr:releaseFromJail', pIdNum)
-                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Jail", "You have been released."} })
-                    Log("Player " .. pIdNum .. " released.")
+        -- Iterate over a copy of keys if modifying the table, though here we are just checking values.
+        for playerIdKey, jailInstanceData in pairs(jail) do
+            local pIdNum = tonumber(playerIdKey) -- Ensure we use the key from pairs()
+
+            if pIdNum and pIdNum > 0 then
+                if GetPlayerName(pIdNum) ~= nil then -- Check player online
+                    jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
+                    if jailInstanceData.remainingTime <= 0 then
+                        ForceReleasePlayerFromJail(pIdNum, "Sentence served")
+                    elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
+                        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
+                    end
+                else
+                    -- Player is in the 'jail' table but is offline.
+                    -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
+                    -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
+                    -- LoadPlayerData should handle their actual status on rejoin based on persisted pData.jailData.
+                    -- So, we can remove them from the live 'jail' table here to keep it clean.
+                    Log(string.format("Player %s found in 'jail' table but is offline. Removing from live tracking. Persisted data will determine status on rejoin.", pIdNum), "warn")
                     jail[pIdNum] = nil
-                elseif jailData.remainingTime % 60 == 0 then
-                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailData.remainingTime)} })
                 end
             else
-                Log("Player " .. tostring(playerId) .. " offline. Jail time paused.")
-                -- Optionally, save player data here if jail time needs to persist accurately even if server restarts while player is offline & jailed.
-                -- However, current SavePlayerData is usually tied to playerDrop.
+                 Log(string.format("Invalid player ID key '%s' found in jail table.", tostring(playerIdKey)), "error")
+                 jail[playerIdKey] = nil -- Remove invalid entry
             end
         end
     end
 end)
-
-RegisterNetEvent('cnr:playerSpawned')
-AddEventHandler('cnr:playerSpawned', function()
-    local src = source
-    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
-    LoadPlayerData(src)
-end)
+-- (Removed duplicate cnr:playerSpawned handler. See consolidated handler below.)
 
 RegisterNetEvent('cnr:selectRole')
 AddEventHandler('cnr:selectRole', function(selectedRole)
@@ -1432,21 +1566,16 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         cash = pData and (pData.cash or pData.money) or 0
     }
     
-    -- Debug: Print player info being sent to client
-    print('[CNR_SERVER_DEBUG] Player info being sent to client:')
-    print(json.encode(playerInfo, {indent = true}))
-    print('[CNR_SERVER_DEBUG] Raw pData for debugging:')
-    if pData then
-        print(string.format("  level: %s, role: %s, cash: %s, money: %s", 
-            tostring(pData.level), tostring(pData.role), tostring(pData.cash), tostring(pData.money)))
-    else
-        print("  pData is nil!")
-    end-- print('[CNR_SERVER_DEBUG] Item list for', storeName, 'has', #fullItemDetailsList, 'items after processing.')
-    
-    -- Debug: Print the first item structure to see what's being sent
-    if #fullItemDetailsList > 0 then
-        print('[CNR_SERVER_DEBUG] Sample item structure for debugging:')
-        print(json.encode(fullItemDetailsList[1], {indent = true}))
+    -- Ensure level is calculated correctly based on current XP
+    if pData and pData.xp then
+        local calculatedLevel = CalculateLevel(pData.xp, pData.role)
+        if calculatedLevel ~= pData.level then
+            pData.level = calculatedLevel
+            playerInfo.level = calculatedLevel
+            -- Only log critical level corrections
+            print(string.format("[CNR_CRITICAL_LOG] Level correction for player %s: was %d, corrected to %d based on XP %d", 
+                src, pData.level or 1, calculatedLevel, pData.xp))
+        end
     end
     
     -- Send the constructed list of full item details to the client
@@ -1459,11 +1588,8 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local src = source
     local pData = GetCnrPlayerData(src)
 
-    print(string.format("[CNR_SERVER_DEBUG] getPlayerInventory called by player %s", src))
-
     if not pData or not pData.inventory then
-        print(string.format("[CNR_SERVER_ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
-        print(string.format("[CNR_SERVER_DEBUG] pData exists: %s, pData.inventory exists: %s", tostring(pData ~= nil), tostring(pData and pData.inventory ~= nil)))
+        print(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
@@ -1545,26 +1671,30 @@ AddEventHandler('cnr:initiateHeist', function(heistType)
       -- Alert all cops about the heist
     for _, targetPlayerId in ipairs(GetPlayers()) do
         local targetId = tonumber(targetPlayerId)
-        local targetData = GetCnrPlayerData(targetId)
         
-        if targetData and targetData.role == 'cop' then
-            local playerPed = GetPlayerPed(playerId)
-            if playerPed and playerPed > 0 then
-                local playerCoords = GetEntityCoords(playerPed)
-                if playerCoords then
-                    local coordsTable = {
-                        x = playerCoords.x,
-                        y = playerCoords.y,
-                        z = playerCoords.z
-                    }
-                    TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+        -- Check if targetId is valid before proceeding
+        if targetId and targetId > 0 then
+            local targetData = GetCnrPlayerData(targetId)
+            
+            if targetData and targetData.role == 'cop' then
+                local playerPed = GetPlayerPed(playerId)
+                if playerPed and playerPed > 0 then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    if playerCoords then
+                        local coordsTable = {
+                            x = playerCoords.x,
+                            y = playerCoords.y,
+                            z = playerCoords.z
+                        }
+                        TriggerClientEvent('cnr:heistAlert', targetId, heistType, coordsTable)
+                    else
+                        local defaultCoords = {x = 0, y = 0, z = 0}
+                        TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
+                    end
                 else
                     local defaultCoords = {x = 0, y = 0, z = 0}
                     TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
                 end
-            else
-                local defaultCoords = {x = 0, y = 0, z = 0}
-                TriggerClientEvent('cnr:heistAlert', targetId, heistType, defaultCoords)
             end
         end
     end
@@ -2029,8 +2159,8 @@ AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
         targetData.money = targetData.money - fineAmount
         pData.money = pData.money + math.floor(fineAmount * 0.5) -- Cop gets 50% commission
           -- Award XP to the cop
-        local xpAmount = (Config.XPRewards and Config.XPRewards.speeding_fine_issued) or 8
-        AddXP(source, xpAmount, "speeding_fine_issued")
+        local xpAmount = (Config.XPActionsCop and Config.XPActionsCop.speeding_fine_issued) or 8 -- Standardized to XPActionsCop
+        AddXP(source, xpAmount, "cop") -- XP type should be "cop"
         
         -- Save both players' data
         SavePlayerData(source)

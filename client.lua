@@ -31,6 +31,8 @@ RegisterNetEvent('cnr:heistCompleted')
 RegisterNetEvent('cops_and_robbers:sendItemList')
 RegisterNetEvent('cnr:openContrabandStoreUI')
 RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
+RegisterNetEvent('cnr:sendToJail')
+RegisterNetEvent('cnr:releaseFromJail')
 
 -- =====================================
 --           VARIABLES
@@ -67,8 +69,10 @@ local currentWantedStarsClient = 0
 local currentWantedPointsClient = 0
 local wantedUiLabel = ""
 local lastSpeedCheckTime = 0
-local speedLimit = 80.0 -- mph
+local speedLimit = Config.SpeedLimitMph or 60.0 -- mph, now from config with a fallback
 local lastWantedLevelTime = 0
+local speedingStartTime = 0 -- Track when player started speeding
+local isCurrentlySpeeding = false
 
 local xpForNextLevelDisplay = 0
 
@@ -104,6 +108,15 @@ local collectionTimerEnd = 0
 -- Store UI state
 local isCopStoreUiOpen = false
 local isRobberStoreUiOpen = false
+
+-- Jail System Client State
+local isJailed = false
+local jailTimeRemaining = 0
+local jailTimerDisplayActive = false
+local jailReleaseLocation = nil -- To be set by config or default spawn
+local JailMainPoint = vector3(1651.0, 2570.0, 45.5) -- Default, will be updated by server
+local JailRadius = 50.0 -- Max distance from JailMainPoint before teleported back
+local originalPlayerModelHash = nil -- Variable to store the player's model before jailing
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -205,13 +218,9 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     local playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
-        return
-    end
-    print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: newRole=%s, oldRole=%s", newRole, oldRole or "nil"))
+        return    end
     RemoveAllPedWeapons(playerPed, true)
-    playerWeapons = {}
-    playerAmmo = {}
-    print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: All weapons removed.")
+    playerWeapons = {}    playerAmmo = {}
     local modelToLoad = nil
     local modelHash = nil    if newRole == "cop" then
         modelToLoad = "s_m_y_cop_01"
@@ -219,23 +228,17 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         modelToLoad = "mp_m_waremech_01"  -- Changed to warehouse mechanic model
     else
         modelToLoad = "a_m_m_farmer_01"
-    end
-    modelHash = GetHashKey(modelToLoad)
-    print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Attempting to load model: %s (Hash: %s)", modelToLoad, modelHash))
+    end    modelHash = GetHashKey(modelToLoad)
     if modelHash and modelHash ~= 0 and modelHash ~= -1 then
         RequestModel(modelHash)
         local attempts = 0
         while not HasModelLoaded(modelHash) and attempts < 100 do
             Citizen.Wait(50)
             attempts = attempts + 1
-        end
-        if HasModelLoaded(modelHash) then
-            print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Model %s loaded. Setting player model.", modelToLoad))
+        end        if HasModelLoaded(modelHash) then
             SetPlayerModel(PlayerId(), modelHash)
             Citizen.Wait(10)
-            SetPedDefaultComponentVariation(playerPed)
-            if modelToLoad == "mp_m_freemode_01" then
-                print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Applying freemode component randomization for mp_m_freemode_01.")
+            SetPedDefaultComponentVariation(playerPed)            if modelToLoad == "mp_m_freemode_01" then
                 SetPedRandomComponentVariation(playerPed, 0)
             end
             SetModelAsNoLongerNeeded(modelHash)
@@ -254,15 +257,11 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if newRole == "cop" then
         local taserHash = GetHashKey("weapon_stungun")
         GiveWeaponToPed(playerPed, taserHash, 5, false, true)
-        playerWeapons["weapon_stungun"] = true
-        playerAmmo["weapon_stungun"] = 5
-        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave taser to cop.")
+        playerWeapons["weapon_stungun"] = true        playerAmmo["weapon_stungun"] = 5
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
         GiveWeaponToPed(playerPed, batHash, 1, false, true)
-        playerWeapons["weapon_bat"] = true
-        playerAmmo["weapon_bat"] = 1
-        print("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Gave bat to robber.")
+        playerWeapons["weapon_bat"] = true        playerAmmo["weapon_bat"] = 1
 
         -- Note: Robber vehicles are spawned on resource start, not per-player
     end
@@ -326,7 +325,6 @@ AddEventHandler('cnr:showWantedLevel', function(stars, points, level)
 end)
 
 AddEventHandler('cnr:hideWantedLevel', function()
-    print("[CNR_CLIENT_DEBUG] Hiding wanted level notification")
     SendNUIMessage({
         action = 'hideWantedNotification'
     })
@@ -541,31 +539,45 @@ Citizen.CreateThread(function()
         local playerPed = PlayerPedId()
         if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
             local vehicle = GetVehiclePedIsIn(playerPed, false)
-            
-            if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+              if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
                 local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
                 local currentTime = GetGameTimer()
+                local vehicleClass = GetVehicleClass(vehicle)
                 
-                -- Check for speeding (increase wanted level)
-                if speed > speedLimit and (currentTime - lastWantedLevelTime) > 10000 then -- 10 second cooldown
-                    if currentWantedLevel < 5 then
-                        -- Increase wanted level more gradually
-                        currentWantedLevel = currentWantedLevel + 1
-                        lastWantedLevelTime = currentTime
-                        
-                        -- Calculate wanted points (10 points per star level)
-                        local wantedPoints = currentWantedLevel * 10
-                        local wantedLabel = currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")
-                        
-                        -- Update local variables
-                        currentWantedStarsClient = currentWantedLevel
-                        currentWantedPointsClient = wantedPoints
-                        wantedUiLabel = wantedLabel
-                        
-                        -- Only use NUI notification, not GTA notification
-                        TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
-                        print(string.format("[CNR_CLIENT_DEBUG] Wanted level increased to %d due to speeding (%.1f mph)", currentWantedLevel, speed))
+                -- Exclude aircraft (planes/helicopters) and boats from speeding detection
+                local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
+                local isBoat = (vehicleClass == 14) -- Boats
+                
+                -- Check for speeding (increase wanted level) only for ground vehicles
+                if not isAircraft and not isBoat and speed > speedLimit then
+                    if not isCurrentlySpeeding then
+                        -- Player just started speeding, start the timer
+                        speedingStartTime = currentTime
+                        isCurrentlySpeeding = true
+                    elseif (currentTime - speedingStartTime) > 5000 and (currentTime - lastWantedLevelTime) > 10000 then
+                        -- Player has been speeding for more than 5 seconds and cooldown period has passed
+                        if currentWantedLevel < 5 then
+                            -- Increase wanted level more gradually
+                            currentWantedLevel = currentWantedLevel + 1
+                            lastWantedLevelTime = currentTime
+                            
+                            -- Calculate wanted points (10 points per star level)
+                            local wantedPoints = currentWantedLevel * 10
+                            local wantedLabel = currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")
+                            
+                            -- Update local variables
+                            currentWantedStarsClient = currentWantedLevel
+                            currentWantedPointsClient = wantedPoints
+                            wantedUiLabel = wantedLabel
+                            
+                            -- Only use NUI notification, not GTA notification
+                            TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
+                        end
                     end
+                else
+                    -- Player is no longer speeding or in exempt vehicle
+                    isCurrentlySpeeding = false
+                    speedingStartTime = 0
                 end
             end
             
@@ -1668,16 +1680,51 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Thread to detect when player commits a crime (like killing another player)
+-- Thread to detect when player commits a crime (like killing NPCs or other players)
 Citizen.CreateThread(function()
+    local lastMurderCheckTime = 0
+    local nearbyPedsTracked = {}
+    
     while true do
         Citizen.Wait(1000) -- Check once per second
         
         -- Only check if player is ready and is a robber
         if g_isPlayerPedReady and role == "robber" then
             local playerPed = PlayerPedId()
+            local currentTime = GetGameTimer()
             
-            -- Check for kill
+            -- Check if player killed an NPC (check nearby peds for recent deaths)
+            if (currentTime - lastMurderCheckTime) > 2000 then -- Check every 2 seconds to avoid spam
+                local playerCoords = GetEntityCoords(playerPed)
+                local nearbyPeds = GetGamePool('CPed')
+                
+                for i = 1, #nearbyPeds do
+                    local ped = nearbyPeds[i]
+                    if ped ~= playerPed and DoesEntityExist(ped) and not IsPedAPlayer(ped) then
+                        local pedCoords = GetEntityCoords(ped)
+                        local distance = #(playerCoords - pedCoords)
+                        
+                        -- Check if ped is close and recently died
+                        if distance < 15.0 and IsEntityDead(ped) then
+                            -- Check if this ped wasn't tracked as dead before
+                            if not nearbyPedsTracked[ped] then
+                                local killer = GetPedSourceOfDeath(ped)
+                                -- If player was the killer
+                                if killer == playerPed then
+                                    TriggerServerEvent('cops_and_robbers:reportCrime', 'murder')
+                                    nearbyPedsTracked[ped] = true
+                                end
+                            end
+                        elseif distance > 50.0 then
+                            -- Remove tracking for peds that are far away to prevent memory issues
+                            nearbyPedsTracked[ped] = nil
+                        end
+                    end
+                end
+                lastMurderCheckTime = currentTime
+            end
+            
+            -- Check for kill (player vs player)
             if IsEntityDead(playerPed) then
                 -- Player died, check who killed them
                 local killer = GetPedSourceOfDeath(playerPed)
@@ -1960,6 +2007,252 @@ RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
 end)
+
+-- ====================================================================
+-- Client-Side Jail System Logic
+-- ====================================================================
+
+-- Track if the jail update thread is running
+local jailThreadRunning = false
+
+local function StopJailUpdateThread()
+    -- Thread checks the isJailed flag, so simply hide the timer display
+    jailTimerDisplayActive = false
+    jailThreadRunning = false
+    Log("Jail update thread signaled to stop.", "info")
+end
+
+local function StartJailUpdateThread(duration)
+    jailTimeRemaining = duration
+    jailTimerDisplayActive = true
+
+    -- Avoid spawning multiple threads
+    if jailThreadRunning then
+        Log("Jail update thread already running. Timer updated to " .. jailTimeRemaining, "info")
+        return
+    end
+
+    jailThreadRunning = true
+    Citizen.CreateThread(function()
+        Log("Jail update thread started. Duration: " .. jailTimeRemaining, "info")
+        local playerPed = PlayerPedId()
+
+        while isJailed and jailTimeRemaining > 0 do
+            Citizen.Wait(1000) -- Update every second
+
+            if not isJailed then -- Double check in case of async state change
+                break
+            end
+
+            jailTimeRemaining = jailTimeRemaining - 1
+
+            -- Send update to NUI to display remaining time
+            SendNUIMessage({
+                action = "updateJailTimer",
+                time = jailTimeRemaining
+            })
+
+            -- Enforce Jail Restrictions (Step 3 of plan)
+            -- Example: Disable combat controls
+            DisableControlAction(0, 24, true)  -- INPUT_ATTACK
+            DisableControlAction(0, 25, true)  -- INPUT_AIM
+            DisableControlAction(0, 140, true) -- INPUT_MELEE_ATTACK_LIGHT
+            DisableControlAction(0, 141, true) -- INPUT_MELEE_ATTACK_HEAVY
+            DisableControlAction(0, 142, true) -- INPUT_MELEE_ATTACK_ALTERNATE
+            DisableControlAction(0, 257, true) -- INPUT_ATTACK2
+            DisableControlAction(0, 263, true) -- INPUT_MELEE_ATTACK1
+            DisableControlAction(0, 264, true) -- INPUT_MELEE_ATTACK2
+
+
+            -- Prevent equipping weapons (more robustly handled by clearing them on jail entry)
+            -- Forcing unarmed:
+             if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
+                 SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
+             end
+
+            -- TODO: Add more restrictions like preventing inventory access, vehicle entry, etc.
+            DisableControlAction(0, 23, true)    -- INPUT_ENTER_VEHICLE
+            DisableControlAction(0, 51, true)    -- INPUT_CONTEXT (E) - Be careful if E is used for other things
+            DisableControlAction(0, 22, true)    -- INPUT_JUMP
+            if Config.Keybinds and Config.Keybinds.openInventory then
+                DisableControlAction(0, Config.Keybinds.openInventory, true) -- Disable inventory key
+            else
+                DisableControlAction(0, 244, true) -- Fallback M key for inventory (INPUT_INTERACTION_MENU)
+            end
+
+            -- Additional restrictions for phone, weapon selection, cover, reload
+            DisableControlAction(0, 246, true)   -- INPUT_PHONE (Up Arrow/Cellphone)
+            DisableControlAction(0, 12, true)    -- INPUT_WEAPON_WHEEL_NEXT
+            DisableControlAction(0, 13, true)    -- INPUT_WEAPON_WHEEL_PREV
+            DisableControlAction(0, 14, true)    -- INPUT_SELECT_PREV_WEAPON
+            DisableControlAction(0, 15, true)    -- INPUT_SELECT_NEXT_WEAPON
+            DisableControlAction(0, 44, true)    -- INPUT_COVER (Q)
+            DisableControlAction(0, 45, true)    -- INPUT_RELOAD (R)
+            -- Add more specific keybinds to disable if needed (e.g., phone, specific menus)
+
+            -- Confinement to jail area
+            local currentPos = GetEntityCoords(playerPed)
+            local distanceToJailCenter = #(currentPos - JailMainPoint)
+
+            if distanceToJailCenter > JailRadius then
+                Log("Jailed player attempted to escape. Teleporting back.", "warn")
+                ShowNotification("~r~You cannot leave the prison area.")
+                SetEntityCoords(playerPed, JailMainPoint.x, JailMainPoint.y, JailMainPoint.z, false, false, false, true)
+            end
+
+            if jailTimeRemaining <= 0 then
+                isJailed = false -- Ensure flag is set before potentially triggering release
+                -- Server will trigger cnr:releaseFromJail, client should not do it directly
+                Log("Jail time expired on client. Waiting for server release.", "info")
+                SendNUIMessage({ action = "hideJailTimer" })
+                jailTimerDisplayActive = false
+                break
+            end
+        end
+        Log("Jail update thread finished or player released.", "info")
+        jailTimerDisplayActive = false
+        SendNUIMessage({ action = "hideJailTimer" })
+        jailThreadRunning = false
+    end)
+end
+
+local function ApplyPlayerModel(modelHash)
+    if not modelHash or modelHash == 0 then
+        Log("ApplyPlayerModel: Invalid modelHash received: " .. tostring(modelHash), "error")
+        return
+    end
+
+    local playerPed = PlayerPedId()
+    RequestModel(modelHash)
+    local attempts = 0
+    while not HasModelLoaded(modelHash) and attempts < 100 do
+        Citizen.Wait(50)
+        attempts = attempts + 1
+    end
+
+    if HasModelLoaded(modelHash) then
+        Log("ApplyPlayerModel: Model " .. modelHash .. " loaded. Setting player model.", "info")
+        SetPlayerModel(PlayerId(), modelHash)
+        Citizen.Wait(100) -- Allow model to apply
+        SetPedDefaultComponentVariation(playerPed) -- Reset components to default for the new model
+        SetModelAsNoLongerNeeded(modelHash)
+    else
+        Log("ApplyPlayerModel: Failed to load model " .. modelHash .. " after 100 attempts.", "error")
+        ShowNotification("~r~Error applying appearance change.")
+    end
+end
+
+AddEventHandler('cnr:sendToJail', function(durationSeconds, prisonLocation)
+    Log(string.format("Received cnr:sendToJail. Duration: %d, Location: %s", durationSeconds, json.encode(prisonLocation)), "info")
+    local playerPed = PlayerPedId()
+
+    isJailed = true
+    jailTimeRemaining = durationSeconds
+
+    -- Store original player model
+    originalPlayerModelHash = GetEntityModel(playerPed)
+    Log("Stored original player model: " .. originalPlayerModelHash, "info")
+
+    -- Apply jail uniform
+    local jailUniformModelKey = Config.JailUniformModel or "a_m_m_prisoner_01" -- Fallback if config is missing
+    local jailUniformModelHash = GetHashKey(jailUniformModelKey)
+    if jailUniformModelHash ~= 0 then
+        ApplyPlayerModel(jailUniformModelHash)
+    else
+        Log("Invalid JailUniformModel in Config: " .. jailUniformModelKey, "error")
+    end
+
+    -- Teleport player to prison
+    if prisonLocation and prisonLocation.x and prisonLocation.y and prisonLocation.z then
+        JailMainPoint = vector3(prisonLocation.x, prisonLocation.y, prisonLocation.z) -- Update the jail center point
+        RequestCollisionAtCoord(JailMainPoint.x, JailMainPoint.y, JailMainPoint.z) -- Request collision for the jail area
+        SetEntityCoords(playerPed, JailMainPoint.x, JailMainPoint.y, JailMainPoint.z, false, false, false, true)
+        SetEntityHeading(playerPed, prisonLocation.w or 0.0) -- Use heading if provided
+        ClearPedTasksImmediately(playerPed)
+    else
+        Log("cnr:sendToJail - Invalid prisonLocation received. Using default: " .. json.encode(JailMainPoint), "error")
+        ShowNotification("~r~Error: Could not teleport to jail - invalid location.")
+        isJailed = false -- Don't proceed if teleport fails
+        originalPlayerModelHash = nil -- Clear stored model if jailing fails
+        return
+    end
+
+    -- Remove all weapons from player
+    RemoveAllPedWeapons(playerPed, true)
+    ShowNotification("~r~All weapons have been confiscated.")
+
+    -- Send NUI message to show jail timer
+    SendNUIMessage({
+        action = "showJailTimer",
+        initialTime = jailTimeRemaining
+    })
+
+    StartJailUpdateThread(durationSeconds)
+end)
+
+AddEventHandler('cnr:releaseFromJail', function()
+    Log("Received cnr:releaseFromJail.", "info")
+    local playerPed = PlayerPedId()
+
+    isJailed = false
+    jailTimeRemaining = 0
+    StopJailUpdateThread() -- Signal the jail loop to stop and hide UI
+
+    -- Send NUI message to hide jail timer
+    SendNUIMessage({ action = "hideJailTimer" })
+
+    -- Restore player model
+    if originalPlayerModelHash and originalPlayerModelHash ~= 0 then
+        Log("Restoring original player model: " .. originalPlayerModelHash, "info")
+        ApplyPlayerModel(originalPlayerModelHash)
+    else
+        Log("No original player model stored or it was invalid. Attempting to restore to role default or citizen model.", "warn")
+        if playerData and playerData.role and playerData.role ~= "" and playerData.role ~= "citizen" then
+            Log("Attempting to apply model for role: " .. playerData.role, "info")
+            ApplyRoleVisualsAndLoadout(playerData.role, nil) -- Applies role default model & basic loadout
+        else
+            Log("Player role unknown or citizen, applying default citizen model.", "info")
+            ApplyRoleVisualsAndLoadout("citizen", nil) -- Fallback to citizen visuals
+        end
+    end
+    originalPlayerModelHash = nil -- Clear stored model hash after attempting restoration
+
+    -- Determine release location
+    local determinedReleaseLocation = nil
+    local hardcodedDefaultSpawn = vector3(186.0, -946.0, 30.0) -- Legion Square, a very safe fallback
+
+    if playerData and playerData.role and Config.SpawnPoints and Config.SpawnPoints[playerData.role] then
+        determinedReleaseLocation = Config.SpawnPoints[playerData.role]
+        Log(string.format("Using spawn point for role '%s'.", playerData.role), "info")
+    elseif Config.SpawnPoints and Config.SpawnPoints["citizen"] then
+        determinedReleaseLocation = Config.SpawnPoints["citizen"]
+        Log("Role spawn not found or role invalid, using citizen spawn point.", "warn")
+        ShowNotification("~y~Your role spawn was not found, using default citizen spawn.")
+    else
+        determinedReleaseLocation = hardcodedDefaultSpawn
+        Log("Citizen spawn point also not found in Config. Using hardcoded default spawn.", "error")
+        ShowNotification("~r~Error: Default spawn locations not configured. Using a fallback location.")
+    end    if determinedReleaseLocation and determinedReleaseLocation.x and determinedReleaseLocation.y and determinedReleaseLocation.z then
+        SetEntityCoords(playerPed, determinedReleaseLocation.x, determinedReleaseLocation.y, determinedReleaseLocation.z, false, false, false, true)
+        SetEntityHeading(playerPed, 0.0) -- Set default heading since spawn points don't include rotation
+        Log(string.format("Player released from jail. Teleported to: %s", json.encode(determinedReleaseLocation)), "info")
+    else
+        -- This case should be rare given the fallbacks, but as a last resort:
+        Log("cnr:releaseFromJail - CRITICAL: No valid release spawn point determined even with fallbacks. Player may be stuck or at Zero Coords.", "error")
+        ShowNotification("~r~CRITICAL ERROR: Could not determine release location. Please contact an admin.")
+        -- As an absolute last measure, teleport to a known safe spot if playerPed is valid
+        if playerPed and playerPed ~= 0 then
+             SetEntityCoords(playerPed, hardcodedDefaultSpawn.x, hardcodedDefaultSpawn.y, hardcodedDefaultSpawn.z, false, false, false, true)
+        end
+    end
+
+    ClearPedTasksImmediately(playerPed)
+    -- Player's weapons are not automatically restored here.
+    -- They would get default role weapons upon next role sync or if they visit an armory.
+    -- Or, could potentially save/restore their exact weapons pre-jailing if desired (more complex).
+    ShowNotification("~g~You have been released from jail.")
+end)
+
 
 -- ====================================================================
 -- Contraband Dealers
