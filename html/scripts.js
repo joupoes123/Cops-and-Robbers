@@ -1194,11 +1194,52 @@ document.addEventListener('DOMContentLoaded', () => {
     if (roleSelectionContainer) {
         roleSelectionContainer.addEventListener('click', function(event) {
             const button = event.target.closest('button[data-role]');
-            if (button) selectRole(button.getAttribute('data-role'));
+            if (button) {
+                const role = button.getAttribute('data-role');
+                
+                // Check if it's a role selection or character editor button
+                if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
+                    // Open character editor
+                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: role, characterSlot: 1 })
+                    }).then(resp => resp.json()).then(response => {
+                        console.log('[CNR_CHARACTER_EDITOR] Character editor request response:', response);
+                        if (response.success) {
+                            hideRoleSelection();
+                        }
+                    }).catch(error => {
+                        console.error('[CNR_CHARACTER_EDITOR] Error opening character editor:', error);
+                    });
+                } else {
+                    // Regular role selection
+                    selectRole(role);
+                }
+            }
         });
     } else {
         document.querySelectorAll('.menu button[data-role]').forEach(button => {
-            button.addEventListener('click', () => selectRole(button.getAttribute('data-role')));
+            button.addEventListener('click', () => {
+                const role = button.getAttribute('data-role');
+                if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
+                    // Open character editor
+                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: role, characterSlot: 1 })
+                    }).then(resp => resp.json()).then(response => {
+                        console.log('[CNR_CHARACTER_EDITOR] Character editor request response:', response);
+                        if (response.success) {
+                            hideRoleSelection();
+                        }
+                    }).catch(error => {
+                        console.error('[CNR_CHARACTER_EDITOR] Error opening character editor:', error);
+                    });
+                } else {
+                    selectRole(role);
+                }
+            });
         });
     }
 
@@ -2257,5 +2298,1068 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBountyBtn = document.getElementById('close-bounty-list-btn');
     if (closeBountyBtn) {
         closeBountyBtn.addEventListener('click', hideBountyList);
+    }
+    
+    // Initialize character editor
+    initializeCharacterEditor();
+});
+
+// ====================================================================
+// Character Editor Functions
+// ====================================================================
+
+let characterEditorData = {
+    isOpen: false,
+    currentRole: null,
+    currentSlot: 1,
+    characterData: {},
+    uniformPresets: [],
+    selectedUniformPreset: null,
+    selectedCharacterSlot: null
+};
+
+function initializeCharacterEditor() {
+    // Camera controls
+    document.querySelectorAll('.camera-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.camera-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const mode = this.getAttribute('data-mode');
+            fetchSetNuiFocus(true, true);
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            });
+        });
+    });
+
+    // Character rotation
+    document.querySelectorAll('.rotate-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const direction = this.getAttribute('data-direction');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_rotateCharacter`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction: direction })
+            });
+        });
+    });
+
+    // Gender selection
+    document.querySelectorAll('.gender-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            const gender = this.getAttribute('data-gender');
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gender: gender })
+            });
+        });
+    });
+
+    // Customization tabs
+    document.querySelectorAll('.customization-tabs .tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const category = this.getAttribute('data-category');
+            switchCustomizationTab(category);
+        });
+    });
+
+    // Customization sliders
+    document.querySelectorAll('.customization-slider').forEach(slider => {
+        slider.addEventListener('input', function() {
+            const feature = this.getAttribute('data-feature');
+            const category = this.getAttribute('data-category') || 'basic';
+            const value = parseFloat(this.value);
+            
+            // Update slider value display
+            const valueDisplay = this.parentElement.querySelector('.slider-value');
+            if (valueDisplay) {
+                valueDisplay.textContent = this.step && this.step.includes('.') ? value.toFixed(1) : value.toString();
+            }
+            
+            // Send update to client
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: category, feature: feature, value: value })
+            });
+        });
+    });
+
+    // Uniform controls
+    const previewUniformBtn = document.getElementById('preview-uniform-btn');
+    const applyUniformBtn = document.getElementById('apply-uniform-btn');
+    const cancelUniformBtn = document.getElementById('cancel-uniform-btn');
+
+    if (previewUniformBtn) {
+        previewUniformBtn.addEventListener('click', function() {
+            if (characterEditorData.selectedUniformPreset !== null) {
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_previewUniform`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ presetIndex: characterEditorData.selectedUniformPreset })
+                });
+                
+                applyUniformBtn.disabled = false;
+                cancelUniformBtn.disabled = false;
+            }
+        });
+    }
+
+    if (applyUniformBtn) {
+        applyUniformBtn.addEventListener('click', function() {
+            if (characterEditorData.selectedUniformPreset !== null) {
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_applyUniform`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ presetIndex: characterEditorData.selectedUniformPreset })
+                });
+                
+                this.disabled = true;
+                cancelUniformBtn.disabled = true;
+            }
+        });
+    }
+
+    if (cancelUniformBtn) {
+        cancelUniformBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancelUniformPreview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            
+            applyUniformBtn.disabled = true;
+            this.disabled = true;
+        });
+    }
+
+    // Character management controls
+    const loadCharacterBtn = document.getElementById('load-character-btn');
+    const deleteCharacterBtn = document.getElementById('delete-character-btn');
+
+    if (loadCharacterBtn) {
+        loadCharacterBtn.addEventListener('click', function() {
+            if (characterEditorData.selectedCharacterSlot) {
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_loadCharacter`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ characterKey: characterEditorData.selectedCharacterSlot })
+                });
+            }
+        });
+    }
+
+    if (deleteCharacterBtn) {
+        deleteCharacterBtn.addEventListener('click', function() {
+            if (characterEditorData.selectedCharacterSlot && confirm('Are you sure you want to delete this character?')) {
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_deleteCharacter`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ characterKey: characterEditorData.selectedCharacterSlot })
+                });
+                
+                // Refresh character slots
+                updateCharacterSlots();
+            }
+        });
+    }
+
+    // Main action buttons
+    const saveBtn = document.getElementById('character-editor-save-btn');
+    const cancelBtn = document.getElementById('character-editor-cancel-btn');
+    const closeBtn = document.getElementById('character-editor-close-btn');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+        });
+    }
+}
+
+function switchCustomizationTab(category) {
+    // Update tab buttons
+    document.querySelectorAll('.customization-tabs .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-category') === category) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Update tab content
+    document.querySelectorAll('.customization-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+
+    const targetTab = document.getElementById(category + '-tab');
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+}
+
+function openCharacterEditor(data) {
+    characterEditorData.isOpen = true;
+    characterEditorData.currentRole = data.role;
+    characterEditorData.currentSlot = data.characterSlot;
+    characterEditorData.characterData = data.characterData;
+    characterEditorData.uniformPresets = data.uniformPresets;
+
+    // Update UI elements
+    const roleElement = document.getElementById('character-editor-role');
+    const slotElement = document.getElementById('character-editor-slot');
+    
+    if (roleElement) roleElement.textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+    if (slotElement) slotElement.textContent = `Slot ${data.characterSlot}`;
+
+    // Populate uniform presets
+    updateUniformPresets();
+    
+    // Populate character slots
+    updateCharacterSlots();
+    
+    // Update sliders with current character data
+    updateSlidersFromCharacterData();
+
+    // Show the character editor
+    const characterEditor = document.getElementById('character-editor');
+    if (characterEditor) {
+        characterEditor.classList.remove('hidden');
+    }
+
+    console.log('[CNR_CHARACTER_EDITOR] Opened character editor for', data.role, 'slot', data.characterSlot);
+}
+
+function closeCharacterEditor() {
+    characterEditorData.isOpen = false;
+    
+    const characterEditor = document.getElementById('character-editor');
+    if (characterEditor) {
+        characterEditor.classList.add('hidden');
+    }
+
+    console.log('[CNR_CHARACTER_EDITOR] Closed character editor');
+}
+
+function updateUniformPresets() {
+    const presetList = document.getElementById('uniform-preset-list');
+    if (!presetList || !characterEditorData.uniformPresets) return;
+
+    presetList.innerHTML = '';
+
+    characterEditorData.uniformPresets.forEach((preset, index) => {
+        const presetElement = document.createElement('div');
+        presetElement.className = 'preset-item';
+        presetElement.innerHTML = `
+            <h4>${preset.name}</h4>
+            <p>${preset.description}</p>
+        `;
+
+        presetElement.addEventListener('click', function() {
+            // Remove selection from other presets
+            document.querySelectorAll('.preset-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Select this preset
+            this.classList.add('selected');
+            characterEditorData.selectedUniformPreset = index;
+            
+            // Enable preview button
+            const previewBtn = document.getElementById('preview-uniform-btn');
+            if (previewBtn) previewBtn.disabled = false;
+        });
+
+        presetList.appendChild(presetElement);
+    });
+}
+
+function updateCharacterSlots() {
+    const slotList = document.getElementById('character-slot-list');
+    if (!slotList) return;
+
+    slotList.innerHTML = '';
+
+    // Create slots for current role
+    for (let i = 1; i <= 2; i++) {
+        const slotKey = `${characterEditorData.currentRole}_${i}`;
+        const hasCharacter = characterEditorData.playerCharacters && characterEditorData.playerCharacters[slotKey];
+        
+        const slotElement = document.createElement('div');
+        slotElement.className = `character-slot ${hasCharacter ? '' : 'empty'}`;
+        slotElement.innerHTML = `
+            <h4>Slot ${i}</h4>
+            <p>${hasCharacter ? 'Character Created' : 'Empty Slot'}</p>
+        `;
+
+        if (hasCharacter) {
+            slotElement.addEventListener('click', function() {
+                // Remove selection from other slots
+                document.querySelectorAll('.character-slot').forEach(slot => {
+                    slot.classList.remove('selected');
+                });
+                
+                // Select this slot
+                this.classList.add('selected');
+                characterEditorData.selectedCharacterSlot = slotKey;
+                
+                // Enable character management buttons
+                const loadBtn = document.getElementById('load-character-btn');
+                const deleteBtn = document.getElementById('delete-character-btn');
+                if (loadBtn) loadBtn.disabled = false;
+                if (deleteBtn) deleteBtn.disabled = false;
+            });
+        }
+
+        slotList.appendChild(slotElement);
+    }
+}
+
+function updateSlidersFromCharacterData() {
+    const characterData = characterEditorData.characterData;
+    if (!characterData) return;
+
+    // Update basic appearance sliders
+    const basicFeatures = ['face', 'skin', 'hair', 'hairColor', 'hairHighlight', 'eyeColor', 'beard', 'beardColor', 'eyebrows', 'eyebrowsColor'];
+    
+    basicFeatures.forEach(feature => {
+        const slider = document.getElementById(feature.replace(/([A-Z])/g, '-$1').toLowerCase() + '-slider');
+        if (slider && characterData[feature] !== undefined) {
+            slider.value = characterData[feature];
+            
+            const valueDisplay = slider.parentElement.querySelector('.slider-value');
+            if (valueDisplay) {
+                valueDisplay.textContent = characterData[feature].toString();
+            }
+        }
+    });
+
+    // Update facial feature sliders
+    if (characterData.faceFeatures) {
+        Object.keys(characterData.faceFeatures).forEach(feature => {
+            const slider = document.getElementById(feature.replace(/([A-Z])/g, '-$1').toLowerCase() + '-slider');
+            if (slider) {
+                slider.value = characterData.faceFeatures[feature];
+                
+                const valueDisplay = slider.parentElement.querySelector('.slider-value');
+                if (valueDisplay) {
+                    valueDisplay.textContent = characterData.faceFeatures[feature].toFixed(1);
+                }
+            }
+        });
+    }
+}
+
+// Character Editor Frame Management
+function createCharacterEditorFrame() {
+    // Remove existing frame if it exists
+    const existingFrame = document.getElementById('character-editor-frame');
+    if (existingFrame) {
+        existingFrame.remove();
+    }
+    
+    // Create iframe for character editor
+    const iframe = document.createElement('iframe');
+    iframe.id = 'character-editor-frame';
+    iframe.src = 'character_editor.html';
+    iframe.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        z-index: 2000;
+        background: rgba(0, 0, 0, 0.95);
+    `;
+    
+    document.body.appendChild(iframe);
+    
+    // Forward messages to the iframe
+    iframe.onload = function() {
+        // Send character editor data to iframe
+        if (window.pendingCharacterEditorData) {
+            iframe.contentWindow.postMessage({
+                action: 'openCharacterEditor',
+                ...window.pendingCharacterEditorData
+            }, '*');
+            window.pendingCharacterEditorData = null;
+        }
+    };
+    
+    return iframe;
+}
+
+function removeCharacterEditorFrame() {
+    const frame = document.getElementById('character-editor-frame');
+    if (frame) {
+        frame.remove();
+    }
+}
+
+// Add character editor message handling to the main message handler
+window.addEventListener('message', function(event) {
+    const data = event.data;
+    
+    switch (data.action) {
+        case 'openCharacterEditor':
+            openCharacterEditor(data);
+            break;
+        case 'closeCharacterEditor':
+            closeCharacterEditor();
+            break;
+        case 'openCharacterEditorFrame':
+            // Store data for iframe
+            window.pendingCharacterEditorData = data;
+            createCharacterEditorFrame();
+            // Hide main UI
+            document.body.style.display = 'none';
+            break;
+        case 'closeCharacterEditorFrame':
+            removeCharacterEditorFrame();
+            // Show main UI
+            document.body.style.display = 'block';
+            break;
+        case 'hideMainUI':
+            document.body.style.display = 'none';
+            break;
+        case 'showMainUI':
+            document.body.style.display = 'block';
+            break;
+    }
+});
+
+// Handle messages from character editor iframe
+window.addEventListener('message', function(event) {
+    // Forward character editor messages to FiveM client
+    if (event.data && event.data.action && event.data.action.startsWith('characterEditor_')) {
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${event.data.action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(event.data)
+        });
+    }
+});
+
+// ====================================================================
+// Enhanced Character Editor Class
+// ====================================================================
+
+class EnhancedCharacterEditor {
+    constructor() {
+        this.isOpen = false;
+        this.currentRole = null;
+        this.currentSlot = 1;
+        this.characterData = {};
+        this.uniformPresets = [];
+        this.characterSlots = {};
+        this.selectedUniformPreset = null;
+        this.selectedCharacterSlot = null;
+        this.resourceName = window.cnrResourceName || 'cops-and-robbers';
+        
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupSliderHandlers();
+        console.log('[CNR_CHARACTER_EDITOR] Enhanced Character Editor initialized');
+    }
+
+    setupEventListeners() {
+        // Close button
+        const closeBtn = document.getElementById('close-editor-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.closeEditor(false);
+            });
+        }
+
+        // Camera controls
+        document.querySelectorAll('.camera-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.switchCamera(e.target.dataset.camera);
+            });
+        });
+
+        // Rotation controls
+        document.querySelectorAll('.rotate-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.rotateCharacter(e.target.dataset.direction);
+            });
+        });
+
+        // Gender controls
+        document.querySelectorAll('.gender-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.switchGender(e.target.dataset.gender);
+            });
+        });
+
+        // Tab navigation
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.switchTab(e.target.dataset.tab);
+            });
+        });
+
+        // Uniform actions
+        const previewUniformBtn = document.getElementById('preview-uniform-btn');
+        const applyUniformBtn = document.getElementById('apply-uniform-btn');
+        const cancelPreviewBtn = document.getElementById('cancel-preview-btn');
+
+        if (previewUniformBtn) {
+            previewUniformBtn.addEventListener('click', () => {
+                this.previewUniform();
+            });
+        }
+
+        if (applyUniformBtn) {
+            applyUniformBtn.addEventListener('click', () => {
+                this.applyUniform();
+            });
+        }
+
+        if (cancelPreviewBtn) {
+            cancelPreviewBtn.addEventListener('click', () => {
+                this.cancelUniformPreview();
+            });
+        }
+
+        // Character actions
+        const loadCharacterBtn = document.getElementById('load-character-btn');
+        const deleteCharacterBtn = document.getElementById('delete-character-btn');
+        const createNewBtn = document.getElementById('create-new-btn');
+
+        if (loadCharacterBtn) {
+            loadCharacterBtn.addEventListener('click', () => {
+                this.loadCharacter();
+            });
+        }
+
+        if (deleteCharacterBtn) {
+            deleteCharacterBtn.addEventListener('click', () => {
+                this.deleteCharacter();
+            });
+        }
+
+        if (createNewBtn) {
+            createNewBtn.addEventListener('click', () => {
+                this.createNewCharacter();
+            });
+        }
+
+        // Footer actions
+        const saveCharacterBtn = document.getElementById('save-character-btn');
+        const cancelEditorBtn = document.getElementById('cancel-editor-btn');
+        const resetCharacterBtn = document.getElementById('reset-character-btn');
+
+        if (saveCharacterBtn) {
+            saveCharacterBtn.addEventListener('click', () => {
+                this.saveCharacter();
+            });
+        }
+
+        if (cancelEditorBtn) {
+            cancelEditorBtn.addEventListener('click', () => {
+                this.closeEditor(false);
+            });
+        }
+
+        if (resetCharacterBtn) {
+            resetCharacterBtn.addEventListener('click', () => {
+                this.resetCharacter();
+            });
+        }
+
+        // ESC key to close
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isOpen) {
+                this.closeEditor(false);
+            }
+        });
+    }
+
+    setupSliderHandlers() {
+        // Handle all sliders in the enhanced character editor
+        document.querySelectorAll('#character-editor-container .slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                this.handleSliderChange(e.target);
+            });
+        });
+    }
+
+    handleSliderChange(slider) {
+        const feature = slider.dataset.feature;
+        const category = slider.dataset.category || 'basic';
+        const component = slider.dataset.component;
+        const type = slider.dataset.type;
+        const parent = slider.dataset.parent;
+        
+        let value = parseFloat(slider.value);
+        
+        // Update value display
+        const valueDisplay = slider.parentElement.querySelector('.value-display');
+        if (valueDisplay) {
+            if (slider.min === '-1' && value === -1) {
+                valueDisplay.textContent = 'None';
+            } else if (slider.max === '100' && (feature && (feature.includes('Opacity') || feature.includes('opacity')))) {
+                valueDisplay.textContent = value + '%';
+            } else if (slider.step && slider.step.includes('.')) {
+                valueDisplay.textContent = value.toFixed(1);
+            } else {
+                valueDisplay.textContent = value.toString();
+            }
+        }
+
+        // Convert percentage values for face features
+        if (category === 'faceFeatures') {
+            value = value / 100; // Convert to -1.0 to 1.0 range
+        }
+
+        // Convert percentage values for opacity
+        if (feature && feature.toLowerCase().includes('opacity')) {
+            value = value / 100; // Convert to 0.0 to 1.0 range
+        }
+
+        // Send update to client
+        if (component && type) {
+            // Clothing component
+            this.sendNUIMessage('characterEditor_updateComponent', {
+                component: parseInt(component),
+                type: type,
+                value: parseInt(value)
+            });
+        } else {
+            // Character feature
+            this.sendNUIMessage('characterEditor_updateFeature', {
+                category: category,
+                feature: feature,
+                value: value,
+                parent: parent
+            });
+        }
+    }
+
+    switchCamera(mode) {
+        // Update active button
+        document.querySelectorAll('.camera-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`[data-camera="${mode}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+
+        // Send to client
+        this.sendNUIMessage('characterEditor_changeCamera', { mode: mode });
+    }
+
+    rotateCharacter(direction) {
+        this.sendNUIMessage('characterEditor_rotateCharacter', { direction: direction });
+    }
+
+    switchGender(gender) {
+        // Update active button
+        document.querySelectorAll('.gender-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`[data-gender="${gender}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+
+        // Send to client
+        this.sendNUIMessage('characterEditor_switchGender', { gender: gender });
+    }
+
+    switchTab(tabName) {
+        // Update active tab button
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+
+        // Update active tab panel
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+        const targetTab = document.getElementById(`${tabName}-tab`);
+        if (targetTab) {
+            targetTab.classList.add('active');
+        }
+    }
+
+    populateUniformPresets() {
+        const container = document.getElementById('uniform-presets-container');
+        if (!container) return;
+        
+        container.innerHTML = '';
+
+        if (!this.uniformPresets || this.uniformPresets.length === 0) {
+            container.innerHTML = '<p class="info-text">No uniform presets available for this role.</p>';
+            return;
+        }
+
+        this.uniformPresets.forEach((preset, index) => {
+            const presetElement = document.createElement('div');
+            presetElement.className = 'uniform-preset';
+            presetElement.innerHTML = `
+                <h4>${preset.name}</h4>
+                <p>${preset.description}</p>
+            `;
+
+            presetElement.addEventListener('click', () => {
+                this.selectUniformPreset(index);
+            });
+
+            container.appendChild(presetElement);
+        });
+    }
+
+    selectUniformPreset(index) {
+        // Remove previous selection
+        document.querySelectorAll('.uniform-preset').forEach(preset => {
+            preset.classList.remove('selected');
+        });
+
+        // Select new preset
+        const presets = document.querySelectorAll('.uniform-preset');
+        if (presets[index]) {
+            presets[index].classList.add('selected');
+        }
+        this.selectedUniformPreset = index;
+
+        // Enable preview button
+        const previewBtn = document.getElementById('preview-uniform-btn');
+        if (previewBtn) {
+            previewBtn.disabled = false;
+        }
+    }
+
+    previewUniform() {
+        if (this.selectedUniformPreset === null) return;
+
+        this.sendNUIMessage('characterEditor_previewUniform', {
+            presetIndex: this.selectedUniformPreset
+        });
+
+        // Enable apply and cancel buttons
+        const applyBtn = document.getElementById('apply-uniform-btn');
+        const cancelBtn = document.getElementById('cancel-preview-btn');
+        if (applyBtn) applyBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+    }
+
+    applyUniform() {
+        if (this.selectedUniformPreset === null) return;
+
+        this.sendNUIMessage('characterEditor_applyUniform', {
+            presetIndex: this.selectedUniformPreset
+        });
+
+        // Disable buttons
+        const applyBtn = document.getElementById('apply-uniform-btn');
+        const cancelBtn = document.getElementById('cancel-preview-btn');
+        if (applyBtn) applyBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+    }
+
+    cancelUniformPreview() {
+        this.sendNUIMessage('characterEditor_cancelUniformPreview', {});
+
+        // Disable buttons
+        const applyBtn = document.getElementById('apply-uniform-btn');
+        const cancelBtn = document.getElementById('cancel-preview-btn');
+        if (applyBtn) applyBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+    }
+
+    populateCharacterSlots() {
+        const container = document.getElementById('character-slots-container');
+        if (!container) return;
+        
+        container.innerHTML = '';
+
+        // Create slots for current role (1 main + 1 alternate)
+        for (let i = 1; i <= 2; i++) {
+            const slotKey = `${this.currentRole}_${i}`;
+            const hasCharacter = this.characterSlots[slotKey];
+            
+            const slotElement = document.createElement('div');
+            slotElement.className = `character-slot ${hasCharacter ? '' : 'empty'}`;
+            slotElement.innerHTML = `
+                <h4>Slot ${i}</h4>
+                <p>${hasCharacter ? 'Character Created' : 'Empty Slot'}</p>
+                ${i === 1 ? '<small>Main Character</small>' : '<small>Alternate Character</small>'}
+            `;
+
+            if (hasCharacter) {
+                slotElement.addEventListener('click', () => {
+                    this.selectCharacterSlot(slotKey, slotElement);
+                });
+            }
+
+            container.appendChild(slotElement);
+        }
+    }
+
+    selectCharacterSlot(slotKey, element) {
+        // Remove previous selection
+        document.querySelectorAll('.character-slot').forEach(slot => {
+            slot.classList.remove('selected');
+        });
+
+        // Select new slot
+        element.classList.add('selected');
+        this.selectedCharacterSlot = slotKey;
+
+        // Enable character management buttons
+        const loadBtn = document.getElementById('load-character-btn');
+        const deleteBtn = document.getElementById('delete-character-btn');
+        if (loadBtn) loadBtn.disabled = false;
+        if (deleteBtn) deleteBtn.disabled = false;
+    }
+
+    loadCharacter() {
+        if (!this.selectedCharacterSlot) return;
+
+        this.sendNUIMessage('characterEditor_loadCharacter', {
+            characterKey: this.selectedCharacterSlot
+        });
+    }
+
+    deleteCharacter() {
+        if (!this.selectedCharacterSlot) return;
+
+        if (confirm('Are you sure you want to delete this character? This action cannot be undone.')) {
+            this.sendNUIMessage('characterEditor_deleteCharacter', {
+                characterKey: this.selectedCharacterSlot
+            });
+
+            // Refresh character slots
+            this.populateCharacterSlots();
+            
+            // Disable buttons
+            const loadBtn = document.getElementById('load-character-btn');
+            const deleteBtn = document.getElementById('delete-character-btn');
+            if (loadBtn) loadBtn.disabled = true;
+            if (deleteBtn) deleteBtn.disabled = true;
+            this.selectedCharacterSlot = null;
+        }
+    }
+
+    createNewCharacter() {
+        // Reset to default character
+        this.resetCharacter();
+    }
+
+    saveCharacter() {
+        this.sendNUIMessage('characterEditor_save', {});
+    }
+
+    resetCharacter() {
+        if (confirm('Are you sure you want to reset the character to default? All current changes will be lost.')) {
+            this.sendNUIMessage('characterEditor_reset', {});
+            
+            // Reset all sliders to default values
+            this.resetSlidersToDefault();
+        }
+    }
+
+    resetSlidersToDefault() {
+        document.querySelectorAll('#character-editor-container .slider').forEach(slider => {
+            const feature = slider.dataset.feature;
+            
+            // Set default values based on feature type
+            if (feature && (feature.includes('beard') || feature.includes('eyebrows') || feature.includes('makeup') || 
+                           feature.includes('blush') || feature.includes('lipstick') || feature.includes('ageing') ||
+                           feature.includes('complexion') || feature.includes('sundamage') || feature.includes('freckles') ||
+                           feature.includes('moles') || feature.includes('chesthair') || feature.includes('bodyBlemishes'))) {
+                slider.value = -1;
+            } else if (feature && feature.toLowerCase().includes('opacity')) {
+                slider.value = slider.dataset.feature === 'beardOpacity' || slider.dataset.feature === 'eyebrowsOpacity' ? 100 : 0;
+            } else if (slider.dataset.category === 'faceFeatures') {
+                slider.value = 0;
+            } else {
+                slider.value = 0;
+            }
+            
+            // Update value display
+            const valueDisplay = slider.parentElement.querySelector('.value-display');
+            if (valueDisplay) {
+                if (slider.value == -1) {
+                    valueDisplay.textContent = 'None';
+                } else if (feature && feature.toLowerCase().includes('opacity')) {
+                    valueDisplay.textContent = slider.value + '%';
+                } else {
+                    valueDisplay.textContent = slider.value;
+                }
+            }
+        });
+    }
+
+    closeEditor(save = false) {
+        this.isOpen = false;
+        const container = document.getElementById('character-editor-container');
+        if (container) {
+            container.classList.add('hidden');
+        }
+        
+        this.sendNUIMessage(save ? 'characterEditor_save' : 'characterEditor_cancel', {});
+    }
+
+    openEditor(data) {
+        this.isOpen = true;
+        this.currentRole = data.role;
+        this.currentSlot = data.characterSlot || 1;
+        this.characterData = data.characterData || {};
+        this.uniformPresets = data.uniformPresets || [];
+        this.characterSlots = data.playerCharacters || {};
+
+        // Update UI
+        const roleElement = document.getElementById('current-role');
+        const slotElement = document.getElementById('current-slot');
+        if (roleElement) roleElement.textContent = this.currentRole.charAt(0).toUpperCase() + this.currentRole.slice(1);
+        if (slotElement) slotElement.textContent = `Slot ${this.currentSlot}`;
+
+        // Populate uniform presets and character slots
+        this.populateUniformPresets();
+        this.populateCharacterSlots();
+
+        // Update sliders with current character data
+        this.updateSlidersFromCharacterData();
+
+        // Show editor
+        const container = document.getElementById('character-editor-container');
+        if (container) {
+            container.classList.remove('hidden');
+        }
+
+        console.log('[CNR_CHARACTER_EDITOR] Opened enhanced character editor for', this.currentRole, 'slot', this.currentSlot);
+    }
+
+    updateSlidersFromCharacterData() {
+        if (!this.characterData) return;
+
+        // Update basic appearance sliders
+        const basicFeatures = ['hair', 'hairColor', 'hairHighlight', 'eyeColor', 'beard', 'beardColor', 'beardOpacity',
+                              'eyebrows', 'eyebrowsColor', 'eyebrowsOpacity', 'makeup', 'makeupColor', 'makeupOpacity',
+                              'blush', 'blushColor', 'blushOpacity', 'lipstick', 'lipstickColor', 'lipstickOpacity'];
+        
+        basicFeatures.forEach(feature => {
+            const slider = document.querySelector(`#character-editor-container [data-feature="${feature}"]`);
+            if (slider && this.characterData[feature] !== undefined) {
+                let value = this.characterData[feature];
+                
+                // Convert opacity values to percentage
+                if (feature.toLowerCase().includes('opacity')) {
+                    value = Math.round(value * 100);
+                }
+                
+                slider.value = value;
+                
+                const valueDisplay = slider.parentElement.querySelector('.value-display');
+                if (valueDisplay) {
+                    if (value === -1) {
+                        valueDisplay.textContent = 'None';
+                    } else if (feature.toLowerCase().includes('opacity')) {
+                        valueDisplay.textContent = value + '%';
+                    } else {
+                        valueDisplay.textContent = value.toString();
+                    }
+                }
+            }
+        });
+
+        // Update facial feature sliders
+        if (this.characterData.faceFeatures) {
+            Object.keys(this.characterData.faceFeatures).forEach(feature => {
+                const slider = document.querySelector(`#character-editor-container [data-feature="${feature}"]`);
+                if (slider) {
+                    const value = Math.round(this.characterData.faceFeatures[feature] * 100); // Convert to percentage
+                    slider.value = value;
+                    
+                    const valueDisplay = slider.parentElement.querySelector('.value-display');
+                    if (valueDisplay) {
+                        valueDisplay.textContent = value.toString();
+                    }
+                }
+            });
+        }
+    }
+
+    sendNUIMessage(action, data) {
+        fetch(`https://${this.resourceName}/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).catch(error => {
+            console.error('[CNR_CHARACTER_EDITOR] Error sending NUI message:', error);
+        });
+    }
+}
+
+// Initialize enhanced character editor when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    if (!window.enhancedCharacterEditor) {
+        window.enhancedCharacterEditor = new EnhancedCharacterEditor();
+    }
+});
+
+// Update the main message handler to use the enhanced character editor
+const originalMessageHandler = window.addEventListener;
+window.addEventListener('message', (event) => {
+    const data = event.data;
+    
+    switch (data.action) {
+        case 'openCharacterEditor':
+            if (window.enhancedCharacterEditor) {
+                window.enhancedCharacterEditor.openEditor(data);
+            }
+            break;
+        case 'closeCharacterEditor':
+            if (window.enhancedCharacterEditor) {
+                window.enhancedCharacterEditor.closeEditor();
+            }
+            break;
+        case 'updateCharacterData':
+            if (window.enhancedCharacterEditor) {
+                window.enhancedCharacterEditor.characterData = data.characterData;
+                window.enhancedCharacterEditor.updateSlidersFromCharacterData();
+            }
+            break;
     }
 });

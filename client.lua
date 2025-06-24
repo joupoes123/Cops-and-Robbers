@@ -218,29 +218,90 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     local playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
-        return    end
+        return
+    end
+    
     RemoveAllPedWeapons(playerPed, true)
-    playerWeapons = {}    playerAmmo = {}
+    playerWeapons = {}
+    playerAmmo = {}
+    
+    -- Check if character editor is available and has saved character data
+    local hasCharacterEditor = exports['cops-and-robbers'] and exports['cops-and-robbers'].GetCharacterForRoleSelection
+    local characterData = nil
+    
+    if hasCharacterEditor then
+        characterData = exports['cops-and-robbers']:GetCharacterForRoleSelection(GetPlayerServerId(PlayerId()), newRole, 1)
+    end
+    
     local modelToLoad = nil
-    local modelHash = nil    if newRole == "cop" then
-        modelToLoad = "s_m_y_cop_01"
-    elseif newRole == "robber" then
-        modelToLoad = "mp_m_waremech_01"  -- Changed to warehouse mechanic model
+    local modelHash = nil
+    
+    if characterData and characterData.model then
+        -- Use saved character model
+        modelToLoad = characterData.model
+        print(string.format("[CNR_CHARACTER_EDITOR] Using saved character model: %s", modelToLoad))
     else
-        modelToLoad = "a_m_m_farmer_01"
-    end    modelHash = GetHashKey(modelToLoad)
+        -- Use default role models
+        if newRole == "cop" then
+            modelToLoad = "mp_m_freemode_01"  -- Changed to freemode for customization
+        elseif newRole == "robber" then
+            modelToLoad = "mp_m_freemode_01"  -- Changed to freemode for customization
+        else
+            modelToLoad = "mp_m_freemode_01"
+        end
+        print(string.format("[CNR_CHARACTER_EDITOR] Using default model: %s", modelToLoad))
+    end
+    
+    modelHash = GetHashKey(modelToLoad)
     if modelHash and modelHash ~= 0 and modelHash ~= -1 then
         RequestModel(modelHash)
         local attempts = 0
         while not HasModelLoaded(modelHash) and attempts < 100 do
             Citizen.Wait(50)
             attempts = attempts + 1
-        end        if HasModelLoaded(modelHash) then
+        end
+        
+        if HasModelLoaded(modelHash) then
             SetPlayerModel(PlayerId(), modelHash)
-            Citizen.Wait(10)
-            SetPedDefaultComponentVariation(playerPed)            if modelToLoad == "mp_m_freemode_01" then
-                SetPedRandomComponentVariation(playerPed, 0)
+            Citizen.Wait(100) -- Increased wait time for model to fully load
+            
+            -- Get the new ped after model change
+            playerPed = PlayerPedId()
+            
+            if characterData then
+                -- Apply saved character data
+                if exports['cops-and-robbers'] and exports['cops-and-robbers'].ApplyCharacterData then
+                    local success = exports['cops-and-robbers']:ApplyCharacterData(characterData, playerPed)
+                    if success then
+                        print("[CNR_CHARACTER_EDITOR] Applied saved character data")
+                    else
+                        print("[CNR_CHARACTER_EDITOR] Failed to apply saved character data, using defaults")
+                        SetPedDefaultComponentVariation(playerPed)
+                    end
+                else
+                    print("[CNR_CHARACTER_EDITOR] Character editor not available, using defaults")
+                    SetPedDefaultComponentVariation(playerPed)
+                end
+            else
+                -- Apply default appearance
+                SetPedDefaultComponentVariation(playerPed)
+                
+                -- Apply basic role-specific uniform if no saved character
+                if newRole == "cop" then
+                    -- Basic cop uniform
+                    SetPedComponentVariation(playerPed, 11, 55, 0, 0)  -- Tops - Police shirt
+                    SetPedComponentVariation(playerPed, 4, 35, 0, 0)   -- Legs - Police pants
+                    SetPedComponentVariation(playerPed, 6, 25, 0, 0)   -- Shoes - Police boots
+                    SetPedPropIndex(playerPed, 0, 46, 0, true)         -- Hat - Police cap
+                elseif newRole == "robber" then
+                    -- Basic robber outfit
+                    SetPedComponentVariation(playerPed, 11, 4, 0, 0)   -- Tops - Casual shirt
+                    SetPedComponentVariation(playerPed, 4, 1, 0, 0)    -- Legs - Jeans
+                    SetPedComponentVariation(playerPed, 6, 1, 0, 0)    -- Shoes - Sneakers
+                    SetPedPropIndex(playerPed, 0, 18, 0, true)         -- Hat - Beanie
+                end
             end
+            
             SetModelAsNoLongerNeeded(modelHash)
         else
             print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
@@ -248,6 +309,7 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     else
         print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
     end
+    
     Citizen.Wait(500)
     playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
