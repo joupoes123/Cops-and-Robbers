@@ -1937,16 +1937,36 @@ body::before {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.95);
-    z-index: 1000;
+    background-color: transparent; /* Make background transparent to show 3D view */
+    z-index: 100; /* Lower z-index so 3D camera renders in front */
     display: flex;
-    flex-direction: column;
+    flex-direction: row; /* Change to row layout */
     color: #ffffff;
     font-family: Arial, sans-serif;
+    pointer-events: none; /* Allow camera controls to work */
+}
+
+/* Make only the UI panels interactive */
+.character-editor > * {
+    pointer-events: auto;
 }
 
 .character-editor.hidden {
     display: none !important;
+}
+
+/* Character Editor Sidebar */
+.character-editor-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    border-left: 2px solid #4CAF50;
+    overflow-y: auto;
+    z-index: 1001;
 }
 
 .character-editor-header {
@@ -1956,6 +1976,9 @@ body::before {
     padding: 20px 30px;
     background-color: rgba(40, 40, 40, 0.9);
     border-bottom: 2px solid #4CAF50;
+    position: sticky;
+    top: 0;
+    z-index: 1002;
 }
 
 .character-editor-header h1 {

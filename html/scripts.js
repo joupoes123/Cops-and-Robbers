@@ -255,6 +255,39 @@ window.addEventListener('message', function(event) {
                 console.log("Jail timer UI hidden.");
             }
             break;
+        case 'openCharacterEditor':
+            openCharacterEditor(data);
+            break;
+        case 'closeCharacterEditor':
+            closeCharacterEditor();
+            break;
+        case 'testCharacterEditor':
+            console.log('[CNR_CHARACTER_EDITOR] Test message received');
+            const testEditor = document.getElementById('character-editor');
+            if (testEditor) {
+                console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        success: true, 
+                        message: 'Character editor element exists',
+                        elementFound: true
+                    })
+                });
+            } else {
+                console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        success: false, 
+                        message: 'Character editor element missing',
+                        elementFound: false
+                    })
+                });
+            }
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }
@@ -2776,44 +2809,9 @@ function removeCharacterEditorFrame() {
     }
 }
 
-// Add character editor message handling to the main message handler
-window.addEventListener('message', function(event) {
-    const data = event.data;
-    
+// Character editor frame handling (keep only frame-specific handlers)
+function handleCharacterEditorFrameMessage(data) {
     switch (data.action) {
-        case 'openCharacterEditor':
-            openCharacterEditor(data);
-            break;
-        case 'closeCharacterEditor':
-            closeCharacterEditor();
-            break;
-        case 'testCharacterEditor':
-            console.log('[CNR_CHARACTER_EDITOR] Test message received');
-            const testEditor = document.getElementById('character-editor');
-            if (testEditor) {
-                console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        success: true, 
-                        message: 'Character editor element exists',
-                        elementFound: true
-                    })
-                });
-            } else {
-                console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        success: false, 
-                        message: 'Character editor element missing',
-                        elementFound: false
-                    })
-                });
-            }
-            break;
         case 'openCharacterEditorFrame':
             // Store data for iframe
             window.pendingCharacterEditorData = data;
@@ -2833,7 +2831,7 @@ window.addEventListener('message', function(event) {
             document.body.style.display = 'block';
             break;
     }
-});
+}
 
 // Handle messages from character editor iframe
 window.addEventListener('message', function(event) {
@@ -3416,27 +3414,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Update the main message handler to use the enhanced character editor
-const originalMessageHandler = window.addEventListener;
-window.addEventListener('message', (event) => {
-    const data = event.data;
-    
-    switch (data.action) {
-        case 'openCharacterEditor':
-            if (window.enhancedCharacterEditor) {
-                window.enhancedCharacterEditor.openEditor(data);
-            }
-            break;
-        case 'closeCharacterEditor':
-            if (window.enhancedCharacterEditor) {
-                window.enhancedCharacterEditor.closeEditor();
-            }
-            break;
-        case 'updateCharacterData':
-            if (window.enhancedCharacterEditor) {
-                window.enhancedCharacterEditor.characterData = data.characterData;
-                window.enhancedCharacterEditor.updateSlidersFromCharacterData();
-            }
-            break;
-    }
-});
+// Enhanced character editor integration (removed duplicate handler to prevent conflicts)

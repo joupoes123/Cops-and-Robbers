@@ -223,9 +223,10 @@ function CreateEditorCamera(mode)
     RenderScriptCams(true, true, 500, true, true)
     currentCameraMode = mode
     
-    -- Additional lighting and visibility settings
-    SetArtificialLightsState(true)
-    SetArtificialLightsStateAffectsVehicles(false)
+    -- Additional lighting and visibility settings (only for the ped)
+    -- Don't use SetArtificialLightsState as it affects the entire world
+    -- Instead, use ped-specific lighting
+    SetEntityLights(ped, true)
     
     print(string.format("[CNR_CHARACTER_EDITOR] Created camera in %s mode at coords: %.2f, %.2f, %.2f", mode, coords.x, coords.y, coords.z))
 end
@@ -236,6 +237,15 @@ function DestroyCameraEditor()
         DestroyCam(editorCamera, false)
         editorCamera = nil
     end
+    
+    -- Restore normal lighting
+    local ped = PlayerPedId()
+    if DoesEntityExist(ped) then
+        SetEntityLights(ped, false)
+    end
+    
+    -- Ensure artificial lights are restored to normal state
+    SetArtificialLightsState(false)
 end
 
 -- =========================
@@ -361,10 +371,46 @@ function CloseCharacterEditor(save)
                 end
             end
             
+            -- Ensure all required fields are present with defaults
+            local requiredDefaults = {
+                model = "mp_m_freemode_01",
+                face = 0,
+                skin = 0,
+                hair = 0,
+                hairColor = 0,
+                hairHighlight = 0,
+                eyeColor = 0,
+                beard = 0,
+                beardColor = 0,
+                eyebrows = 0,
+                eyebrowsColor = 0,
+                makeup = 0,
+                lipstick = 0,
+                blemishes = 0,
+                ageing = 0,
+                complexion = 0,
+                sunDamage = 0,
+                freckles = 0,
+                chestHair = 0,
+                chestHairColor = 0
+            }
+            
+            -- Fill in missing required fields
+            for field, defaultValue in next, requiredDefaults do
+                if dataToSave[field] == nil then
+                    dataToSave[field] = defaultValue
+                end
+            end
+            
+            -- Ensure faceFeatures table exists
+            if not dataToSave.faceFeatures then
+                dataToSave.faceFeatures = {}
+            end
+            
             playerCharacters[characterKey] = dataToSave
             TriggerServerEvent('cnr:saveCharacterData', characterKey, dataToSave)
-            ShowNotification(string.format("~g~Character saved to %s slot %d!", currentRole, currentCharacterSlot))
-            print(string.format("[CNR_CHARACTER_EDITOR] Saved character data for %s", characterKey))
+            ShowNotification(string.format("~b~Saving character to %s slot %d...", currentRole, currentCharacterSlot))
+            print(string.format("[CNR_CHARACTER_EDITOR] Attempting to save character data for %s", characterKey))
         else
             ShowNotification("~r~Error: No character data to save")
             print("[CNR_CHARACTER_EDITOR] Error: currentCharacterData is invalid")
@@ -728,6 +774,18 @@ end)
 RegisterNUICallback('characterEditor_closed', function(data, cb)
     print("[CNR_CHARACTER_EDITOR] NUI confirmed character editor closed")
     cb({success = true})
+end)
+
+-- Handle character save result from server
+RegisterNetEvent('cnr:characterSaveResult')
+AddEventHandler('cnr:characterSaveResult', function(success, message)
+    if success then
+        ShowNotification(string.format("~g~%s", message))
+        print(string.format("[CNR_CHARACTER_EDITOR] Save success: %s", message))
+    else
+        ShowNotification(string.format("~r~Save failed: %s", message))
+        print(string.format("[CNR_CHARACTER_EDITOR] Save failed: %s", message))
+    end
 end)
 
 -- Handle test result
