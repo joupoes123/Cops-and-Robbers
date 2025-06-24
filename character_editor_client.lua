@@ -36,10 +36,11 @@ end)
 
 function GetDefaultCharacterData()
     local defaultData = {}
-    for k, v in pairs(Config.CharacterEditor.defaultCharacter) do
+    -- Lua 5.4 compatible deep copy
+    for k, v in next, Config.CharacterEditor.defaultCharacter do
         if type(v) == "table" then
             defaultData[k] = {}
-            for k2, v2 in pairs(v) do
+            for k2, v2 in next, v do
                 defaultData[k][k2] = v2
             end
         else
@@ -172,27 +173,61 @@ end
 function CreateEditorCamera(mode)
     if editorCamera then
         DestroyCam(editorCamera, false)
+        editorCamera = nil
     end
 
     local ped = PlayerPedId()
+    if not DoesEntityExist(ped) then
+        print("[CNR_CHARACTER_EDITOR] Error: Ped does not exist")
+        return
+    end
+    
+    -- Ensure ped is properly visible and lit
+    SetEntityVisible(ped, true, false)
+    SetEntityAlpha(ped, 255, false)
+    SetEntityLights(ped, true)
+    SetEntityProofs(ped, false, false, false, false, false, false, false, false)
+    
     local coords = GetEntityCoords(ped)
+    
+    -- Set ped to face north for consistent camera angles
+    SetEntityHeading(ped, 0.0)
+    
+    -- Wait a frame for heading to update
+    Wait(50)
+    
+    -- Get updated coordinates after heading change
+    coords = GetEntityCoords(ped)
 
     editorCamera = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     
     if mode == "face" then
-        SetCamCoord(editorCamera, coords.x + 0.5, coords.y + 0.5, coords.z + 0.6)
-        PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true)
+        -- Position camera in front of face for close-up view
+        SetCamCoord(editorCamera, coords.x, coords.y + 1.2, coords.z + 0.65)
+        PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true) -- Head bone
+        SetCamFov(editorCamera, 35.0)
     elseif mode == "body" then
-        SetCamCoord(editorCamera, coords.x + 1.0, coords.y + 1.0, coords.z + 0.2)
-        PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.0, true)
-    else -- full
-        SetCamCoord(editorCamera, coords.x + 2.0, coords.y + 2.0, coords.z + 0.0)
-        PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.5, true)
+        -- Position camera to show upper body
+        SetCamCoord(editorCamera, coords.x, coords.y + 2.0, coords.z + 0.3)
+        PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.2, true)
+        SetCamFov(editorCamera, 45.0)
+    else -- full body view
+        -- Position camera to show full body
+        SetCamCoord(editorCamera, coords.x, coords.y + 3.0, coords.z + 0.0)
+        PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.1, true)
+        SetCamFov(editorCamera, 55.0)
     end
 
+    -- Activate the camera
     SetCamActive(editorCamera, true)
-    RenderScriptCams(true, true, 1000, true, true)
+    RenderScriptCams(true, true, 500, true, true)
     currentCameraMode = mode
+    
+    -- Additional lighting and visibility settings
+    SetArtificialLightsState(true)
+    SetArtificialLightsStateAffectsVehicles(false)
+    
+    print(string.format("[CNR_CHARACTER_EDITOR] Created camera in %s mode at coords: %.2f, %.2f, %.2f", mode, coords.x, coords.y, coords.z))
 end
 
 function DestroyCameraEditor()
@@ -286,24 +321,15 @@ function OpenCharacterEditor(role, characterSlot)
         return
     end
     
-    -- Enable NUI focus with safety timeout
+    -- Enable NUI focus after a short delay
     Citizen.SetTimeout(100, function()
         if isInCharacterEditor then
             SetNuiFocus(true, true)
             print("[CNR_CHARACTER_EDITOR] NUI focus enabled")
-            
-            -- Safety timeout to auto-close if UI doesn't respond
-            Citizen.SetTimeout(10000, function() -- 10 seconds
-                if isInCharacterEditor then
-                    print("[CNR_CHARACTER_EDITOR] Safety timeout triggered - force closing editor")
-                    CloseCharacterEditor(false)
-                    ShowNotification("~r~Character editor timed out and was closed")
-                end
-            end)
         end
     end)
     
-    print("[CNR_CHARACTER_EDITOR] Opened character editor for " .. currentRole .. " slot " .. currentCharacterSlot)
+    print(string.format("[CNR_CHARACTER_EDITOR] Opened character editor for %s slot %d", currentRole, currentCharacterSlot))
 end
 
 function CloseCharacterEditor(save)
@@ -318,16 +344,37 @@ function CloseCharacterEditor(save)
     
     if save then
         -- Save current character data
-        local characterKey = currentRole .. "_" .. currentCharacterSlot
-        playerCharacters[characterKey] = currentCharacterData
-        TriggerServerEvent('cnr:saveCharacterData', characterKey, currentCharacterData)
-        ShowNotification("Character saved successfully!")
+        local characterKey = string.format("%s_%d", currentRole, currentCharacterSlot)
+        
+        -- Ensure we have valid character data to save
+        if currentCharacterData and type(currentCharacterData) == "table" then
+            -- Deep copy the character data to prevent reference issues
+            local dataToSave = {}
+            for k, v in next, currentCharacterData do
+                if type(v) == "table" then
+                    dataToSave[k] = {}
+                    for k2, v2 in next, v do
+                        dataToSave[k][k2] = v2
+                    end
+                else
+                    dataToSave[k] = v
+                end
+            end
+            
+            playerCharacters[characterKey] = dataToSave
+            TriggerServerEvent('cnr:saveCharacterData', characterKey, dataToSave)
+            ShowNotification(string.format("~g~Character saved to %s slot %d!", currentRole, currentCharacterSlot))
+            print(string.format("[CNR_CHARACTER_EDITOR] Saved character data for %s", characterKey))
+        else
+            ShowNotification("~r~Error: No character data to save")
+            print("[CNR_CHARACTER_EDITOR] Error: currentCharacterData is invalid")
+        end
     else
         -- Restore original appearance
         if originalPlayerData then
             ApplyCharacterData(originalPlayerData, ped)
         end
-        ShowNotification("Character editor closed without saving")
+        ShowNotification("~y~Character editor closed without saving")
     end
     
     -- Cleanup camera
@@ -373,6 +420,11 @@ function UpdateCharacterFeature(category, feature, value)
 
     local ped = PlayerPedId()
     
+    -- Ensure currentCharacterData exists
+    if not currentCharacterData then
+        currentCharacterData = GetDefaultCharacterData()
+    end
+    
     if category == "faceFeatures" then
         if not currentCharacterData.faceFeatures then
             currentCharacterData.faceFeatures = {}
@@ -407,6 +459,8 @@ function UpdateCharacterFeature(category, feature, value)
             ApplyCharacterData(currentCharacterData, ped)
         end
     end
+    
+    print(string.format("[CNR_CHARACTER_EDITOR] Updated %s to %s", feature, tostring(value)))
 end
 
 function PreviewUniformPreset(presetIndex)
@@ -567,7 +621,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     if newPlayerData then
         playerData = newPlayerData
         playerRole = newPlayerData.role
-        print("[CNR_CHARACTER_EDITOR] Updated player role to: " .. (playerRole or "nil"))
+        print(string.format("[CNR_CHARACTER_EDITOR] Updated player role to: %s", playerRole or "nil"))
     end
 end)
 
@@ -663,8 +717,9 @@ end)
 
 -- Handle character editor errors
 RegisterNUICallback('characterEditor_error', function(data, cb)
-    print("[CNR_CHARACTER_EDITOR] NUI reported error: " .. (data.error or "unknown"))
-    ShowNotification("~r~Character Editor Error: " .. (data.error or "unknown"))
+    local errorMsg = data.error or "unknown"
+    print(string.format("[CNR_CHARACTER_EDITOR] NUI reported error: %s", errorMsg))
+    ShowNotification(string.format("~r~Character Editor Error: %s", errorMsg))
     CloseCharacterEditor(false)
     cb({success = true})
 end)
@@ -874,39 +929,40 @@ Citizen.CreateThread(function()
             elseif not isInCharacterEditor then
                 -- Show notification if player doesn't have a valid role
                 ShowNotification("~r~You must be a Cop or Robber to use the Character Editor")
-                print("[CNR_CHARACTER_EDITOR] F3 pressed but player role is: " .. (playerRole or "nil"))
+                print(string.format("[CNR_CHARACTER_EDITOR] F3 pressed but player role is: %s", playerRole or "nil"))
             end
         end
         
-        -- Multiple emergency exit mechanisms
+        -- Character editor exit mechanisms
         if isInCharacterEditor then
-            -- ESC key to close character editor
+            -- ESC key to close character editor (normal close)
             if IsControlJustPressed(0, 322) then -- ESC key
                 print("[CNR_CHARACTER_EDITOR] ESC key pressed - closing editor")
                 CloseCharacterEditor(false)
             end
             
-            -- BACKSPACE key emergency exit
+            -- Safety Close: Ctrl + F3 (emergency exit)
+            if IsControlPressed(0, 36) and IsControlJustPressed(0, Config.Keybinds.openCharacterEditor) then -- CTRL + F3
+                print("[CNR_CHARACTER_EDITOR] Safety close triggered (Ctrl+F3)")
+                CloseCharacterEditor(false)
+                ShowNotification("~y~Character editor safety closed")
+            end
+            
+            -- Camera switching with arrow keys
+            if IsControlJustPressed(0, 174) then -- LEFT ARROW - Face view
+                CreateEditorCamera("face")
+                ShowNotification("~b~Face View")
+            elseif IsControlJustPressed(0, 175) then -- RIGHT ARROW - Body view
+                CreateEditorCamera("body")
+                ShowNotification("~b~Body View")
+            elseif IsControlJustPressed(0, 172) then -- UP ARROW - Full view
+                CreateEditorCamera("full")
+                ShowNotification("~b~Full Body View")
+            end
+            
+            -- BACKSPACE key emergency exit (kept for compatibility)
             if IsControlJustPressed(0, 194) then -- BACKSPACE key
                 print("[CNR_CHARACTER_EDITOR] BACKSPACE emergency exit triggered")
-                CloseCharacterEditor(false)
-            end
-            
-            -- DELETE key emergency exit
-            if IsControlJustPressed(0, 178) then -- DELETE key
-                print("[CNR_CHARACTER_EDITOR] DELETE emergency exit triggered")
-                CloseCharacterEditor(false)
-            end
-            
-            -- F1 key emergency exit
-            if IsControlJustPressed(0, 288) then -- F1 key
-                print("[CNR_CHARACTER_EDITOR] F1 emergency exit triggered")
-                CloseCharacterEditor(false)
-            end
-            
-            -- ENTER key to force close if stuck
-            if IsControlJustPressed(0, 18) then -- ENTER key
-                print("[CNR_CHARACTER_EDITOR] ENTER force close triggered")
                 CloseCharacterEditor(false)
             end
         end
