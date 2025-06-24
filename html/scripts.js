@@ -2528,46 +2528,96 @@ function switchCustomizationTab(category) {
 }
 
 function openCharacterEditor(data) {
-    characterEditorData.isOpen = true;
-    characterEditorData.currentRole = data.role;
-    characterEditorData.currentSlot = data.characterSlot;
-    characterEditorData.characterData = data.characterData;
-    characterEditorData.uniformPresets = data.uniformPresets;
-
-    // Update UI elements
-    const roleElement = document.getElementById('character-editor-role');
-    const slotElement = document.getElementById('character-editor-slot');
+    console.log('[CNR_CHARACTER_EDITOR] Opening character editor with data:', data);
     
-    if (roleElement) roleElement.textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
-    if (slotElement) slotElement.textContent = `Slot ${data.characterSlot}`;
-
-    // Populate uniform presets
-    updateUniformPresets();
-    
-    // Populate character slots
-    updateCharacterSlots();
-    
-    // Update sliders with current character data
-    updateSlidersFromCharacterData();
-
-    // Show the character editor
+    // Check if character editor element exists
     const characterEditor = document.getElementById('character-editor');
-    if (characterEditor) {
-        characterEditor.classList.remove('hidden');
+    if (!characterEditor) {
+        console.error('[CNR_CHARACTER_EDITOR] Character editor element not found in DOM');
+        // Send error back to client
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_error`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Character editor element not found' })
+        });
+        return;
     }
+    
+    try {
+        characterEditorData.isOpen = true;
+        characterEditorData.currentRole = data.role;
+        characterEditorData.currentSlot = data.characterSlot;
+        characterEditorData.characterData = data.characterData;
+        characterEditorData.uniformPresets = data.uniformPresets;
 
-    console.log('[CNR_CHARACTER_EDITOR] Opened character editor for', data.role, 'slot', data.characterSlot);
+        // Update UI elements
+        const roleElement = document.getElementById('character-editor-role');
+        const slotElement = document.getElementById('character-editor-slot');
+        
+        if (roleElement) roleElement.textContent = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+        if (slotElement) slotElement.textContent = `Slot ${data.characterSlot}`;
+
+        // Populate uniform presets
+        updateUniformPresets();
+        
+        // Populate character slots
+        updateCharacterSlots();
+        
+        // Update sliders with current character data
+        updateSlidersFromCharacterData();
+
+        // Show the character editor
+        characterEditor.classList.remove('hidden');
+        
+        // Ensure the editor is visible
+        characterEditor.style.display = 'flex';
+        characterEditor.style.visibility = 'visible';
+        characterEditor.style.opacity = '1';
+
+        console.log('[CNR_CHARACTER_EDITOR] Successfully opened character editor for', data.role, 'slot', data.characterSlot);
+        
+        // Send success confirmation back to client
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_opened`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ success: true })
+        });
+        
+    } catch (error) {
+        console.error('[CNR_CHARACTER_EDITOR] Error opening character editor:', error);
+        // Send error back to client
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_error`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: error.message })
+        });
+    }
 }
 
 function closeCharacterEditor() {
-    characterEditorData.isOpen = false;
+    console.log('[CNR_CHARACTER_EDITOR] Closing character editor');
     
-    const characterEditor = document.getElementById('character-editor');
-    if (characterEditor) {
-        characterEditor.classList.add('hidden');
-    }
+    try {
+        characterEditorData.isOpen = false;
+        
+        const characterEditor = document.getElementById('character-editor');
+        if (characterEditor) {
+            characterEditor.classList.add('hidden');
+            characterEditor.style.display = 'none';
+        }
 
-    console.log('[CNR_CHARACTER_EDITOR] Closed character editor');
+        // Send close confirmation to client
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_closed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ success: true })
+        });
+
+        console.log('[CNR_CHARACTER_EDITOR] Successfully closed character editor');
+        
+    } catch (error) {
+        console.error('[CNR_CHARACTER_EDITOR] Error closing character editor:', error);
+    }
 }
 
 function updateUniformPresets() {
@@ -2736,6 +2786,33 @@ window.addEventListener('message', function(event) {
             break;
         case 'closeCharacterEditor':
             closeCharacterEditor();
+            break;
+        case 'testCharacterEditor':
+            console.log('[CNR_CHARACTER_EDITOR] Test message received');
+            const testEditor = document.getElementById('character-editor');
+            if (testEditor) {
+                console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        success: true, 
+                        message: 'Character editor element exists',
+                        elementFound: true
+                    })
+                });
+            } else {
+                console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
+                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        success: false, 
+                        message: 'Character editor element missing',
+                        elementFound: false
+                    })
+                });
+            }
             break;
         case 'openCharacterEditorFrame':
             // Store data for iframe

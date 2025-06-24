@@ -13,6 +13,10 @@ local playerCharacters = {}
 local previewingUniform = false
 local currentUniformPreset = nil
 
+-- Player data from main client
+local playerRole = nil
+local playerData = nil
+
 -- Character editor UI state
 local editorUI = {
     currentCategory = "appearance",
@@ -211,8 +215,13 @@ function OpenCharacterEditor(role, characterSlot)
     currentRole = role or "cop"
     currentCharacterSlot = characterSlot or 1
     
-    -- Store original player data
     local ped = PlayerPedId()
+    if not DoesEntityExist(ped) then
+        ShowNotification("~r~Error: Player ped not found")
+        return
+    end
+    
+    -- Store original player data
     originalPlayerData = GetCurrentCharacterData(ped)
     
     -- Load character data for the slot
@@ -225,37 +234,74 @@ function OpenCharacterEditor(role, characterSlot)
         currentCharacterData.model = "mp_m_freemode_01" -- Default male, can be changed in editor
     end
 
-    -- Teleport to character editor location
-    local editorPos = Config.CharacterEditor.editorLocation
-    SetEntityCoords(ped, editorPos.x, editorPos.y, editorPos.z, false, false, false, true)
-    SetEntityHeading(ped, 0.0)
+    -- Check if editor location is configured
+    if not Config.CharacterEditor or not Config.CharacterEditor.editorLocation then
+        -- Use a default location if not configured
+        local coords = GetEntityCoords(ped)
+        SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
+        SetEntityHeading(ped, 0.0)
+    else
+        -- Teleport to character editor location
+        local editorPos = Config.CharacterEditor.editorLocation
+        SetEntityCoords(ped, editorPos.x, editorPos.y, editorPos.z, false, false, false, true)
+        SetEntityHeading(ped, 0.0)
+    end
+    
+    -- Wait a frame to ensure teleportation is complete
+    Citizen.Wait(100)
     
     -- Apply current character data
     ApplyCharacterData(currentCharacterData, ped)
     
-    -- Set up camera
-    CreateEditorCamera("face")
-    
-    -- Freeze player
+    -- Freeze player and make invincible
     FreezeEntityPosition(ped, true)
     SetEntityInvincible(ped, true)
     
-    -- Show UI using main UI
+    -- Set up camera after a small delay
+    Citizen.SetTimeout(200, function()
+        CreateEditorCamera("face")
+    end)
+    
+    -- Set editor state
     isInCharacterEditor = true
     editorUI.isVisible = true
     
-    SetNuiFocus(true, true)
+    -- Send data to NUI with comprehensive error handling
+    print("[CNR_CHARACTER_EDITOR] Sending NUI message...")
+    local success, errorMsg = pcall(function()
+        SendNUIMessage({
+            action = 'openCharacterEditor',
+            role = currentRole,
+            characterSlot = currentCharacterSlot,
+            characterData = currentCharacterData,
+            uniformPresets = (Config.CharacterEditor and Config.CharacterEditor.uniformPresets and Config.CharacterEditor.uniformPresets[currentRole]) or {},
+            customizationRanges = (Config.CharacterEditor and Config.CharacterEditor.customization) or {},
+            playerCharacters = playerCharacters
+        })
+    end)
     
-    -- Open character editor in main UI
-    SendNUIMessage({
-        action = 'openCharacterEditor',
-        role = currentRole,
-        characterSlot = currentCharacterSlot,
-        characterData = currentCharacterData,
-        uniformPresets = Config.CharacterEditor.uniformPresets[currentRole] or {},
-        customizationRanges = Config.CharacterEditor.customization,
-        playerCharacters = playerCharacters
-    })
+    if not success then
+        print("[CNR_CHARACTER_EDITOR] Error sending NUI message: " .. tostring(errorMsg))
+        CloseCharacterEditor(false)
+        return
+    end
+    
+    -- Enable NUI focus with safety timeout
+    Citizen.SetTimeout(100, function()
+        if isInCharacterEditor then
+            SetNuiFocus(true, true)
+            print("[CNR_CHARACTER_EDITOR] NUI focus enabled")
+            
+            -- Safety timeout to auto-close if UI doesn't respond
+            Citizen.SetTimeout(10000, function() -- 10 seconds
+                if isInCharacterEditor then
+                    print("[CNR_CHARACTER_EDITOR] Safety timeout triggered - force closing editor")
+                    CloseCharacterEditor(false)
+                    ShowNotification("~r~Character editor timed out and was closed")
+                end
+            end)
+        end
+    end)
     
     print("[CNR_CHARACTER_EDITOR] Opened character editor for " .. currentRole .. " slot " .. currentCharacterSlot)
 end
@@ -266,6 +312,9 @@ function CloseCharacterEditor(save)
     end
 
     local ped = PlayerPedId()
+    
+    -- Always disable NUI focus first to prevent getting stuck
+    SetNuiFocus(false, false)
     
     if save then
         -- Save current character data
@@ -281,29 +330,38 @@ function CloseCharacterEditor(save)
         ShowNotification("Character editor closed without saving")
     end
     
-    -- Cleanup
+    -- Cleanup camera
     DestroyCameraEditor()
+    
+    -- Unfreeze player and remove invincibility
     FreezeEntityPosition(ped, false)
     SetEntityInvincible(ped, false)
     
+    -- Ensure player is visible
+    SetEntityVisible(ped, true, false)
+    SetEntityAlpha(ped, 255, false)
+    
     -- Return to spawn location
-    if currentRole and Config.SpawnPoints[currentRole] then
+    if currentRole and Config.SpawnPoints and Config.SpawnPoints[currentRole] then
         local spawnPoint = Config.SpawnPoints[currentRole]
         SetEntityCoords(ped, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
+        SetEntityHeading(ped, 0.0)
     end
     
-    -- Hide UI
+    -- Reset editor state
     isInCharacterEditor = false
     editorUI.isVisible = false
     previewingUniform = false
     currentUniformPreset = nil
+    currentRole = nil
+    currentCharacterSlot = 1
     
-    -- Close character editor
-    SendNUIMessage({
-        action = 'closeCharacterEditor'
-    })
-    
-    SetNuiFocus(false, false)
+    -- Send close message to NUI
+    pcall(function()
+        SendNUIMessage({
+            action = 'closeCharacterEditor'
+        })
+    end)
     
     print("[CNR_CHARACTER_EDITOR] Closed character editor")
 end
@@ -503,6 +561,16 @@ AddEventHandler('cnr:applyCharacterData', function(characterData)
     ApplyCharacterData(characterData, ped)
 end)
 
+-- Listen for player data updates from main client
+RegisterNetEvent('cnr:updatePlayerData')
+AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
+    if newPlayerData then
+        playerData = newPlayerData
+        playerRole = newPlayerData.role
+        print("[CNR_CHARACTER_EDITOR] Updated player role to: " .. (playerRole or "nil"))
+    end
+end)
+
 -- =========================
 -- NUI Callbacks
 -- =========================
@@ -584,6 +652,38 @@ end)
 
 RegisterNUICallback('characterEditor_cancel', function(data, cb)
     CloseCharacterEditor(false)
+    cb({success = true})
+end)
+
+-- Handle character editor opened confirmation
+RegisterNUICallback('characterEditor_opened', function(data, cb)
+    print("[CNR_CHARACTER_EDITOR] NUI confirmed character editor opened successfully")
+    cb({success = true})
+end)
+
+-- Handle character editor errors
+RegisterNUICallback('characterEditor_error', function(data, cb)
+    print("[CNR_CHARACTER_EDITOR] NUI reported error: " .. (data.error or "unknown"))
+    ShowNotification("~r~Character Editor Error: " .. (data.error or "unknown"))
+    CloseCharacterEditor(false)
+    cb({success = true})
+end)
+
+-- Handle character editor closed confirmation
+RegisterNUICallback('characterEditor_closed', function(data, cb)
+    print("[CNR_CHARACTER_EDITOR] NUI confirmed character editor closed")
+    cb({success = true})
+end)
+
+-- Handle test result
+RegisterNUICallback('characterEditor_test_result', function(data, cb)
+    if data.elementFound then
+        print("[CNR_CHARACTER_EDITOR] Test result: Character editor element EXISTS")
+        ShowNotification("~g~Character editor element found in UI")
+    else
+        print("[CNR_CHARACTER_EDITOR] Test result: Character editor element MISSING")
+        ShowNotification("~r~Character editor element missing from UI")
+    end
     cb({success = true})
 end)
 
@@ -673,3 +773,142 @@ TriggerEvent('chat:addSuggestion', '/chareditor', 'Open character editor', {
     { name="role", help="Role (cop/robber)" },
     { name="slot", help="Character slot (1-2)" }
 })
+
+-- Emergency command to force close character editor
+RegisterCommand('closechareditor', function(source, args, rawCommand)
+    print("[CNR_CHARACTER_EDITOR] Emergency close command triggered")
+    
+    -- Force disable NUI focus regardless of state
+    SetNuiFocus(false, false)
+    
+    -- Force close camera
+    if editorCamera then
+        DestroyCam(editorCamera, false)
+        editorCamera = nil
+    end
+    RenderScriptCams(false, true, 1000, true, true)
+    
+    -- Unfreeze player
+    local ped = PlayerPedId()
+    FreezeEntityPosition(ped, false)
+    SetEntityInvincible(ped, false)
+    SetEntityVisible(ped, true, false)
+    SetEntityAlpha(ped, 255, false)
+    
+    -- Reset all editor states
+    isInCharacterEditor = false
+    editorUI.isVisible = false
+    previewingUniform = false
+    currentUniformPreset = nil
+    currentRole = nil
+    currentCharacterSlot = 1
+    
+    -- Send close message to NUI
+    pcall(function()
+        SendNUIMessage({
+            action = 'closeCharacterEditor'
+        })
+    end)
+    
+    ShowNotification("~y~Character editor emergency closed - you should now be able to move")
+    print("[CNR_CHARACTER_EDITOR] Emergency close completed")
+end, false)
+
+TriggerEvent('chat:addSuggestion', '/closechareditor', 'Emergency close character editor if stuck')
+
+-- Additional emergency command with shorter name
+RegisterCommand('fixui', function(source, args, rawCommand)
+    print("[CNR_CHARACTER_EDITOR] UI fix command triggered")
+    
+    -- Force disable NUI focus
+    SetNuiFocus(false, false)
+    
+    -- Close any open cameras
+    if editorCamera then
+        DestroyCam(editorCamera, false)
+        editorCamera = nil
+    end
+    RenderScriptCams(false, true, 1000, true, true)
+    
+    -- Unfreeze player
+    local ped = PlayerPedId()
+    FreezeEntityPosition(ped, false)
+    SetEntityInvincible(ped, false)
+    
+    -- Reset editor state
+    isInCharacterEditor = false
+    editorUI.isVisible = false
+    
+    ShowNotification("~g~UI fixed - NUI focus disabled")
+    print("[CNR_CHARACTER_EDITOR] UI fix completed")
+end, false)
+
+TriggerEvent('chat:addSuggestion', '/fixui', 'Fix stuck UI/mouse cursor')
+
+-- Debug command to test character editor UI
+RegisterCommand('testchareditor', function(source, args, rawCommand)
+    print("[CNR_CHARACTER_EDITOR] Testing character editor UI...")
+    
+    -- Send a test message to check if NUI is responsive
+    SendNUIMessage({
+        action = 'testCharacterEditor'
+    })
+    
+    ShowNotification("~b~Testing character editor UI - check console")
+end, false)
+
+TriggerEvent('chat:addSuggestion', '/testchareditor', 'Test character editor UI elements')
+
+-- =========================
+-- Keybind Handler
+-- =========================
+
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        if IsControlJustPressed(0, Config.Keybinds.openCharacterEditor) then
+            -- Use the stored player role
+            if not isInCharacterEditor and playerRole and (playerRole == "cop" or playerRole == "robber") then
+                OpenCharacterEditor(playerRole, 1)
+            elseif not isInCharacterEditor then
+                -- Show notification if player doesn't have a valid role
+                ShowNotification("~r~You must be a Cop or Robber to use the Character Editor")
+                print("[CNR_CHARACTER_EDITOR] F3 pressed but player role is: " .. (playerRole or "nil"))
+            end
+        end
+        
+        -- Multiple emergency exit mechanisms
+        if isInCharacterEditor then
+            -- ESC key to close character editor
+            if IsControlJustPressed(0, 322) then -- ESC key
+                print("[CNR_CHARACTER_EDITOR] ESC key pressed - closing editor")
+                CloseCharacterEditor(false)
+            end
+            
+            -- BACKSPACE key emergency exit
+            if IsControlJustPressed(0, 194) then -- BACKSPACE key
+                print("[CNR_CHARACTER_EDITOR] BACKSPACE emergency exit triggered")
+                CloseCharacterEditor(false)
+            end
+            
+            -- DELETE key emergency exit
+            if IsControlJustPressed(0, 178) then -- DELETE key
+                print("[CNR_CHARACTER_EDITOR] DELETE emergency exit triggered")
+                CloseCharacterEditor(false)
+            end
+            
+            -- F1 key emergency exit
+            if IsControlJustPressed(0, 288) then -- F1 key
+                print("[CNR_CHARACTER_EDITOR] F1 emergency exit triggered")
+                CloseCharacterEditor(false)
+            end
+            
+            -- ENTER key to force close if stuck
+            if IsControlJustPressed(0, 18) then -- ENTER key
+                print("[CNR_CHARACTER_EDITOR] ENTER force close triggered")
+                CloseCharacterEditor(false)
+            end
+        end
+    end
+end)
