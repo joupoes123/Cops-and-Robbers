@@ -69,6 +69,10 @@ local function SafeTriggerClientEvent(eventName, playerId, ...)
     end
 end
 
+-- Forward declarations for functions defined later
+local MarkPlayerForInventorySave
+local SavePlayerDataImmediate
+
 -- Global state tables
 local playersData = {}
 local copsOnDuty = {}
