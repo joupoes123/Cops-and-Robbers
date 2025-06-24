@@ -1982,6 +1982,7 @@ local jailThreadRunning = false
 local function StopJailUpdateThread()
     -- Thread checks the isJailed flag, so simply hide the timer display
     jailTimerDisplayActive = false
+    jailThreadRunning = false
     Log("Jail update thread signaled to stop.", "info")
 end
 
