@@ -1399,6 +1399,8 @@ ForceReleasePlayerFromJail = function(playerId, reason)
         -- if the periodic saver picks them up or if SavePlayerData is called by another process for offline players.
         -- Otherwise, it's saved on their next disconnect (if they were online briefly) or handled by LoadPlayerData on next join.
         Log(string.format("Player %s (offline) jail data cleared. They will be free on next login.", pIdNum), "info")
+        -- Persist the updated data immediately so they won't be jailed again on reconnect
+        SavePlayerDataImmediate(pIdNum, "unjail_offline")
     end
     return true
 end
