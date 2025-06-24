@@ -33,22 +33,52 @@ end
 function SavePlayerCharacters(playerId, characterData)
     local identifier = GetPlayerIdentifier(playerId, 0)
     if not identifier then
+        print("[CNR_CHARACTER_EDITOR] Error: No identifier for player " .. tostring(playerId))
         return false
     end
     
-    -- Ensure player_data directory exists
-    os.execute("mkdir player_data 2>nul")
+    -- Ensure player_data directory exists (Windows and Linux compatible)
+    local success = pcall(function()
+        os.execute("mkdir player_data 2>nul || mkdir -p player_data 2>/dev/null")
+    end)
     
-    local filePath = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
-    local file = io.open(filePath, "w")
-    
-    if file then
-        file:write(json.encode(characterData, {indent = true}))
-        file:close()
-        return true
+    if not success then
+        print("[CNR_CHARACTER_EDITOR] Warning: Could not create player_data directory")
     end
     
-    return false
+    local filePath = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
+    
+    -- Try to encode the data first
+    local jsonData
+    local encodeSuccess = pcall(function()
+        jsonData = json.encode(characterData, {indent = true})
+    end)
+    
+    if not encodeSuccess or not jsonData then
+        print("[CNR_CHARACTER_EDITOR] Error: Failed to encode character data for " .. GetPlayerName(playerId))
+        return false
+    end
+    
+    -- Try to write the file
+    local file, err = io.open(filePath, "w")
+    if not file then
+        print("[CNR_CHARACTER_EDITOR] Error: Could not open file for writing: " .. tostring(err))
+        return false
+    end
+    
+    local writeSuccess = pcall(function()
+        file:write(jsonData)
+        file:close()
+    end)
+    
+    if not writeSuccess then
+        print("[CNR_CHARACTER_EDITOR] Error: Failed to write character data to file")
+        if file then file:close() end
+        return false
+    end
+    
+    print("[CNR_CHARACTER_EDITOR] Successfully saved character data to: " .. filePath)
+    return true
 end
 
 -- =========================

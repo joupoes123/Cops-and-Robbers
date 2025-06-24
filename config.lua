@@ -990,8 +990,25 @@ Config.CharacterEditor = {
             chinShape = 0.0,
             neckWidth = 0.0
         },
-        components = {},
-        props = {},
+        components = {
+            [1] = { drawable = 0, texture = 0 },   -- Mask
+            [3] = { drawable = 15, texture = 0 },  -- Arms/Torso
+            [4] = { drawable = 0, texture = 0 },   -- Legs
+            [5] = { drawable = 0, texture = 0 },   -- Bag
+            [6] = { drawable = 1, texture = 0 },   -- Shoes
+            [7] = { drawable = 0, texture = 0 },   -- Accessories
+            [8] = { drawable = 15, texture = 0 },  -- Undershirt
+            [9] = { drawable = 0, texture = 0 },   -- Body Armor
+            [10] = { drawable = 0, texture = 0 },  -- Decals
+            [11] = { drawable = 0, texture = 0 }   -- Tops
+        },
+        props = {
+            [0] = { drawable = -1, texture = 0 },  -- Hat
+            [1] = { drawable = -1, texture = 0 },  -- Glasses
+            [2] = { drawable = -1, texture = 0 },  -- Ear
+            [6] = { drawable = -1, texture = 0 },  -- Watch
+            [7] = { drawable = -1, texture = 0 }   -- Bracelet
+        },
         tattoos = {}
     }
 }

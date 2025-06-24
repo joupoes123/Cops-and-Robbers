@@ -203,17 +203,17 @@ function CreateEditorCamera(mode)
     
     if mode == "face" then
         -- Position camera in front of face for close-up view
-        SetCamCoord(editorCamera, coords.x, coords.y + 1.2, coords.z + 0.65)
+        SetCamCoord(editorCamera, coords.x - 1.2, coords.y, coords.z + 0.65)
         PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true) -- Head bone
         SetCamFov(editorCamera, 35.0)
     elseif mode == "body" then
         -- Position camera to show upper body
-        SetCamCoord(editorCamera, coords.x, coords.y + 2.0, coords.z + 0.3)
+        SetCamCoord(editorCamera, coords.x - 2.0, coords.y, coords.z + 0.3)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.2, true)
         SetCamFov(editorCamera, 45.0)
     else -- full body view
         -- Position camera to show full body
-        SetCamCoord(editorCamera, coords.x, coords.y + 3.0, coords.z + 0.0)
+        SetCamCoord(editorCamera, coords.x - 3.0, coords.y, coords.z + 0.0)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.1, true)
         SetCamFov(editorCamera, 55.0)
     end
@@ -275,22 +275,25 @@ function OpenCharacterEditor(role, characterSlot)
         currentCharacterData = playerCharacters[characterKey]
     else
         currentCharacterData = GetDefaultCharacterData()
-        -- Set appropriate model based on role and gender preference
-        currentCharacterData.model = "mp_m_freemode_01" -- Default male, can be changed in editor
+        -- Set appropriate model based on current ped
+        local currentModel = GetEntityModel(ped)
+        if currentModel == GetHashKey("mp_f_freemode_01") then
+            currentCharacterData.model = "mp_f_freemode_01"
+        else
+            currentCharacterData.model = "mp_m_freemode_01"
+        end
     end
+    
+    -- Apply the character data immediately to show current appearance
+    ApplyCharacterData(currentCharacterData, ped)
 
-    -- Check if editor location is configured
-    if not Config.CharacterEditor or not Config.CharacterEditor.editorLocation then
-        -- Use a default location if not configured
-        local coords = GetEntityCoords(ped)
-        SetEntityCoords(ped, coords.x, coords.y, coords.z, false, false, false, true)
-        SetEntityHeading(ped, 0.0)
-    else
-        -- Teleport to character editor location
-        local editorPos = Config.CharacterEditor.editorLocation
-        SetEntityCoords(ped, editorPos.x, editorPos.y, editorPos.z, false, false, false, true)
-        SetEntityHeading(ped, 0.0)
-    end
+    -- Use a safe outdoor location for character preview instead of interior
+    local previewLocation = vector3(402.87, -996.41, 30.0) -- Above ground at Mission Row
+    SetEntityCoords(ped, previewLocation.x, previewLocation.y, previewLocation.z, false, false, false, true)
+    SetEntityHeading(ped, 0.0)
+    
+    -- Wait for teleport to complete
+    Wait(100)
     
     -- Wait a frame to ensure teleportation is complete
     Citizen.Wait(100)
@@ -680,6 +683,54 @@ RegisterNUICallback('characterEditor_updateFeature', function(data, cb)
         UpdateCharacterFeature(data.category, data.feature, data.value)
     end
     cb({success = true})
+end)
+
+-- Handle gender/model changes
+RegisterNUICallback('characterEditor_changeModel', function(data, cb)
+    if not isInCharacterEditor then
+        cb({success = false})
+        return
+    end
+    
+    local ped = PlayerPedId()
+    local newModel = data.model
+    
+    if newModel == "male" then
+        newModel = "mp_m_freemode_01"
+    elseif newModel == "female" then
+        newModel = "mp_f_freemode_01"
+    end
+    
+    -- Update character data
+    currentCharacterData.model = newModel
+    
+    -- Apply the new model
+    local modelHash = GetHashKey(newModel)
+    RequestModel(modelHash)
+    
+    local timeout = 0
+    while not HasModelLoaded(modelHash) and timeout < 5000 do
+        Wait(100)
+        timeout = timeout + 100
+    end
+    
+    if HasModelLoaded(modelHash) then
+        SetPlayerModel(PlayerId(), modelHash)
+        Wait(100) -- Wait for model to fully load
+        
+        -- Get the new ped and apply character data
+        ped = PlayerPedId()
+        ApplyCharacterData(currentCharacterData, ped)
+        
+        -- Recreate camera for new ped
+        CreateEditorCamera(currentCameraMode or "face")
+        
+        print(string.format("[CNR_CHARACTER_EDITOR] Changed model to %s", newModel))
+        cb({success = true})
+    else
+        print("[CNR_CHARACTER_EDITOR] Failed to load model: " .. newModel)
+        cb({success = false})
+    end
 end)
 
 RegisterNUICallback('characterEditor_previewUniform', function(data, cb)
