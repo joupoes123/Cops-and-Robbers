@@ -674,6 +674,346 @@ Config.PerkEffects = {
 }
 
 -- =========================
+--     Character Editor Configuration
+-- =========================
+-- Comprehensive character customization system with role-specific features
+Config.CharacterEditor = {
+    -- Character slot configuration
+    maxCharactersPerRole = 2,  -- 1 main + 1 alternate per role
+    enableAlternateCharacters = true,
+    
+    -- Customization categories and their ranges
+    customization = {
+        -- Basic appearance
+        face = { min = 0, max = 45 },
+        skin = { min = 0, max = 45 },
+        
+        -- Facial features (0.0 to 1.0 range)
+        noseWidth = { min = -1.0, max = 1.0 },
+        noseHeight = { min = -1.0, max = 1.0 },
+        noseLength = { min = -1.0, max = 1.0 },
+        noseBridge = { min = -1.0, max = 1.0 },
+        noseTip = { min = -1.0, max = 1.0 },
+        noseShift = { min = -1.0, max = 1.0 },
+        
+        browHeight = { min = -1.0, max = 1.0 },
+        browWidth = { min = -1.0, max = 1.0 },
+        
+        cheekboneHeight = { min = -1.0, max = 1.0 },
+        cheekboneWidth = { min = -1.0, max = 1.0 },
+        cheeksWidth = { min = -1.0, max = 1.0 },
+        
+        eyesOpening = { min = -1.0, max = 1.0 },
+        
+        lipsThickness = { min = -1.0, max = 1.0 },
+        
+        jawWidth = { min = -1.0, max = 1.0 },
+        jawHeight = { min = -1.0, max = 1.0 },
+        chinLength = { min = -1.0, max = 1.0 },
+        chinPosition = { min = -1.0, max = 1.0 },
+        chinWidth = { min = -1.0, max = 1.0 },
+        chinShape = { min = -1.0, max = 1.0 },
+        
+        neckWidth = { min = -1.0, max = 1.0 },
+        
+        -- Hair and colors
+        hair = { min = 0, max = 76 },
+        hairColor = { min = 0, max = 63 },
+        hairHighlight = { min = 0, max = 63 },
+        
+        -- Facial hair
+        beard = { min = -1, max = 28 },
+        beardColor = { min = 0, max = 63 },
+        beardOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Eyebrows
+        eyebrows = { min = -1, max = 33 },
+        eyebrowsColor = { min = 0, max = 63 },
+        eyebrowsOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Eyes
+        eyeColor = { min = 0, max = 31 },
+        
+        -- Makeup
+        blush = { min = -1, max = 6 },
+        blushColor = { min = 0, max = 63 },
+        blushOpacity = { min = 0.0, max = 1.0 },
+        
+        lipstick = { min = -1, max = 9 },
+        lipstickColor = { min = 0, max = 63 },
+        lipstickOpacity = { min = 0.0, max = 1.0 },
+        
+        makeup = { min = -1, max = 74 },
+        makeupColor = { min = 0, max = 63 },
+        makeupOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Body features
+        bodyBlemishes = { min = -1, max = 23 },
+        bodyBlemishesOpacity = { min = 0.0, max = 1.0 },
+        
+        addBodyBlemishes = { min = -1, max = 11 },
+        addBodyBlemishesOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Complexion
+        complexion = { min = -1, max = 11 },
+        complexionOpacity = { min = 0.0, max = 1.0 },
+        
+        sundamage = { min = -1, max = 10 },
+        sundamageOpacity = { min = 0.0, max = 1.0 },
+        
+        freckles = { min = -1, max = 17 },
+        frecklesOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Aging
+        ageing = { min = -1, max = 14 },
+        ageingOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Moles
+        moles = { min = -1, max = 17 },
+        molesOpacity = { min = 0.0, max = 1.0 },
+        
+        -- Chest hair
+        chesthair = { min = -1, max = 16 },
+        chesthairColor = { min = 0, max = 63 },
+        chesthairOpacity = { min = 0.0, max = 1.0 }
+    },
+    
+    -- Role-specific uniform presets
+    uniformPresets = {
+        cop = {
+            {
+                name = "Patrol Officer",
+                description = "Standard patrol uniform",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 35, texture = 0 },  -- Legs
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 25, texture = 0 },  -- Shoes
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 58, texture = 0 },  -- Undershirt
+                    [9] = { drawable = 0, texture = 0 },   -- Body Armor
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 55, texture = 0 }  -- Tops
+                },
+                props = {
+                    [0] = { drawable = 46, texture = 0 },  -- Hat
+                    [1] = { drawable = 7, texture = 0 },   -- Glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            },
+            {
+                name = "SWAT Officer",
+                description = "Tactical response uniform",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask (no mask for better visibility)
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 31, texture = 0 },  -- Legs (tactical pants)
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 25, texture = 0 },  -- Shoes (tactical boots)
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 15, texture = 0 },  -- Undershirt (black)
+                    [9] = { drawable = 15, texture = 0 },  -- Body Armor (tactical vest)
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 53, texture = 0 }  -- Tops (tactical shirt)
+                },
+                props = {
+                    [0] = { drawable = 125, texture = 0 }, -- Tactical helmet
+                    [1] = { drawable = 15, texture = 0 },  -- Tactical glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            },
+            {
+                name = "Detective",
+                description = "Plain clothes detective",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 24, texture = 0 },  -- Legs
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 10, texture = 0 },  -- Shoes
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 31, texture = 0 },  -- Undershirt
+                    [9] = { drawable = 0, texture = 0 },   -- Body Armor
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 28, texture = 0 }  -- Tops
+                },
+                props = {
+                    [0] = { drawable = -1, texture = 0 },  -- Hat
+                    [1] = { drawable = 4, texture = 0 },   -- Glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            }
+        },
+        robber = {
+            {
+                name = "Street Criminal",
+                description = "Casual street wear",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 1, texture = 0 },   -- Legs
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 1, texture = 0 },   -- Shoes
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 15, texture = 0 },  -- Undershirt
+                    [9] = { drawable = 0, texture = 0 },   -- Body Armor
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 4, texture = 0 }   -- Tops
+                },
+                props = {
+                    [0] = { drawable = 18, texture = 0 },  -- Hat
+                    [1] = { drawable = -1, texture = 0 },  -- Glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            },
+            {
+                name = "Heist Outfit",
+                description = "Professional criminal attire",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 24, texture = 0 },  -- Legs
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 10, texture = 0 },  -- Shoes
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 31, texture = 0 },  -- Undershirt
+                    [9] = { drawable = 0, texture = 0 },   -- Body Armor
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 32, texture = 0 }  -- Tops
+                },
+                props = {
+                    [0] = { drawable = -1, texture = 0 },  -- Hat
+                    [1] = { drawable = 5, texture = 0 },   -- Glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            },
+            {
+                name = "Casual Civilian",
+                description = "Blend in with civilians",
+                components = {
+                    [1] = { drawable = 0, texture = 0 },   -- Mask
+                    [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
+                    [4] = { drawable = 0, texture = 0 },   -- Legs
+                    [5] = { drawable = 0, texture = 0 },   -- Bag
+                    [6] = { drawable = 4, texture = 0 },   -- Shoes
+                    [7] = { drawable = 0, texture = 0 },   -- Accessories
+                    [8] = { drawable = 15, texture = 0 },  -- Undershirt
+                    [9] = { drawable = 0, texture = 0 },   -- Body Armor
+                    [10] = { drawable = 0, texture = 0 },  -- Decals
+                    [11] = { drawable = 0, texture = 0 }   -- Tops
+                },
+                props = {
+                    [0] = { drawable = -1, texture = 0 },  -- Hat
+                    [1] = { drawable = -1, texture = 0 },  -- Glasses
+                    [2] = { drawable = -1, texture = 0 },  -- Ear
+                    [6] = { drawable = -1, texture = 0 },  -- Watch
+                    [7] = { drawable = -1, texture = 0 }   -- Bracelet
+                }
+            }
+        }
+    },
+    
+    -- Character editor location (interior)
+    editorLocation = vector3(402.8664, -996.4108, -100.0001),
+    
+    -- Default character data
+    defaultCharacter = {
+        model = "mp_m_freemode_01", -- Will be set based on gender
+        face = 0,
+        skin = 0,
+        hair = 0,
+        hairColor = 0,
+        hairHighlight = 0,
+        beard = -1,
+        beardColor = 0,
+        beardOpacity = 1.0,
+        eyebrows = -1,
+        eyebrowsColor = 0,
+        eyebrowsOpacity = 1.0,
+        eyeColor = 0,
+        blush = -1,
+        blushColor = 0,
+        blushOpacity = 0.0,
+        lipstick = -1,
+        lipstickColor = 0,
+        lipstickOpacity = 0.0,
+        makeup = -1,
+        makeupColor = 0,
+        makeupOpacity = 0.0,
+        ageing = -1,
+        ageingOpacity = 0.0,
+        complexion = -1,
+        complexionOpacity = 0.0,
+        sundamage = -1,
+        sundamageOpacity = 0.0,
+        freckles = -1,
+        frecklesOpacity = 0.0,
+        bodyBlemishes = -1,
+        bodyBlemishesOpacity = 0.0,
+        addBodyBlemishes = -1,
+        addBodyBlemishesOpacity = 0.0,
+        moles = -1,
+        molesOpacity = 0.0,
+        chesthair = -1,
+        chesthairColor = 0,
+        chesthairOpacity = 0.0,
+        faceFeatures = {
+            noseWidth = 0.0,
+            noseHeight = 0.0,
+            noseLength = 0.0,
+            noseBridge = 0.0,
+            noseTip = 0.0,
+            noseShift = 0.0,
+            browHeight = 0.0,
+            browWidth = 0.0,
+            cheekboneHeight = 0.0,
+            cheekboneWidth = 0.0,
+            cheeksWidth = 0.0,
+            eyesOpening = 0.0,
+            lipsThickness = 0.0,
+            jawWidth = 0.0,
+            jawHeight = 0.0,
+            chinLength = 0.0,
+            chinPosition = 0.0,
+            chinWidth = 0.0,
+            chinShape = 0.0,
+            neckWidth = 0.0
+        },
+        components = {
+            [1] = { drawable = 0, texture = 0 },   -- Mask
+            [3] = { drawable = 15, texture = 0 },  -- Arms/Torso
+            [4] = { drawable = 0, texture = 0 },   -- Legs
+            [5] = { drawable = 0, texture = 0 },   -- Bag
+            [6] = { drawable = 1, texture = 0 },   -- Shoes
+            [7] = { drawable = 0, texture = 0 },   -- Accessories
+            [8] = { drawable = 15, texture = 0 },  -- Undershirt
+            [9] = { drawable = 0, texture = 0 },   -- Body Armor
+            [10] = { drawable = 0, texture = 0 },  -- Decals
+            [11] = { drawable = 0, texture = 0 }   -- Tops
+        },
+        props = {
+            [0] = { drawable = -1, texture = 0 },  -- Hat
+            [1] = { drawable = -1, texture = 0 },  -- Glasses
+            [2] = { drawable = -1, texture = 0 },  -- Ear
+            [6] = { drawable = -1, texture = 0 },  -- Watch
+            [7] = { drawable = -1, texture = 0 }   -- Bracelet
+        },
+        tattoos = {}
+    }
+}
+
+-- =========================
 --     Keybind Configuration
 -- =========================
 -- All keybinds use FiveM control IDs. Reference: https://docs.fivem.net/docs/game-references/controls/
@@ -682,7 +1022,7 @@ Config.PerkEffects = {
 
 -- Keybind Layout Summary:
 -- M: Open Inventory | E: Interact | LEFT ALT: Police Radar | H: Fine Driver
--- G: Deploy Spikes | K: Toggle K9 | F1: EMP Device | F2: Admin Panel
+-- G: Deploy Spikes | K: Toggle K9 | F1: EMP Device | F2: Admin Panel | F3: Character Editor
 
 -- See FiveM native docs for control list: https://docs.fivem.net/docs/game-references/controls/
 Config.Keybinds = {
@@ -695,6 +1035,7 @@ Config.Keybinds = {
     commandK9Attack     = 51,  -- INPUT_CONTEXT (E) - Alternative context action
     activateEMP         = 288, -- INPUT_REPLAY_START_STOP_RECORDING (F1) - Better key for EMP
     toggleAdminPanel    = 289, -- INPUT_REPLAY_START_STOP_RECORDING_SECONDARY (F2) - Admin panel
+    openCharacterEditor = 170, -- INPUT_REPLAY_RECORD (F3) - Character editor
     openInventory       = 244  -- INPUT_INTERACTION_MENU (M) - Standard for inventory/menus
     -- Add other keybinds as needed
 }

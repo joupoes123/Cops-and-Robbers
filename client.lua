@@ -38,6 +38,20 @@ RegisterNetEvent('cnr:releaseFromJail')
 --           VARIABLES
 -- =====================================
 
+-- Ensure Config is available (fallback initialization)
+Config = Config or {}
+Config.SpeedLimitMph = Config.SpeedLimitMph or 60.0
+Config.Keybinds = Config.Keybinds or {}
+Config.NPCVendors = Config.NPCVendors or {}
+Config.RobberVehicleSpawns = Config.RobberVehicleSpawns or {}
+Config.ContrabandDealers = Config.ContrabandDealers or {}
+Config.WantedSettings = Config.WantedSettings or { levels = {} }
+Config.SpawnPoints = Config.SpawnPoints or {
+    cop = vector3(452.6, -980.0, 30.7),
+    robber = vector3(2126.7, 4794.1, 41.1),
+    citizen = vector3(-260.0, -970.0, 31.2)
+}
+
 -- Player-related variables
 local g_isPlayerPedReady = false
 local role = nil
@@ -218,29 +232,88 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     local playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
-        return    end
+        return
+    end
+    
     RemoveAllPedWeapons(playerPed, true)
-    playerWeapons = {}    playerAmmo = {}
+    playerWeapons = {}
+    playerAmmo = {}
+    
+    -- Get character data from server
+    local characterData = nil
+    
+    -- Request character data from server (will be handled asynchronously)
+    TriggerServerEvent('cnr:getCharacterForRole', newRole, 1)
+    
     local modelToLoad = nil
-    local modelHash = nil    if newRole == "cop" then
-        modelToLoad = "s_m_y_cop_01"
-    elseif newRole == "robber" then
-        modelToLoad = "mp_m_waremech_01"  -- Changed to warehouse mechanic model
+    local modelHash = nil
+    
+    if characterData and characterData.model then
+        -- Use saved character model
+        modelToLoad = characterData.model
+        print(string.format("[CNR_CHARACTER_EDITOR] Using saved character model: %s", modelToLoad))
     else
-        modelToLoad = "a_m_m_farmer_01"
-    end    modelHash = GetHashKey(modelToLoad)
+        -- Use default role models
+        if newRole == "cop" then
+            modelToLoad = "mp_m_freemode_01"  -- Changed to freemode for customization
+        elseif newRole == "robber" then
+            modelToLoad = "mp_m_freemode_01"  -- Changed to freemode for customization
+        else
+            modelToLoad = "mp_m_freemode_01"
+        end
+        print(string.format("[CNR_CHARACTER_EDITOR] Using default model: %s", modelToLoad))
+    end
+    
+    modelHash = GetHashKey(modelToLoad)
     if modelHash and modelHash ~= 0 and modelHash ~= -1 then
         RequestModel(modelHash)
         local attempts = 0
         while not HasModelLoaded(modelHash) and attempts < 100 do
             Citizen.Wait(50)
             attempts = attempts + 1
-        end        if HasModelLoaded(modelHash) then
+        end
+        
+        if HasModelLoaded(modelHash) then
             SetPlayerModel(PlayerId(), modelHash)
-            Citizen.Wait(10)
-            SetPedDefaultComponentVariation(playerPed)            if modelToLoad == "mp_m_freemode_01" then
-                SetPedRandomComponentVariation(playerPed, 0)
+            Citizen.Wait(100) -- Increased wait time for model to fully load
+            
+            -- Get the new ped after model change
+            playerPed = PlayerPedId()
+            
+            if characterData then
+                -- Apply saved character data
+                if exports['cops-and-robbers'] and exports['cops-and-robbers'].ApplyCharacterData then
+                    local success = exports['cops-and-robbers']:ApplyCharacterData(characterData, playerPed)
+                    if success then
+                        print("[CNR_CHARACTER_EDITOR] Applied saved character data")
+                    else
+                        print("[CNR_CHARACTER_EDITOR] Failed to apply saved character data, using defaults")
+                        SetPedDefaultComponentVariation(playerPed)
+                    end
+                else
+                    print("[CNR_CHARACTER_EDITOR] Character editor not available, using defaults")
+                    SetPedDefaultComponentVariation(playerPed)
+                end
+            else
+                -- Apply default appearance
+                SetPedDefaultComponentVariation(playerPed)
+                
+                -- Apply basic role-specific uniform if no saved character
+                if newRole == "cop" then
+                    -- Basic cop uniform
+                    SetPedComponentVariation(playerPed, 11, 55, 0, 0)  -- Tops - Police shirt
+                    SetPedComponentVariation(playerPed, 4, 35, 0, 0)   -- Legs - Police pants
+                    SetPedComponentVariation(playerPed, 6, 25, 0, 0)   -- Shoes - Police boots
+                    SetPedPropIndex(playerPed, 0, 46, 0, true)         -- Hat - Police cap
+                elseif newRole == "robber" then
+                    -- Basic robber outfit
+                    SetPedComponentVariation(playerPed, 11, 4, 0, 0)   -- Tops - Casual shirt
+                    SetPedComponentVariation(playerPed, 4, 1, 0, 0)    -- Legs - Jeans
+                    SetPedComponentVariation(playerPed, 6, 1, 0, 0)    -- Shoes - Sneakers
+                    SetPedPropIndex(playerPed, 0, 18, 0, true)         -- Hat - Beanie
+                end
             end
+            
             SetModelAsNoLongerNeeded(modelHash)
         else
             print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
@@ -248,20 +321,22 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     else
         print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
     end
+    
     Citizen.Wait(500)
     playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
         return
-    end
-    if newRole == "cop" then
+    end    if newRole == "cop" then
         local taserHash = GetHashKey("weapon_stungun")
         GiveWeaponToPed(playerPed, taserHash, 5, false, true)
-        playerWeapons["weapon_stungun"] = true        playerAmmo["weapon_stungun"] = 5
+        playerWeapons["weapon_stungun"] = true
+        playerAmmo["weapon_stungun"] = 5
     elseif newRole == "robber" then
         local batHash = GetHashKey("weapon_bat")
         GiveWeaponToPed(playerPed, batHash, 1, false, true)
-        playerWeapons["weapon_bat"] = true        playerAmmo["weapon_bat"] = 1
+        playerWeapons["weapon_bat"] = true
+        playerAmmo["weapon_bat"] = 1
 
         -- Note: Robber vehicles are spawned on resource start, not per-player
     end
@@ -389,45 +464,46 @@ Citizen.CreateThread(function()
     while true do
         Citizen.Wait(policeSuppressInterval)
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_police_suppression end
-        local handle, ped = FindFirstPed()
-        local success, nextPed = true, ped        repeat
-            if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) and not IsPedProtected(ped) then
-                local vehicle = GetVehiclePedIsIn(ped, false)
-                local wasDriver = false
-                
-                -- Check if this ped is the driver before deleting the ped
-                if vehicle ~= 0 and DoesEntityExist(vehicle) then
-                    wasDriver = GetPedInVehicleSeat(vehicle, -1) == ped
-                end
-                
-                SetEntityAsMissionEntity(ped, false, true)
-                ClearPedTasksImmediately(ped)
-                DeletePed(ped)
-                
-                -- Only delete the vehicle if the ped was the driver and no other player is in it
-                if wasDriver and vehicle ~= 0 and DoesEntityExist(vehicle) then
-                    local hasPlayerInVehicle = false
-                    for i = -1, GetVehicleMaxNumberOfPassengers(vehicle) - 1 do
-                        local seat_ped = GetPedInVehicleSeat(vehicle, i)
-                        if seat_ped ~= 0 and seat_ped ~= ped and IsPedAPlayer(seat_ped) then
-                            hasPlayerInVehicle = true
-                            break
-                        end
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            local handle, ped = FindFirstPed()
+            local success, nextPed = true, ped
+            repeat
+                if DoesEntityExist(ped) and ped ~= playerPed and IsPedNpcCop(ped) and not IsPedProtected(ped) then
+                    local vehicle = GetVehiclePedIsIn(ped, false)
+                    local wasDriver = false
+                    
+                    -- Check if this ped is the driver before deleting the ped
+                    if vehicle ~= 0 and DoesEntityExist(vehicle) then
+                        wasDriver = GetPedInVehicleSeat(vehicle, -1) == ped
                     end
                     
-                    -- Only delete if no players are using the vehicle
-                    if not hasPlayerInVehicle then
-                        SetEntityAsMissionEntity(vehicle, false, true)
-                        DeleteEntity(vehicle)
+                    SetEntityAsMissionEntity(ped, false, true)
+                    ClearPedTasksImmediately(ped)
+                    DeletePed(ped)
+                    
+                    -- Only delete the vehicle if the ped was the driver and no other player is in it
+                    if wasDriver and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                        local hasPlayerInVehicle = false
+                        for i = -1, GetVehicleMaxNumberOfPassengers(vehicle) - 1 do
+                            local seat_ped = GetPedInVehicleSeat(vehicle, i)
+                            if seat_ped ~= 0 and seat_ped ~= ped and IsPedAPlayer(seat_ped) then
+                                hasPlayerInVehicle = true
+                                break
+                            end
+                        end
+                        
+                        -- Only delete if no players are using the vehicle
+                        if not hasPlayerInVehicle then
+                            SetEntityAsMissionEntity(vehicle, false, true)
+                            DeleteEntity(vehicle)
+                        end
                     end
                 end
-            end
-            success, nextPed = FindNextPed(handle)
-            ped = nextPed
-        until not success
-        EndFindPed(handle)
-        ::continue_police_suppression::
+                success, nextPed = FindNextPed(handle)
+                ped = nextPed
+            until not success
+            EndFindPed(handle)
+        end
     end
 end)
 
@@ -438,18 +514,18 @@ Citizen.CreateThread(function()
         Citizen.Wait(interval)
         local playerId = PlayerId()
         local playerPed = PlayerPedId()
-        if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then goto continue_police_ignore end
-        SetPoliceIgnorePlayer(playerPed, true)
-        for i = 1, 15 do
-            SafeSetDispatchServiceActive(i, false)
-        end
-        if role == "cop" then
-            if GetPlayerWantedLevel(playerId) > 0 then
-                SetPlayerWantedLevel(playerId, 0, false)
-                SetPlayerWantedLevelNow(playerId, false)
+        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
+            SetPoliceIgnorePlayer(playerPed, true)
+            for i = 1, 15 do
+                SafeSetDispatchServiceActive(i, false)
+            end
+            if role == "cop" then
+                if GetPlayerWantedLevel(playerId) > 0 then
+                    SetPlayerWantedLevel(playerId, 0, false)
+                    SetPlayerWantedLevelNow(playerId, false)
+                end
             end
         end
-        ::continue_police_ignore::
     end
 end)
 
@@ -732,57 +808,52 @@ function UpdateRobberStoreBlips()
         print("[CNR_CLIENT_ERROR] UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
         return
     end
-    
-    for i, vendor in ipairs(Config.NPCVendors) do
-        if not vendor then
-            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Nil vendor entry at index %d.", i))
-            goto continue_robber_blips_loop
-        end
-
-        if not vendor.location then
-            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing location for vendor at index %d.", i))
-            goto continue_robber_blips_loop
-        end
-
-        if not vendor.name then
-            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing name for vendor at index %d.", i))
-            goto continue_robber_blips_loop
-        end
-
-        if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
-            local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
-            if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
-                if not robberStoreBlips[blipKey] or not DoesBlipExist(robberStoreBlips[blipKey]) then
-                    local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
-                    if vendor.name == "Black Market Dealer" then
-                        SetBlipSprite(blip, 266) -- Gun store icon
-                        SetBlipColour(blip, 1) -- Red
-                        BeginTextCommandSetBlipName("STRING")
-                        AddTextComponentString("Black Market")
-                        EndTextCommandSetBlipName(blip)
-                    else -- Gang Supplier
-                        SetBlipSprite(blip, 267) -- Ammu-nation icon
-                        SetBlipColour(blip, 5) -- Yellow
-                        BeginTextCommandSetBlipName("STRING")
-                        AddTextComponentString("Gang Supplier")
-                        EndTextCommandSetBlipName(blip)
-                    end
-                    SetBlipScale(blip, 0.8)
-                    SetBlipAsShortRange(blip, true)
-                    robberStoreBlips[blipKey] = blip
-                    print(string.format("[CNR_CLIENT_DEBUG] Created robber store blip for '%s' at %s", vendor.name, tostring(vendor.location)))
-                end
-            else
-                if robberStoreBlips[blipKey] and DoesBlipExist(robberStoreBlips[blipKey]) then
-                    print(string.format("[CNR_CLIENT_WARN] Removing stray blip from robberStoreBlips, associated with a non-Robber Store: '%s' at %s", vendor.name, blipKey))
-                    RemoveBlip(robberStoreBlips[blipKey])
-                    robberStoreBlips[blipKey] = nil
-                end
+      for i, vendor in ipairs(Config.NPCVendors) do
+        -- Skip invalid vendor entries
+        if not vendor or not vendor.location or not vendor.name then
+            if not vendor then
+                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Nil vendor entry at index %d.", i))
+            elseif not vendor.location then
+                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing location for vendor at index %d.", i))
+            elseif not vendor.name then
+                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing name for vendor at index %d.", i))
             end
         else
-            print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d.", i))
+            -- Process valid vendor entries
+            if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+                local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
+                if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+                    if not robberStoreBlips[blipKey] or not DoesBlipExist(robberStoreBlips[blipKey]) then
+                        local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
+                        if vendor.name == "Black Market Dealer" then
+                            SetBlipSprite(blip, 266) -- Gun store icon
+                            SetBlipColour(blip, 1) -- Red
+                            BeginTextCommandSetBlipName("STRING")
+                            AddTextComponentString("Black Market")
+                            EndTextCommandSetBlipName(blip)
+                        else -- Gang Supplier
+                            SetBlipSprite(blip, 267) -- Ammu-nation icon
+                            SetBlipColour(blip, 5) -- Yellow
+                            BeginTextCommandSetBlipName("STRING")
+                            AddTextComponentString("Gang Supplier")
+                            EndTextCommandSetBlipName(blip)
+                        end
+                        SetBlipScale(blip, 0.8)
+                        SetBlipAsShortRange(blip, true)
+                        robberStoreBlips[blipKey] = blip
+                        print(string.format("[CNR_CLIENT_DEBUG] Created robber store blip for '%s' at %s", vendor.name, tostring(vendor.location)))
+                    end
+                else
+                    if robberStoreBlips[blipKey] and DoesBlipExist(robberStoreBlips[blipKey]) then
+                        print(string.format("[CNR_CLIENT_WARN] Removing stray blip from robberStoreBlips, associated with a non-Robber Store: '%s' at %s", vendor.name, blipKey))
+                        RemoveBlip(robberStoreBlips[blipKey])
+                        robberStoreBlips[blipKey] = nil
+                    end
+                end
+            else
+                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d.", i))
+            end
         end
-        ::continue_robber_blips_loop::
     end
     -- Clean up orphaned blips
     for blipKey, blipId in pairs(robberStoreBlips) do
@@ -867,48 +938,43 @@ function SpawnRobberStorePeds()
     if not Config or not Config.NPCVendors then
         print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
         return
-    end
-
-    for _, vendor in ipairs(Config.NPCVendors) do
+    end    for _, vendor in ipairs(Config.NPCVendors) do
         if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
             -- Check if already spawned
-            if g_spawnedNPCs[vendor.name] then
-                goto continue
+            if not g_spawnedNPCs[vendor.name] then
+                local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
+                RequestModel(modelHash)
+                while not HasModelLoaded(modelHash) do
+                    Citizen.Wait(10)
+                end
+
+                -- Handle both vector3 and vector4 formats for location
+                local x, y, z, heading
+                if vendor.location.w then
+                    -- vector4 format
+                    x, y, z, heading = vendor.location.x, vendor.location.y, vendor.location.z, vendor.location.w
+                else
+                    -- vector3 format with separate heading
+                    x, y, z = vendor.location.x, vendor.location.y, vendor.location.z
+                    heading = vendor.heading or 0.0
+                end
+
+                local ped = CreatePed(4, modelHash, x, y, z - 1.0, heading, false, true)
+                SetEntityAsMissionEntity(ped, true, true)
+                SetBlockingOfNonTemporaryEvents(ped, true)
+                SetPedFleeAttributes(ped, 0, false)
+                SetPedCombatAttributes(ped, 17, true)
+                SetPedCanRagdoll(ped, false)
+                SetPedDiesWhenInjured(ped, false)
+                SetEntityInvincible(ped, true)
+                FreezeEntityPosition(ped, true)
+
+                -- Add to protected peds to prevent deletion by NPC suppression
+                g_protectedPolicePeds[ped] = true
+                g_spawnedNPCs[vendor.name] = ped
+
+                print(string.format("[CNR_CLIENT_DEBUG] Spawned and protected %s ped at %s", vendor.name, tostring(vendor.location)))
             end
-              local modelHash = GetHashKey(vendor.model or "s_m_y_dealer_01")
-            RequestModel(modelHash)
-            while not HasModelLoaded(modelHash) do
-                Citizen.Wait(10)
-            end
-
-            -- Handle both vector3 and vector4 formats for location
-            local x, y, z, heading
-            if vendor.location.w then
-                -- vector4 format
-                x, y, z, heading = vendor.location.x, vendor.location.y, vendor.location.z, vendor.location.w
-            else
-                -- vector3 format with separate heading
-                x, y, z = vendor.location.x, vendor.location.y, vendor.location.z
-                heading = vendor.heading or 0.0
-            end
-
-            local ped = CreatePed(4, modelHash, x, y, z - 1.0, heading, false, true)
-            SetEntityAsMissionEntity(ped, true, true)
-            SetBlockingOfNonTemporaryEvents(ped, true)
-            SetPedFleeAttributes(ped, 0, false)
-            SetPedCombatAttributes(ped, 17, true)
-            SetPedCanRagdoll(ped, false)
-            SetPedDiesWhenInjured(ped, false)
-            SetEntityInvincible(ped, true)
-            FreezeEntityPosition(ped, true)
-
-            -- Add to protected peds to prevent deletion by NPC suppression
-            g_protectedPolicePeds[ped] = true
-            g_spawnedNPCs[vendor.name] = ped
-
-            print(string.format("[CNR_CLIENT_DEBUG] Spawned and protected %s ped at %s", vendor.name, tostring(vendor.location)))
-
-            ::continue::
         end
     end
 end
@@ -1165,10 +1231,10 @@ AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
 end)
 
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
-AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
-    currentWantedStarsClient = stars
+AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)    currentWantedStarsClient = stars
     currentWantedPointsClient = points
-    local newUiLabel = ""    if stars > 0 then
+    local newUiLabel = ""
+    if stars > 0 then
         for _, levelData in ipairs(Config.WantedSettings.levels) do
             if levelData.stars == stars then
                 newUiLabel = levelData.uiLabel
@@ -2431,4 +2497,16 @@ end
 RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
+end)
+-- Event handler for receiving character data
+AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
+    -- This will be used for future character loading logic
+    if characterData then
+        print("[CNR_CLIENT_DEBUG] Received character data for role spawn")
+    end
+end)
+
+-- Event handler for spawning player at location
+AddEventHandler('cnr:spawnPlayerAt', function(spawnLocation, spawnHeading, role)
+    SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
 end)
