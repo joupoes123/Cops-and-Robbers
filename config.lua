@@ -808,20 +808,20 @@ Config.CharacterEditor = {
                 name = "SWAT Officer",
                 description = "Tactical response uniform",
                 components = {
-                    [1] = { drawable = 52, texture = 0 },  -- Mask
+                    [1] = { drawable = 0, texture = 0 },   -- Mask (no mask for better visibility)
                     [3] = { drawable = 0, texture = 0 },   -- Arms/Torso
-                    [4] = { drawable = 31, texture = 0 },  -- Legs
+                    [4] = { drawable = 31, texture = 0 },  -- Legs (tactical pants)
                     [5] = { drawable = 0, texture = 0 },   -- Bag
-                    [6] = { drawable = 25, texture = 0 },  -- Shoes
+                    [6] = { drawable = 25, texture = 0 },  -- Shoes (tactical boots)
                     [7] = { drawable = 0, texture = 0 },   -- Accessories
-                    [8] = { drawable = 15, texture = 0 },  -- Undershirt
-                    [9] = { drawable = 16, texture = 0 },  -- Body Armor
+                    [8] = { drawable = 15, texture = 0 },  -- Undershirt (black)
+                    [9] = { drawable = 15, texture = 0 },  -- Body Armor (tactical vest)
                     [10] = { drawable = 0, texture = 0 },  -- Decals
-                    [11] = { drawable = 49, texture = 0 }  -- Tops
+                    [11] = { drawable = 53, texture = 0 }  -- Tops (tactical shirt)
                 },
                 props = {
-                    [0] = { drawable = 125, texture = 0 }, -- Helmet
-                    [1] = { drawable = -1, texture = 0 },  -- Glasses
+                    [0] = { drawable = 125, texture = 0 }, -- Tactical helmet
+                    [1] = { drawable = 15, texture = 0 },  -- Tactical glasses
                     [2] = { drawable = -1, texture = 0 },  -- Ear
                     [6] = { drawable = -1, texture = 0 },  -- Watch
                     [7] = { drawable = -1, texture = 0 }   -- Bracelet

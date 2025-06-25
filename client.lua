@@ -239,13 +239,11 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     playerWeapons = {}
     playerAmmo = {}
     
-    -- Check if character editor is available and has saved character data
-    local hasCharacterEditor = exports['cops-and-robbers'] and exports['cops-and-robbers'].GetCharacterForRoleSelection
+    -- Get character data from server
     local characterData = nil
     
-    if hasCharacterEditor then
-        characterData = exports['cops-and-robbers']:GetCharacterForRoleSelection(GetPlayerServerId(PlayerId()), newRole, 1)
-    end
+    -- Request character data from server (will be handled asynchronously)
+    TriggerServerEvent('cnr:getCharacterForRole', newRole, 1)
     
     local modelToLoad = nil
     local modelHash = nil
@@ -2499,4 +2497,16 @@ end
 RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
+end)
+-- Event handler for receiving character data
+AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
+    -- This will be used for future character loading logic
+    if characterData then
+        print("[CNR_CLIENT_DEBUG] Received character data for role spawn")
+    end
+end)
+
+-- Event handler for spawning player at location
+AddEventHandler('cnr:spawnPlayerAt', function(spawnLocation, spawnHeading, role)
+    SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
 end)

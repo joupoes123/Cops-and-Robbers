@@ -355,6 +355,13 @@ AddEventHandler('cnr:applyCharacterToPlayer', function(characterKey)
     end
 end)
 
+RegisterNetEvent('cnr:getCharacterForRole')
+AddEventHandler('cnr:getCharacterForRole', function(role, slot)
+    local playerId = source
+    local characterData = GetCharacterForRoleSelection(playerId, role, slot)
+    TriggerClientEvent('cnr:receiveCharacterForRole', playerId, characterData)
+end)
+
 -- =========================
 -- Integration with Role Selection
 -- =========================

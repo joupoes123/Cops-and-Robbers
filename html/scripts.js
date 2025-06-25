@@ -261,6 +261,9 @@ window.addEventListener('message', function(event) {
         case 'closeCharacterEditor':
             closeCharacterEditor();
             break;
+        case 'updateCharacterSlot':
+            updateCharacterSlot(data.characterKey, data.characterData);
+            break;
         case 'testCharacterEditor':
             console.log('[CNR_CHARACTER_EDITOR] Test message received');
             const testEditor = document.getElementById('character-editor');
@@ -2650,6 +2653,33 @@ function closeCharacterEditor() {
         
     } catch (error) {
         console.error('[CNR_CHARACTER_EDITOR] Error closing character editor:', error);
+    }
+}
+
+function updateCharacterSlot(characterKey, characterData) {
+    console.log('[CNR_CHARACTER_EDITOR] Updating character slot:', characterKey);
+    
+    try {
+        // Update the character slots display in role selection
+        const roleSelectionUI = document.getElementById('role-selection-ui');
+        if (roleSelectionUI) {
+            // Find character slot elements and update them
+            const slotElements = roleSelectionUI.querySelectorAll(`[data-character-key="${characterKey}"]`);
+            slotElements.forEach(element => {
+                element.classList.remove('empty');
+                element.classList.add('filled');
+                
+                // Update slot display text if it exists
+                const slotText = element.querySelector('.slot-status');
+                if (slotText) {
+                    slotText.textContent = 'Character Created';
+                }
+            });
+        }
+        
+        console.log('[CNR_CHARACTER_EDITOR] Successfully updated character slot UI');
+    } catch (error) {
+        console.error('[CNR_CHARACTER_EDITOR] Error updating character slot:', error);
     }
 }
 

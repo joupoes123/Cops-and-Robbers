@@ -202,18 +202,18 @@ function CreateEditorCamera(mode)
     editorCamera = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     
     if mode == "face" then
-        -- Position camera in front of face for close-up view
-        SetCamCoord(editorCamera, coords.x - 1.2, coords.y, coords.z + 0.65)
+        -- Position camera in front of face for close-up view (offset to show in left portion)
+        SetCamCoord(editorCamera, coords.x + 1.2, coords.y - 0.5, coords.z + 0.65)
         PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true) -- Head bone
         SetCamFov(editorCamera, 35.0)
     elseif mode == "body" then
-        -- Position camera to show upper body
-        SetCamCoord(editorCamera, coords.x - 2.0, coords.y, coords.z + 0.3)
+        -- Position camera to show upper body (offset to show in left portion)
+        SetCamCoord(editorCamera, coords.x + 2.0, coords.y - 0.8, coords.z + 0.3)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.2, true)
         SetCamFov(editorCamera, 45.0)
     else -- full body view
-        -- Position camera to show full body
-        SetCamCoord(editorCamera, coords.x - 3.0, coords.y, coords.z + 0.0)
+        -- Position camera to show full body (offset to show in left portion)
+        SetCamCoord(editorCamera, coords.x + 3.0, coords.y - 1.2, coords.z + 0.0)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.1, true)
         SetCamFov(editorCamera, 55.0)
     end
@@ -221,6 +221,11 @@ function CreateEditorCamera(mode)
     -- Activate the camera
     SetCamActive(editorCamera, true)
     RenderScriptCams(true, true, 500, true, true)
+    
+    -- Set camera to render only in left portion of screen
+    -- This constrains the 3D view to the preview area
+    SetCamViewport(editorCamera, 0, 0, 0.4, 1.0) -- Left 40% of screen
+    
     currentCameraMode = mode
     
     -- Additional lighting and visibility settings (only for the ped)
@@ -228,7 +233,7 @@ function CreateEditorCamera(mode)
     -- Instead, use ped-specific lighting
     SetEntityLights(ped, true)
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Created camera in %s mode at coords: %.2f, %.2f, %.2f", mode, coords.x, coords.y, coords.z))
+    print(string.format("[CNR_CHARACTER_EDITOR] Created camera in %s mode at coords: %.2f, %.2f, %.2f (viewport: left 40%%)", mode, coords.x, coords.y, coords.z))
 end
 
 function DestroyCameraEditor()
@@ -302,9 +307,13 @@ function OpenCharacterEditor(role, characterSlot)
     end
 
     -- Use a safe outdoor location for character preview instead of interior
-    local previewLocation = vector3(402.87, -996.41, 30.0) -- Above ground at Mission Row
+    -- Position character to be visible only in the left 40% of screen
+    local previewLocation = vector3(-1042.0, -2745.0, 21.36) -- Isolated location at airport
     SetEntityCoords(ped, previewLocation.x, previewLocation.y, previewLocation.z, false, false, false, true)
-    SetEntityHeading(ped, 0.0)
+    SetEntityHeading(ped, 180.0) -- Face south for better lighting
+    
+    -- Ensure the teleport completed
+    Wait(200)
     
     -- Wait for teleport to complete
     Wait(100)
@@ -525,15 +534,18 @@ end
 
 function PreviewUniformPreset(presetIndex)
     if not isInCharacterEditor or not currentRole then
+        print("[CNR_CHARACTER_EDITOR] PreviewUniformPreset: Not in editor or no role")
         return
     end
 
     local presets = Config.CharacterEditor.uniformPresets[currentRole]
     if not presets or not presets[presetIndex] then
+        print(string.format("[CNR_CHARACTER_EDITOR] PreviewUniformPreset: Invalid preset index %s for role %s", tostring(presetIndex), currentRole))
         return
     end
 
     local preset = presets[presetIndex]
+    print(string.format("[CNR_CHARACTER_EDITOR] Previewing uniform: %s (index %s)", preset.name, presetIndex))
     local ped = PlayerPedId()
     
     -- Store current clothing if not already previewing
@@ -848,6 +860,21 @@ AddEventHandler('cnr:characterSaveResult', function(success, message)
     if success then
         ShowNotification(string.format("~g~%s", message))
         print(string.format("[CNR_CHARACTER_EDITOR] Save success: %s", message))
+        
+        -- Reload character data to update UI
+        TriggerServerEvent('cnr:loadPlayerCharacters')
+        
+        -- Update the NUI with the saved character data
+        local characterKey = currentRole .. "_" .. currentCharacterSlot
+        if currentCharacterData then
+            playerCharacters[characterKey] = currentCharacterData
+            -- Send updated character data to NUI
+            SendNUIMessage({
+                action = 'updateCharacterSlot',
+                characterKey = characterKey,
+                characterData = currentCharacterData
+            })
+        end
     else
         ShowNotification(string.format("~r~Save failed: %s", message))
         print(string.format("[CNR_CHARACTER_EDITOR] Save failed: %s", message))
