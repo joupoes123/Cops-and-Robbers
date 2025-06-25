@@ -8,7 +8,8 @@ docs/*
 !docs/LICENSE
 !docs/WANTED_SYSTEM_IMPROVEMENTS.md
 !docs/CONTRIBUTING.md
-!CODE_OF_CONDUCT.md
+!docs/CODE_OF_CONDUCT.md
+!docs/WANTED_SYSTEM_IMPROVEMENTS.md
 # Common files to ignore
 *.log
 *.tmp
