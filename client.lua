@@ -33,6 +33,7 @@ RegisterNetEvent('cnr:openContrabandStoreUI')
 RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
 RegisterNetEvent('cnr:sendToJail')
 RegisterNetEvent('cnr:releaseFromJail')
+RegisterNetEvent('cnr:wantedLevelSync') -- Register wanted level sync event
 
 -- =====================================
 --           VARIABLES
@@ -77,16 +78,10 @@ local playerData = {
     money = 0
 }
 
--- Wanted System Client State
-local currentWantedLevel = 0
+-- Wanted System Client State (Server-side managed)
 local currentWantedStarsClient = 0
 local currentWantedPointsClient = 0
 local wantedUiLabel = ""
-local lastSpeedCheckTime = 0
-local speedLimit = Config.SpeedLimitMph or 60.0 -- mph, now from config with a fallback
-local lastWantedLevelTime = 0
-local speedingStartTime = 0 -- Track when player started speeding
-local isCurrentlySpeeding = false
 
 local xpForNextLevelDisplay = 0
 
@@ -529,24 +524,26 @@ Citizen.CreateThread(function()
     end
 end)
 
--- Enhanced cop wanted level suppression
+-- Enhanced GTA native wanted level suppression for all players (we use custom system)
 Citizen.CreateThread(function()
     while true do
         Citizen.Wait(1000)
 
-        if role == "cop" then
-            local playerId = PlayerId()
-            local currentWantedLevel = GetPlayerWantedLevel(playerId)
+        local playerId = PlayerId()
+        local currentWantedLevel = GetPlayerWantedLevel(playerId)
 
-            if currentWantedLevel > 0 then
-                print("[CNR_CLIENT_DEBUG] Suppressing wanted level for cop player")
-                SetPlayerWantedLevel(playerId, 0, false)
-                SetPlayerWantedLevelNow(playerId, false)
+        if currentWantedLevel > 0 then
+            if role == "cop" then
+                print("[CNR_CLIENT_DEBUG] Suppressing GTA wanted level for cop player")
+            elseif role == "robber" then
+                print("[CNR_CLIENT_DEBUG] Suppressing GTA wanted level for robber player (using custom system)")
             end
-
-            -- Ensure police blips are hidden for cop players
-            SetPoliceIgnorePlayer(PlayerPedId(), true)
+            SetPlayerWantedLevel(playerId, 0, false)
+            SetPlayerWantedLevelNow(playerId, false)
         end
+
+        -- Ensure police blips are hidden and police ignore all players (we handle this via custom system)
+        SetPoliceIgnorePlayer(PlayerPedId(), true)
     end
 end)
 
@@ -607,76 +604,63 @@ end, false)
 --       WANTED LEVEL DETECTION SYSTEM
 -- =====================================
 
--- Wanted Level Detection Thread
-Citizen.CreateThread(function()
+-- Client-side wanted level detection removed - now handled entirely server-side
+-- This ensures only robbers can get wanted levels and prevents conflicts
+
+-- Weapon firing detection for server-side processing
+CreateThread(function()
     while true do
-        Citizen.Wait(1000) -- Check every second
+        Wait(0)
         
         local playerPed = PlayerPedId()
-        if playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed) then
-            local vehicle = GetVehiclePedIsIn(playerPed, false)
-              if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-                local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
-                local currentTime = GetGameTimer()
-                local vehicleClass = GetVehicleClass(vehicle)
+        if playerPed and DoesEntityExist(playerPed) then
+            if IsPedShooting(playerPed) then
+                local weaponHash = GetSelectedPedWeapon(playerPed)
+                local coords = GetEntityCoords(playerPed)
                 
-                -- Exclude aircraft (planes/helicopters) and boats from speeding detection
-                local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
-                local isBoat = (vehicleClass == 14) -- Boats
+                -- Send to server for processing (server will check if player is robber)
+                TriggerServerEvent('cnr:weaponFired', weaponHash, coords)
                 
-                -- Check for speeding (increase wanted level) only for ground vehicles
-                if not isAircraft and not isBoat and speed > speedLimit then
-                    if not isCurrentlySpeeding then
-                        -- Player just started speeding, start the timer
-                        speedingStartTime = currentTime
-                        isCurrentlySpeeding = true
-                    elseif (currentTime - speedingStartTime) > 5000 and (currentTime - lastWantedLevelTime) > 10000 then
-                        -- Player has been speeding for more than 5 seconds and cooldown period has passed
-                        if currentWantedLevel < 5 then
-                            -- Increase wanted level more gradually
-                            currentWantedLevel = currentWantedLevel + 1
-                            lastWantedLevelTime = currentTime
-                            
-                            -- Calculate wanted points (10 points per star level)
-                            local wantedPoints = currentWantedLevel * 10
-                            local wantedLabel = currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")
-                            
-                            -- Update local variables
-                            currentWantedStarsClient = currentWantedLevel
-                            currentWantedPointsClient = wantedPoints
-                            wantedUiLabel = wantedLabel
-                            
-                            -- Only use NUI notification, not GTA notification
-                            TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
-                        end
-                    end
-                else
-                    -- Player is no longer speeding or in exempt vehicle
-                    isCurrentlySpeeding = false
-                    speedingStartTime = 0
-                end
+                -- Small delay to prevent spam
+                Wait(1000)
             end
+        end
+    end
+end)
+
+-- Player damage detection for server-side processing
+local lastHealthCheck = {}
+
+CreateThread(function()
+    while true do
+        Wait(500) -- Check every 500ms
+        
+        local players = GetActivePlayers()
+        for _, player in ipairs(players) do
+            local playerId = GetPlayerServerId(player)
+            local playerPed = GetPlayerPed(player)
             
-            -- Decrease wanted level over time when not committing crimes (more gradually)
-            local currentTime = GetGameTimer()
-            if currentWantedLevel > 0 and (currentTime - lastWantedLevelTime) > 60000 then -- 60 seconds without new crimes
-                currentWantedLevel = math.max(0, currentWantedLevel - 1)
-                lastWantedLevelTime = currentTime
+            if playerPed and DoesEntityExist(playerPed) and playerId ~= GetPlayerServerId(PlayerId()) then
+                local currentHealth = GetEntityHealth(playerPed)
+                local maxHealth = GetEntityMaxHealth(playerPed)
                 
-                -- Calculate wanted points (10 points per star level)
-                local wantedPoints = currentWantedLevel * 10
-                local wantedLabel = currentWantedLevel > 0 
-                    and (currentWantedLevel .. " star" .. (currentWantedLevel > 1 and "s" or "")) 
-                    or "Cleared"
-                
-                -- Update local variables
-                currentWantedStarsClient = currentWantedLevel
-                currentWantedPointsClient = wantedPoints
-                wantedUiLabel = wantedLabel
-                
-                -- Only use NUI notification, not GTA notification
-                TriggerEvent('cnr:updateWantedLevel', currentWantedLevel, wantedPoints, wantedLabel)
-                print(string.format("[CNR_CLIENT_DEBUG] Wanted level decreased to %d", currentWantedLevel))
+                if not lastHealthCheck[playerId] then
+                    lastHealthCheck[playerId] = currentHealth
+                else
+                    local lastHealth = lastHealthCheck[playerId]
+                    
+                    if currentHealth < lastHealth then
+                        -- Player took damage
+                        local damage = lastHealth - currentHealth
+                        local isFatal = currentHealth <= 0
+                        local weaponHash = GetPedCauseOfDeath(playerPed)
+                        
+                        -- Send to server for processing
+                        TriggerServerEvent('cnr:playerDamaged', playerId, damage, weaponHash, isFatal)
+                    end
+                    
+                    lastHealthCheck[playerId] = currentHealth
+                end
             end
         end
     end
@@ -1247,6 +1231,35 @@ AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points) 
     SetWantedLevelForPlayerRole(stars, points)
 end)
 
+-- Handle wanted level synchronization from server
+AddEventHandler('cnr:wantedLevelSync', function(wantedData)
+    if not wantedData then return end
+    
+    -- Update client-side wanted level data
+    currentWantedStarsClient = wantedData.stars or 0
+    currentWantedPointsClient = wantedData.wantedLevel or 0
+    
+    -- Update UI label
+    local newUiLabel = ""
+    if currentWantedStarsClient > 0 then
+        for _, levelData in ipairs(Config.WantedSettings.levels or {}) do
+            if levelData.stars == currentWantedStarsClient then
+                newUiLabel = levelData.uiLabel
+                break
+            end
+        end
+        if newUiLabel == "" then 
+            newUiLabel = "Wanted: " .. string.rep("*", currentWantedStarsClient) 
+        end
+    end
+    wantedUiLabel = newUiLabel
+    
+    -- Update the wanted level display
+    SetWantedLevelForPlayerRole(currentWantedStarsClient, currentWantedPointsClient)
+    
+    print(string.format("[CNR_CLIENT_DEBUG] Wanted level synced: %d stars, %d points", currentWantedStarsClient, currentWantedPointsClient))
+end)
+
 -- =====================================
 --           HEIST ALERT SYSTEM
 -- =====================================
@@ -1746,7 +1759,18 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- OLD CLIENT-SIDE CRIME DETECTION DISABLED
+-- This has been replaced by server-side crime detection systems
+-- The new system handles:
+-- - Weapon discharge detection (cnr:weaponFired event)
+-- - Player damage detection (cnr:playerDamaged event)  
+-- - Speeding detection (server-side vehicle monitoring)
+-- - Restricted area detection (server-side position monitoring)
+-- - Hit-and-run detection (server-side vehicle damage monitoring)
+
+--[[
 -- Thread to detect when player commits a crime (like killing NPCs or other players)
+-- DISABLED - Replaced by server-side detection to prevent conflicts
 Citizen.CreateThread(function()
     local lastMurderCheckTime = 0
     local nearbyPedsTracked = {}
@@ -1867,6 +1891,10 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- OLD WEAPON DISCHARGE DETECTION DISABLED
+-- This has been replaced by the new server-side weapon discharge detection
+-- The new system uses cnr:weaponFired event for better accuracy and server authority
+
 -- Add detection for weapon discharge
 Citizen.CreateThread(function()
     while true do
@@ -1890,6 +1918,7 @@ Citizen.CreateThread(function()
         end
     end
 end)
+--]]
 
 -- ====================================================================
 -- Speedometer Functions
