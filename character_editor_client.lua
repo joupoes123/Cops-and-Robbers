@@ -284,8 +284,22 @@ function OpenCharacterEditor(role, characterSlot)
         end
     end
     
-    -- Apply the character data immediately to show current appearance
-    ApplyCharacterData(currentCharacterData, ped)
+    -- Ensure the correct model is loaded first
+    local modelToUse = currentCharacterData.model or "mp_m_freemode_01"
+    local modelHash = GetHashKey(modelToUse)
+    
+    RequestModel(modelHash)
+    local attempts = 0
+    while not HasModelLoaded(modelHash) and attempts < 100 do
+        Citizen.Wait(50)
+        attempts = attempts + 1
+    end
+    
+    if HasModelLoaded(modelHash) then
+        SetPlayerModel(PlayerId(), modelHash)
+        Citizen.Wait(100)
+        ped = PlayerPedId() -- Get the new ped after model change
+    end
 
     -- Use a safe outdoor location for character preview instead of interior
     local previewLocation = vector3(402.87, -996.41, 30.0) -- Above ground at Mission Row
@@ -295,10 +309,7 @@ function OpenCharacterEditor(role, characterSlot)
     -- Wait for teleport to complete
     Wait(100)
     
-    -- Wait a frame to ensure teleportation is complete
-    Citizen.Wait(100)
-    
-    -- Apply current character data
+    -- Apply current character data after model and position are set
     ApplyCharacterData(currentCharacterData, ped)
     
     -- Freeze player and make invincible
@@ -686,19 +697,23 @@ RegisterNUICallback('characterEditor_updateFeature', function(data, cb)
 end)
 
 -- Handle gender/model changes
-RegisterNUICallback('characterEditor_changeModel', function(data, cb)
+RegisterNUICallback('characterEditor_switchGender', function(data, cb)
     if not isInCharacterEditor then
         cb({success = false})
         return
     end
     
     local ped = PlayerPedId()
-    local newModel = data.model
+    local gender = data.gender
+    local newModel
     
-    if newModel == "male" then
+    if gender == "male" then
         newModel = "mp_m_freemode_01"
-    elseif newModel == "female" then
+    elseif gender == "female" then
         newModel = "mp_f_freemode_01"
+    else
+        cb({success = false, error = "Invalid gender"})
+        return
     end
     
     -- Update character data
@@ -725,7 +740,7 @@ RegisterNUICallback('characterEditor_changeModel', function(data, cb)
         -- Recreate camera for new ped
         CreateEditorCamera(currentCameraMode or "face")
         
-        print(string.format("[CNR_CHARACTER_EDITOR] Changed model to %s", newModel))
+        print(string.format("[CNR_CHARACTER_EDITOR] Successfully changed gender to %s (model: %s)", gender, newModel))
         cb({success = true})
     else
         print("[CNR_CHARACTER_EDITOR] Failed to load model: " .. newModel)

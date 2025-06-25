@@ -287,17 +287,24 @@
         </div>
 
         <div class="character-editor-content">
-            <!-- Character Preview -->
+            <!-- Character Preview - Left Side (Transparent) -->
             <div class="character-preview">
-                <div class="camera-controls">
-                    <button id="camera-face-btn" class="camera-btn active" data-mode="face">Face</button>
-                    <button id="camera-body-btn" class="camera-btn" data-mode="body">Body</button>
-                    <button id="camera-full-btn" class="camera-btn" data-mode="full">Full</button>
+                <!-- Preview area is now transparent for 3D model viewing -->
+                <div class="preview-overlay">
+                    <div class="camera-controls">
+                        <button id="camera-face-btn" class="camera-btn active" data-mode="face">Face</button>
+                        <button id="camera-body-btn" class="camera-btn" data-mode="body">Body</button>
+                        <button id="camera-full-btn" class="camera-btn" data-mode="full">Full</button>
+                    </div>
+                    <div class="character-rotation">
+                        <button id="rotate-left-btn" class="rotate-btn" data-direction="left">◀</button>
+                        <button id="rotate-right-btn" class="rotate-btn" data-direction="right">▶</button>
+                    </div>
                 </div>
-                <div class="character-rotation">
-                    <button id="rotate-left-btn" class="rotate-btn" data-direction="left">◀</button>
-                    <button id="rotate-right-btn" class="rotate-btn" data-direction="right">▶</button>
-                </div>
+            </div>
+            
+            <!-- Bottom Center Controls -->
+            <div class="bottom-center-controls">
                 <div class="gender-selection">
                     <button id="gender-male-btn" class="gender-btn active" data-gender="male">Male</button>
                     <button id="gender-female-btn" class="gender-btn" data-gender="female">Female</button>

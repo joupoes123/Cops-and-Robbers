@@ -14,16 +14,17 @@ function LoadPlayerCharacters(playerId)
         return {}
     end
     
-    local filePath = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
-    local file = io.open(filePath, "r")
+    local fileName = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
     
-    if file then
-        local content = file:read("*all")
-        file:close()
-        
+    -- Use FiveM's LoadResourceFile function
+    local content = LoadResourceFile(GetCurrentResourceName(), fileName)
+    
+    if content then
         local success, data = pcall(json.decode, content)
         if success and data then
             return data
+        else
+            print("[CNR_CHARACTER_EDITOR] Error: Failed to decode character data for player " .. GetPlayerName(playerId))
         end
     end
     
@@ -37,16 +38,25 @@ function SavePlayerCharacters(playerId, characterData)
         return false
     end
     
-    -- Ensure player_data directory exists (Windows and Linux compatible)
+    -- Get the resource path for proper file handling
+    local resourcePath = GetResourcePath(GetCurrentResourceName())
+    local playerDataDir = resourcePath .. "/player_data"
+    
+    -- Ensure player_data directory exists with proper path handling
     local success = pcall(function()
-        os.execute("mkdir player_data 2>nul || mkdir -p player_data 2>/dev/null")
+        -- Create directory using FiveM's built-in functions
+        local dirExists = LoadResourceFile(GetCurrentResourceName(), "player_data/test.txt")
+        if not dirExists then
+            -- Try to create a test file to ensure directory exists
+            SaveResourceFile(GetCurrentResourceName(), "player_data/.gitkeep", "# Directory placeholder", -1)
+        end
     end)
     
     if not success then
-        print("[CNR_CHARACTER_EDITOR] Warning: Could not create player_data directory")
+        print("[CNR_CHARACTER_EDITOR] Warning: Could not verify player_data directory")
     end
     
-    local filePath = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
+    local fileName = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
     
     -- Try to encode the data first
     local jsonData
@@ -59,25 +69,17 @@ function SavePlayerCharacters(playerId, characterData)
         return false
     end
     
-    -- Try to write the file
-    local file, err = io.open(filePath, "w")
-    if not file then
-        print("[CNR_CHARACTER_EDITOR] Error: Could not open file for writing: " .. tostring(err))
-        return false
-    end
-    
-    local writeSuccess = pcall(function()
-        file:write(jsonData)
-        file:close()
+    -- Use FiveM's SaveResourceFile function for proper file handling
+    local saveSuccess = pcall(function()
+        SaveResourceFile(GetCurrentResourceName(), fileName, jsonData, -1)
     end)
     
-    if not writeSuccess then
-        print("[CNR_CHARACTER_EDITOR] Error: Failed to write character data to file")
-        if file then file:close() end
+    if not saveSuccess then
+        print("[CNR_CHARACTER_EDITOR] Error: Failed to save character data for player: " .. GetPlayerName(playerId))
         return false
     end
     
-    print("[CNR_CHARACTER_EDITOR] Successfully saved character data to: " .. filePath)
+    print("[CNR_CHARACTER_EDITOR] Successfully saved character data for: " .. GetPlayerName(playerId))
     return true
 end
 

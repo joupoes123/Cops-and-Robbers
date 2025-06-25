@@ -1973,32 +1973,59 @@ body::before {
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative;
 }
 
 .character-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
     width: 40%;
-    background-color: rgba(20, 20, 20, 0.8);
+    height: 100%;
+    background-color: transparent; /* Made transparent for 3D model viewing */
     padding: 20px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
+    z-index: 10;
+    pointer-events: none; /* Allow clicking through to 3D model */
+}
+
+.preview-overlay {
+    pointer-events: auto; /* Re-enable pointer events for controls */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.bottom-center-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 15;
+    pointer-events: auto;
 }
 
 .camera-controls {
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 .camera-btn {
-    padding: 10px 20px;
-    background-color: rgba(60, 60, 60, 0.8);
+    padding: 8px 16px;
+    background-color: rgba(40, 40, 40, 0.9);
     color: #ffffff;
     border: 2px solid #666666;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.3s ease;
+    font-size: 0.9em;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .camera-btn:hover {
@@ -2014,23 +2041,26 @@ body::before {
 
 .character-rotation {
     display: flex;
-    gap: 20px;
+    gap: 15px;
     margin-bottom: 20px;
+    justify-content: center;
 }
 
 .rotate-btn {
-    width: 50px;
-    height: 50px;
-    background-color: rgba(60, 60, 60, 0.8);
+    width: 45px;
+    height: 45px;
+    background-color: rgba(40, 40, 40, 0.9);
     color: #ffffff;
     border: 2px solid #666666;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 1.5em;
+    font-size: 1.3em;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .rotate-btn:hover {
@@ -2041,32 +2071,43 @@ body::before {
 
 .gender-selection {
     display: flex;
-    gap: 10px;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;
 }
 
 .gender-btn {
-    padding: 10px 20px;
-    background-color: rgba(60, 60, 60, 0.8);
+    padding: 12px 24px;
+    background-color: rgba(60, 60, 60, 0.9);
     color: #ffffff;
     border: 2px solid #666666;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.3s ease;
+    font-size: 1.1em;
+    font-weight: bold;
+    min-width: 80px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .gender-btn:hover {
-    background-color: rgba(80, 80, 80, 0.9);
+    background-color: rgba(80, 80, 80, 0.95);
     border-color: #4CAF50;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
 .gender-btn.active {
     background-color: #4CAF50;
-    border-color: #4CAF50;
+    border-color: #66BB6A;
     color: #ffffff;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    transform: scale(1.05);
 }
 
 .character-customization {
-    width: 60%;
+    width: 100%;
+    margin-left: 40%; /* Leave space for the transparent preview area */
     background-color: rgba(30, 30, 30, 0.9);
     display: flex;
     flex-direction: column;
