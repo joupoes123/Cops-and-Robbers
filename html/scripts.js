@@ -3177,6 +3177,7 @@ class EnhancedCharacterEditor {
     previewUniform() {
         if (this.selectedUniformPreset === null) return;
 
+        console.log('[CNR_CHARACTER_EDITOR] Previewing uniform at JS index:', this.selectedUniformPreset);
         this.sendNUIMessage('characterEditor_previewUniform', {
             presetIndex: this.selectedUniformPreset
         });

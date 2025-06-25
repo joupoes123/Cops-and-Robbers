@@ -12,6 +12,7 @@ local currentCharacterSlot = 1
 local playerCharacters = {}
 local previewingUniform = false
 local currentUniformPreset = nil
+local renderThread = false
 
 -- Player data from main client
 local playerRole = nil
@@ -201,19 +202,24 @@ function CreateEditorCamera(mode)
 
     editorCamera = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     
+    -- Position camera to show character centered in left 40% of screen
+    -- Calculate screen dimensions for proper positioning
+    local screenWidth, screenHeight = GetActiveScreenResolution()
+    local leftAreaCenter = screenWidth * 0.2 -- Center of left 40% area
+    
     if mode == "face" then
-        -- Position camera in front of face for close-up view (offset to show in left portion)
-        SetCamCoord(editorCamera, coords.x + 1.2, coords.y - 0.5, coords.z + 0.65)
+        -- Face view - position to center character in left area
+        SetCamCoord(editorCamera, coords.x + 1.0, coords.y - 1.5, coords.z + 0.65)
         PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true) -- Head bone
         SetCamFov(editorCamera, 35.0)
     elseif mode == "body" then
-        -- Position camera to show upper body (offset to show in left portion)
-        SetCamCoord(editorCamera, coords.x + 2.0, coords.y - 0.8, coords.z + 0.3)
+        -- Body view - position to center character in left area
+        SetCamCoord(editorCamera, coords.x + 1.5, coords.y - 2.0, coords.z + 0.3)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.2, true)
         SetCamFov(editorCamera, 45.0)
     else -- full body view
-        -- Position camera to show full body (offset to show in left portion)
-        SetCamCoord(editorCamera, coords.x + 3.0, coords.y - 1.2, coords.z + 0.0)
+        -- Full body - position to center character in left area
+        SetCamCoord(editorCamera, coords.x + 2.0, coords.y - 2.5, coords.z + 0.0)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.1, true)
         SetCamFov(editorCamera, 55.0)
     end
@@ -222,11 +228,19 @@ function CreateEditorCamera(mode)
     SetCamActive(editorCamera, true)
     RenderScriptCams(true, true, 500, true, true)
     
-    -- Set camera to render only in left portion of screen
-    -- This constrains the 3D view to the preview area
-    SetCamViewport(editorCamera, 0, 0, 0.4, 1.0) -- Left 40% of screen
-    
     currentCameraMode = mode
+    
+    -- Start render thread to constrain view to left side
+    if not renderThread then
+        renderThread = true
+        Citizen.CreateThread(function()
+            while renderThread and isInCharacterEditor do
+                -- Hide everything except the character in the left portion
+                HideHudAndRadarThisFrame()
+                Citizen.Wait(0)
+            end
+        end)
+    end
     
     -- Additional lighting and visibility settings (only for the ped)
     -- Don't use SetArtificialLightsState as it affects the entire world
@@ -243,11 +257,18 @@ function DestroyCameraEditor()
         editorCamera = nil
     end
     
+    -- Stop render thread
+    renderThread = false
+    
     -- Restore normal lighting
     local ped = PlayerPedId()
     if DoesEntityExist(ped) then
         SetEntityLights(ped, false)
     end
+    
+    -- Restore HUD and UI elements
+    DisplayHud(true)
+    DisplayRadar(true)
     
     -- Ensure artificial lights are restored to normal state
     SetArtificialLightsState(false)
@@ -306,14 +327,18 @@ function OpenCharacterEditor(role, characterSlot)
         ped = PlayerPedId() -- Get the new ped after model change
     end
 
-    -- Use a safe outdoor location for character preview instead of interior
-    -- Position character to be visible only in the left 40% of screen
+    -- Use a safe outdoor location for character preview
+    -- Position character in an isolated area for better camera control
     local previewLocation = vector3(-1042.0, -2745.0, 21.36) -- Isolated location at airport
     SetEntityCoords(ped, previewLocation.x, previewLocation.y, previewLocation.z, false, false, false, true)
     SetEntityHeading(ped, 180.0) -- Face south for better lighting
     
     -- Ensure the teleport completed
     Wait(200)
+    
+    -- Disable HUD and UI elements to create clean preview
+    DisplayHud(false)
+    DisplayRadar(false)
     
     -- Wait for teleport to complete
     Wait(100)
@@ -762,14 +787,19 @@ end)
 
 RegisterNUICallback('characterEditor_previewUniform', function(data, cb)
     if data.presetIndex then
-        PreviewUniformPreset(data.presetIndex)
+        -- Convert from 0-based JavaScript index to 1-based Lua index
+        local luaIndex = data.presetIndex + 1
+        print(string.format("[CNR_CHARACTER_EDITOR] NUI sent preset index %s, converting to Lua index %s", data.presetIndex, luaIndex))
+        PreviewUniformPreset(luaIndex)
     end
     cb({success = true})
 end)
 
 RegisterNUICallback('characterEditor_applyUniform', function(data, cb)
     if data.presetIndex then
-        ApplyUniformPreset(data.presetIndex)
+        -- Convert from 0-based JavaScript index to 1-based Lua index
+        local luaIndex = data.presetIndex + 1
+        ApplyUniformPreset(luaIndex)
     end
     cb({success = true})
 end)
@@ -863,18 +893,6 @@ AddEventHandler('cnr:characterSaveResult', function(success, message)
         
         -- Reload character data to update UI
         TriggerServerEvent('cnr:loadPlayerCharacters')
-        
-        -- Update the NUI with the saved character data
-        local characterKey = currentRole .. "_" .. currentCharacterSlot
-        if currentCharacterData then
-            playerCharacters[characterKey] = currentCharacterData
-            -- Send updated character data to NUI
-            SendNUIMessage({
-                action = 'updateCharacterSlot',
-                characterKey = characterKey,
-                characterData = currentCharacterData
-            })
-        end
     else
         ShowNotification(string.format("~r~Save failed: %s", message))
         print(string.format("[CNR_CHARACTER_EDITOR] Save failed: %s", message))

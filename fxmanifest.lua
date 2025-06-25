@@ -47,3 +47,6 @@ dependencies {
 
 export 'UpdateFullInventory'
 export 'EquipInventoryWeapons'
+
+-- Network events
+server_export 'GetCharacterForRoleSelection'
