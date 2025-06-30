@@ -1042,34 +1042,83 @@ Config.Keybinds = {
 
 
 -- =========================
--- Player Leveling System (New & Detailed)
+-- Enhanced Player Leveling System
 -- =========================
 Config.LevelingSystemEnabled = true -- Master switch for this leveling system.
 
 -- XP required to reach the NEXT level. Key is the CURRENT level. Value is XP needed to get from current_level to current_level+1.
 Config.XPTable = {
-    [1] = 75,   -- XP to reach Level 2 (from Lvl 1)
-    [2] = 150,  -- XP to reach Level 3 (from Lvl 2)
-    [3] = 300,  -- XP to reach Level 4
-    [4] = 450,  -- XP to reach Level 5
-    [5] = 600,  -- XP to reach Level 6
-    [6] = 750,  -- XP to reach Level 7
-    [7] = 900,  -- XP to reach Level 8
-    [8] = 1050, -- XP to reach Level 9
-    [9] = 1200, -- XP to reach Level 10
-    [10] = 1350, -- XP to reach Level 11
-    [11] = 1500, -- XP to reach Level 12
-    [12] = 1650, -- XP to reach Level 13
-    [13] = 1800, -- XP to reach Level 14
-    [14] = 1950, -- XP to reach Level 15
-    [15] = 2100, -- XP to reach Level 16
-    [16] = 2250, -- XP to reach Level 17
-    [17] = 2400, -- XP to reach Level 18
-    [18] = 2550, -- XP to reach Level 19
-    [19] = 2700  -- XP to reach Level 20
-    -- Level 20 is max level
+    [1] = 100,   -- XP to reach Level 2 (from Lvl 1)
+    [2] = 200,   -- XP to reach Level 3 (from Lvl 2)
+    [3] = 350,   -- XP to reach Level 4
+    [4] = 500,   -- XP to reach Level 5
+    [5] = 700,   -- XP to reach Level 6
+    [6] = 900,   -- XP to reach Level 7
+    [7] = 1150,  -- XP to reach Level 8
+    [8] = 1400,  -- XP to reach Level 9
+    [9] = 1700,  -- XP to reach Level 10
+    [10] = 2000, -- XP to reach Level 11
+    [11] = 2350, -- XP to reach Level 12
+    [12] = 2700, -- XP to reach Level 13
+    [13] = 3100, -- XP to reach Level 14
+    [14] = 3500, -- XP to reach Level 15
+    [15] = 4000, -- XP to reach Level 16
+    [16] = 4500, -- XP to reach Level 17
+    [17] = 5100, -- XP to reach Level 18
+    [18] = 5700, -- XP to reach Level 19
+    [19] = 6400, -- XP to reach Level 20
+    [20] = 7200, -- XP to reach Level 21
+    [21] = 8000, -- XP to reach Level 22
+    [22] = 8900, -- XP to reach Level 23
+    [23] = 9800, -- XP to reach Level 24
+    [24] = 10800, -- XP to reach Level 25
+    [25] = 12000, -- XP to reach Level 26
+    [26] = 13200, -- XP to reach Level 27
+    [27] = 14500, -- XP to reach Level 28
+    [28] = 15900, -- XP to reach Level 29
+    [29] = 17400, -- XP to reach Level 30
+    [30] = 19000, -- XP to reach Level 31
+    [31] = 20700, -- XP to reach Level 32
+    [32] = 22500, -- XP to reach Level 33
+    [33] = 24400, -- XP to reach Level 34
+    [34] = 26400, -- XP to reach Level 35
+    [35] = 28500, -- XP to reach Level 36
+    [36] = 30700, -- XP to reach Level 37
+    [37] = 33000, -- XP to reach Level 38
+    [38] = 35400, -- XP to reach Level 39
+    [39] = 37900, -- XP to reach Level 40
+    [40] = 40500, -- XP to reach Level 41
+    [41] = 43200, -- XP to reach Level 42
+    [42] = 46000, -- XP to reach Level 43
+    [43] = 48900, -- XP to reach Level 44
+    [44] = 51900, -- XP to reach Level 45
+    [45] = 55000, -- XP to reach Level 46
+    [46] = 58200, -- XP to reach Level 47
+    [47] = 61500, -- XP to reach Level 48
+    [48] = 64900, -- XP to reach Level 49
+    [49] = 68400  -- XP to reach Level 50
+    -- Level 50 is max level for initial progression
 }
-Config.MaxLevel = 20 -- Maximum attainable level in this system.
+Config.MaxLevel = 50 -- Maximum attainable level in this system.
+
+-- Prestige System Configuration
+Config.PrestigeSystem = {
+    enabled = true,
+    maxPrestige = 10,
+    levelRequiredForPrestige = 50, -- Must reach max level to prestige
+    prestigeRewards = {
+        [1] = { cash = 100000, title = "Veteran", xpMultiplier = 1.1 },
+        [2] = { cash = 200000, title = "Elite", xpMultiplier = 1.2 },
+        [3] = { cash = 350000, title = "Master", xpMultiplier = 1.3 },
+        [4] = { cash = 500000, title = "Legend", xpMultiplier = 1.4 },
+        [5] = { cash = 750000, title = "Mythic", xpMultiplier = 1.5 },
+        [6] = { cash = 1000000, title = "Immortal", xpMultiplier = 1.6 },
+        [7] = { cash = 1500000, title = "Transcendent", xpMultiplier = 1.7 },
+        [8] = { cash = 2000000, title = "Godlike", xpMultiplier = 1.8 },
+        [9] = { cash = 3000000, title = "Omnipotent", xpMultiplier = 1.9 },
+        [10] = { cash = 5000000, title = "Supreme", xpMultiplier = 2.0 }
+    }
+}
 
 -- XP awarded for specific actions. Keys should be unique and descriptive, used in server-side AddXP calls.
 Config.XPActionsRobber = {
@@ -1101,106 +1150,241 @@ Config.XPActionsCop = {
     evidence_collection              = 15  -- XP for collecting evidence at crime scenes.
 }
 
--- Defines what unlocks at each level for each role.
+-- =========================
+-- Enhanced Progression System
+-- =========================
+
+-- Comprehensive Level Rewards and Unlocks
 -- Structure: Config.LevelUnlocks[role][levelNumber] = { table of unlock definitions }
 -- Unlock Definition Types:
 --   - { type="item_access", itemId="item_id_from_Config.Items", message="Notification message for player." }
---   - { type="passive_perk", perkId="unique_perk_identifier", value=numeric_value_or_true, message="Notification message." } (Server handles perk logic)
---   - { type="vehicle_access", vehicleHash="vehicle_model_hash", name="Display Name", message="Notification message." } (Server handles access logic)
+--   - { type="passive_perk", perkId="unique_perk_identifier", value=numeric_value_or_true, message="Notification message." }
+--   - { type="vehicle_access", vehicleHash="vehicle_model_hash", name="Display Name", message="Notification message." }
+--   - { type="cash_reward", amount=number, message="Cash reward message." }
+--   - { type="ability", abilityId="unique_ability_id", name="Ability Name", message="Ability unlock message." }
 Config.LevelUnlocks = {
     robber = {
         [2] = {
-            { type = "item_access", itemId = "crowbar", message = "Crowbar unlocked for breaking and entering!" },
-            { type = "item_access", itemId = "weapon_microsmg", message = "Micro SMG unlocked in black market!" }
+            { type = "item_access", itemId = "crowbar", message = "🔧 Crowbar unlocked for breaking and entering!" },
+            { type = "item_access", itemId = "weapon_vintagepistol", message = "🔫 Vintage Pistol unlocked!" },
+            { type = "cash_reward", amount = 2500, message = "💰 Level 2 Bonus: $2,500!" }
         },
         [3] = {
-            { type = "item_access", itemId = "drill", message = "Drill unlocked for advanced heists!" },
-            { type = "item_access", itemId = "weapon_sawnoffshotgun", message = "Sawed-Off Shotgun unlocked!" }
+            { type = "item_access", itemId = "drill", message = "🔧 Drill unlocked for advanced heists!" },
+            { type = "item_access", itemId = "weapon_sawnoffshotgun", message = "💥 Sawed-Off Shotgun unlocked!" },
+            { type = "passive_perk", perkId = "faster_lockpicking", value = 0.9, message = "⚡ Perk: Lockpicking 10% faster!" }
         },
         [4] = {
-            { type = "item_access", itemId = "adv_lockpick", message = "Advanced Lockpick unlocked!" },
-            { type = "item_access", itemId = "weapon_microsmg", message = "Micro SMG fully unlocked!" }
+            { type = "item_access", itemId = "adv_lockpick", message = "🔐 Advanced Lockpick unlocked!" },
+            { type = "item_access", itemId = "weapon_microsmg", message = "💥 Micro SMG unlocked!" },
+            { type = "cash_reward", amount = 5000, message = "💰 Level 4 Bonus: $5,000!" }
         },
         [5] = {
-            { type = "item_access", itemId = "weapon_smg", message = "SMG unlocked in black market!" },
-            { type = "passive_perk", perkId = "faster_lockpicking", value = 0.85, message = "Perk: Lockpicking 15% faster!" }
+            { type = "item_access", itemId = "weapon_smg", message = "💥 SMG unlocked in black market!" },
+            { type = "passive_perk", perkId = "stealth_bonus", value = 1.2, message = "👤 Perk: 20% harder to detect during heists!" },
+            { type = "ability", abilityId = "smoke_bomb", name = "Smoke Bomb", message = "💨 Ability: Smoke Bomb for quick escapes!" }
         },
         [6] = {
-            { type = "item_access", itemId = "hacking_device", message = "Hacking Device unlocked for electronic systems!" }
+            { type = "item_access", itemId = "hacking_device", message = "💻 Hacking Device unlocked!" },
+            { type = "item_access", itemId = "weapon_katana", message = "⚔️ Katana unlocked!" },
+            { type = "cash_reward", amount = 7500, message = "💰 Level 6 Bonus: $7,500!" }
         },
         [8] = {
-            { type = "item_access", itemId = "weapon_emplauncher", message = "Compact EMP Launcher unlocked!" },
-            { type = "item_access", itemId = "thermite", message = "Thermite unlocked for vault breaching!" }
+            { type = "item_access", itemId = "weapon_emplauncher", message = "⚡ EMP Launcher unlocked!" },
+            { type = "item_access", itemId = "thermite", message = "🧨 Thermite unlocked!" },
+            { type = "passive_perk", perkId = "heist_planning", value = 1.15, message = "📋 Perk: 15% faster heist preparation!" }
         },
         [10] = {
-            { type = "item_access", itemId = "weapon_assaultrifle", message = "Assault Rifle unlocked!" },
-            { type = "passive_perk", perkId = "faster_contraband_collection", value = 0.8, message = "Perk: Contraband collection time reduced by 20%!" }
+            { type = "item_access", itemId = "weapon_assaultrifle", message = "🔫 Assault Rifle unlocked!" },
+            { type = "item_access", itemId = "weapon_compactrifle", message = "🔫 Compact Rifle unlocked!" },
+            { type = "cash_reward", amount = 15000, message = "💰 Level 10 Bonus: $15,000!" },
+            { type = "ability", abilityId = "adrenaline_rush", name = "Adrenaline Rush", message = "⚡ Ability: Temporary speed boost during escapes!" }
         },
         [12] = {
-            { type = "item_access", itemId = "c4", message = "C4 Explosive unlocked for major heists!" }
+            { type = "item_access", itemId = "c4", message = "💣 C4 Explosive unlocked!" },
+            { type = "item_access", itemId = "weapon_bullpuprifle", message = "🔫 Bullpup Rifle unlocked!" },
+            { type = "passive_perk", perkId = "master_thief", value = 1.25, message = "💎 Perk: 25% bonus heist payouts!" }
         },
         [15] = {
-            { type = "item_access", itemId = "weapon_sniperrifle", message = "Sniper Rifle unlocked!" },
-            { type = "item_access", itemId = "weapon_stickybomb", message = "Sticky Bomb unlocked!" }
+            { type = "item_access", itemId = "weapon_sniperrifle", message = "🎯 Sniper Rifle unlocked!" },
+            { type = "item_access", itemId = "weapon_stickybomb", message = "💣 Sticky Bomb unlocked!" },
+            { type = "cash_reward", amount = 25000, message = "💰 Level 15 Bonus: $25,000!" },
+            { type = "ability", abilityId = "ghost_mode", name = "Ghost Mode", message = "👻 Ability: Temporary invisibility to security systems!" }
         },
         [18] = {
-            { type = "passive_perk", perkId = "master_criminal", value = true, message = "Perk: Master Criminal - 25% bonus heist payouts!" }
+            { type = "item_access", itemId = "weapon_heavysniper", message = "🎯 Heavy Sniper unlocked!" },
+            { type = "item_access", itemId = "weapon_machinegun", message = "💥 Machine Gun unlocked!" },
+            { type = "passive_perk", perkId = "criminal_network", value = 1.3, message = "🌐 Perk: 30% discount on black market items!" }
         },
         [20] = {
-            { type = "passive_perk", perkId = "criminal_mastermind", value = true, message = "MAX LEVEL: Criminal Mastermind - Ultimate heist bonuses!" }
+            { type = "item_access", itemId = "weapon_minigun", message = "💥 Minigun unlocked!" },
+            { type = "item_access", itemId = "weapon_rpg", message = "🚀 RPG unlocked!" },
+            { type = "cash_reward", amount = 50000, message = "💰 Level 20 Bonus: $50,000!" },
+            { type = "ability", abilityId = "master_escape", name = "Master Escape", message = "🏃 Ability: Instantly lose 2 wanted stars!" }
+        },
+        [25] = {
+            { type = "item_access", itemId = "weapon_hominglauncher", message = "🎯 Homing Launcher unlocked!" },
+            { type = "passive_perk", perkId = "crime_lord", value = 1.5, message = "👑 Perk: Crime Lord - 50% bonus XP and payouts!" },
+            { type = "cash_reward", amount = 100000, message = "💰 Level 25 Bonus: $100,000!" }
+        },
+        [30] = {
+            { type = "item_access", itemId = "weapon_railgun", message = "⚡ Railgun unlocked!" },
+            { type = "ability", abilityId = "criminal_empire", name = "Criminal Empire", message = "🏰 Ability: Access to exclusive criminal operations!" },
+            { type = "cash_reward", amount = 200000, message = "💰 Level 30 Bonus: $200,000!" }
+        },
+        [35] = {
+            { type = "passive_perk", perkId = "untouchable", value = 2.0, message = "🛡️ Perk: Untouchable - Double health and armor!" },
+            { type = "cash_reward", amount = 350000, message = "💰 Level 35 Bonus: $350,000!" }
+        },
+        [40] = {
+            { type = "ability", abilityId = "heist_mastermind", name = "Heist Mastermind", message = "🧠 Ability: Plan and execute legendary heists!" },
+            { type = "cash_reward", amount = 500000, message = "💰 Level 40 Bonus: $500,000!" }
+        },
+        [45] = {
+            { type = "passive_perk", perkId = "legendary_criminal", value = 3.0, message = "⭐ Perk: Legendary Criminal - Triple XP and payouts!" },
+            { type = "cash_reward", amount = 750000, message = "💰 Level 45 Bonus: $750,000!" }
+        },
+        [50] = {
+            { type = "ability", abilityId = "criminal_overlord", name = "Criminal Overlord", message = "👑 MAX LEVEL: Criminal Overlord - Ultimate criminal authority!" },
+            { type = "cash_reward", amount = 1000000, message = "💰 MAX LEVEL BONUS: $1,000,000!" },
+            { type = "passive_perk", perkId = "prestige_ready", value = true, message = "🌟 Ready for Prestige!" }
         }
     },
     cop = {
-        -- Level 1 unlocks are baseline equipment (handled by minLevelCop = 1 in Config.Items)
         [2] = {
-            { type = "item_access", itemId = "weapon_pumpshotgun", message = "Pump Shotgun unlocked for patrol duty!" },
-            { type = "item_access", itemId = "weapon_combatpistol", message = "Combat Pistol unlocked!" },
-            { type = "item_access", itemId = "weapon_flaregun", message = "Flare Gun unlocked for emergencies!" }
+            { type = "item_access", itemId = "weapon_pumpshotgun", message = "💥 Pump Shotgun unlocked!" },
+            { type = "item_access", itemId = "weapon_combatpistol", message = "🔫 Combat Pistol unlocked!" },
+            { type = "cash_reward", amount = 2500, message = "💰 Level 2 Bonus: $2,500!" }
         },
         [3] = {
-            { type = "item_access", itemId = "k9whistle", message = "K9 Whistle unlocked - Call for K9 support!" },
-            { type = "item_access", itemId = "weapon_pistol_mk2", message = "Pistol Mk II unlocked!" },
-            { type = "item_access", itemId = "weapon_combatshotgun", message = "Combat Shotgun unlocked!" }
+            { type = "item_access", itemId = "k9whistle", message = "🐕 K9 Whistle unlocked!" },
+            { type = "item_access", itemId = "weapon_pistol_mk2", message = "🔫 Pistol Mk II unlocked!" },
+            { type = "passive_perk", perkId = "improved_arrest", value = 1.1, message = "⚡ Perk: 10% faster arrests!" }
         },
         [4] = {
-            { type = "item_access", itemId = "weapon_carbinerifle", message = "Carbine Rifle unlocked for serious threats!" },
-            { type = "item_access", itemId = "weapon_stunrod", message = "The Shocker (Stun Rod) unlocked!" }
+            { type = "item_access", itemId = "weapon_carbinerifle", message = "🔫 Carbine Rifle unlocked!" },
+            { type = "item_access", itemId = "weapon_stunrod", message = "⚡ Stun Rod unlocked!" },
+            { type = "cash_reward", amount = 5000, message = "💰 Level 4 Bonus: $5,000!" }
         },
         [5] = {
-            { type = "vehicle_access", vehicleHash = "policeb", name = "Police Bike", message = "Police Bike unlocked for patrol!" },
-            { type = "passive_perk", perkId = "improved_taser", value = 1.5, message = "Perk: Taser range increased by 50%!" }
+            { type = "vehicle_access", vehicleHash = "policeb", name = "Police Bike", message = "🏍️ Police Bike unlocked!" },
+            { type = "passive_perk", perkId = "improved_taser", value = 1.5, message = "⚡ Perk: Taser range increased 50%!" },
+            { type = "ability", abilityId = "backup_call", name = "Backup Call", message = "📻 Ability: Call for immediate backup!" }
         },
         [6] = {
-            { type = "item_access", itemId = "heavy_armor", message = "Heavy Armor unlocked for high-risk operations!" }
-        },
-        [7] = {
-            { type = "vehicle_access", vehicleHash = "policet", name = "Police Transport", message = "Police Transport unlocked!" },
-            { type = "passive_perk", perkId = "extra_spike_strips", value = 1, message = "Perk: Carry +1 Spike Strip!" }
+            { type = "item_access", itemId = "heavy_armor", message = "🛡️ Heavy Armor unlocked!" },
+            { type = "item_access", itemId = "weapon_combatshotgun", message = "💥 Combat Shotgun unlocked!" },
+            { type = "cash_reward", amount = 7500, message = "💰 Level 6 Bonus: $7,500!" }
         },
         [8] = {
-            { type = "vehicle_access", vehicleHash = "polmav", name = "Police Maverick", message = "Police Helicopter unlocked!" }
+            { type = "vehicle_access", vehicleHash = "policet", name = "Police Transport", message = "🚐 Police Transport unlocked!" },
+            { type = "passive_perk", perkId = "extra_equipment", value = 2, message = "🎒 Perk: Carry +2 spike strips!" },
+            { type = "ability", abilityId = "tactical_scan", name = "Tactical Scan", message = "🔍 Ability: Scan area for criminals!" }
         },
         [10] = {
-            { type = "item_access", itemId = "weapon_appistol", message = "AP Pistol unlocked!" },
-            { type = "item_access", itemId = "weapon_heavyshotgun", message = "Heavy Shotgun unlocked!" },
-            { type = "item_access", itemId = "weapon_combatmg", message = "Combat MG unlocked for extreme threats!" },
-            { type = "passive_perk", perkId = "arrest_bonus", value = 1.25, message = "Perk: 25% bonus XP from arrests!" }
+            { type = "item_access", itemId = "weapon_appistol", message = "🔫 AP Pistol unlocked!" },
+            { type = "item_access", itemId = "weapon_combatmg", message = "💥 Combat MG unlocked!" },
+            { type = "cash_reward", amount = 15000, message = "💰 Level 10 Bonus: $15,000!" },
+            { type = "passive_perk", perkId = "arrest_bonus", value = 1.25, message = "⭐ Perk: 25% bonus XP from arrests!" }
         },
         [12] = {
-            { type = "vehicle_access", vehicleHash = "riot", name = "Riot Van", message = "Riot Van unlocked for crowd control!" }
+            { type = "vehicle_access", vehicleHash = "riot", name = "Riot Van", message = "🚐 Riot Van unlocked!" },
+            { type = "item_access", itemId = "weapon_heavyshotgun", message = "💥 Heavy Shotgun unlocked!" },
+            { type = "ability", abilityId = "crowd_control", name = "Crowd Control", message = "👮 Ability: Advanced crowd control tactics!" }
         },
         [15] = {
-            { type = "item_access", itemId = "weapon_sniperrifle", message = "Sniper Rifle unlocked for tactical operations!" },
-            { type = "item_access", itemId = "weapon_bzgas", message = "BZ Gas unlocked for crowd control!" },
-            { type = "passive_perk", perkId = "tactical_specialist", value = true, message = "Perk: Tactical Specialist - Reduced equipment costs!" }
+            { type = "item_access", itemId = "weapon_sniperrifle", message = "🎯 Sniper Rifle unlocked!" },
+            { type = "item_access", itemId = "weapon_bzgas", message = "☁️ BZ Gas unlocked!" },
+            { type = "cash_reward", amount = 25000, message = "💰 Level 15 Bonus: $25,000!" },
+            { type = "passive_perk", perkId = "tactical_specialist", value = 0.75, message = "💰 Perk: 25% discount on equipment!" }
         },
         [18] = {
-            { type = "vehicle_access", vehicleHash = "rhino", name = "Rhino Tank", message = "Rhino Tank unlocked for extreme situations!" },
-            { type = "passive_perk", perkId = "law_enforcement_veteran", value = true, message = "Perk: Law Enforcement Veteran - Enhanced authority!" }
+            { type = "vehicle_access", vehicleHash = "polmav", name = "Police Maverick", message = "🚁 Police Helicopter unlocked!" },
+            { type = "passive_perk", perkId = "air_support", value = true, message = "🚁 Perk: Air support coordination!" },
+            { type = "ability", abilityId = "swat_tactics", name = "SWAT Tactics", message = "🎯 Ability: Advanced tactical operations!" }
         },
         [20] = {
-            { type = "item_access", itemId = "weapon_snowball", message = "Snowball Launcher unlocked - For... morale purposes!" },
-            { type = "passive_perk", perkId = "police_chief", value = true, message = "MAX LEVEL: Police Chief - Ultimate law enforcement authority!" }
+            { type = "item_access", itemId = "weapon_specialcarbine_mk2", message = "🔫 Special Carbine Mk II unlocked!" },
+            { type = "cash_reward", amount = 50000, message = "💰 Level 20 Bonus: $50,000!" },
+            { type = "ability", abilityId = "detective_mode", name = "Detective Mode", message = "🔍 Ability: Enhanced investigation skills!" }
+        },
+        [25] = {
+            { type = "vehicle_access", vehicleHash = "rhino", name = "Rhino Tank", message = "🛡️ Rhino Tank unlocked!" },
+            { type = "passive_perk", perkId = "law_enforcement_veteran", value = 1.5, message = "⭐ Perk: Veteran - 50% bonus XP!" },
+            { type = "cash_reward", amount = 100000, message = "💰 Level 25 Bonus: $100,000!" }
+        },
+        [30] = {
+            { type = "ability", abilityId = "federal_authority", name = "Federal Authority", message = "🏛️ Ability: Federal law enforcement powers!" },
+            { type = "cash_reward", amount = 200000, message = "💰 Level 30 Bonus: $200,000!" }
+        },
+        [35] = {
+            { type = "passive_perk", perkId = "police_chief", value = 2.0, message = "👮‍♂️ Perk: Police Chief - Double authority!" },
+            { type = "cash_reward", amount = 350000, message = "💰 Level 35 Bonus: $350,000!" }
+        },
+        [40] = {
+            { type = "ability", abilityId = "commissioner", name = "Commissioner", message = "🏛️ Ability: Police Commissioner authority!" },
+            { type = "cash_reward", amount = 500000, message = "💰 Level 40 Bonus: $500,000!" }
+        },
+        [45] = {
+            { type = "passive_perk", perkId = "legendary_officer", value = 3.0, message = "⭐ Perk: Legendary Officer - Triple XP!" },
+            { type = "cash_reward", amount = 750000, message = "💰 Level 45 Bonus: $750,000!" }
+        },
+        [50] = {
+            { type = "ability", abilityId = "supreme_commander", name = "Supreme Commander", message = "👑 MAX LEVEL: Supreme Law Enforcement Commander!" },
+            { type = "cash_reward", amount = 1000000, message = "💰 MAX LEVEL BONUS: $1,000,000!" },
+            { type = "passive_perk", perkId = "prestige_ready", value = true, message = "🌟 Ready for Prestige!" }
+        }
+    }
+}
+
+-- Challenge System Configuration
+Config.ChallengeSystem = {
+    enabled = true,
+    dailyChallenges = {
+        robber = {
+            { id = "daily_heists", name = "Master Thief", description = "Complete 3 successful heists", target = 3, xpReward = 150, cashReward = 10000 },
+            { id = "daily_escapes", name = "Escape Artist", description = "Escape from police 5 times", target = 5, xpReward = 100, cashReward = 7500 },
+            { id = "daily_lockpicks", name = "Lock Master", description = "Successfully lockpick 10 times", target = 10, xpReward = 75, cashReward = 5000 }
+        },
+        cop = {
+            { id = "daily_arrests", name = "Law Enforcer", description = "Make 5 successful arrests", target = 5, xpReward = 150, cashReward = 10000 },
+            { id = "daily_tickets", name = "Traffic Control", description = "Issue 10 speeding tickets", target = 10, xpReward = 100, cashReward = 7500 },
+            { id = "daily_patrols", name = "Patrol Officer", description = "Complete 3 patrol routes", target = 3, xpReward = 75, cashReward = 5000 }
+        }
+    },
+    weeklyChallenges = {
+        robber = {
+            { id = "weekly_bank_heist", name = "Bank Robber", description = "Complete a major bank heist", target = 1, xpReward = 500, cashReward = 50000 },
+            { id = "weekly_contraband", name = "Smuggler", description = "Collect 5 contraband drops", target = 5, xpReward = 300, cashReward = 25000 }
+        },
+        cop = {
+            { id = "weekly_high_value", name = "Bounty Hunter", description = "Arrest a 5-star wanted criminal", target = 1, xpReward = 500, cashReward = 50000 },
+            { id = "weekly_equipment", name = "Tactical Expert", description = "Use advanced equipment 20 times", target = 20, xpReward = 300, cashReward = 25000 }
+        }
+    }
+}
+
+-- Seasonal Events Configuration
+Config.SeasonalEvents = {
+    enabled = true,
+    events = {
+        {
+            name = "Crime Wave",
+            description = "Double XP for all criminal activities",
+            duration = 7 * 24 * 60 * 60, -- 7 days in seconds
+            effects = { xpMultiplier = 2.0, role = "robber" }
+        },
+        {
+            name = "Law & Order",
+            description = "Double XP for all police activities",
+            duration = 7 * 24 * 60 * 60, -- 7 days in seconds
+            effects = { xpMultiplier = 2.0, role = "cop" }
+        },
+        {
+            name = "Double Trouble",
+            description = "Double XP for everyone!",
+            duration = 3 * 24 * 60 * 60, -- 3 days in seconds
+            effects = { xpMultiplier = 2.0, role = "all" }
         }
     }
 }

@@ -3446,3 +3446,801 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Enhanced character editor integration (removed duplicate handler to prevent conflicts)
+
+// ==========================================================================
+// ENHANCED PROGRESSION SYSTEM JAVASCRIPT
+// ==========================================================================
+
+class ProgressionSystem {
+    constructor() {
+        this.currentPlayerData = {
+            level: 1,
+            xp: 0,
+            xpForNext: 100,
+            prestigeLevel: 0,
+            prestigeTitle: "Rookie",
+            abilities: {},
+            challenges: {},
+            seasonalEvent: null
+        };
+        
+        this.notifications = [];
+        this.animationQueue = [];
+        this.isProgressionMenuOpen = false;
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.setupProgressionMenu();
+        this.setupAbilityBar();
+        this.initializeUI();
+        
+        console.log('[CNR_PROGRESSION] Enhanced Progression System initialized');
+    }
+    
+    setupEventListeners() {
+        // Progression menu toggle
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'p' || e.key === 'P') {
+                if (!this.isProgressionMenuOpen) {
+                    this.toggleProgressionMenu();
+                }
+            }
+            
+            // Ability hotkeys
+            if (e.key === 'z' || e.key === 'Z') {
+                this.useAbility(1);
+            }
+            if (e.key === 'x' || e.key === 'X') {
+                this.useAbility(2);
+            }
+        });
+        
+        // Close progression menu
+        const closeBtn = document.getElementById('close-progression-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.toggleProgressionMenu();
+            });
+        }
+        
+        // Progression tabs
+        const tabs = document.querySelectorAll('.progression-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchProgressionTab(tab.dataset.tab);
+            });
+        });
+        
+        // Prestige button
+        const prestigeBtn = document.getElementById('prestige-btn');
+        if (prestigeBtn) {
+            prestigeBtn.addEventListener('click', () => {
+                this.requestPrestige();
+            });
+        }
+        
+        // Close event banner
+        const closeEventBtn = document.getElementById('close-event-banner');
+        if (closeEventBtn) {
+            closeEventBtn.addEventListener('click', () => {
+                this.hideSeasonalEventBanner();
+            });
+        }
+    }
+    
+    setupProgressionMenu() {
+        // Initialize tab content
+        this.switchProgressionTab('overview');
+    }
+    
+    setupAbilityBar() {
+        const abilitySlots = document.querySelectorAll('.ability-slot');
+        abilitySlots.forEach((slot, index) => {
+            slot.addEventListener('click', () => {
+                this.useAbility(index + 1);
+            });
+        });
+    }
+    
+    initializeUI() {
+        this.updateXPDisplay();
+        this.updateProgressionOverview();
+    }
+    
+    // ==========================================================================
+    // XP AND LEVEL SYSTEM
+    // ==========================================================================
+    
+    updateProgressionDisplay(data) {
+        this.currentPlayerData = { ...this.currentPlayerData, ...data };
+        this.updateXPDisplay();
+        this.updateProgressionOverview();
+        
+        // Update prestige indicator
+        const prestigeIndicator = document.getElementById('prestige-indicator');
+        if (prestigeIndicator) {
+            if (data.prestigeInfo && data.prestigeInfo.level > 0) {
+                prestigeIndicator.textContent = `★${data.prestigeInfo.level}`;
+                prestigeIndicator.classList.remove('hidden');
+            } else {
+                prestigeIndicator.classList.add('hidden');
+            }
+        }
+        
+        // Update seasonal event indicator
+        if (data.seasonalEvent) {
+            this.showSeasonalEventIndicator(data.seasonalEvent);
+        }
+    }
+    
+    updateXPDisplay() {
+        const data = this.currentPlayerData;
+        
+        // Update level text
+        const levelText = document.getElementById('level-text');
+        if (levelText) {
+            levelText.textContent = data.level || 1;
+        }
+        
+        // Update XP text
+        const xpText = document.getElementById('xp-text');
+        if (xpText) {
+            const currentXPInLevel = data.xpInCurrentLevel || 0;
+            const xpForNext = data.xpForNextLevel || 100;
+            xpText.textContent = `${currentXPInLevel} / ${xpForNext} XP`;
+        }
+        
+        // Update progress bar
+        const xpBarFill = document.getElementById('xp-bar-fill');
+        if (xpBarFill) {
+            const progressPercent = data.progressPercent || 0;
+            xpBarFill.style.width = `${Math.min(progressPercent, 100)}%`;
+        }
+        
+        // Update XP gain indicator
+        if (data.xpGained && data.xpGained > 0) {
+            this.showXPGainIndicator(data.xpGained);
+        }
+    }
+    
+    showXPGainIndicator(amount) {
+        const indicator = document.getElementById('xp-gain-indicator');
+        if (indicator) {
+            indicator.textContent = `+${amount}`;
+            indicator.classList.remove('hidden');
+            
+            setTimeout(() => {
+                indicator.classList.add('hidden');
+            }, 2000);
+        }
+    }
+    
+    showXPGainAnimation(amount, reason) {
+        const animation = document.getElementById('xp-gain-animation');
+        const amountEl = document.getElementById('xp-gain-amount');
+        const reasonEl = document.getElementById('xp-gain-reason');
+        
+        if (animation && amountEl && reasonEl) {
+            amountEl.textContent = `+${amount} XP`;
+            reasonEl.textContent = reason || 'Action';
+            
+            animation.classList.remove('hidden');
+            animation.classList.add('show');
+            
+            setTimeout(() => {
+                animation.classList.remove('show');
+                setTimeout(() => {
+                    animation.classList.add('hidden');
+                }, 300);
+            }, 2000);
+        }
+    }
+    
+    showLevelUpAnimation(newLevel) {
+        const animation = document.getElementById('level-up-animation');
+        const levelText = document.getElementById('level-up-text');
+        
+        if (animation && levelText) {
+            levelText.textContent = `You reached Level ${newLevel}!`;
+            
+            animation.classList.remove('hidden');
+            animation.classList.add('show');
+            
+            // Play sound effect (if available)
+            this.playSound('levelup');
+            
+            setTimeout(() => {
+                animation.classList.remove('show');
+                setTimeout(() => {
+                    animation.classList.add('hidden');
+                }, 500);
+            }, 3000);
+        }
+    }
+    
+    // ==========================================================================
+    // UNLOCK SYSTEM
+    // ==========================================================================
+    
+    showUnlockNotification(unlock, level) {
+        const notification = document.getElementById('unlock-notification');
+        const iconEl = document.getElementById('unlock-icon-element');
+        const titleEl = document.getElementById('unlock-title');
+        const messageEl = document.getElementById('unlock-message');
+        
+        if (notification && iconEl && titleEl && messageEl) {
+            // Set icon based on unlock type
+            const iconMap = {
+                'item_access': 'fas fa-unlock',
+                'vehicle_access': 'fas fa-car',
+                'ability': 'fas fa-magic',
+                'passive_perk': 'fas fa-star',
+                'cash_reward': 'fas fa-dollar-sign'
+            };
+            
+            iconEl.className = iconMap[unlock.type] || 'fas fa-unlock';
+            titleEl.textContent = `Level ${level} Unlock!`;
+            messageEl.textContent = unlock.message;
+            
+            notification.classList.remove('hidden');
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    notification.classList.add('hidden');
+                }, 300);
+            }, 5000);
+        }
+    }
+    
+    // ==========================================================================
+    // PROGRESSION MENU
+    // ==========================================================================
+    
+    toggleProgressionMenu() {
+        const menu = document.getElementById('progression-menu');
+        if (menu) {
+            this.isProgressionMenuOpen = !this.isProgressionMenuOpen;
+            
+            if (this.isProgressionMenuOpen) {
+                menu.classList.add('show');
+                this.updateProgressionMenuContent();
+                // Enable cursor for interaction
+                this.setNuiFocus(true, true);
+            } else {
+                menu.classList.remove('show');
+                // Disable cursor
+                this.setNuiFocus(false, false);
+            }
+        }
+    }
+    
+    switchProgressionTab(tabName) {
+        // Update tab buttons
+        const tabs = document.querySelectorAll('.progression-tab');
+        tabs.forEach(tab => {
+            if (tab.dataset.tab === tabName) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+        
+        // Update tab content
+        const contents = document.querySelectorAll('.progression-tab-content');
+        contents.forEach(content => {
+            if (content.id === `${tabName}-tab`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+        
+        // Load tab-specific content
+        switch (tabName) {
+            case 'overview':
+                this.updateProgressionOverview();
+                break;
+            case 'unlocks':
+                this.updateUnlocksTab();
+                break;
+            case 'abilities':
+                this.updateAbilitiesTab();
+                break;
+            case 'challenges':
+                this.updateChallengesTab();
+                break;
+            case 'prestige':
+                this.updatePrestigeTab();
+                break;
+        }
+    }
+    
+    updateProgressionMenuContent() {
+        this.updateProgressionOverview();
+        this.updateUnlocksTab();
+        this.updateAbilitiesTab();
+        this.updateChallengesTab();
+        this.updatePrestigeTab();
+    }
+    
+    updateProgressionOverview() {
+        const data = this.currentPlayerData;
+        
+        // Update stats
+        const levelEl = document.getElementById('overview-level');
+        const totalXpEl = document.getElementById('overview-total-xp');
+        const xpNeededEl = document.getElementById('overview-xp-needed');
+        const prestigeEl = document.getElementById('overview-prestige');
+        
+        if (levelEl) levelEl.textContent = data.level || 1;
+        if (totalXpEl) totalXpEl.textContent = (data.xp || 0).toLocaleString();
+        if (xpNeededEl) xpNeededEl.textContent = (data.xpForNext || 100).toLocaleString();
+        if (prestigeEl) prestigeEl.textContent = data.prestigeLevel || 0;
+        
+        // Update circular progress
+        const progressPercent = data.progressPercent || 0;
+        const progressRing = document.getElementById('progress-ring-fill');
+        const progressText = document.getElementById('progress-percentage');
+        
+        if (progressRing) {
+            const circumference = 2 * Math.PI * 52; // radius = 52
+            const strokeDasharray = (progressPercent / 100) * circumference;
+            progressRing.style.strokeDasharray = `${strokeDasharray} ${circumference}`;
+        }
+        
+        if (progressText) {
+            progressText.textContent = `${Math.round(progressPercent)}%`;
+        }
+    }
+    
+    updateUnlocksTab() {
+        const container = document.getElementById('unlock-tree-content');
+        if (!container) return;
+        
+        // This would be populated with actual unlock data from the server
+        container.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">Unlock tree will be populated with your progression data.</p>';
+    }
+    
+    updateAbilitiesTab() {
+        const container = document.getElementById('abilities-grid');
+        if (!container) return;
+        
+        const abilities = this.currentPlayerData.abilities || {};
+        container.innerHTML = '';
+        
+        // Example abilities (would come from server data)
+        const exampleAbilities = [
+            { id: 'smoke_bomb', name: 'Smoke Bomb', description: 'Create a smoke screen for quick escapes', unlocked: false, cooldown: 0 },
+            { id: 'adrenaline_rush', name: 'Adrenaline Rush', description: 'Temporary speed boost during escapes', unlocked: false, cooldown: 0 }
+        ];
+        
+        exampleAbilities.forEach(ability => {
+            const abilityCard = document.createElement('div');
+            abilityCard.className = `ability-card ${ability.unlocked ? 'unlocked' : 'locked'} ${ability.cooldown > 0 ? 'on-cooldown' : ''}`;
+            
+            abilityCard.innerHTML = `
+                <div class="ability-icon-large">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <div class="ability-name">${ability.name}</div>
+                <div class="ability-description">${ability.description}</div>
+                ${ability.cooldown > 0 ? `<div class="ability-cooldown-text">Cooldown: ${Math.ceil(ability.cooldown / 1000)}s</div>` : ''}
+            `;
+            
+            if (ability.unlocked && ability.cooldown === 0) {
+                abilityCard.addEventListener('click', () => {
+                    this.triggerAbility(ability.id);
+                });
+            }
+            
+            container.appendChild(abilityCard);
+        });
+    }
+    
+    updateChallengesTab() {
+        const dailyContainer = document.getElementById('daily-challenges');
+        const weeklyContainer = document.getElementById('weekly-challenges');
+        
+        if (dailyContainer) {
+            dailyContainer.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">Daily challenges will be populated here.</p>';
+        }
+        
+        if (weeklyContainer) {
+            weeklyContainer.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">Weekly challenges will be populated here.</p>';
+        }
+    }
+    
+    updatePrestigeTab() {
+        const data = this.currentPlayerData;
+        
+        // Update current prestige
+        const prestigeLevelEl = document.getElementById('current-prestige-level');
+        const prestigeTitleEl = document.getElementById('current-prestige-title');
+        const currentLevelEl = document.getElementById('prestige-current-level');
+        const prestigeBtn = document.getElementById('prestige-btn');
+        
+        if (prestigeLevelEl) prestigeLevelEl.textContent = data.prestigeLevel || 0;
+        if (prestigeTitleEl) prestigeTitleEl.textContent = data.prestigeTitle || 'Rookie';
+        if (currentLevelEl) currentLevelEl.textContent = data.level || 1;
+        
+        // Update prestige button state
+        if (prestigeBtn) {
+            const canPrestige = (data.level || 1) >= 50; // Max level requirement
+            if (canPrestige) {
+                prestigeBtn.classList.remove('disabled');
+            } else {
+                prestigeBtn.classList.add('disabled');
+            }
+        }
+        
+        // Update next prestige rewards
+        const rewardsContainer = document.getElementById('next-prestige-rewards');
+        if (rewardsContainer) {
+            const nextPrestigeLevel = (data.prestigeLevel || 0) + 1;
+            rewardsContainer.innerHTML = `
+                <div class="reward-item">
+                    <i class="fas fa-dollar-sign reward-icon"></i>
+                    <span class="reward-text">Cash Bonus: $${(nextPrestigeLevel * 100000).toLocaleString()}</span>
+                </div>
+                <div class="reward-item">
+                    <i class="fas fa-crown reward-icon"></i>
+                    <span class="reward-text">Title: Prestige ${nextPrestigeLevel}</span>
+                </div>
+                <div class="reward-item">
+                    <i class="fas fa-chart-line reward-icon"></i>
+                    <span class="reward-text">XP Multiplier: ${1 + (nextPrestigeLevel * 0.1)}x</span>
+                </div>
+            `;
+        }
+    }
+    
+    // ==========================================================================
+    // ABILITY SYSTEM
+    // ==========================================================================
+    
+    useAbility(slotNumber) {
+        const slot = document.querySelector(`.ability-slot[data-slot="${slotNumber}"]`);
+        if (!slot) return;
+        
+        // Check if ability is available and not on cooldown
+        const cooldownOverlay = slot.querySelector('.cooldown-overlay');
+        if (cooldownOverlay && cooldownOverlay.style.transform !== 'scaleY(0)') {
+            this.showNotification('Ability is on cooldown!', 'warning');
+            return;
+        }
+        
+        // Trigger ability on server
+        this.sendNuiMessage('useAbility', { slot: slotNumber });
+        
+        // Start cooldown animation
+        this.startAbilityCooldown(slotNumber, 60000); // 60 second cooldown
+    }
+    
+    triggerAbility(abilityId) {
+        this.sendNuiMessage('triggerAbility', { abilityId: abilityId });
+    }
+    
+    startAbilityCooldown(slotNumber, duration) {
+        const slot = document.querySelector(`.ability-slot[data-slot="${slotNumber}"]`);
+        if (!slot) return;
+        
+        const cooldownOverlay = slot.querySelector('.cooldown-overlay');
+        const cooldownText = slot.querySelector('.cooldown-text');
+        
+        if (cooldownOverlay && cooldownText) {
+            cooldownOverlay.style.transform = 'scaleY(1)';
+            
+            let remaining = duration;
+            const interval = setInterval(() => {
+                remaining -= 100;
+                const progress = 1 - (remaining / duration);
+                cooldownOverlay.style.transform = `scaleY(${1 - progress})`;
+                
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    cooldownOverlay.style.transform = 'scaleY(0)';
+                }
+            }, 100);
+        }
+    }
+    
+    // ==========================================================================
+    // CHALLENGE SYSTEM
+    // ==========================================================================
+    
+    updateChallengeProgress(challengeId, challengeData) {
+        // Update challenge in current data
+        if (!this.currentPlayerData.challenges) {
+            this.currentPlayerData.challenges = {};
+        }
+        this.currentPlayerData.challenges[challengeId] = challengeData;
+        
+        // Show progress notification
+        const progressPercent = (challengeData.progress / challengeData.target) * 100;
+        if (progressPercent >= 25 && progressPercent < 100) {
+            this.showChallengeProgressNotification(challengeId, challengeData);
+        }
+        
+        // Update challenges tab if open
+        if (this.isProgressionMenuOpen) {
+            this.updateChallengesTab();
+        }
+    }
+    
+    showChallengeProgressNotification(challengeId, challengeData) {
+        const notification = document.getElementById('challenge-progress-notification');
+        const nameEl = document.getElementById('challenge-name');
+        const progressFill = document.getElementById('challenge-progress-fill');
+        const progressText = document.getElementById('challenge-progress-text');
+        
+        if (notification && nameEl && progressFill && progressText) {
+            nameEl.textContent = challengeData.name || 'Challenge';
+            progressText.textContent = `${challengeData.progress}/${challengeData.target}`;
+            
+            const progressPercent = (challengeData.progress / challengeData.target) * 100;
+            progressFill.style.width = `${progressPercent}%`;
+            
+            notification.classList.remove('hidden');
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    notification.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+    }
+    
+    challengeCompleted(challengeId, challengeData) {
+        this.showNotification(`🏆 Challenge Completed: ${challengeData.name || 'Challenge'}!`, 'success');
+        this.playSound('challenge_complete');
+    }
+    
+    // ==========================================================================
+    // PRESTIGE SYSTEM
+    // ==========================================================================
+    
+    requestPrestige() {
+        const data = this.currentPlayerData;
+        if ((data.level || 1) < 50) {
+            this.showNotification('You must reach level 50 to prestige!', 'warning');
+            return;
+        }
+        
+        // Show confirmation dialog
+        if (confirm('Are you sure you want to prestige? This will reset your level to 1 but grant powerful bonuses!')) {
+            this.sendNuiMessage('requestPrestige', {});
+        }
+    }
+    
+    prestigeCompleted(prestigeLevel, prestigeReward) {
+        this.showPrestigeAnimation(prestigeLevel, prestigeReward);
+        this.currentPlayerData.prestigeLevel = prestigeLevel;
+        this.currentPlayerData.prestigeTitle = prestigeReward.title;
+        this.updateProgressionDisplay(this.currentPlayerData);
+    }
+    
+    showPrestigeAnimation(prestigeLevel, prestigeReward) {
+        const animation = document.getElementById('prestige-animation');
+        const prestigeText = document.getElementById('prestige-text');
+        
+        if (animation && prestigeText) {
+            prestigeText.textContent = `You achieved ${prestigeReward.title} (Prestige ${prestigeLevel})!`;
+            
+            animation.classList.remove('hidden');
+            animation.classList.add('show');
+            
+            this.playSound('prestige');
+            
+            setTimeout(() => {
+                animation.classList.remove('show');
+                setTimeout(() => {
+                    animation.classList.add('hidden');
+                }, 500);
+            }, 4000);
+        }
+    }
+    
+    // ==========================================================================
+    // SEASONAL EVENTS
+    // ==========================================================================
+    
+    showSeasonalEventIndicator(eventData) {
+        const indicator = document.getElementById('seasonal-event-indicator');
+        const textEl = document.getElementById('seasonal-event-text');
+        
+        if (indicator && textEl) {
+            textEl.textContent = eventData.name;
+            indicator.classList.remove('hidden');
+        }
+        
+        this.showSeasonalEventBanner(eventData);
+    }
+    
+    showSeasonalEventBanner(eventData) {
+        const banner = document.getElementById('seasonal-event-banner');
+        const nameEl = document.getElementById('event-name');
+        const descEl = document.getElementById('event-description');
+        
+        if (banner && nameEl && descEl) {
+            nameEl.textContent = eventData.name;
+            descEl.textContent = eventData.description;
+            
+            banner.classList.remove('hidden');
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                this.hideSeasonalEventBanner();
+            }, 10000);
+        }
+    }
+    
+    hideSeasonalEventBanner() {
+        const banner = document.getElementById('seasonal-event-banner');
+        if (banner) {
+            banner.classList.add('hidden');
+        }
+    }
+    
+    seasonalEventEnded(eventName) {
+        const indicator = document.getElementById('seasonal-event-indicator');
+        if (indicator) {
+            indicator.classList.add('hidden');
+        }
+        
+        this.showNotification(`📅 Event Ended: ${eventName}`, 'info');
+    }
+    
+    // ==========================================================================
+    // NOTIFICATION SYSTEM
+    // ==========================================================================
+    
+    showProgressionNotification(message, type, duration = 5000) {
+        const container = document.getElementById('notification-container');
+        if (!container) return;
+        
+        const notification = document.createElement('div');
+        notification.className = `progression-notification ${type}`;
+        
+        const iconMap = {
+            'xp': 'fas fa-plus-circle',
+            'levelup': 'fas fa-trophy',
+            'ability': 'fas fa-magic',
+            'event': 'fas fa-calendar-star',
+            'success': 'fas fa-check-circle',
+            'warning': 'fas fa-exclamation-triangle',
+            'error': 'fas fa-times-circle',
+            'info': 'fas fa-info-circle'
+        };
+        
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="${iconMap[type] || 'fas fa-info-circle'} notification-icon"></i>
+                <span class="notification-text">${message}</span>
+            </div>
+        `;
+        
+        container.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+        
+        // Remove after duration
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, duration);
+    }
+    
+    showNotification(message, type = 'info', duration = 5000) {
+        this.showProgressionNotification(message, type, duration);
+    }
+    
+    // ==========================================================================
+    // UTILITY FUNCTIONS
+    // ==========================================================================
+    
+    playSound(soundType) {
+        // This would trigger sound effects in the game
+        this.sendNuiMessage('playSound', { soundType: soundType });
+    }
+    
+    setNuiFocus(hasFocus, hasCursor) {
+        this.sendNuiMessage('setNuiFocus', { hasFocus: hasFocus, hasCursor: hasCursor });
+    }
+    
+    sendNuiMessage(action, data = {}) {
+        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).catch(error => {
+            console.error(`[CNR_PROGRESSION] Error sending NUI message ${action}:`, error);
+        });
+    }
+}
+
+// Initialize the progression system
+let progressionSystem = null;
+
+// Enhanced message handling for progression system
+const originalMessageHandler = window.addEventListener;
+window.addEventListener('message', function(event) {
+    const data = event.data;
+    
+    if (!progressionSystem) {
+        progressionSystem = new ProgressionSystem();
+    }
+    
+    // Handle progression-specific messages
+    switch (data.action) {
+        case 'updateProgressionDisplay':
+            progressionSystem.updateProgressionDisplay(data.data);
+            break;
+            
+        case 'showXPGainAnimation':
+            progressionSystem.showXPGainAnimation(data.amount, data.reason);
+            break;
+            
+        case 'showLevelUpAnimation':
+            progressionSystem.showLevelUpAnimation(data.newLevel);
+            break;
+            
+        case 'showUnlockNotification':
+            progressionSystem.showUnlockNotification(data.unlock, data.level);
+            break;
+            
+        case 'abilityUnlocked':
+            progressionSystem.showNotification(`⚡ New Ability: ${data.ability.name}`, 'ability');
+            break;
+            
+        case 'abilityUsed':
+            progressionSystem.startAbilityCooldown(data.slot || 1, data.cooldown || 60000);
+            break;
+            
+        case 'updateChallengeProgress':
+            progressionSystem.updateChallengeProgress(data.challengeId, data.challengeData);
+            break;
+            
+        case 'challengeCompleted':
+            progressionSystem.challengeCompleted(data.challengeId, data.challengeData);
+            break;
+            
+        case 'prestigeCompleted':
+            progressionSystem.prestigeCompleted(data.prestigeLevel, data.prestigeReward);
+            break;
+            
+        case 'seasonalEventStarted':
+            progressionSystem.showSeasonalEventIndicator(data.eventData);
+            break;
+            
+        case 'seasonalEventEnded':
+            progressionSystem.seasonalEventEnded(data.eventName);
+            break;
+            
+        case 'showProgressionNotification':
+            progressionSystem.showProgressionNotification(data.message, data.type, data.duration);
+            break;
+    }
+});
+
+// Initialize progression system when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    if (!progressionSystem) {
+        progressionSystem = new ProgressionSystem();
+    }
+});
+
+console.log('[CNR_PROGRESSION] Enhanced Progression System JavaScript loaded');

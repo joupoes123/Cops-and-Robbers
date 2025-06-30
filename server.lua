@@ -880,7 +880,8 @@ local function CalculateLevel(xp, role)
     return math.min(currentLevel, (Config.MaxLevel or 10))
 end
 
-AddXP = function(playerId, amount, type)
+-- Enhanced AddXP function that integrates with the new progression system
+AddXP = function(playerId, amount, type, reason)
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
         Log("AddXP: Invalid player ID " .. tostring(playerId), "error")
@@ -892,6 +893,14 @@ AddXP = function(playerId, amount, type)
         Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error")
         return
     end
+    
+    -- Check if progression system is available and use it
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].AddXP then
+        exports['cops-and-robbers'].AddXP(pIdNum, amount, type, reason)
+        return
+    end
+    
+    -- Fallback to original system if progression system is not available
     if type and pData.role ~= type and type ~= "general" then return end
 
     pData.xp = pData.xp + amount
@@ -908,6 +917,11 @@ AddXP = function(playerId, amount, type)
         SafeTriggerClientEvent('cnr:xpGained', pIdNum, amount, pData.xp)
         Log(string.format("Player %s gained %d XP (Total: %d, Role: %s)", pIdNum, amount, pData.xp, pData.role))
     end
+    
+    -- Update XP bar display
+    local xpForNextLevel = CalculateXpForNextLevel(newLevel, pData.role)
+    SafeTriggerClientEvent('updateXPBar', pIdNum, pData.xp, newLevel, xpForNextLevel, amount)
+    
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
@@ -2421,6 +2435,295 @@ function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails)
     Log(string.format("Added/updated %d of %s to player %s inventory. New count: %d. Name: %s, Category: %s", quantity, itemId, playerId, newCount, itemDetails.name, itemDetails.category))
     return true, "Item added/updated"
 end
+
+-- ==========================================================================
+-- ENHANCED PROGRESSION SYSTEM INTEGRATION
+-- ==========================================================================
+
+-- Event handler for progression system requests
+RegisterNetEvent('cnr:requestProgressionData')
+AddEventHandler('cnr:requestProgressionData', function()
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    -- Send current progression data to client
+    local progressionData = {
+        currentXP = pData.xp or 0,
+        currentLevel = pData.level or 1,
+        xpForNextLevel = CalculateXpForNextLevel(pData.level or 1, pData.role),
+        prestigeInfo = pData.prestige or { level = 0, title = "Rookie" },
+        role = pData.role
+    }
+    
+    SafeTriggerClientEvent('cnr:progressionDataResponse', playerId, progressionData)
+end)
+
+-- Event handler for ability usage
+RegisterNetEvent('cnr:useAbility')
+AddEventHandler('cnr:useAbility', function(abilityId)
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    -- Check if progression system export is available
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].HasPlayerAbility then
+        if exports['cops-and-robbers'].HasPlayerAbility(playerId, abilityId) then
+            -- Trigger ability effect based on ability type
+            TriggerAbilityEffect(playerId, abilityId)
+        else
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^1Error", "You don't have this ability unlocked!"} 
+            })
+        end
+    end
+end)
+
+-- Event handler for prestige requests
+RegisterNetEvent('cnr:requestPrestige')
+AddEventHandler('cnr:requestPrestige', function()
+    local playerId = source
+    
+    -- Check if progression system export is available
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].HandlePrestige then
+        local success, message = exports['cops-and-robbers'].HandlePrestige(playerId)
+        if not success then
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^1Prestige Error", message} 
+            })
+        end
+    else
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^1Error", "Prestige system is not available"} 
+        })
+    end
+end)
+
+-- Function to trigger ability effects
+function TriggerAbilityEffect(playerId, abilityId)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    if abilityId == "smoke_bomb" then
+        -- Create smoke effect around player
+        SafeTriggerClientEvent('cnr:createSmokeEffect', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Smoke bomb deployed!"} 
+        })
+        
+    elseif abilityId == "adrenaline_rush" then
+        -- Give temporary speed boost
+        SafeTriggerClientEvent('cnr:applyAdrenalineRush', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Adrenaline rush activated!"} 
+        })
+        
+    elseif abilityId == "ghost_mode" then
+        -- Temporary invisibility to security systems
+        SafeTriggerClientEvent('cnr:activateGhostMode', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Ghost mode activated!"} 
+        })
+        
+    elseif abilityId == "master_escape" then
+        -- Instantly reduce wanted level
+        if pData.wantedLevel and pData.wantedLevel > 2 then
+            pData.wantedLevel = math.max(0, pData.wantedLevel - 2)
+            SafeTriggerClientEvent('cnr:updateWantedLevel', playerId, pData.wantedLevel)
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^3Ability", "Master escape used! Wanted level reduced!"} 
+            })
+        end
+        
+    elseif abilityId == "backup_call" then
+        -- Call for police backup
+        SafeTriggerClientEvent('cnr:callBackup', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Backup called!"} 
+        })
+        
+    elseif abilityId == "tactical_scan" then
+        -- Scan area for criminals
+        SafeTriggerClientEvent('cnr:performTacticalScan', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Tactical scan activated!"} 
+        })
+        
+    elseif abilityId == "crowd_control" then
+        -- Advanced crowd control
+        SafeTriggerClientEvent('cnr:activateCrowdControl', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Crowd control measures deployed!"} 
+        })
+        
+    elseif abilityId == "detective_mode" then
+        -- Enhanced investigation
+        SafeTriggerClientEvent('cnr:activateDetectiveMode', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Detective mode activated!"} 
+        })
+    end
+end
+
+-- Enhanced XP reward functions with progression system integration
+function RewardArrestXP(playerId, suspectWantedLevel)
+    local xpAmount = 0
+    local reason = ""
+    
+    if suspectWantedLevel >= 4 then
+        xpAmount = Config.XPActionsCop.successful_arrest_high_wanted or 50
+        reason = "high_wanted_arrest"
+    elseif suspectWantedLevel >= 2 then
+        xpAmount = Config.XPActionsCop.successful_arrest_medium_wanted or 35
+        reason = "medium_wanted_arrest"
+    else
+        xpAmount = Config.XPActionsCop.successful_arrest_low_wanted or 20
+        reason = "low_wanted_arrest"
+    end
+    
+    AddXP(playerId, xpAmount, "cop", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "arrest", 1)
+    end
+end
+
+function RewardHeistXP(playerId, heistType, success)
+    if not success then return end
+    
+    local xpAmount = 0
+    local reason = ""
+    
+    if heistType == "bank_major" then
+        xpAmount = Config.XPActionsRobber.successful_bank_heist_major or 100
+        reason = "major_bank_heist"
+    elseif heistType == "bank_minor" then
+        xpAmount = Config.XPActionsRobber.successful_bank_heist_minor or 50
+        reason = "minor_bank_heist"
+    elseif heistType == "store_large" then
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_large or 35
+        reason = "large_store_robbery"
+    elseif heistType == "store_medium" then
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_medium or 25
+        reason = "medium_store_robbery"
+    else
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_small or 15
+        reason = "small_store_robbery"
+    end
+    
+    AddXP(playerId, xpAmount, "robber", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "heist", 1)
+    end
+end
+
+function RewardEscapeXP(playerId, wantedLevel)
+    local xpAmount = 0
+    local reason = ""
+    
+    if wantedLevel >= 4 then
+        xpAmount = Config.XPActionsRobber.escape_from_cops_high_wanted or 30
+        reason = "high_wanted_escape"
+    elseif wantedLevel >= 2 then
+        xpAmount = Config.XPActionsRobber.escape_from_cops_medium_wanted or 20
+        reason = "medium_wanted_escape"
+    else
+        xpAmount = 10
+        reason = "low_wanted_escape"
+    end
+    
+    AddXP(playerId, xpAmount, "robber", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "escape", 1)
+    end
+end
+
+-- Admin command to start seasonal events
+RegisterCommand('start_event', function(source, args, rawCommand)
+    if source == 0 or IsPlayerAdmin(source) then
+        local eventName = args[1]
+        if eventName then
+            if exports['cops-and-robbers'] and exports['cops-and-robbers'].StartSeasonalEvent then
+                local success = exports['cops-and-robbers'].StartSeasonalEvent(eventName)
+                if success then
+                    print(string.format("[CNR_ADMIN] Started seasonal event: %s", eventName))
+                else
+                    print(string.format("[CNR_ADMIN] Failed to start seasonal event: %s", eventName))
+                end
+            end
+        else
+            print("[CNR_ADMIN] Usage: /start_event <event_name>")
+        end
+    end
+end, false)
+
+-- Admin command to give XP
+RegisterCommand('give_xp', function(source, args, rawCommand)
+    if source == 0 or IsPlayerAdmin(source) then
+        local targetId = tonumber(args[1])
+        local amount = tonumber(args[2])
+        local reason = args[3] or "admin_grant"
+        
+        if targetId and amount then
+            AddXP(targetId, amount, "general", reason)
+            print(string.format("[CNR_ADMIN] Gave %d XP to player %d (Reason: %s)", amount, targetId, reason))
+            
+            if source ~= 0 then
+                SafeTriggerClientEvent('chat:addMessage', source, { 
+                    args = {"^2Admin", string.format("Gave %d XP to player %d", amount, targetId)} 
+                })
+            end
+        else
+            print("[CNR_ADMIN] Usage: /give_xp <player_id> <amount> [reason]")
+        end
+    end
+end, false)
+
+-- Admin command to set player level
+RegisterCommand('set_level', function(source, args, rawCommand)
+    if source == 0 or IsPlayerAdmin(source) then
+        local targetId = tonumber(args[1])
+        local level = tonumber(args[2])
+        
+        if targetId and level then
+            local pData = GetCnrPlayerData(targetId)
+            if pData then
+                local totalXPNeeded = 0
+                for i = 1, level - 1 do
+                    totalXPNeeded = totalXPNeeded + (Config.XPTable[i] or 1000)
+                end
+                
+                pData.xp = totalXPNeeded
+                pData.level = level
+                
+                -- Apply perks for new level
+                ApplyPerks(targetId, level, pData.role)
+                
+                -- Update client
+                local pDataForBasicInfo = shallowcopy(pData)
+                pDataForBasicInfo.inventory = nil
+                SafeTriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+                
+                print(string.format("[CNR_ADMIN] Set player %d to level %d", targetId, level))
+                
+                if source ~= 0 then
+                    SafeTriggerClientEvent('chat:addMessage', source, { 
+                        args = {"^2Admin", string.format("Set player %d to level %d", targetId, level)} 
+                    })
+                end
+            end
+        else
+            print("[CNR_ADMIN] Usage: /set_level <player_id> <level>")
+        end
+    end
+end, false)
+
+Log("Enhanced Progression System integration loaded", "info")
 
 function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     local pData = GetCnrPlayerData(playerId)

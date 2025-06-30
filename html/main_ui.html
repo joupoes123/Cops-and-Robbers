@@ -1087,5 +1087,355 @@
             <button id="reset-character-btn" class="action-btn danger">Reset to Default</button>
         </div>
     </div>
+
+    <!-- ========================================= -->
+    <!-- ENHANCED PROGRESSION SYSTEM UI -->
+    <!-- ========================================= -->
+
+    <!-- Enhanced XP Display (Always Visible) -->
+    <div id="xp-level-container" class="xp-level-container">
+        <div class="xp-level-content">
+            <!-- Player Level and Prestige -->
+            <div class="level-display">
+                <div class="level-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="level-info">
+                    <span id="level-text" class="level-number">1</span>
+                    <span id="prestige-indicator" class="prestige-indicator hidden">★</span>
+                </div>
+            </div>
+
+            <!-- XP Progress Bar -->
+            <div class="xp-progress-container">
+                <div class="xp-progress-bar">
+                    <div id="xp-bar-fill" class="xp-bar-fill" style="width: 0%"></div>
+                    <div class="xp-progress-glow"></div>
+                </div>
+                <div class="xp-text-container">
+                    <span id="xp-text" class="xp-text">0 / 100 XP</span>
+                    <span id="xp-gain-indicator" class="xp-gain-indicator hidden">+0</span>
+                </div>
+            </div>
+
+            <!-- Seasonal Event Indicator -->
+            <div id="seasonal-event-indicator" class="seasonal-event-indicator hidden">
+                <i class="fas fa-calendar-star"></i>
+                <span id="seasonal-event-text">Event Active</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- XP Gain Animation -->
+    <div id="xp-gain-animation" class="xp-gain-animation hidden">
+        <div class="xp-gain-content">
+            <i class="fas fa-plus-circle"></i>
+            <span id="xp-gain-amount">+0 XP</span>
+            <span id="xp-gain-reason">Action</span>
+        </div>
+    </div>
+
+    <!-- Level Up Animation -->
+    <div id="level-up-animation" class="level-up-animation hidden">
+        <div class="level-up-content">
+            <div class="level-up-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <h2 class="level-up-title">LEVEL UP!</h2>
+            <p id="level-up-text" class="level-up-text">You reached Level 2!</p>
+            <div class="level-up-effects">
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unlock Notification -->
+    <div id="unlock-notification" class="unlock-notification hidden">
+        <div class="unlock-content">
+            <div class="unlock-icon">
+                <i id="unlock-icon-element" class="fas fa-unlock"></i>
+            </div>
+            <div class="unlock-info">
+                <h3 id="unlock-title" class="unlock-title">New Unlock!</h3>
+                <p id="unlock-message" class="unlock-message">You unlocked something awesome!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progression Menu -->
+    <div id="progression-menu" class="progression-menu hidden">
+        <div class="progression-menu-content">
+            <!-- Header -->
+            <div class="progression-header">
+                <h2 class="progression-title">
+                    <i class="fas fa-chart-line"></i>
+                    Progression
+                </h2>
+                <button id="close-progression-btn" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="progression-tabs">
+                <button class="progression-tab active" data-tab="overview">
+                    <i class="fas fa-home"></i>
+                    Overview
+                </button>
+                <button class="progression-tab" data-tab="unlocks">
+                    <i class="fas fa-unlock-alt"></i>
+                    Unlocks
+                </button>
+                <button class="progression-tab" data-tab="abilities">
+                    <i class="fas fa-magic"></i>
+                    Abilities
+                </button>
+                <button class="progression-tab" data-tab="challenges">
+                    <i class="fas fa-trophy"></i>
+                    Challenges
+                </button>
+                <button class="progression-tab" data-tab="prestige">
+                    <i class="fas fa-crown"></i>
+                    Prestige
+                </button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="progression-content">
+                <!-- Overview Tab -->
+                <div id="overview-tab" class="progression-tab-content active">
+                    <div class="overview-grid">
+                        <!-- Player Stats -->
+                        <div class="stats-card">
+                            <h3>Player Statistics</h3>
+                            <div class="stat-item">
+                                <span class="stat-label">Current Level:</span>
+                                <span id="overview-level" class="stat-value">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total XP:</span>
+                                <span id="overview-total-xp" class="stat-value">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">XP to Next Level:</span>
+                                <span id="overview-xp-needed" class="stat-value">100</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Prestige Level:</span>
+                                <span id="overview-prestige" class="stat-value">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Visualization -->
+                        <div class="progress-card">
+                            <h3>Level Progress</h3>
+                            <div class="circular-progress">
+                                <svg class="progress-ring" width="120" height="120">
+                                    <circle class="progress-ring-circle" stroke="#333" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                                    <circle id="progress-ring-fill" class="progress-ring-fill" stroke="#00ff88" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                                </svg>
+                                <div class="progress-text">
+                                    <span id="progress-percentage">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="activity-card">
+                            <h3>Recent Activity</h3>
+                            <div id="recent-activity-list" class="activity-list">
+                                <div class="activity-item">
+                                    <i class="fas fa-plus-circle activity-icon"></i>
+                                    <span class="activity-text">Welcome to the game!</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unlocks Tab -->
+                <div id="unlocks-tab" class="progression-tab-content">
+                    <div class="unlocks-container">
+                        <div class="unlock-tree">
+                            <h3>Progression Tree</h3>
+                            <div id="unlock-tree-content" class="unlock-tree-content">
+                                <!-- Dynamic unlock tree will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Abilities Tab -->
+                <div id="abilities-tab" class="progression-tab-content">
+                    <div class="abilities-container">
+                        <h3>Special Abilities</h3>
+                        <div id="abilities-grid" class="abilities-grid">
+                            <!-- Dynamic abilities will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Challenges Tab -->
+                <div id="challenges-tab" class="progression-tab-content">
+                    <div class="challenges-container">
+                        <!-- Daily Challenges -->
+                        <div class="challenge-section">
+                            <h3>
+                                <i class="fas fa-sun"></i>
+                                Daily Challenges
+                            </h3>
+                            <div id="daily-challenges" class="challenges-grid">
+                                <!-- Dynamic daily challenges will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Weekly Challenges -->
+                        <div class="challenge-section">
+                            <h3>
+                                <i class="fas fa-calendar-week"></i>
+                                Weekly Challenges
+                            </h3>
+                            <div id="weekly-challenges" class="challenges-grid">
+                                <!-- Dynamic weekly challenges will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prestige Tab -->
+                <div id="prestige-tab" class="progression-tab-content">
+                    <div class="prestige-container">
+                        <div class="prestige-info">
+                            <h3>Prestige System</h3>
+                            <p class="prestige-description">
+                                Reach the maximum level to unlock prestige. Prestiging resets your level but grants powerful bonuses and exclusive titles!
+                            </p>
+                        </div>
+
+                        <div class="prestige-status">
+                            <div class="prestige-current">
+                                <h4>Current Prestige</h4>
+                                <div class="prestige-level-display">
+                                    <span id="current-prestige-level" class="prestige-number">0</span>
+                                    <span id="current-prestige-title" class="prestige-title">Rookie</span>
+                                </div>
+                            </div>
+
+                            <div class="prestige-requirements">
+                                <h4>Requirements</h4>
+                                <div class="requirement-item">
+                                    <span class="requirement-label">Level Required:</span>
+                                    <span class="requirement-value">50</span>
+                                </div>
+                                <div class="requirement-item">
+                                    <span class="requirement-label">Current Level:</span>
+                                    <span id="prestige-current-level" class="requirement-value">1</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prestige-rewards">
+                            <h4>Next Prestige Rewards</h4>
+                            <div id="next-prestige-rewards" class="rewards-list">
+                                <!-- Dynamic prestige rewards will be populated here -->
+                            </div>
+                        </div>
+
+                        <div class="prestige-action">
+                            <button id="prestige-btn" class="prestige-button disabled">
+                                <i class="fas fa-crown"></i>
+                                Prestige Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ability Activation UI -->
+    <div id="ability-bar" class="ability-bar">
+        <div class="ability-slots">
+            <div class="ability-slot" data-slot="1">
+                <div class="ability-icon">
+                    <i class="fas fa-question"></i>
+                </div>
+                <div class="ability-cooldown">
+                    <div class="cooldown-overlay"></div>
+                    <span class="cooldown-text">Z</span>
+                </div>
+            </div>
+            <div class="ability-slot" data-slot="2">
+                <div class="ability-icon">
+                    <i class="fas fa-question"></i>
+                </div>
+                <div class="ability-cooldown">
+                    <div class="cooldown-overlay"></div>
+                    <span class="cooldown-text">X</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Challenge Progress Notification -->
+    <div id="challenge-progress-notification" class="challenge-notification hidden">
+        <div class="challenge-content">
+            <div class="challenge-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <div class="challenge-info">
+                <h4 id="challenge-name" class="challenge-name">Challenge Name</h4>
+                <div class="challenge-progress-bar">
+                    <div id="challenge-progress-fill" class="challenge-progress-fill"></div>
+                </div>
+                <span id="challenge-progress-text" class="challenge-progress-text">0/10</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seasonal Event Banner -->
+    <div id="seasonal-event-banner" class="seasonal-event-banner hidden">
+        <div class="event-banner-content">
+            <div class="event-icon">
+                <i class="fas fa-calendar-star"></i>
+            </div>
+            <div class="event-info">
+                <h3 id="event-name" class="event-name">Special Event</h3>
+                <p id="event-description" class="event-description">Event description here</p>
+            </div>
+            <button id="close-event-banner" class="close-event-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Prestige Animation -->
+    <div id="prestige-animation" class="prestige-animation hidden">
+        <div class="prestige-content">
+            <div class="prestige-crown">
+                <i class="fas fa-crown"></i>
+            </div>
+            <h2 class="prestige-title">PRESTIGE!</h2>
+            <p id="prestige-text" class="prestige-text">You achieved Prestige 1!</p>
+            <div class="prestige-effects">
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Notification System -->
+    <div id="notification-container" class="notification-container">
+        <!-- Dynamic notifications will be added here -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts.js"></script>
 </body>
 </html>
