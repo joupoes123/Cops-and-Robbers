@@ -802,7 +802,8 @@ function UpdateRobberStoreBlips()
             elseif not vendor.name then
                 print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing name for vendor at index %d.", i))
             end
-        else
+            -- Skip processing this invalid entry
+        elseif vendor and vendor.location and vendor.name then
             -- Process valid vendor entries
             if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
                 local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
@@ -835,7 +836,7 @@ function UpdateRobberStoreBlips()
                     end
                 end
             else
-                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d.", i))
+                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d. Vendor: %s", i, vendor and vendor.name or "unknown"))
             end
         end
     end
@@ -2527,6 +2528,42 @@ RegisterNUICallback('findHideout', function(data, cb)
     FindNearestHideout()
     cb({})
 end)
+-- Function to spawn player at a specific location
+function SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
+    if not spawnLocation then
+        print("[CNR_CLIENT_ERROR] SpawnPlayerAtLocation: Invalid spawn location")
+        return
+    end
+    
+    local playerPed = PlayerPedId()
+    
+    -- Set player position and heading
+    if type(spawnLocation) == "vector3" then
+        SetEntityCoords(playerPed, spawnLocation.x, spawnLocation.y, spawnLocation.z, false, false, false, true)
+    elseif type(spawnLocation) == "vector4" then
+        SetEntityCoords(playerPed, spawnLocation.x, spawnLocation.y, spawnLocation.z, false, false, false, true)
+        spawnHeading = spawnLocation.w
+    elseif type(spawnLocation) == "table" and spawnLocation.x and spawnLocation.y and spawnLocation.z then
+        SetEntityCoords(playerPed, spawnLocation.x, spawnLocation.y, spawnLocation.z, false, false, false, true)
+    else
+        print("[CNR_CLIENT_ERROR] SpawnPlayerAtLocation: Unsupported spawn location format")
+        return
+    end
+    
+    -- Set heading if provided
+    if spawnHeading then
+        SetEntityHeading(playerPed, spawnHeading)
+    end
+    
+    -- Apply role-specific visuals and loadout
+    if role then
+        ApplyRoleVisualsAndLoadout(role)
+    end
+    
+    print(string.format("[CNR_CLIENT_DEBUG] Player spawned at location: %s, heading: %s, role: %s", 
+        tostring(spawnLocation), tostring(spawnHeading), tostring(role)))
+end
+
 -- Event handler for receiving character data
 AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
     -- This will be used for future character loading logic

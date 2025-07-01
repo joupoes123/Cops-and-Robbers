@@ -42,6 +42,11 @@ local function IsAdmin(playerId)
     return false
 end
 
+-- Global function for external use (used by server.lua)
+function IsPlayerAdmin(playerId)
+    return IsAdmin(playerId)
+end
+
 -- Helper function to check if a player ID is valid (i.e. currently connected)
 local function IsValidPlayer(targetId)
     targetId = tonumber(targetId)

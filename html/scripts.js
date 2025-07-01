@@ -2,7 +2,7 @@
 // Handles NUI interactions for Cops and Robbers game mode.
 
 window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
-let fullItemConfig = null; // Will store Config.Items
+window.fullItemConfig = null; // Will store Config.Items
 
 // Inventory state variables
 let isInventoryOpen = false;
@@ -290,6 +290,24 @@ window.addEventListener('message', function(event) {
                     })
                 });
             }
+            break;
+        case 'hideWantedUI':
+            // Hide wanted level UI elements
+            const wantedContainer = document.getElementById('wanted-container');
+            const wantedLevel = document.getElementById('wanted-level');
+            const wantedStars = document.getElementById('wanted-stars');
+            
+            if (wantedContainer) {
+                wantedContainer.style.display = 'none';
+            }
+            if (wantedLevel) {
+                wantedLevel.style.display = 'none';
+            }
+            if (wantedStars) {
+                wantedStars.style.display = 'none';
+            }
+            
+            console.log('[CNR_NUI] Wanted UI hidden');
             break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
@@ -1738,7 +1756,7 @@ function renderCategoryFilter() {
     // Get unique categories from inventory
     const categories = new Set(['all']);
     
-    if (fullItemConfig && Array.isArray(fullItemConfig)) {
+    if (window.fullItemConfig && Array.isArray(window.fullItemConfig)) {
         Object.values(playerInventoryData).forEach(item => {
             if (item.category) {
                 categories.add(item.category);
