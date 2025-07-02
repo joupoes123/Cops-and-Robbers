@@ -309,6 +309,36 @@ window.addEventListener('message', function(event) {
             
             console.log('[CNR_NUI] Wanted UI hidden');
             break;
+        case 'showWantedUI':
+            // Show wanted level UI elements
+            const wantedContainerShow = document.getElementById('wanted-container');
+            const wantedLevelShow = document.getElementById('wanted-level');
+            const wantedStarsShow = document.getElementById('wanted-stars');
+            
+            if (wantedContainerShow) {
+                wantedContainerShow.style.display = 'block';
+            }
+            if (wantedLevelShow) {
+                wantedLevelShow.style.display = 'block';
+                // Update wanted level if provided
+                if (data.wantedLevel !== undefined) {
+                    wantedLevelShow.textContent = data.wantedLevel + ' Star' + (data.wantedLevel !== 1 ? 's' : '');
+                }
+            }
+            if (wantedStarsShow) {
+                wantedStarsShow.style.display = 'block';
+                // Update stars display if provided
+                if (data.wantedLevel !== undefined) {
+                    let starsHtml = '';
+                    for (let i = 0; i < Math.min(data.wantedLevel, 5); i++) {
+                        starsHtml += '★';
+                    }
+                    wantedStarsShow.innerHTML = starsHtml;
+                }
+            }
+            
+            console.log('[CNR_NUI] Wanted UI shown with level:', data.wantedLevel || 'unknown');
+            break;
         default:
             console.warn(`Unhandled NUI action: ${data.action}`);
     }

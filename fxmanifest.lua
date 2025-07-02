@@ -18,7 +18,8 @@ server_scripts {
     'admin.lua',         -- Admin commands and server-side admin functionalities.
     'inventory_server.lua',
     'character_editor_server.lua', -- Character editor server logic
-    'progression_server.lua' -- Enhanced progression system server logic
+    'progression_server.lua', -- Enhanced progression system server logic
+    'debug_test.lua'    -- Debug test file
 }
 
 -- Define client-side scripts.

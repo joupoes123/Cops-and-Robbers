@@ -29,6 +29,34 @@ function tablelength(T)
     return count
 end
 
+-- Helper function to get player identifiers safely
+local function GetSafePlayerIdentifiers(playerId)
+    return GetPlayerIdentifiers(playerId)
+end
+
+-- Function to check if a player is an admin
+function IsPlayerAdmin(playerId)
+    local playerIdentifiers = GetSafePlayerIdentifiers(playerId)
+    if not playerIdentifiers then return false end
+
+    -- Ensure Config and Config.Admins are loaded and available
+    if not Config or type(Config.Admins) ~= "table" then
+        print("Error: Config.Admins is not loaded or not a table. Ensure config.lua defines it correctly.")
+        return false
+    end
+
+    for _, identifier in ipairs(playerIdentifiers) do
+        -- Check if the player's identifier exists as a key in the Config.Admins table
+        if Config.Admins[identifier] then
+            return true
+        end
+    end
+    return false
+end
+
+-- Debug print to confirm function is loaded
+print("[CNR_SERVER_DEBUG] IsPlayerAdmin function has been defined successfully")
+
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
     local minimalInv = {}
@@ -2645,6 +2673,11 @@ end
 
 -- Admin command to start seasonal events
 RegisterCommand('start_event', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
     if source == 0 or IsPlayerAdmin(source) then
         local eventName = args[1]
         if eventName then
@@ -2664,6 +2697,11 @@ end, false)
 
 -- Admin command to give XP
 RegisterCommand('give_xp', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
     if source == 0 or IsPlayerAdmin(source) then
         local targetId = tonumber(args[1])
         local amount = tonumber(args[2])
@@ -2686,6 +2724,11 @@ end, false)
 
 -- Admin command to set player level
 RegisterCommand('set_level', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
     if source == 0 or IsPlayerAdmin(source) then
         local targetId = tonumber(args[1])
         local level = tonumber(args[2])
