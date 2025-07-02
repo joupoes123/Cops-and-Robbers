@@ -2,7 +2,8 @@
 .github/
 .vscode/
 docs/*
-# Exception: track README.md in docs folder
+.zencoder/*
+# Exception: track docs folder
 !docs/README.md
 !docs/SECURITY.md
 !docs/LICENSE
