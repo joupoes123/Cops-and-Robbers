@@ -8,43 +8,158 @@
     <title>Cops and Robbers</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <!-- Modern Font Import -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Modern Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <div class="bg-particle"></div>
+        <div class="bg-particle"></div>
+        <div class="bg-particle"></div>
+        <div class="bg-particle"></div>
+        <div class="bg-particle"></div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen hidden">
+        <div class="loading-content">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <h2 class="loading-text">Loading...</h2>
+            <p class="loading-subtitle">Preparing your experience</p>
+        </div>
+    </div>
+
     <!-- Role Selection Section -->
     <section id="role-selection" class="menu hidden" role="dialog" aria-labelledby="roleSelectionHeadingMain" aria-modal="true">
-        <h1 id="roleSelectionHeadingMain">Select Your Role</h1>
-        <button id="cop-btn" data-role="cop" aria-label="Select Cop Role"><span class="icon">👮</span>Cop</button>
-        <button id="robber-btn" data-role="robber" aria-label="Select Robber Role"><span class="icon">💰</span>Robber</button>
+        <div class="role-selection-header">
+            <h1 id="roleSelectionHeadingMain">Choose Your Path</h1>
+            <p class="role-selection-subtitle">Select your role and begin your journey</p>
+        </div>
+        
+        <!-- Cop Role Selection -->
+        <div class="role-option cop-role">
+            <div class="role-card-inner">
+                <div class="role-header">
+                    <div class="role-icon-container">
+                        <i class="fas fa-shield-alt role-icon"></i>
+                        <div class="role-icon-glow"></div>
+                    </div>
+                    <div class="role-info">
+                        <h2>Police Officer</h2>
+                        <span class="role-badge">Law Enforcement</span>
+                    </div>
+                </div>
+                <div class="role-description">
+                    <p>Uphold justice, protect citizens, and maintain order. Access to police equipment, vehicles, and special operations.</p>
+                    <div class="role-features">
+                        <span class="feature-tag"><i class="fas fa-car"></i> Police Vehicles</span>
+                        <span class="feature-tag"><i class="fas fa-handcuffs"></i> Arrest Powers</span>
+                        <span class="feature-tag"><i class="fas fa-radio"></i> Dispatch System</span>
+                    </div>
+                </div>
+                <div class="role-actions">
+                    <button id="cop-btn" data-role="cop" class="role-select-btn primary-btn" aria-label="Select Cop Role">
+                        <i class="fas fa-play"></i>
+                        <span>Join as Officer</span>
+                    </button>
+                    <button id="cop-editor-btn" data-role="cop" class="role-editor-btn secondary-btn" aria-label="Edit Cop Character">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Customize</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Robber Role Selection -->
+        <div class="role-option robber-role">
+            <div class="role-card-inner">
+                <div class="role-header">
+                    <div class="role-icon-container">
+                        <i class="fas fa-mask role-icon"></i>
+                        <div class="role-icon-glow"></div>
+                    </div>
+                    <div class="role-info">
+                        <h2>Criminal</h2>
+                        <span class="role-badge">Underground</span>
+                    </div>
+                </div>
+                <div class="role-description">
+                    <p>Live life on the edge, plan elaborate heists, and evade law enforcement. Access to illegal equipment and hideouts.</p>
+                    <div class="role-features">
+                        <span class="feature-tag"><i class="fas fa-money-bill-wave"></i> Heist Operations</span>
+                        <span class="feature-tag"><i class="fas fa-eye-slash"></i> Stealth Missions</span>
+                        <span class="feature-tag"><i class="fas fa-home"></i> Safe Houses</span>
+                    </div>
+                </div>
+                <div class="role-actions">
+                    <button id="robber-btn" data-role="robber" class="role-select-btn primary-btn" aria-label="Select Robber Role">
+                        <i class="fas fa-play"></i>
+                        <span>Join as Criminal</span>
+                    </button>
+                    <button id="robber-editor-btn" data-role="robber" class="role-editor-btn secondary-btn" aria-label="Edit Robber Character">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Customize</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </section>    <!-- Store Section -->
     <section id="store-menu" class="hidden" role="dialog" aria-labelledby="store-title" aria-modal="true">
         <div class="store-header">
-            <h1 id="store-title">Store</h1>
+            <div class="store-title-section">
+                <h1 id="store-title">
+                    <i class="fas fa-store store-icon"></i>
+                    <span>Marketplace</span>
+                </h1>
+                <p class="store-subtitle">Buy and sell items to enhance your gameplay</p>
+            </div>
             <button id="close-btn" class="store-close-btn" aria-label="Close Store Menu">
-                <span class="close-icon">✕</span>
+                <i class="fas fa-times"></i>
             </button>
         </div>
         
         <!-- Tab Menu -->
         <div id="tab-menu" role="tablist">
             <button id="buy-tab-button" class="tab-btn active" data-tab="buy" role="tab" aria-selected="true" aria-controls="buy-section">
-                <span class="tab-icon">🛒</span>
-                <span class="tab-label">Buy</span>
+                <i class="fas fa-shopping-cart tab-icon"></i>
+                <span class="tab-label">Purchase</span>
+                <div class="tab-indicator"></div>
             </button>
             <button id="sell-tab-button" class="tab-btn" data-tab="sell" role="tab" aria-selected="false" aria-controls="sell-section">
-                <span class="tab-icon">💸</span>
+                <i class="fas fa-hand-holding-usd tab-icon"></i>
                 <span class="tab-label">Sell</span>
+                <div class="tab-indicator"></div>
             </button>
         </div>
         
         <!-- Player Info Bar -->
         <div id="player-info-bar" class="player-info-bar">
-            <div class="player-cash">
-                <span class="cash-icon">💰</span>
-                <span id="player-cash-amount">$0</span>
-            </div>
-            <div class="player-level">
-                <span class="level-icon">🏆</span>
-                <span id="player-level-text">Level 1</span>
+            <div class="player-stats">
+                <div class="player-cash">
+                    <div class="stat-icon">
+                        <i class="fas fa-wallet"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Balance</span>
+                        <span id="player-cash-amount" class="stat-value">$0</span>
+                    </div>
+                </div>
+                <div class="player-level">
+                    <div class="stat-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Level</span>
+                        <span id="player-level-text" class="stat-value">1</span>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -68,15 +183,37 @@
         </div>
     </section>
     </section>    <!-- XP and Level Display HUD -->
-    <div id="xp-level-container" class="hud-element"> <!-- Initially hidden via CSS -->
-        <span id="level-text">LVL 1</span>
-        <div id="xp-bar-background">
-            <div id="xp-bar-fill"></div>        </div>
-        <span id="xp-text">0 / 100 XP</span>
-        <div id="xp-gain-indicator" class="xp-gain-indicator">+0 XP</div>
-    </div>    <!-- Heist Timer HUD (Moved from index.html) -->
-    <div id="heist-timer" class="hud heist-timer-hidden" role="status" aria-live="polite"> <!-- Initially hidden via CSS -->
-        <p id="timer-text"></p>
+    <div id="xp-level-container" class="hud-element modern-hud"> <!-- Initially hidden via CSS -->
+        <div class="xp-level-content">
+            <div class="level-section">
+                <i class="fas fa-star level-icon"></i>
+                <span id="level-text" class="level-text">LVL 1</span>
+            </div>
+            <div class="xp-section">
+                <div id="xp-bar-background" class="xp-bar-background">
+                    <div id="xp-bar-fill" class="xp-bar-fill"></div>
+                    <div class="xp-bar-shine"></div>
+                </div>
+                <span id="xp-text" class="xp-text">0 / 100 XP</span>
+            </div>
+        </div>
+        <div id="xp-gain-indicator" class="xp-gain-indicator">
+            <i class="fas fa-plus-circle"></i>
+            <span>+0 XP</span>
+        </div>
+    </div>
+
+    <!-- Heist Timer HUD -->
+    <div id="heist-timer" class="hud modern-hud heist-timer-hidden" role="status" aria-live="polite">
+        <div class="heist-timer-content">
+            <div class="timer-icon">
+                <i class="fas fa-stopwatch"></i>
+            </div>
+            <div class="timer-info">
+                <span class="timer-label">Heist in Progress</span>
+                <p id="timer-text" class="timer-value"></p>
+            </div>
+        </div>
     </div>
 
     <!-- Bounty List UI -->
@@ -93,9 +230,17 @@
     </div>
 
     <!-- Speedometer HUD -->
-    <div id="speedometer" class="speedometer hidden">
-        <span id="speed-value">0</span>
-        <span id="speed-unit">MPH</span>
+    <div id="speedometer" class="speedometer modern-hud hidden">
+        <div class="speedometer-content">
+            <div class="speed-icon">
+                <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <div class="speed-display">
+                <span id="speed-value" class="speed-value">0</span>
+                <span id="speed-unit" class="speed-unit">MPH</span>
+            </div>
+        </div>
+        <div class="speedometer-glow"></div>
     </div>
 
     <script src="scripts.js"></script>
@@ -236,5 +381,1061 @@
     <div id="jail-timer-container" class="jail-timer hud-element hidden" role="status" aria-live="polite">
         Jailed: <span id="jail-time-remaining">00:00</span>
     </div>
+
+    <!-- Character Editor Section -->
+    <section id="character-editor" class="character-editor hidden" role="dialog" aria-labelledby="characterEditorTitle" aria-modal="true">
+        <div class="character-editor-header">
+            <h1 id="characterEditorTitle">Character Editor</h1>
+            <div class="character-editor-info">
+                <span id="character-editor-role">Cop</span> - 
+                <span id="character-editor-slot">Slot 1</span>
+            </div>
+            <button id="character-editor-close-btn" class="close-btn" aria-label="Close Character Editor">
+                <span class="close-icon">✕</span>
+            </button>
+        </div>
+
+        <div class="character-editor-content">
+            <!-- Character Preview - Left Side (Transparent) -->
+            <div class="character-preview">
+                <!-- Preview area is now transparent for 3D model viewing -->
+                <div class="preview-overlay">
+                    <div class="camera-controls">
+                        <button id="camera-face-btn" class="camera-btn active" data-mode="face">Face</button>
+                        <button id="camera-body-btn" class="camera-btn" data-mode="body">Body</button>
+                        <button id="camera-full-btn" class="camera-btn" data-mode="full">Full</button>
+                    </div>
+                    <div class="character-rotation">
+                        <button id="rotate-left-btn" class="rotate-btn" data-direction="left">◀</button>
+                        <button id="rotate-right-btn" class="rotate-btn" data-direction="right">▶</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom Center Controls -->
+            <div class="bottom-center-controls">
+                <div class="gender-selection">
+                    <button id="gender-male-btn" class="gender-btn active" data-gender="male">Male</button>
+                    <button id="gender-female-btn" class="gender-btn" data-gender="female">Female</button>
+                </div>
+            </div>
+
+            <!-- Character Customization -->
+            <div class="character-customization">
+                <!-- Category Tabs -->
+                <div class="customization-tabs">
+                    <button class="tab-btn active" data-category="appearance">Appearance</button>
+                    <button class="tab-btn" data-category="clothing">Clothing</button>
+                    <button class="tab-btn" data-category="uniforms">Uniforms</button>
+                    <button class="tab-btn" data-category="characters">Characters</button>
+                </div>
+
+                <!-- Appearance Tab -->
+                <div id="appearance-tab" class="customization-tab active">
+                    <div class="customization-sections">
+                        <!-- Basic Appearance -->
+                        <div class="customization-section">
+                            <h3>Basic Appearance</h3>
+                            <div class="customization-controls">
+                                <div class="control-group">
+                                    <label for="face-slider">Face</label>
+                                    <input type="range" id="face-slider" class="customization-slider" 
+                                           data-feature="face" min="0" max="45" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="skin-slider">Skin</label>
+                                    <input type="range" id="skin-slider" class="customization-slider" 
+                                           data-feature="skin" min="0" max="45" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="hair-slider">Hair</label>
+                                    <input type="range" id="hair-slider" class="customization-slider" 
+                                           data-feature="hair" min="0" max="76" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="hair-color-slider">Hair Color</label>
+                                    <input type="range" id="hair-color-slider" class="customization-slider" 
+                                           data-feature="hairColor" min="0" max="63" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="hair-highlight-slider">Hair Highlight</label>
+                                    <input type="range" id="hair-highlight-slider" class="customization-slider" 
+                                           data-feature="hairHighlight" min="0" max="63" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="eye-color-slider">Eye Color</label>
+                                    <input type="range" id="eye-color-slider" class="customization-slider" 
+                                           data-feature="eyeColor" min="0" max="31" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Facial Features -->
+                        <div class="customization-section">
+                            <h3>Facial Features</h3>
+                            <div class="customization-controls">
+                                <div class="control-group">
+                                    <label for="nose-width-slider">Nose Width</label>
+                                    <input type="range" id="nose-width-slider" class="customization-slider" 
+                                           data-category="faceFeatures" data-feature="noseWidth" min="-1" max="1" step="0.1" value="0">
+                                    <span class="slider-value">0.0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="nose-height-slider">Nose Height</label>
+                                    <input type="range" id="nose-height-slider" class="customization-slider" 
+                                           data-category="faceFeatures" data-feature="noseHeight" min="-1" max="1" step="0.1" value="0">
+                                    <span class="slider-value">0.0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="jaw-width-slider">Jaw Width</label>
+                                    <input type="range" id="jaw-width-slider" class="customization-slider" 
+                                           data-category="faceFeatures" data-feature="jawWidth" min="-1" max="1" step="0.1" value="0">
+                                    <span class="slider-value">0.0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="lips-thickness-slider">Lips Thickness</label>
+                                    <input type="range" id="lips-thickness-slider" class="customization-slider" 
+                                           data-category="faceFeatures" data-feature="lipsThickness" min="-1" max="1" step="0.1" value="0">
+                                    <span class="slider-value">0.0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Facial Hair & Makeup -->
+                        <div class="customization-section">
+                            <h3>Facial Hair & Makeup</h3>
+                            <div class="customization-controls">
+                                <div class="control-group">
+                                    <label for="beard-slider">Beard</label>
+                                    <input type="range" id="beard-slider" class="customization-slider" 
+                                           data-feature="beard" min="-1" max="28" value="-1">
+                                    <span class="slider-value">-1</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="beard-color-slider">Beard Color</label>
+                                    <input type="range" id="beard-color-slider" class="customization-slider" 
+                                           data-feature="beardColor" min="0" max="63" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="eyebrows-slider">Eyebrows</label>
+                                    <input type="range" id="eyebrows-slider" class="customization-slider" 
+                                           data-feature="eyebrows" min="-1" max="33" value="-1">
+                                    <span class="slider-value">-1</span>
+                                </div>
+                                <div class="control-group">
+                                    <label for="eyebrows-color-slider">Eyebrows Color</label>
+                                    <input type="range" id="eyebrows-color-slider" class="customization-slider" 
+                                           data-feature="eyebrowsColor" min="0" max="63" value="0">
+                                    <span class="slider-value">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clothing Tab -->
+                <div id="clothing-tab" class="customization-tab">
+                    <div class="clothing-components">
+                        <h3>Clothing Components</h3>
+                        <p>Individual clothing customization will be available here.</p>
+                        <p>Use the Uniforms tab for role-specific outfit presets.</p>
+                    </div>
+                </div>
+
+                <!-- Uniforms Tab -->
+                <div id="uniforms-tab" class="customization-tab">
+                    <div class="uniform-presets">
+                        <h3>Uniform Presets</h3>
+                        <div id="uniform-preset-list" class="preset-list">
+                            <!-- Uniform presets will be populated by JavaScript -->
+                        </div>
+                        <div class="uniform-controls">
+                            <button id="preview-uniform-btn" class="action-btn" disabled>Preview</button>
+                            <button id="apply-uniform-btn" class="action-btn" disabled>Apply</button>
+                            <button id="cancel-uniform-btn" class="action-btn" disabled>Cancel Preview</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Characters Tab -->
+                <div id="characters-tab" class="customization-tab">
+                    <div class="character-management">
+                        <h3>Character Slots</h3>
+                        <div id="character-slot-list" class="character-slots">
+                            <!-- Character slots will be populated by JavaScript -->
+                        </div>
+                        <div class="character-controls">
+                            <button id="load-character-btn" class="action-btn" disabled>Load Character</button>
+                            <button id="delete-character-btn" class="action-btn danger" disabled>Delete Character</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Character Editor Actions -->
+        <div class="character-editor-actions">
+            <button id="character-editor-save-btn" class="action-btn primary">Save Character</button>
+            <button id="character-editor-cancel-btn" class="action-btn secondary">Cancel</button>
+        </div>
+    </section>
+
+    <!-- Enhanced Character Editor Section -->
+    <div id="character-editor-container" class="character-editor-container hidden">
+        <!-- Header -->
+        <div class="character-editor-header">
+            <div class="header-info">
+                <h1>Character Editor</h1>
+                <div class="character-info">
+                    <span id="current-role">Cop</span> - <span id="current-slot">Slot 1</span>
+                </div>
+            </div>
+            <button id="close-editor-btn" class="close-btn">✕</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="character-editor-main">
+            <!-- Left Panel - Character Preview -->
+            <div class="character-preview-panel">
+                <div class="preview-controls">
+                    <div class="camera-controls">
+                        <h3>Camera View</h3>
+                        <div class="camera-buttons">
+                            <button class="camera-btn active" data-camera="face">Face</button>
+                            <button class="camera-btn" data-camera="body">Body</button>
+                            <button class="camera-btn" data-camera="full">Full</button>
+                        </div>
+                    </div>
+                    
+                    <div class="rotation-controls">
+                        <h3>Rotate Character</h3>
+                        <div class="rotation-buttons">
+                            <button class="rotate-btn" data-direction="left">◀ Left</button>
+                            <button class="rotate-btn" data-direction="right">Right ▶</button>
+                        </div>
+                    </div>
+                    
+                    <div class="gender-controls">
+                        <h3>Gender</h3>
+                        <div class="gender-buttons">
+                            <button class="gender-btn active" data-gender="male">Male</button>
+                            <button class="gender-btn" data-gender="female">Female</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Customization Options -->
+            <div class="customization-panel">
+                <!-- Tab Navigation -->
+                <div class="customization-tabs">
+                    <button class="tab-button active" data-tab="heritage">Heritage</button>
+                    <button class="tab-button" data-tab="features">Features</button>
+                    <button class="tab-button" data-tab="appearance">Appearance</button>
+                    <button class="tab-button" data-tab="clothing">Clothing</button>
+                    <button class="tab-button" data-tab="uniforms">Uniforms</button>
+                    <button class="tab-button" data-tab="characters">Characters</button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Heritage Tab -->
+                    <div id="heritage-tab" class="tab-panel active">
+                        <div class="customization-section">
+                            <h3>Parents & Resemblance</h3>
+                            <div class="control-row">
+                                <div class="control-group">
+                                    <label>Father</label>
+                                    <input type="range" id="father-slider" class="slider" min="0" max="45" value="0" data-feature="face" data-parent="father">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Mother</label>
+                                    <input type="range" id="mother-slider" class="slider" min="0" max="45" value="0" data-feature="skin" data-parent="mother">
+                                    <span class="value-display">0</span>
+                                </div>
+                            </div>
+                            <div class="control-row">
+                                <div class="control-group">
+                                    <label>Resemblance</label>
+                                    <input type="range" id="resemblance-slider" class="slider" min="0" max="100" value="50" data-feature="resemblance">
+                                    <span class="value-display">50%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Skin Tone</label>
+                                    <input type="range" id="skin-tone-slider" class="slider" min="0" max="100" value="50" data-feature="skinTone">
+                                    <span class="value-display">50%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Features Tab -->
+                    <div id="features-tab" class="tab-panel">
+                        <div class="customization-section">
+                            <h3>Facial Structure</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Nose Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Nose Height</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseHeight">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Nose Length</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseLength">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Nose Bridge</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseBridge">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Nose Tip</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseTip">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Nose Shift</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="noseShift">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Brow Height</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="browHeight">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Brow Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="browWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Cheekbone Height</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="cheekboneHeight">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Cheekbone Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="cheekboneWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Cheeks Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="cheeksWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Eyes Opening</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="eyesOpening">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Lips Thickness</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="lipsThickness">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Jaw Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="jawWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Jaw Height</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="jawHeight">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chin Length</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="chinLength">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chin Position</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="chinPosition">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chin Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="chinWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chin Shape</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="chinShape">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Neck Width</label>
+                                    <input type="range" class="slider" min="-100" max="100" value="0" data-category="faceFeatures" data-feature="neckWidth">
+                                    <span class="value-display">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appearance Tab -->
+                    <div id="appearance-tab" class="tab-panel">
+                        <div class="customization-section">
+                            <h3>Hair</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Hair Style</label>
+                                    <input type="range" class="slider" min="0" max="76" value="0" data-feature="hair">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Hair Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="hairColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Hair Highlight</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="hairHighlight">
+                                    <span class="value-display">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="customization-section">
+                            <h3>Facial Hair</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Beard Style</label>
+                                    <input type="range" class="slider" min="-1" max="28" value="-1" data-feature="beard">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Beard Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="beardColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Beard Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="100" data-feature="beardOpacity">
+                                    <span class="value-display">100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="customization-section">
+                            <h3>Eyebrows</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Eyebrow Style</label>
+                                    <input type="range" class="slider" min="-1" max="33" value="-1" data-feature="eyebrows">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Eyebrow Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="eyebrowsColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Eyebrow Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="100" data-feature="eyebrowsOpacity">
+                                    <span class="value-display">100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="customization-section">
+                            <h3>Eyes & Makeup</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Eye Color</label>
+                                    <input type="range" class="slider" min="0" max="31" value="0" data-feature="eyeColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Makeup</label>
+                                    <input type="range" class="slider" min="-1" max="74" value="-1" data-feature="makeup">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Makeup Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="makeupColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Makeup Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="makeupOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Blush</label>
+                                    <input type="range" class="slider" min="-1" max="6" value="-1" data-feature="blush">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Blush Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="blushColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Blush Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="blushOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Lipstick</label>
+                                    <input type="range" class="slider" min="-1" max="9" value="-1" data-feature="lipstick">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Lipstick Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="lipstickColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Lipstick Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="lipstickOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="customization-section">
+                            <h3>Skin Details</h3>
+                            <div class="control-grid">
+                                <div class="control-group">
+                                    <label>Blemishes</label>
+                                    <input type="range" class="slider" min="-1" max="23" value="-1" data-feature="bodyBlemishes">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Blemishes Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="bodyBlemishesOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Aging</label>
+                                    <input type="range" class="slider" min="-1" max="14" value="-1" data-feature="ageing">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Aging Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="ageingOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Complexion</label>
+                                    <input type="range" class="slider" min="-1" max="11" value="-1" data-feature="complexion">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Complexion Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="complexionOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Sun Damage</label>
+                                    <input type="range" class="slider" min="-1" max="10" value="-1" data-feature="sundamage">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Sun Damage Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="sundamageOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Freckles</label>
+                                    <input type="range" class="slider" min="-1" max="17" value="-1" data-feature="freckles">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Freckles Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="frecklesOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Moles</label>
+                                    <input type="range" class="slider" min="-1" max="17" value="-1" data-feature="moles">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Moles Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="molesOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chest Hair</label>
+                                    <input type="range" class="slider" min="-1" max="16" value="-1" data-feature="chesthair">
+                                    <span class="value-display">None</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chest Hair Color</label>
+                                    <input type="range" class="slider" min="0" max="63" value="0" data-feature="chesthairColor">
+                                    <span class="value-display">0</span>
+                                </div>
+                                <div class="control-group">
+                                    <label>Chest Hair Opacity</label>
+                                    <input type="range" class="slider" min="0" max="100" value="0" data-feature="chesthairOpacity">
+                                    <span class="value-display">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clothing Tab -->
+                    <div id="clothing-tab" class="tab-panel">
+                        <div class="customization-section">
+                            <h3>Individual Clothing Components</h3>
+                            <p class="info-text">Customize individual clothing pieces. For quick role-specific outfits, use the Uniforms tab.</p>
+                            
+                            <div class="clothing-components">
+                                <div class="component-group">
+                                    <h4>Tops</h4>
+                                    <div class="control-row">
+                                        <div class="control-group">
+                                            <label>Style</label>
+                                            <input type="range" class="slider" min="0" max="100" value="0" data-component="11" data-type="drawable">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                        <div class="control-group">
+                                            <label>Texture</label>
+                                            <input type="range" class="slider" min="0" max="10" value="0" data-component="11" data-type="texture">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="component-group">
+                                    <h4>Pants</h4>
+                                    <div class="control-row">
+                                        <div class="control-group">
+                                            <label>Style</label>
+                                            <input type="range" class="slider" min="0" max="100" value="0" data-component="4" data-type="drawable">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                        <div class="control-group">
+                                            <label>Texture</label>
+                                            <input type="range" class="slider" min="0" max="10" value="0" data-component="4" data-type="texture">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="component-group">
+                                    <h4>Shoes</h4>
+                                    <div class="control-row">
+                                        <div class="control-group">
+                                            <label>Style</label>
+                                            <input type="range" class="slider" min="0" max="100" value="0" data-component="6" data-type="drawable">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                        <div class="control-group">
+                                            <label>Texture</label>
+                                            <input type="range" class="slider" min="0" max="10" value="0" data-component="6" data-type="texture">
+                                            <span class="value-display">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Uniforms Tab -->
+                    <div id="uniforms-tab" class="tab-panel">
+                        <div class="customization-section">
+                            <h3>Role-Specific Uniform Presets</h3>
+                            <div id="uniform-presets-container" class="uniform-presets">
+                                <!-- Uniform presets will be populated by JavaScript -->
+                            </div>
+                            <div class="uniform-actions">
+                                <button id="preview-uniform-btn" class="action-btn secondary" disabled>Preview</button>
+                                <button id="apply-uniform-btn" class="action-btn primary" disabled>Apply</button>
+                                <button id="cancel-preview-btn" class="action-btn secondary" disabled>Cancel Preview</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Characters Tab -->
+                    <div id="characters-tab" class="tab-panel">
+                        <div class="customization-section">
+                            <h3>Character Management</h3>
+                            <div id="character-slots-container" class="character-slots">
+                                <!-- Character slots will be populated by JavaScript -->
+                            </div>
+                            <div class="character-actions">
+                                <button id="load-character-btn" class="action-btn secondary" disabled>Load Character</button>
+                                <button id="delete-character-btn" class="action-btn danger" disabled>Delete Character</button>
+                                <button id="create-new-btn" class="action-btn primary">Create New</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="character-editor-footer">
+            <button id="save-character-btn" class="action-btn primary large">Save Character</button>
+            <button id="cancel-editor-btn" class="action-btn secondary large">Cancel</button>
+            <button id="reset-character-btn" class="action-btn danger">Reset to Default</button>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- ENHANCED PROGRESSION SYSTEM UI -->
+    <!-- ========================================= -->
+
+    <!-- Enhanced XP Display (Always Visible) -->
+    <div id="xp-level-container" class="xp-level-container">
+        <div class="xp-level-content">
+            <!-- Player Level and Prestige -->
+            <div class="level-display">
+                <div class="level-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="level-info">
+                    <span id="level-text" class="level-number">1</span>
+                    <span id="prestige-indicator" class="prestige-indicator hidden">★</span>
+                </div>
+            </div>
+
+            <!-- XP Progress Bar -->
+            <div class="xp-progress-container">
+                <div class="xp-progress-bar">
+                    <div id="xp-bar-fill" class="xp-bar-fill" style="width: 0%"></div>
+                    <div class="xp-progress-glow"></div>
+                </div>
+                <div class="xp-text-container">
+                    <span id="xp-text" class="xp-text">0 / 100 XP</span>
+                    <span id="xp-gain-indicator" class="xp-gain-indicator hidden">+0</span>
+                </div>
+            </div>
+
+            <!-- Seasonal Event Indicator -->
+            <div id="seasonal-event-indicator" class="seasonal-event-indicator hidden">
+                <i class="fas fa-calendar-star"></i>
+                <span id="seasonal-event-text">Event Active</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- XP Gain Animation -->
+    <div id="xp-gain-animation" class="xp-gain-animation hidden">
+        <div class="xp-gain-content">
+            <i class="fas fa-plus-circle"></i>
+            <span id="xp-gain-amount">+0 XP</span>
+            <span id="xp-gain-reason">Action</span>
+        </div>
+    </div>
+
+    <!-- Level Up Animation -->
+    <div id="level-up-animation" class="level-up-animation hidden">
+        <div class="level-up-content">
+            <div class="level-up-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <h2 class="level-up-title">LEVEL UP!</h2>
+            <p id="level-up-text" class="level-up-text">You reached Level 2!</p>
+            <div class="level-up-effects">
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+                <div class="level-up-particle"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unlock Notification -->
+    <div id="unlock-notification" class="unlock-notification hidden">
+        <div class="unlock-content">
+            <div class="unlock-icon">
+                <i id="unlock-icon-element" class="fas fa-unlock"></i>
+            </div>
+            <div class="unlock-info">
+                <h3 id="unlock-title" class="unlock-title">New Unlock!</h3>
+                <p id="unlock-message" class="unlock-message">You unlocked something awesome!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progression Menu -->
+    <div id="progression-menu" class="progression-menu hidden">
+        <div class="progression-menu-content">
+            <!-- Header -->
+            <div class="progression-header">
+                <h2 class="progression-title">
+                    <i class="fas fa-chart-line"></i>
+                    Progression
+                </h2>
+                <button id="close-progression-btn" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="progression-tabs">
+                <button class="progression-tab active" data-tab="overview">
+                    <i class="fas fa-home"></i>
+                    Overview
+                </button>
+                <button class="progression-tab" data-tab="unlocks">
+                    <i class="fas fa-unlock-alt"></i>
+                    Unlocks
+                </button>
+                <button class="progression-tab" data-tab="abilities">
+                    <i class="fas fa-magic"></i>
+                    Abilities
+                </button>
+                <button class="progression-tab" data-tab="challenges">
+                    <i class="fas fa-trophy"></i>
+                    Challenges
+                </button>
+                <button class="progression-tab" data-tab="prestige">
+                    <i class="fas fa-crown"></i>
+                    Prestige
+                </button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="progression-content">
+                <!-- Overview Tab -->
+                <div id="overview-tab" class="progression-tab-content active">
+                    <div class="overview-grid">
+                        <!-- Player Stats -->
+                        <div class="stats-card">
+                            <h3>Player Statistics</h3>
+                            <div class="stat-item">
+                                <span class="stat-label">Current Level:</span>
+                                <span id="overview-level" class="stat-value">1</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total XP:</span>
+                                <span id="overview-total-xp" class="stat-value">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">XP to Next Level:</span>
+                                <span id="overview-xp-needed" class="stat-value">100</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Prestige Level:</span>
+                                <span id="overview-prestige" class="stat-value">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Visualization -->
+                        <div class="progress-card">
+                            <h3>Level Progress</h3>
+                            <div class="circular-progress">
+                                <svg class="progress-ring" width="120" height="120">
+                                    <circle class="progress-ring-circle" stroke="#333" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                                    <circle id="progress-ring-fill" class="progress-ring-fill" stroke="#00ff88" stroke-width="8" fill="transparent" r="52" cx="60" cy="60"/>
+                                </svg>
+                                <div class="progress-text">
+                                    <span id="progress-percentage">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="activity-card">
+                            <h3>Recent Activity</h3>
+                            <div id="recent-activity-list" class="activity-list">
+                                <div class="activity-item">
+                                    <i class="fas fa-plus-circle activity-icon"></i>
+                                    <span class="activity-text">Welcome to the game!</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unlocks Tab -->
+                <div id="unlocks-tab" class="progression-tab-content">
+                    <div class="unlocks-container">
+                        <div class="unlock-tree">
+                            <h3>Progression Tree</h3>
+                            <div id="unlock-tree-content" class="unlock-tree-content">
+                                <!-- Dynamic unlock tree will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Abilities Tab -->
+                <div id="abilities-tab" class="progression-tab-content">
+                    <div class="abilities-container">
+                        <h3>Special Abilities</h3>
+                        <div id="abilities-grid" class="abilities-grid">
+                            <!-- Dynamic abilities will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Challenges Tab -->
+                <div id="challenges-tab" class="progression-tab-content">
+                    <div class="challenges-container">
+                        <!-- Daily Challenges -->
+                        <div class="challenge-section">
+                            <h3>
+                                <i class="fas fa-sun"></i>
+                                Daily Challenges
+                            </h3>
+                            <div id="daily-challenges" class="challenges-grid">
+                                <!-- Dynamic daily challenges will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Weekly Challenges -->
+                        <div class="challenge-section">
+                            <h3>
+                                <i class="fas fa-calendar-week"></i>
+                                Weekly Challenges
+                            </h3>
+                            <div id="weekly-challenges" class="challenges-grid">
+                                <!-- Dynamic weekly challenges will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prestige Tab -->
+                <div id="prestige-tab" class="progression-tab-content">
+                    <div class="prestige-container">
+                        <div class="prestige-info">
+                            <h3>Prestige System</h3>
+                            <p class="prestige-description">
+                                Reach the maximum level to unlock prestige. Prestiging resets your level but grants powerful bonuses and exclusive titles!
+                            </p>
+                        </div>
+
+                        <div class="prestige-status">
+                            <div class="prestige-current">
+                                <h4>Current Prestige</h4>
+                                <div class="prestige-level-display">
+                                    <span id="current-prestige-level" class="prestige-number">0</span>
+                                    <span id="current-prestige-title" class="prestige-title">Rookie</span>
+                                </div>
+                            </div>
+
+                            <div class="prestige-requirements">
+                                <h4>Requirements</h4>
+                                <div class="requirement-item">
+                                    <span class="requirement-label">Level Required:</span>
+                                    <span class="requirement-value">50</span>
+                                </div>
+                                <div class="requirement-item">
+                                    <span class="requirement-label">Current Level:</span>
+                                    <span id="prestige-current-level" class="requirement-value">1</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prestige-rewards">
+                            <h4>Next Prestige Rewards</h4>
+                            <div id="next-prestige-rewards" class="rewards-list">
+                                <!-- Dynamic prestige rewards will be populated here -->
+                            </div>
+                        </div>
+
+                        <div class="prestige-action">
+                            <button id="prestige-btn" class="prestige-button disabled">
+                                <i class="fas fa-crown"></i>
+                                Prestige Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ability Activation UI -->
+    <div id="ability-bar" class="ability-bar">
+        <div class="ability-slots">
+            <div class="ability-slot" data-slot="1">
+                <div class="ability-icon">
+                    <i class="fas fa-question"></i>
+                </div>
+                <div class="ability-cooldown">
+                    <div class="cooldown-overlay"></div>
+                    <span class="cooldown-text">Z</span>
+                </div>
+            </div>
+            <div class="ability-slot" data-slot="2">
+                <div class="ability-icon">
+                    <i class="fas fa-question"></i>
+                </div>
+                <div class="ability-cooldown">
+                    <div class="cooldown-overlay"></div>
+                    <span class="cooldown-text">X</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Challenge Progress Notification -->
+    <div id="challenge-progress-notification" class="challenge-notification hidden">
+        <div class="challenge-content">
+            <div class="challenge-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <div class="challenge-info">
+                <h4 id="challenge-name" class="challenge-name">Challenge Name</h4>
+                <div class="challenge-progress-bar">
+                    <div id="challenge-progress-fill" class="challenge-progress-fill"></div>
+                </div>
+                <span id="challenge-progress-text" class="challenge-progress-text">0/10</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seasonal Event Banner -->
+    <div id="seasonal-event-banner" class="seasonal-event-banner hidden">
+        <div class="event-banner-content">
+            <div class="event-icon">
+                <i class="fas fa-calendar-star"></i>
+            </div>
+            <div class="event-info">
+                <h3 id="event-name" class="event-name">Special Event</h3>
+                <p id="event-description" class="event-description">Event description here</p>
+            </div>
+            <button id="close-event-banner" class="close-event-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Prestige Animation -->
+    <div id="prestige-animation" class="prestige-animation hidden">
+        <div class="prestige-content">
+            <div class="prestige-crown">
+                <i class="fas fa-crown"></i>
+            </div>
+            <h2 class="prestige-title">PRESTIGE!</h2>
+            <p id="prestige-text" class="prestige-text">You achieved Prestige 1!</p>
+            <div class="prestige-effects">
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+                <div class="prestige-particle"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Notification System -->
+    <div id="notification-container" class="notification-container">
+        <!-- Dynamic notifications will be added here -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts.js"></script>
 </body>
 </html>

@@ -29,6 +29,34 @@ function tablelength(T)
     return count
 end
 
+-- Helper function to get player identifiers safely
+local function GetSafePlayerIdentifiers(playerId)
+    return GetPlayerIdentifiers(playerId)
+end
+
+-- Function to check if a player is an admin
+function IsPlayerAdmin(playerId)
+    local playerIdentifiers = GetSafePlayerIdentifiers(playerId)
+    if not playerIdentifiers then return false end
+
+    -- Ensure Config and Config.Admins are loaded and available
+    if not Config or type(Config.Admins) ~= "table" then
+        print("Error: Config.Admins is not loaded or not a table. Ensure config.lua defines it correctly.")
+        return false
+    end
+
+    for _, identifier in ipairs(playerIdentifiers) do
+        -- Check if the player's identifier exists as a key in the Config.Admins table
+        if Config.Admins[identifier] then
+            return true
+        end
+    end
+    return false
+end
+
+-- Debug print to confirm function is loaded
+print("[CNR_SERVER_DEBUG] IsPlayerAdmin function has been defined successfully")
+
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
     local minimalInv = {}
@@ -324,8 +352,8 @@ AddEventHandler('cnr:accessContrabandDealer', function()
     TriggerClientEvent('cnr:openContrabandStoreUI', source, contrabandItems)
 end)
 
--- Table to store last report times for specific crimes per player
-local clientReportCooldowns = {}
+-- OLD: Table to store last report times for specific crimes per player (no longer used)
+-- local clientReportCooldowns = {} -- DISABLED - replaced by server-side detection
 local activeSubdues = {} -- Tracks active subdue attempts: activeSubdues[robberId] = { copId = copId, expiryTimer = timer }
 
 -- Forward declaration for functions that might be called before definition due to event handlers
@@ -813,6 +841,23 @@ SetPlayerRole = function(playerId, role, skipNotify)
     if role == "cop" then
         SafeSetByPlayerId(copsOnDuty, pIdNum, true)
         SafeRemoveByPlayerId(robbersActive, pIdNum)
+        
+        -- Clear wanted level when switching to cop (cops can't be wanted)
+        if wantedPlayers[pIdNum] and wantedPlayers[pIdNum].wantedLevel > 0 then
+            wantedPlayers[pIdNum] = { wantedLevel = 0, stars = 0, lastCrimeTime = 0, crimesCommitted = {} }
+            SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+            SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, 0, 0)
+            SafeTriggerClientEvent('cnr:hideWantedNotification', pIdNum)
+            Log(string.format("Cleared wanted level for player %s who switched to cop role", pIdNum), "info")
+            
+            -- Notify all cops that this player is no longer wanted
+            for copId, _ in pairs(copsOnDuty) do
+                if GetPlayerName(copId) ~= nil then
+                    SafeTriggerClientEvent('cnr:updatePoliceBlip', copId, pIdNum, nil, 0, false)
+                end
+            end
+        end
+        
         -- player.Functions.SetJob("leo", 0) -- Placeholder for framework integration
         SafeTriggerClientEvent('cnr:setPlayerRole', pIdNum, "cop")
         if not skipNotify then SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Role", "You are now a Cop."} }) end
@@ -863,7 +908,8 @@ local function CalculateLevel(xp, role)
     return math.min(currentLevel, (Config.MaxLevel or 10))
 end
 
-AddXP = function(playerId, amount, type)
+-- Enhanced AddXP function that integrates with the new progression system
+AddXP = function(playerId, amount, type, reason)
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
         Log("AddXP: Invalid player ID " .. tostring(playerId), "error")
@@ -875,6 +921,14 @@ AddXP = function(playerId, amount, type)
         Log("AddXP: Player " .. (pIdNum or "unknown") .. " data not init.", "error")
         return
     end
+    
+    -- Check if progression system is available and use it
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].AddXP then
+        exports['cops-and-robbers'].AddXP(pIdNum, amount, type, reason)
+        return
+    end
+    
+    -- Fallback to original system if progression system is not available
     if type and pData.role ~= type and type ~= "general" then return end
 
     pData.xp = pData.xp + amount
@@ -891,6 +945,11 @@ AddXP = function(playerId, amount, type)
         SafeTriggerClientEvent('cnr:xpGained', pIdNum, amount, pData.xp)
         Log(string.format("Player %s gained %d XP (Total: %d, Role: %s)", pIdNum, amount, pData.xp, pData.role))
     end
+    
+    -- Update XP bar display
+    local xpForNextLevel = CalculateXpForNextLevel(newLevel, pData.role)
+    SafeTriggerClientEvent('updateXPBar', pIdNum, pData.xp, newLevel, xpForNextLevel, amount)
+    
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
@@ -1195,7 +1254,9 @@ ReduceWantedLevel = function(playerId, amount)
             end
         end
         wantedPlayers[pIdNum].stars = newStars
-        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])        Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
+        SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum])
+        SafeTriggerClientEvent('cops_and_robbers:updateWantedDisplay', pIdNum, newStars, wantedPlayers[pIdNum].wantedLevel)
+        Log(string.format("Reduced wanted for %s. New Lvl: %d, Stars: %d", pIdNum, wantedPlayers[pIdNum].wantedLevel, newStars))
         if wantedPlayers[pIdNum].wantedLevel == 0 then
             SafeTriggerClientEvent('cnr:hideWantedNotification', pIdNum)
             SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^2Wanted", "You are no longer wanted."} })
@@ -1211,16 +1272,341 @@ ReduceWantedLevel = function(playerId, amount)
     end
 end
 
-CreateThread(function() -- Wanted level decay
+CreateThread(function() -- Wanted level decay with cop sight detection
     while true do Wait(Config.WantedSettings.decayIntervalMs or 30000)
         local currentTime = os.time()
-        for playerIdStr, data in pairs(wantedPlayers) do local playerId = tonumber(playerIdStr)
-            if data.wantedLevel > 0 and (currentTime - data.lastCrimeTime) > (Config.WantedSettings.noCrimeCooldownMs / 1000) then
-                ReduceWantedLevel(playerId, Config.WantedSettings.decayRatePoints)
+        for playerIdStr, data in pairs(wantedPlayers) do 
+            local playerId = tonumber(playerIdStr)
+            -- Only apply decay to online robbers
+            if GetPlayerName(playerId) ~= nil and IsPlayerRobber(playerId) then
+                if data.wantedLevel > 0 and (currentTime - data.lastCrimeTime) > (Config.WantedSettings.noCrimeCooldownMs / 1000) then
+                    -- Check if any cops are nearby (cop sight detection)
+                    local playerPed = GetPlayerPed(playerId)
+                    local canDecay = true
+                    
+                    if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                        local playerCoords = GetEntityCoords(playerPed)
+                        local copSightDistance = Config.WantedSettings.copSightDistance or 50.0
+                        
+                        -- Check distance to all online cops
+                        for copId, _ in pairs(copsOnDuty) do
+                            if GetPlayerName(copId) ~= nil then -- Cop is online
+                                local copPed = GetPlayerPed(copId)
+                                if copPed and copPed > 0 and DoesEntityExist(copPed) then
+                                    local copCoords = GetEntityCoords(copPed)
+                                    local distance = #(playerCoords - copCoords)
+                                    
+                                    if distance <= copSightDistance then
+                                        canDecay = false
+                                        -- Update last cop sight time
+                                        data.lastCopSightTime = currentTime
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Check cop sight cooldown
+                        if canDecay and data.lastCopSightTime then
+                            local timeSinceLastSight = currentTime - data.lastCopSightTime
+                            if timeSinceLastSight < (Config.WantedSettings.copSightCooldownMs / 1000) then
+                                canDecay = false
+                            end
+                        end
+                    end
+                    
+                    if canDecay then
+                        ReduceWantedLevel(playerId, Config.WantedSettings.decayRatePoints)
+                    end
+                end
+            elseif GetPlayerName(playerId) == nil then
+                -- Player is offline, keep their wanted level but don't decay it
+                -- This preserves wanted levels across disconnections
+            elseif not IsPlayerRobber(playerId) then
+                -- Player switched to cop, clear their wanted level immediately
+                wantedPlayers[playerIdStr] = nil
+                Log(string.format("Cleared wanted level for player %s who switched from robber to cop", playerId), "info")
             end
         end
     end
 end)
+
+-- Server-side crime detection for robbers only
+local playerSpeedingData = {} -- Track speeding state per player
+local playerVehicleData = {} -- Track vehicle damage and collisions
+
+CreateThread(function()
+    while true do
+        Wait(1000) -- Check every second
+        
+        for playerId, _ in pairs(robbersActive) do
+            if GetPlayerName(playerId) ~= nil then -- Player is online
+                local playerPed = GetPlayerPed(playerId)
+                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                    local vehicle = GetVehiclePedIsIn(playerPed, false)
+                    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                        local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
+                        local currentTime = os.time()
+                        local vehicleClass = GetVehicleClass(vehicle)
+                        
+                        -- Exclude aircraft (planes/helicopters) and boats from speeding detection
+                        local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
+                        local isBoat = (vehicleClass == 14) -- Boats
+                        local speedLimit = Config.SpeedLimitMph or 60.0
+                        
+                        -- Initialize player data if not exists
+                        if not playerSpeedingData[playerId] then
+                            playerSpeedingData[playerId] = {
+                                isCurrentlySpeeding = false,
+                                speedingStartTime = 0,
+                                lastSpeedingViolation = 0
+                            }
+                        end
+                        
+                        if not playerVehicleData[playerId] then
+                            playerVehicleData[playerId] = {
+                                lastVehicle = vehicle,
+                                lastVehicleHealth = GetVehicleEngineHealth(vehicle),
+                                lastCollisionCheck = currentTime
+                            }
+                        end
+                        
+                        local speedData = playerSpeedingData[playerId]
+                        local vehicleData = playerVehicleData[playerId]
+                        
+                        -- Check for speeding (increase wanted level) only for ground vehicles
+                        if not isAircraft and not isBoat and speed > speedLimit then
+                            if not speedData.isCurrentlySpeeding then
+                                -- Player just started speeding, start the timer
+                                speedData.speedingStartTime = currentTime
+                                speedData.isCurrentlySpeeding = true
+                            elseif (currentTime - speedData.speedingStartTime) > 5 and (currentTime - speedData.lastSpeedingViolation) > 10 then
+                                -- Player has been speeding for more than 5 seconds and cooldown period has passed
+                                speedData.lastSpeedingViolation = currentTime
+                                UpdatePlayerWantedLevel(playerId, "speeding")
+                                Log(string.format("Player %s caught speeding at %.1f mph (limit: %.1f mph)", playerId, speed, speedLimit), "info")
+                            end
+                        else
+                            -- Player is no longer speeding or in exempt vehicle
+                            speedData.isCurrentlySpeeding = false
+                            speedData.speedingStartTime = 0
+                        end
+                        
+                        -- Check for vehicle damage (potential hit and run)
+                        if vehicleData.lastVehicle == vehicle then
+                            local currentHealth = GetVehicleEngineHealth(vehicle)
+                            if currentHealth < vehicleData.lastVehicleHealth - 50 and speed > 20 then -- Significant damage while moving
+                                if (currentTime - vehicleData.lastCollisionCheck) > 3 then -- Cooldown to prevent spam
+                                    vehicleData.lastCollisionCheck = currentTime
+                                    UpdatePlayerWantedLevel(playerId, "hit_and_run")
+                                    Log(string.format("Player %s involved in hit and run (vehicle damage detected)", playerId), "info")
+                                end
+                            end
+                            vehicleData.lastVehicleHealth = currentHealth
+                        else
+                            -- Player switched vehicles, update tracking
+                            vehicleData.lastVehicle = vehicle
+                            vehicleData.lastVehicleHealth = GetVehicleEngineHealth(vehicle)
+                        end
+                    else
+                        -- Player not in vehicle, reset speeding state
+                        if playerSpeedingData[playerId] then
+                            playerSpeedingData[playerId].isCurrentlySpeeding = false
+                            playerSpeedingData[playerId].speedingStartTime = 0
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Server-side weapon discharge detection for robbers
+RegisterNetEvent('cnr:weaponFired')
+AddEventHandler('cnr:weaponFired', function(weaponHash, coords)
+    local src = source
+    if not IsPlayerRobber(src) then return end -- Only apply to robbers
+    
+    -- Check if player is in a safe zone or other restricted area
+    local playerPed = GetPlayerPed(src)
+    if not playerPed or playerPed <= 0 then return end
+    
+    -- Add wanted level for weapons discharge
+    UpdatePlayerWantedLevel(src, "weapons_discharge")
+    Log(string.format("Player %s fired weapon (Hash: %s) - wanted level increased", src, weaponHash), "info")
+end)
+
+-- Server-side restricted area monitoring for robbers
+local playerRestrictedAreaData = {} -- Track which areas players have entered
+
+CreateThread(function()
+    while true do
+        Wait(2000) -- Check every 2 seconds
+        
+        if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
+            for playerId, _ in pairs(robbersActive) do
+                if GetPlayerName(playerId) ~= nil then -- Player is online
+                    local playerPed = GetPlayerPed(playerId)
+                    if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                        local playerCoords = GetEntityCoords(playerPed)
+                        
+                        -- Initialize player restricted area data if not exists
+                        if not playerRestrictedAreaData[playerId] then
+                            playerRestrictedAreaData[playerId] = {}
+                        end
+                        
+                        for _, area in ipairs(Config.RestrictedAreas) do
+                            local distance = #(playerCoords - area.center)
+                            local areaKey = area.name or "unknown"
+                            
+                            if distance <= area.radius then
+                                -- Player is in restricted area
+                                if not playerRestrictedAreaData[playerId][areaKey] then
+                                    -- First time entering this area
+                                    playerRestrictedAreaData[playerId][areaKey] = true
+                                    
+                                    -- Check if this area applies to robbers (ifNotRobber = false or nil)
+                                    if not area.ifNotRobber then
+                                        -- Show warning message
+                                        if area.message then
+                                            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                                                args = {"^3Restricted Area", area.message} 
+                                            })
+                                        end
+                                        
+                                        -- Add wanted points if configured
+                                        if area.wantedPoints and area.wantedPoints > 0 then
+                                            UpdatePlayerWantedLevel(playerId, "restricted_area_entry")
+                                            Log(string.format("Player %s entered restricted area: %s - wanted level increased", playerId, areaKey), "info")
+                                        end
+                                    end
+                                end
+                            else
+                                -- Player left the area
+                                if playerRestrictedAreaData[playerId][areaKey] then
+                                    playerRestrictedAreaData[playerId][areaKey] = nil
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Server-side assault and murder detection for robbers
+RegisterNetEvent('cnr:playerDamaged')
+AddEventHandler('cnr:playerDamaged', function(targetPlayerId, damage, weaponHash, isFatal)
+    local src = source
+    if not IsPlayerRobber(src) then return end -- Only apply to robbers
+    if src == targetPlayerId then return end -- Don't count self-damage
+    
+    local targetData = GetCnrPlayerData(targetPlayerId)
+    if not targetData then return end
+    
+    if isFatal then
+        -- Murder
+        if targetData.role == "cop" then
+            UpdatePlayerWantedLevel(src, "murder_cop")
+            Log(string.format("Player %s murdered cop %s - high wanted level increase", src, targetPlayerId), "warn")
+        else
+            UpdatePlayerWantedLevel(src, "murder_civilian")
+            Log(string.format("Player %s murdered civilian %s - wanted level increased", src, targetPlayerId), "info")
+        end
+    else
+        -- Assault
+        if targetData.role == "cop" then
+            UpdatePlayerWantedLevel(src, "assault_cop")
+            Log(string.format("Player %s assaulted cop %s - wanted level increased", src, targetPlayerId), "info")
+        else
+            UpdatePlayerWantedLevel(src, "assault_civilian")
+            Log(string.format("Player %s assaulted civilian %s - wanted level increased", src, targetPlayerId), "info")
+        end
+    end
+end)
+
+-- Test command for wanted system (admin only)
+RegisterCommand('testwanted', function(source, args, rawCommand)
+    local src = source
+    if src == 0 then return end -- Console command not supported
+    
+    local pData = GetCnrPlayerData(src)
+    if not pData or not pData.isAdmin then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You don't have permission to use this command."} })
+        return
+    end
+    
+    if not args[1] then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^3Usage", "/testwanted <crime_key> - Test wanted level system"} })
+        return
+    end
+    
+    local crimeKey = args[1]
+    if not Config.WantedSettings.crimes[crimeKey] then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Invalid crime key. Check config.lua for valid crimes."} })
+        return
+    end
+    
+    if not IsPlayerRobber(src) then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "You must be a robber to test the wanted system."} })
+        return
+    end
+    
+    UpdatePlayerWantedLevel(src, crimeKey)
+    SafeTriggerClientEvent('chat:addMessage', src, { args = {"^2Test", "Wanted level updated for crime: " .. crimeKey} })
+end, false)
+
+-- Command for cops to report crimes they witness
+RegisterCommand('reportcrime', function(source, args, rawCommand)
+    local src = source
+    if src == 0 then return end -- Console command not supported
+    
+    if not IsPlayerCop(src) then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Only cops can report crimes."} })
+        return
+    end
+    
+    if not args[1] or not args[2] then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^3Usage", "/reportcrime <player_id> <crime_key>"} })
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^3Examples", "/reportcrime 5 speeding, /reportcrime 12 weapons_discharge"} })
+        return
+    end
+    
+    local targetId = tonumber(args[1])
+    local crimeKey = args[2]
+    
+    if not targetId or targetId <= 0 then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Invalid player ID."} })
+        return
+    end
+    
+    if not GetPlayerName(targetId) then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Player not found or offline."} })
+        return
+    end
+    
+    if not IsPlayerRobber(targetId) then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Target player is not a robber."} })
+        return
+    end
+    
+    if not Config.WantedSettings.crimes[crimeKey] then
+        SafeTriggerClientEvent('chat:addMessage', src, { args = {"^1Error", "Invalid crime key. Available crimes: speeding, weapons_discharge, assault_civilian, etc."} })
+        return
+    end
+    
+    -- Report the crime
+    UpdatePlayerWantedLevel(targetId, crimeKey)
+    
+    local copName = GetPlayerName(src) or "Unknown Officer"
+    local targetName = GetPlayerName(targetId) or "Unknown"
+    
+    SafeTriggerClientEvent('chat:addMessage', src, { args = {"^2Crime Reported", string.format("You reported %s (ID: %d) for %s", targetName, targetId, crimeKey)} })
+    SafeTriggerClientEvent('chat:addMessage', targetId, { args = {"^1Crime Reported", string.format("Officer %s reported you for %s", copName, crimeKey)} })
+    
+    Log(string.format("Officer %s (ID: %d) reported %s (ID: %d) for crime: %s", copName, src, targetName, targetId, crimeKey), "info")
+end, false)
 
 -- =================================================================================================
 -- JAIL SYSTEM
@@ -1839,6 +2225,9 @@ AddEventHandler('playerDropped', function(reason)
     wantedPlayers[src] = nil
     jail[src] = nil
     activeBounties[src] = nil
+    playerSpeedingData[src] = nil -- Clean up speeding detection data
+    playerVehicleData[src] = nil -- Clean up vehicle tracking data
+    playerRestrictedAreaData[src] = nil -- Clean up restricted area tracking data
     -- ... add other tables as needed
 end)
 
@@ -2075,6 +2464,310 @@ function AddItemToPlayerInventory(playerId, itemId, quantity, itemDetails)
     return true, "Item added/updated"
 end
 
+-- ==========================================================================
+-- ENHANCED PROGRESSION SYSTEM INTEGRATION
+-- ==========================================================================
+
+-- Event handler for progression system requests
+RegisterNetEvent('cnr:requestProgressionData')
+AddEventHandler('cnr:requestProgressionData', function()
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    -- Send current progression data to client
+    local progressionData = {
+        currentXP = pData.xp or 0,
+        currentLevel = pData.level or 1,
+        xpForNextLevel = CalculateXpForNextLevel(pData.level or 1, pData.role),
+        prestigeInfo = pData.prestige or { level = 0, title = "Rookie" },
+        role = pData.role
+    }
+    
+    SafeTriggerClientEvent('cnr:progressionDataResponse', playerId, progressionData)
+end)
+
+-- Event handler for ability usage
+RegisterNetEvent('cnr:useAbility')
+AddEventHandler('cnr:useAbility', function(abilityId)
+    local playerId = source
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    -- Check if progression system export is available
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].HasPlayerAbility then
+        if exports['cops-and-robbers'].HasPlayerAbility(playerId, abilityId) then
+            -- Trigger ability effect based on ability type
+            TriggerAbilityEffect(playerId, abilityId)
+        else
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^1Error", "You don't have this ability unlocked!"} 
+            })
+        end
+    end
+end)
+
+-- Event handler for prestige requests
+RegisterNetEvent('cnr:requestPrestige')
+AddEventHandler('cnr:requestPrestige', function()
+    local playerId = source
+    
+    -- Check if progression system export is available
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].HandlePrestige then
+        local success, message = exports['cops-and-robbers'].HandlePrestige(playerId)
+        if not success then
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^1Prestige Error", message} 
+            })
+        end
+    else
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^1Error", "Prestige system is not available"} 
+        })
+    end
+end)
+
+-- Function to trigger ability effects
+function TriggerAbilityEffect(playerId, abilityId)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    if abilityId == "smoke_bomb" then
+        -- Create smoke effect around player
+        SafeTriggerClientEvent('cnr:createSmokeEffect', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Smoke bomb deployed!"} 
+        })
+        
+    elseif abilityId == "adrenaline_rush" then
+        -- Give temporary speed boost
+        SafeTriggerClientEvent('cnr:applyAdrenalineRush', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Adrenaline rush activated!"} 
+        })
+        
+    elseif abilityId == "ghost_mode" then
+        -- Temporary invisibility to security systems
+        SafeTriggerClientEvent('cnr:activateGhostMode', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Ghost mode activated!"} 
+        })
+        
+    elseif abilityId == "master_escape" then
+        -- Instantly reduce wanted level
+        if pData.wantedLevel and pData.wantedLevel > 2 then
+            pData.wantedLevel = math.max(0, pData.wantedLevel - 2)
+            SafeTriggerClientEvent('cnr:updateWantedLevel', playerId, pData.wantedLevel)
+            SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                args = {"^3Ability", "Master escape used! Wanted level reduced!"} 
+            })
+        end
+        
+    elseif abilityId == "backup_call" then
+        -- Call for police backup
+        SafeTriggerClientEvent('cnr:callBackup', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Backup called!"} 
+        })
+        
+    elseif abilityId == "tactical_scan" then
+        -- Scan area for criminals
+        SafeTriggerClientEvent('cnr:performTacticalScan', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Tactical scan activated!"} 
+        })
+        
+    elseif abilityId == "crowd_control" then
+        -- Advanced crowd control
+        SafeTriggerClientEvent('cnr:activateCrowdControl', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Crowd control measures deployed!"} 
+        })
+        
+    elseif abilityId == "detective_mode" then
+        -- Enhanced investigation
+        SafeTriggerClientEvent('cnr:activateDetectiveMode', playerId)
+        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+            args = {"^3Ability", "Detective mode activated!"} 
+        })
+    end
+end
+
+-- Enhanced XP reward functions with progression system integration
+function RewardArrestXP(playerId, suspectWantedLevel)
+    local xpAmount = 0
+    local reason = ""
+    
+    if suspectWantedLevel >= 4 then
+        xpAmount = Config.XPActionsCop.successful_arrest_high_wanted or 50
+        reason = "high_wanted_arrest"
+    elseif suspectWantedLevel >= 2 then
+        xpAmount = Config.XPActionsCop.successful_arrest_medium_wanted or 35
+        reason = "medium_wanted_arrest"
+    else
+        xpAmount = Config.XPActionsCop.successful_arrest_low_wanted or 20
+        reason = "low_wanted_arrest"
+    end
+    
+    AddXP(playerId, xpAmount, "cop", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "arrest", 1)
+    end
+end
+
+function RewardHeistXP(playerId, heistType, success)
+    if not success then return end
+    
+    local xpAmount = 0
+    local reason = ""
+    
+    if heistType == "bank_major" then
+        xpAmount = Config.XPActionsRobber.successful_bank_heist_major or 100
+        reason = "major_bank_heist"
+    elseif heistType == "bank_minor" then
+        xpAmount = Config.XPActionsRobber.successful_bank_heist_minor or 50
+        reason = "minor_bank_heist"
+    elseif heistType == "store_large" then
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_large or 35
+        reason = "large_store_robbery"
+    elseif heistType == "store_medium" then
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_medium or 25
+        reason = "medium_store_robbery"
+    else
+        xpAmount = Config.XPActionsRobber.successful_store_robbery_small or 15
+        reason = "small_store_robbery"
+    end
+    
+    AddXP(playerId, xpAmount, "robber", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "heist", 1)
+    end
+end
+
+function RewardEscapeXP(playerId, wantedLevel)
+    local xpAmount = 0
+    local reason = ""
+    
+    if wantedLevel >= 4 then
+        xpAmount = Config.XPActionsRobber.escape_from_cops_high_wanted or 30
+        reason = "high_wanted_escape"
+    elseif wantedLevel >= 2 then
+        xpAmount = Config.XPActionsRobber.escape_from_cops_medium_wanted or 20
+        reason = "medium_wanted_escape"
+    else
+        xpAmount = 10
+        reason = "low_wanted_escape"
+    end
+    
+    AddXP(playerId, xpAmount, "robber", reason)
+    
+    -- Update challenge progress
+    if exports['cops-and-robbers'] and exports['cops-and-robbers'].UpdateChallengeProgress then
+        exports['cops-and-robbers'].UpdateChallengeProgress(playerId, "escape", 1)
+    end
+end
+
+-- Admin command to start seasonal events
+RegisterCommand('start_event', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
+    if source == 0 or IsPlayerAdmin(source) then
+        local eventName = args[1]
+        if eventName then
+            if exports['cops-and-robbers'] and exports['cops-and-robbers'].StartSeasonalEvent then
+                local success = exports['cops-and-robbers'].StartSeasonalEvent(eventName)
+                if success then
+                    print(string.format("[CNR_ADMIN] Started seasonal event: %s", eventName))
+                else
+                    print(string.format("[CNR_ADMIN] Failed to start seasonal event: %s", eventName))
+                end
+            end
+        else
+            print("[CNR_ADMIN] Usage: /start_event <event_name>")
+        end
+    end
+end, false)
+
+-- Admin command to give XP
+RegisterCommand('give_xp', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
+    if source == 0 or IsPlayerAdmin(source) then
+        local targetId = tonumber(args[1])
+        local amount = tonumber(args[2])
+        local reason = args[3] or "admin_grant"
+        
+        if targetId and amount then
+            AddXP(targetId, amount, "general", reason)
+            print(string.format("[CNR_ADMIN] Gave %d XP to player %d (Reason: %s)", amount, targetId, reason))
+            
+            if source ~= 0 then
+                SafeTriggerClientEvent('chat:addMessage', source, { 
+                    args = {"^2Admin", string.format("Gave %d XP to player %d", amount, targetId)} 
+                })
+            end
+        else
+            print("[CNR_ADMIN] Usage: /give_xp <player_id> <amount> [reason]")
+        end
+    end
+end, false)
+
+-- Admin command to set player level
+RegisterCommand('set_level', function(source, args, rawCommand)
+    -- Debug check
+    if not IsPlayerAdmin then
+        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        return
+    end
+    if source == 0 or IsPlayerAdmin(source) then
+        local targetId = tonumber(args[1])
+        local level = tonumber(args[2])
+        
+        if targetId and level then
+            local pData = GetCnrPlayerData(targetId)
+            if pData then
+                local totalXPNeeded = 0
+                for i = 1, level - 1 do
+                    totalXPNeeded = totalXPNeeded + (Config.XPTable[i] or 1000)
+                end
+                
+                pData.xp = totalXPNeeded
+                pData.level = level
+                
+                -- Apply perks for new level
+                ApplyPerks(targetId, level, pData.role)
+                
+                -- Update client
+                local pDataForBasicInfo = shallowcopy(pData)
+                pDataForBasicInfo.inventory = nil
+                SafeTriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+                
+                print(string.format("[CNR_ADMIN] Set player %d to level %d", targetId, level))
+                
+                if source ~= 0 then
+                    SafeTriggerClientEvent('chat:addMessage', source, { 
+                        args = {"^2Admin", string.format("Set player %d to level %d", targetId, level)} 
+                    })
+                end
+            end
+        else
+            print("[CNR_ADMIN] Usage: /set_level <player_id> <level>")
+        end
+    end
+end, false)
+
+Log("Enhanced Progression System integration loaded", "info")
+
 function RemoveItemFromPlayerInventory(playerId, itemId, quantity)
     local pData = GetCnrPlayerData(playerId)
     if not pData or not pData.inventory or not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
@@ -2254,7 +2947,15 @@ AddEventHandler('cnr:requestRoleSelection', function()
     TriggerClientEvent('cnr:showRoleSelection', source)
 end)
 
--- Register the crime reporting event
+-- OLD CLIENT-SIDE CRIME REPORTING EVENT REMOVED
+-- This has been replaced by server-side crime detection systems:
+-- - cnr:weaponFired for weapon discharge detection
+-- - cnr:playerDamaged for assault/murder detection
+-- - Server-side threads for speeding, hit-and-run, and restricted area detection
+-- - /reportcrime command for manual cop reporting
+
+--[[
+-- OLD: Register the crime reporting event (DISABLED)
 RegisterNetEvent('cops_and_robbers:reportCrime')
 AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     local src = source
@@ -2291,4 +2992,5 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     -- Update wanted level for this crime
     UpdatePlayerWantedLevel(src, crimeType)
 end)
+--]]
 

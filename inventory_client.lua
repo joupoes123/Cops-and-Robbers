@@ -331,17 +331,31 @@ function EquipInventoryWeapons()
 
                     -- Verify the weapon was equipped with retries
                     local hasWeapon = false
-                    local maxRetries = 3
+                    local maxRetries = 5
                     local retryCount = 0
                     
+                    -- Initial check
+                    hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                    
                     while retryCount < maxRetries and not hasWeapon do
+                        retryCount = retryCount + 1
+                        Citizen.Wait(300) -- Increased wait time
+                        
+                        -- Re-attempt giving the weapon with different parameters
+                        GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
+                        Citizen.Wait(100)
+                        SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        Citizen.Wait(100)
+                        
+                        -- Check again
                         hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
-                        if not hasWeapon then
-                            retryCount = retryCount + 1
-                            Citizen.Wait(200)
-                            -- Re-attempt giving the weapon
-                            GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
-                            SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        
+                        -- If still not working, try with different approach
+                        if not hasWeapon and retryCount >= 3 then
+                            -- Force equip the weapon
+                            SetCurrentPedWeapon(playerPed, weaponHash, true)
+                            Citizen.Wait(100)
+                            hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
                         end
                     end
                       if hasWeapon then

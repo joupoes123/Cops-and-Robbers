@@ -16,13 +16,17 @@ server_scripts {
     'safe_utils.lua',    -- Safe utility functions.
     'server.lua',       -- Core server logic.
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'inventory_server.lua'
+    'inventory_server.lua',
+    'character_editor_server.lua', -- Character editor server logic
+    'progression_server.lua' -- Enhanced progression system server logic
 }
 
 -- Define client-side scripts.
 client_scripts {
     'client.lua',        -- Core client logic and event handling.
-    'inventory_client.lua'
+    'inventory_client.lua',
+    'character_editor_client.lua', -- Character editor client logic
+    'progression_client.lua' -- Enhanced progression system client logic
 }
 
 -- Define the NUI page.
@@ -45,3 +49,11 @@ dependencies {
 
 export 'UpdateFullInventory'
 export 'EquipInventoryWeapons'
+
+-- Network events
+server_export 'GetCharacterForRoleSelection'
+
+-- Safe network events
+server_events {
+    'cnr:receiveCharacterForRole'
+}
