@@ -843,7 +843,15 @@ function loadSellGridItems() {
         }
     }).catch(error => {
         console.error('[CNR_NUI] Error loading sell inventory:', error);
-        sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); padding: 40px;">Error loading inventory. Please try again.<br><small>Error: ' + error.message + '</small></div>';
+        // Create error message safely to prevent XSS
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.8); padding: 40px;';
+        errorDiv.innerHTML = 'Error loading inventory. Please try again.<br><small>Error: </small>';
+        const errorSpan = document.createElement('span');
+        errorSpan.textContent = error.message; // Use textContent to prevent XSS
+        errorDiv.querySelector('small').appendChild(errorSpan);
+        sellGrid.innerHTML = '';
+        sellGrid.appendChild(errorDiv);
     });
 }
 
@@ -4167,12 +4175,21 @@ class ProgressionSystem {
             'info': 'fas fa-info-circle'
         };
         
-        notification.innerHTML = `
-            <div class="notification-content">
-                <i class="${iconMap[type] || 'fas fa-info-circle'} notification-icon"></i>
-                <span class="notification-text">${message}</span>
-            </div>
-        `;
+        // Create elements safely to prevent XSS
+        const notificationContent = document.createElement('div');
+        notificationContent.className = 'notification-content';
+
+        const notificationIcon = document.createElement('i');
+        notificationIcon.className = iconMap[type] || 'fas fa-info-circle';
+        notificationIcon.classList.add('notification-icon');
+
+        const notificationText = document.createElement('span');
+        notificationText.className = 'notification-text';
+        notificationText.textContent = message; // Use textContent to prevent XSS
+
+        notificationContent.appendChild(notificationIcon);
+        notificationContent.appendChild(notificationText);
+        notification.appendChild(notificationContent);
         
         container.appendChild(notification);
         
