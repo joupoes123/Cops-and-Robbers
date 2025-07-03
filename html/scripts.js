@@ -14,10 +14,11 @@ let characterEditorData = {
     isOpen: false,
     currentRole: null,
     currentSlot: 1,
-    characterData: null,
+    characterData: {},
     uniformPresets: [],
     customizationRanges: {},
-    selectedUniformPreset: null
+    selectedUniformPreset: null,
+    selectedCharacterSlot: null
 };
 
 // Jail Timer UI elements
@@ -2401,15 +2402,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Character Editor Functions
 // ====================================================================
 
-let characterEditorData = {
-    isOpen: false,
-    currentRole: null,
-    currentSlot: 1,
-    characterData: {},
-    uniformPresets: [],
-    selectedUniformPreset: null,
-    selectedCharacterSlot: null
-};
+// Character editor data is already declared at the top of the file
 
 function initializeCharacterEditor() {
     // Camera controls
