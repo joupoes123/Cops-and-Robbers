@@ -8,17 +8,30 @@ version '1.2.0'
 
 -- Define shared scripts, loaded first on both server and client.
 shared_scripts {
-    'config.lua'        -- Game mode configuration.
+    'config.lua',       -- Game mode configuration.
+    'constants.lua'     -- Centralized constants and configuration values.
 }
 
--- Define server-side scripts.
+-- Define server-side scripts in dependency order.
 server_scripts {
+    -- Core utilities and constants (loaded first)
     'safe_utils.lua',    -- Safe utility functions.
-    'server.lua',       -- Core server logic.
+    
+    -- New refactored systems (loaded in dependency order)
+    'validation.lua',    -- Server-side validation system.
+    'data_manager.lua',  -- Improved data persistence system.
+    'secure_inventory.lua', -- Secure inventory system with anti-duplication.
+    'secure_transactions.lua', -- Secure transaction system for purchases/sales.
+    'player_manager.lua', -- Refactored player data management system.
+    'performance_optimizer.lua', -- Performance optimization and monitoring.
+    'integration_manager.lua', -- Integration and compatibility manager.
+    
+    -- Original systems (maintained for compatibility)
+    'server.lua',       -- Core server logic (refactored to use new systems).
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'inventory_server.lua',
-    'character_editor_server.lua', -- Character editor server logic
-    'progression_server.lua' -- Enhanced progression system server logic
+    'inventory_server.lua', -- Legacy inventory system (will be phased out).
+    'character_editor_server.lua', -- Character editor server logic.
+    'progression_server.lua' -- Enhanced progression system server logic.
 }
 
 -- Define client-side scripts.

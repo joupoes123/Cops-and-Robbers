@@ -736,6 +736,13 @@ if not playersData[pIdNum] then
 local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+        Log(string.format("Sent Config.Items to player %s during load", pIdNum), "info")
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
 
@@ -881,6 +888,12 @@ SetPlayerRole = function(playerId, role, skipNotify)
     local pDataForBasicInfo = shallowcopy(playersData[pIdNum])
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
 end
 
@@ -951,6 +964,12 @@ AddXP = function(playerId, amount, type, reason)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
@@ -1019,6 +1038,12 @@ ApplyPerks = function(playerId, level, role)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
@@ -1926,6 +1951,25 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         return
     end
 
+    -- Server-side role-based store access validation
+    local playerRole = pData and pData.role or "citizen"
+    local hasAccess = false
+    
+    if storeName == "Cop Store" then
+        hasAccess = (playerRole == "cop")
+    elseif storeName == "Gang Supplier" or storeName == "Black Market Dealer" then
+        hasAccess = (playerRole == "robber")
+    else
+        -- General stores accessible to all roles
+        hasAccess = true
+    end
+    
+    if not hasAccess then
+        print(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName))
+        TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
+        return
+    end
+
     -- The vendorItemIds from client (originating from Config.NPCVendors[storeName].items) is a list of strings.
     -- We need to transform this into a list of full item objects using Config.Items.
     if not vendorItemIds or type(vendorItemIds) ~= 'table' then
@@ -1973,22 +2017,30 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         return
     end    -- Include player level, role, and cash information for UI to check restrictions and display
     local playerInfo = {
-        level = pData and pData.level or 1,
+        level = 1, -- Will be calculated from XP below
         role = pData and pData.role or "citizen",
         cash = pData and (pData.cash or pData.money) or 0
     }
     
-    -- Ensure level is calculated correctly based on current XP
+    -- Always calculate level from XP to ensure accuracy
     if pData and pData.xp then
         local calculatedLevel = CalculateLevel(pData.xp, pData.role)
-        if calculatedLevel ~= pData.level then
-            pData.level = calculatedLevel
-            playerInfo.level = calculatedLevel
-            -- Only log critical level corrections
-            print(string.format("[CNR_CRITICAL_LOG] Level correction for player %s: was %d, corrected to %d based on XP %d", 
+        playerInfo.level = calculatedLevel
+        
+        -- Update stored level if different (with debug logging)
+        if pData.level ~= calculatedLevel then
+            print(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
                 src, pData.level or 1, calculatedLevel, pData.xp))
+            pData.level = calculatedLevel
         end
+    elseif pData and pData.level then
+        -- If no XP data, use stored level
+        playerInfo.level = pData.level
     end
+    
+    -- Debug log for level display issues
+    print(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
+        src, playerInfo.level, pData and pData.xp or 0))
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
@@ -2213,195 +2265,151 @@ CreateThread(function()
     end
 end)
 
--- Player connecting handler - for tracking new connections
+-- REFACTORED: Player connection handler using new PlayerManager system
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     local src = source
     Log(string.format("Player connecting: %s (ID: %s)", name, src))
 
-    -- Clear any pending save for this player ID (in case of reconnect)
-    playersSavePending[src] = nil
+    -- Check for bans using improved validation
+    local identifiers = GetPlayerIdentifiers(src)
+    if identifiers then
+        for _, identifier in ipairs(identifiers) do
+            if bannedPlayers[identifier] then
+                local banInfo = bannedPlayers[identifier]
+                local banMessage = string.format("You are banned from this server. Reason: %s", 
+                    banInfo.reason or "No reason provided")
+                setKickReason(banMessage)
+                Log(string.format("Blocked banned player %s (%s) - Reason: %s", 
+                    name, identifier, banInfo.reason or "No reason"), "warn")
+                return
+            end
+        end
+    end
 
-    -- Send Config.Items to player after a short delay
+    -- Send Config.Items to player after connection is established
     Citizen.CreateThread(function()
-        Citizen.Wait(2000) -- Wait for player to fully connect
+        Citizen.Wait(Constants.TIME_MS.SECOND * 2) -- Wait for player to fully connect
         if Config and Config.Items then
-            TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
-            Log(string.format("Auto-sent Config.Items to connecting player %s", src), "info")
+            TriggerClientEvent(Constants.EVENTS.SERVER_TO_CLIENT.RECEIVE_CONFIG_ITEMS, src, Config.Items)
+            Log(string.format("Sent Config.Items to connecting player %s", src))
         end
     end)
 end)
 
--- Player dropped handler - immediate save on disconnect
+-- REFACTORED: Player disconnection handler using new PlayerManager system
 AddEventHandler('playerDropped', function(reason)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
 
     Log(string.format("Player %s (ID: %s) disconnected. Reason: %s", playerName, src, reason))
 
-    -- Immediately save player data before they disconnect
-    SavePlayerDataImmediate(src, "disconnect")
+    -- Use PlayerManager for proper cleanup and saving
+    PlayerManager.OnPlayerDisconnected(src, reason)
 
-    -- Clean up player from all tracking tables
-    playersSavePending[src] = nil
-    playersData[src] = nil
-    copsOnDuty[src] = nil
-    robbersActive[src] = nil
-    wantedPlayers[src] = nil
-    jail[src] = nil
-    activeBounties[src] = nil
-    playerSpeedingData[src] = nil -- Clean up speeding detection data
-    playerVehicleData[src] = nil -- Clean up vehicle tracking data
-    playerRestrictedAreaData[src] = nil -- Clean up restricted area tracking data
-    -- ... add other tables as needed
+    -- Clean up legacy global tracking tables (for compatibility)
+    if playersSavePending then playersSavePending[src] = nil end
+    if playersData then playersData[src] = nil end
+    if copsOnDuty then copsOnDuty[src] = nil end
+    if robbersActive then robbersActive[src] = nil end
+    if wantedPlayers then wantedPlayers[src] = nil end
+    if jail then jail[src] = nil end
+    if activeBounties then activeBounties[src] = nil end
+    if playerSpeedingData then playerSpeedingData[src] = nil end
+    if playerVehicleData then playerVehicleData[src] = nil end
+    if playerRestrictedAreaData then playerRestrictedAreaData[src] = nil end
+    if k9Engagements then k9Engagements[src] = nil end
+    if playerDeployedSpikeStripsCount then playerDeployedSpikeStripsCount[src] = nil end
+    
+    -- Clean up any active spike strips deployed by this player
+    if activeSpikeStrips then
+        for stripId, stripData in pairs(activeSpikeStrips) do
+            if stripData.copId == src then
+                activeSpikeStrips[stripId] = nil
+            end
+        end
+    end
 end)
 
 -- Enhanced buy/sell operations with immediate inventory saves
+-- REFACTORED: Secure buy item handler using new validation and transaction systems
 RegisterNetEvent('cops_and_robbers:buyItem')
 AddEventHandler('cops_and_robbers:buyItem', function(itemId, quantity)
     local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-
-    if not pData then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-    if quantity <= 0 then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-
-    local itemConfig = nil
-    for _, cfgItem in ipairs(Config.Items) do
-        if cfgItem.itemId == itemId then
-            itemConfig = cfgItem
-            break
-        end
-    end
-
-    if not itemConfig then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-
-    -- Role/Level Checks
-    if pData.role == "cop" and itemConfig.minLevelCop and pData.level < itemConfig.minLevelCop then
-        Log(string.format("Player %s (Level: %d) tried to buy %s but needs cop level %d", src, pData.level, itemConfig.name, itemConfig.minLevelCop), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-    if pData.role == "robber" and itemConfig.minLevelRobber and pData.level < itemConfig.minLevelRobber then
-        Log(string.format("Player %s (Level: %d) tried to buy %s but needs robber level %d", src, pData.level, itemConfig.name, itemConfig.minLevelRobber), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-    if itemConfig.forCop and pData.role ~= "cop" then
-        Log(string.format("Player %s (Role: %s) tried to buy %s but it's cop-only", src, pData.role, itemConfig.name), "warn")
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end    -- Calculate cost with dynamic pricing
-    local totalCost = CalculateDynamicPrice(itemId, itemConfig.basePrice) * quantity
-
-    if not RemovePlayerMoney(src, totalCost) then
-        TriggerClientEvent('cops_and_robbers:buyResult', src, false)
-        return
-    end
-
-    -- Add to purchase history for dynamic pricing
-    local currentTime = os.time()
-    if not purchaseHistory[itemId] then purchaseHistory[itemId] = {} end
-    table.insert(purchaseHistory[itemId], currentTime)    -- Add item to inventory
-    local success, msg = AddItemToPlayerInventory(src, itemId, quantity, itemConfig)
-    if success then
-        -- Send success response to NUI
-        TriggerClientEvent('cnr:sendNUIMessage', src, {
-            action = 'buyResult',
-            success = true,
-            message = string.format("Successfully purchased %d x %s for $%d", quantity, itemConfig.name, totalCost)
-        })
-        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
-        Log(string.format("Player %s bought %d x %s for $%d.", src, quantity, itemConfig.name, totalCost))
-
-        -- Update player cash in NUI
-        TriggerClientEvent('cnr:sendNUIMessage', src, {
-            action = 'updateMoney',
-            cash = pData.money
-        })
-
-        -- IMMEDIATE SAVE after purchase
-        SavePlayerDataImmediate(src, "purchase")
-    else
-        AddPlayerMoney(src, totalCost)
-        -- Send failure response to NUI
+    
+    -- Validate network event with rate limiting and input validation
+    local validEvent, eventError = Validation.ValidateNetworkEvent(src, "buyItem", {itemId = itemId, quantity = quantity})
+    if not validEvent then
         TriggerClientEvent('cnr:sendNUIMessage', src, {
             action = 'buyResult',
             success = false,
-            message = string.format("Purchase failed: %s", msg or "Unknown error")
+            message = Constants.ERROR_MESSAGES.VALIDATION_FAILED
         })
-        Log(string.format("Player %s purchase of %s failed. Refunding $%d. Reason: %s", src, itemConfig.name, totalCost, msg), "error")
+        return
+    end
+    
+    -- Process purchase using secure transaction system with comprehensive validation
+    local success, message, transactionResult = SecureTransactions.ProcessPurchase(src, itemId, quantity)
+    
+    -- Send standardized response to NUI
+    TriggerClientEvent('cnr:sendNUIMessage', src, {
+        action = 'buyResult',
+        success = success,
+        message = message
+    })
+    
+    if success and transactionResult then
+        -- Update player cash in NUI with validated balance
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'updateMoney',
+            cash = transactionResult.newBalance
+        })
+        
+        -- Refresh sell list for updated inventory
+        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
+        
+        -- Note: Inventory updates and saves are handled automatically by SecureInventory and DataManager
+        -- No need for immediate saves as the new system uses batched, efficient saving
     end
 end)
 
+-- REFACTORED: Secure sell item handler using new validation and transaction systems
 RegisterNetEvent('cops_and_robbers:sellItem')
 AddEventHandler('cops_and_robbers:sellItem', function(itemId, quantity)
     local src = source
-    local pData = GetCnrPlayerData(src)
-    quantity = tonumber(quantity) or 1
-
-    if not pData or not pData.inventory then
-        TriggerClientEvent('cops_and_robbers:sellResult', src, false) -- No message
+    
+    -- Validate network event with rate limiting and input validation
+    local validEvent, eventError = Validation.ValidateNetworkEvent(src, "sellItem", {itemId = itemId, quantity = quantity})
+    if not validEvent then
+        TriggerClientEvent('cnr:sendNUIMessage', src, {
+            action = 'sellResult',
+            success = false,
+            message = Constants.ERROR_MESSAGES.VALIDATION_FAILED
+        })
         return
-    end
-
-    local itemConfig = nil
-    for _, cfgItem in ipairs(Config.Items) do
-        if cfgItem.itemId == itemId then
-            itemConfig = cfgItem
-            break
-        end
     end
     
-    if not itemConfig or not itemConfig.sellPrice then
-        -- Send failure response to NUI
-        TriggerClientEvent('cnr:sendNUIMessage', src, {
-            action = 'sellResult',
-            success = false,
-            message = "Item cannot be sold"
-        })
-        return
-    end
-
-    local success, msg = RemoveItemFromPlayerInventory(src, itemId, quantity)
-    if success then
-        local totalEarned = itemConfig.sellPrice * quantity
-        AddPlayerMoney(src, totalEarned)
-        
-        -- Send success response to NUI
-        TriggerClientEvent('cnr:sendNUIMessage', src, {
-            action = 'sellResult',
-            success = true,
-            message = string.format("Successfully sold %d x %s for $%d", quantity, itemConfig.name, totalEarned)
-        })
-        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
-        Log(string.format("Player %s sold %d x %s for $%d.", src, quantity, itemConfig.name, totalEarned))
-
-        -- Update player cash in NUI
-        local updatedPData = GetCnrPlayerData(src)
+    -- Process sale using secure transaction system with comprehensive validation
+    local success, message, transactionResult = SecureTransactions.ProcessSale(src, itemId, quantity)
+    
+    -- Send standardized response to NUI
+    TriggerClientEvent('cnr:sendNUIMessage', src, {
+        action = 'sellResult',
+        success = success,
+        message = message
+    })
+    
+    if success and transactionResult then
+        -- Update player cash in NUI with validated balance
         TriggerClientEvent('cnr:sendNUIMessage', src, {
             action = 'updateMoney',
-            cash = updatedPData.money
+            cash = transactionResult.newBalance
         })
-
-        -- IMMEDIATE SAVE after sale
-        SavePlayerDataImmediate(src, "sale")
-    else
-        -- Send failure response to NUI
-        TriggerClientEvent('cnr:sendNUIMessage', src, {
-            action = 'sellResult',
-            success = false,
-            message = string.format("Sale failed: %s", msg or "Unknown error")
-        })
-        Log(string.format("Player %s sell of %s failed. Reason: %s", src, itemConfig.name, msg), "error")
+        
+        -- Refresh sell list for updated inventory
+        TriggerClientEvent('cops_and_robbers:refreshSellListIfNeeded', src)
+        
+        -- Note: Inventory updates and saves are handled automatically by SecureInventory and DataManager
+        -- No need for immediate saves as the new system uses batched, efficient saving
     end
 end)
 
@@ -2414,6 +2422,11 @@ AddEventHandler('cnr:playerRespawned', function()
     -- Reload and sync player inventory
     local pData = GetCnrPlayerData(src)
     if pData and pData.inventory then
+        -- Send config items first so client can properly reconstruct inventory
+        if Config and Config.Items and type(Config.Items) == "table" then
+            SafeTriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+        end
+        
         -- Send fresh inventory sync
         SafeTriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
         Log(string.format("Restored inventory for respawned player %s with %d items", src, tablelength(pData.inventory or {})))
@@ -2422,22 +2435,24 @@ AddEventHandler('cnr:playerRespawned', function()
     end
 end)
 
--- Enhanced player spawn handler with inventory sync
+-- REFACTORED: Player spawn handler using new PlayerManager system
 RegisterNetEvent('cnr:playerSpawned')
 AddEventHandler('cnr:playerSpawned', function()
     local src = source
-    Log(string.format("Event cnr:playerSpawned received for player %s. Attempting to load data.", src), "info")
+    Log(string.format("Player %s spawned, initializing with PlayerManager", src))
 
-    -- Load player data
-    LoadPlayerData(src)
+    -- Use PlayerManager for proper initialization
+    PlayerManager.OnPlayerConnected(src)
 
-    -- Ensure inventory is properly synced after spawn
-    Citizen.SetTimeout(2000, function() -- Give time for data to load
-        local pData = GetCnrPlayerData(src)
-        if pData and pData.inventory then
-            SafeTriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
-            Log(string.format("Post-spawn inventory sync for player %s", src))
-        end
+    -- Ensure data sync after a brief delay for client readiness
+    Citizen.SetTimeout(Constants.TIME_MS.SECOND * 2, function()
+        -- Validate player is still online
+        if not GetPlayerName(src) then return end
+        
+        -- Sync player data to client using PlayerManager
+        PlayerManager.SyncPlayerDataToClient(src)
+        
+        Log(string.format("Player %s initialization and sync completed", src))
     end)
 end)
 
