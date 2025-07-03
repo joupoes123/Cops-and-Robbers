@@ -788,7 +788,9 @@ function UpdateRobberStoreBlips()
             -- Process valid vendor entries
             if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
                 local blipKey = tostring(vendor.location.x .. "_" .. vendor.location.y .. "_" .. vendor.location.z)
-                if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
+                
+                -- Only show robber store blips to robbers
+                if role == "robber" then
                     if not robberStoreBlips[blipKey] or not DoesBlipExist(robberStoreBlips[blipKey]) then
                         local blip = AddBlipForCoord(vendor.location.x, vendor.location.y, vendor.location.z)
                         if vendor.name == "Black Market Dealer" then
@@ -809,8 +811,8 @@ function UpdateRobberStoreBlips()
                         robberStoreBlips[blipKey] = blip
                     end
                 else
+                    -- Remove robber store blips for non-robbers
                     if robberStoreBlips[blipKey] and DoesBlipExist(robberStoreBlips[blipKey]) then
-                        print(string.format("[CNR_CLIENT_WARN] Removing stray blip from robberStoreBlips, associated with a non-Robber Store: '%s' at %s", vendor.name, blipKey))
                         RemoveBlip(robberStoreBlips[blipKey])
                         robberStoreBlips[blipKey] = nil
                     end
@@ -1579,21 +1581,39 @@ function CheckNearbyStores()
                 -- Check if player is within proximity radius (3.0 units)
                 if distance <= 3.0 then
                     isNearStore = true
-                    storeType = vendor.name == "Cop Store" and "cop" or "robber"
+                    
+                    -- Proper store type classification and role-based access validation
+                    local hasAccess = false
+                    local storeType = "civilian" -- default
+                    
+                    if vendor.name == "Cop Store" then
+                        storeType = "cop"
+                        hasAccess = (role == "cop")
+                    elseif vendor.name == "Gang Supplier" or vendor.name == "Black Market Dealer" then
+                        storeType = "robber"
+                        hasAccess = (role == "robber")
+                    else
+                        -- General stores accessible to all roles
+                        storeType = "civilian"
+                        hasAccess = true
+                    end
+                    
                     storeName = vendor.name
                     storeItems = vendor.items
                     
-                    -- Display help text when near store
-                    DisplayHelpText("Press ~INPUT_CONTEXT~ to open " .. storeName)
+                    -- Display appropriate help text
+                    if hasAccess then
+                        DisplayHelpText("Press ~INPUT_CONTEXT~ to open " .. storeName)
+                    else
+                        DisplayHelpText("~r~Access Restricted: " .. storeName .. " (Role: " .. (storeType == "cop" and "Police Only" or "Robbers Only") .. ")")
+                    end
                     
                     -- Check for E key press (INPUT_CONTEXT = 38)
                     if IsControlJustPressed(0, 38) then
-                        if (storeType == "cop" and role == "cop") or 
-                           (storeType == "robber" and role == "robber") or
-                           ((vendor.name == "Gang Supplier" or vendor.name == "Black Market Dealer") and role == "robber") then
+                        if hasAccess then
                             OpenStoreMenu(storeType, storeItems, storeName)
                         else
-                            ShowNotification("~r~You don't have access to this store.")
+                            ShowNotification("~r~You don't have access to this store. This is restricted to " .. (storeType == "cop" and "police officers" or "robbers") .. " only.")
                         end
                     end
                     break

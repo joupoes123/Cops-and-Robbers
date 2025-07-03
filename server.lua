@@ -736,6 +736,13 @@ if not playersData[pIdNum] then
 local pDataForLoad = shallowcopy(playersData[pIdNum])
     pDataForLoad.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForLoad)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+        Log(string.format("Sent Config.Items to player %s during load", pIdNum), "info")
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
     SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, wantedPlayers[pIdNum] or { wantedLevel = 0, stars = 0 })
 
@@ -881,6 +888,12 @@ SetPlayerRole = function(playerId, role, skipNotify)
     local pDataForBasicInfo = shallowcopy(playersData[pIdNum])
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(playersData[pIdNum].inventory))
 end
 
@@ -951,6 +964,12 @@ AddXP = function(playerId, amount, type, reason)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
@@ -1019,6 +1038,12 @@ ApplyPerks = function(playerId, level, role)
     local pDataForBasicInfo = shallowcopy(pData)
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
+    
+    -- Send config items first so client can properly reconstruct inventory
+    if Config and Config.Items and type(Config.Items) == "table" then
+        SafeTriggerClientEvent('cnr:receiveConfigItems', pIdNum, Config.Items)
+    end
+    
     SafeTriggerClientEvent('cnr:syncInventory', pIdNum, MinimizeInventoryForSync(pData.inventory))
 end
 
@@ -1926,6 +1951,25 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         return
     end
 
+    -- Server-side role-based store access validation
+    local playerRole = pData and pData.role or "citizen"
+    local hasAccess = false
+    
+    if storeName == "Cop Store" then
+        hasAccess = (playerRole == "cop")
+    elseif storeName == "Gang Supplier" or storeName == "Black Market Dealer" then
+        hasAccess = (playerRole == "robber")
+    else
+        -- General stores accessible to all roles
+        hasAccess = true
+    end
+    
+    if not hasAccess then
+        print(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName))
+        TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
+        return
+    end
+
     -- The vendorItemIds from client (originating from Config.NPCVendors[storeName].items) is a list of strings.
     -- We need to transform this into a list of full item objects using Config.Items.
     if not vendorItemIds or type(vendorItemIds) ~= 'table' then
@@ -1973,22 +2017,30 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         return
     end    -- Include player level, role, and cash information for UI to check restrictions and display
     local playerInfo = {
-        level = pData and pData.level or 1,
+        level = 1, -- Will be calculated from XP below
         role = pData and pData.role or "citizen",
         cash = pData and (pData.cash or pData.money) or 0
     }
     
-    -- Ensure level is calculated correctly based on current XP
+    -- Always calculate level from XP to ensure accuracy
     if pData and pData.xp then
         local calculatedLevel = CalculateLevel(pData.xp, pData.role)
-        if calculatedLevel ~= pData.level then
-            pData.level = calculatedLevel
-            playerInfo.level = calculatedLevel
-            -- Only log critical level corrections
-            print(string.format("[CNR_CRITICAL_LOG] Level correction for player %s: was %d, corrected to %d based on XP %d", 
+        playerInfo.level = calculatedLevel
+        
+        -- Update stored level if different (with debug logging)
+        if pData.level ~= calculatedLevel then
+            print(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
                 src, pData.level or 1, calculatedLevel, pData.xp))
+            pData.level = calculatedLevel
         end
+    elseif pData and pData.level then
+        -- If no XP data, use stored level
+        playerInfo.level = pData.level
     end
+    
+    -- Debug log for level display issues
+    print(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
+        src, playerInfo.level, pData and pData.xp or 0))
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
@@ -2370,6 +2422,11 @@ AddEventHandler('cnr:playerRespawned', function()
     -- Reload and sync player inventory
     local pData = GetCnrPlayerData(src)
     if pData and pData.inventory then
+        -- Send config items first so client can properly reconstruct inventory
+        if Config and Config.Items and type(Config.Items) == "table" then
+            SafeTriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+        end
+        
         -- Send fresh inventory sync
         SafeTriggerClientEvent('cnr:syncInventory', src, MinimizeInventoryForSync(pData.inventory))
         Log(string.format("Restored inventory for respawned player %s with %d items", src, tablelength(pData.inventory or {})))

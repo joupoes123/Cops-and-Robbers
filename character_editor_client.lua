@@ -250,25 +250,30 @@ function CreateEditorCamera(mode)
     editorCamera = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
     
     -- Position camera to show character centered in left 40% of screen
-    -- Calculate screen dimensions for proper positioning
+    -- Adjust camera position to properly center character in UI viewport
     local screenWidth, screenHeight = GetActiveScreenResolution()
-    local leftAreaCenter = screenWidth * 0.2 -- Center of left 40% area
+    local aspectRatio = screenWidth / screenHeight
+    
+    -- Calculate offsets based on screen aspect ratio to center character better
+    local baseDistance = 2.5
+    local lateralOffset = baseDistance * (aspectRatio / 1.77) -- Adjust for different aspect ratios
+    local heightOffset = 0.0
     
     if mode == "face" then
-        -- Face view - position to center character in left area
-        SetCamCoord(editorCamera, coords.x + 1.0, coords.y - 1.5, coords.z + 0.65)
+        -- Face view - closer camera with proper centering
+        SetCamCoord(editorCamera, coords.x + (lateralOffset * 0.4), coords.y - (baseDistance * 0.6), coords.z + 0.65)
         PointCamAtPedBone(editorCamera, ped, 31086, 0.0, 0.0, 0.0, true) -- Head bone
-        SetCamFov(editorCamera, 35.0)
+        SetCamFov(editorCamera, 40.0)
     elseif mode == "body" then
-        -- Body view - position to center character in left area
-        SetCamCoord(editorCamera, coords.x + 1.5, coords.y - 2.0, coords.z + 0.3)
+        -- Body view - medium distance with better centering
+        SetCamCoord(editorCamera, coords.x + (lateralOffset * 0.6), coords.y - (baseDistance * 0.8), coords.z + 0.3)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, 0.2, true)
-        SetCamFov(editorCamera, 45.0)
+        SetCamFov(editorCamera, 50.0)
     else -- full body view
-        -- Full body - position to center character in left area
-        SetCamCoord(editorCamera, coords.x + 2.0, coords.y - 2.5, coords.z + 0.0)
+        -- Full body - farther camera with complete centering
+        SetCamCoord(editorCamera, coords.x + lateralOffset, coords.y - baseDistance, coords.z + 0.0)
         PointCamAtEntity(editorCamera, ped, 0.0, 0.0, -0.1, true)
-        SetCamFov(editorCamera, 55.0)
+        SetCamFov(editorCamera, 60.0)
     end
 
     -- Activate the camera

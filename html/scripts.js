@@ -567,7 +567,14 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
     if (storeMenuUI && storeTitleEl) {
         storeTitleEl.textContent = storeName || 'Store';
         window.items = storeItems || [];
-        window.playerInfo = playerInfo || { level: 1, role: "citizen", cash: 0 };
+        
+        // Better handling of undefined playerInfo
+        if (!playerInfo) {
+            console.warn('[CNR_NUI_WARNING] No playerInfo provided to openStoreMenu, using fallback');
+            window.playerInfo = { level: 1, role: "citizen", cash: 0 };
+        } else {
+            window.playerInfo = playerInfo;
+        }
         
         console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
         
@@ -578,12 +585,20 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         console.log('[CNR_NUI_DEBUG] cash value:', newCash);
         console.log('[CNR_NUI_DEBUG] level value:', newLevel);
         
+        // Debug log for level display issues
+        if (newLevel === 1 && playerInfo && playerInfo.level && playerInfo.level !== 1) {
+            console.error('[CNR_NUI_ERROR] Level fallback triggered! Original level:', playerInfo.level, 'but showing:', newLevel);
+        }
+        
         // Update player info display and check for cash changes
         if (playerCashEl) {
             playerCashEl.textContent = `$${newCash.toLocaleString()}`;
             console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
         }
-        if (playerLevelEl) playerLevelEl.textContent = `Level ${newLevel}`;
+        if (playerLevelEl) {
+            playerLevelEl.textContent = `Level ${newLevel}`;
+            console.log('[CNR_NUI_DEBUG] Updated level display to:', `Level ${newLevel}`);
+        }
           // Show cash notification if cash changed (only when store is opened)
         if (previousCash !== null && previousCash !== newCash) {
             console.log('[CNR_NUI_DEBUG] Cash changed in store from', previousCash, 'to', newCash);
