@@ -79,7 +79,6 @@ function SavePlayerCharacters(playerId, characterData)
         return false
     end
     
-    print("[CNR_CHARACTER_EDITOR] Successfully saved character data for: " .. GetPlayerName(playerId))
     return true
 end
 
@@ -100,6 +99,12 @@ function ValidateCharacterData(characterData, role)
         end
     end
     
+    -- Ensure Config.CharacterEditor exists before validation
+    if not Config.CharacterEditor or not Config.CharacterEditor.customization then
+        print("[CNR_CHARACTER_EDITOR] Warning: Config.CharacterEditor.customization not found, skipping detailed validation")
+        return true, "Valid (basic validation only)"
+    end
+    
     -- Validate customization ranges
     local customization = Config.CharacterEditor.customization
     for feature, range in pairs(customization) do
@@ -118,7 +123,7 @@ function ValidateCharacterData(characterData, role)
         for feature, value in pairs(characterData.faceFeatures) do
             if customization[feature] then
                 local range = customization[feature]
-                if value < range.min or value > range.max then
+                if type(value) == "number" and value < range.min or value > range.max then
                     return false, "Invalid face feature value for " .. feature .. ": " .. value
                 end
             end
@@ -248,7 +253,6 @@ function SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
     -- Persist to file
     local success = SavePlayerCharacters(playerId, playerCharacterData[identifier])
     if success then
-        print(string.format("[CNR_CHARACTER_EDITOR] Saved character %s for player %s", characterKey, GetPlayerName(playerId)))
         return true, "Character saved successfully"
     else
         return false, "Failed to save character data"
@@ -270,7 +274,6 @@ function DeletePlayerCharacterSlot(playerId, characterKey)
         
         local success = SavePlayerCharacters(playerId, playerCharacterData[identifier])
         if success then
-            print(string.format("[CNR_CHARACTER_EDITOR] Deleted character %s for player %s", characterKey, GetPlayerName(playerId)))
             return true, "Character deleted successfully"
         else
             return false, "Failed to delete character data"
@@ -296,7 +299,6 @@ function ApplyCharacterToPlayer(playerId, characterKey)
     -- Trigger client to apply character
     TriggerClientEvent('cnr:applyCharacterData', playerId, characterData)
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Applied character %s to player %s", characterKey, GetPlayerName(playerId)))
     return true, "Character applied successfully"
 end
 
@@ -388,4 +390,3 @@ exports('ApplyCharacterToPlayer', ApplyCharacterToPlayer)
 exports('GetCharacterForRoleSelection', GetCharacterForRoleSelection)
 exports('HasCharacterForRole', HasCharacterForRole)
 
-print("[CNR_CHARACTER_EDITOR] Character Editor Server initialized")

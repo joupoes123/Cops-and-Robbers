@@ -52,8 +52,3 @@ export 'EquipInventoryWeapons'
 
 -- Network events
 server_export 'GetCharacterForRoleSelection'
-
--- Safe network events
-server_events {
-    'cnr:receiveCharacterForRole'
-}

@@ -54,8 +54,6 @@ function IsPlayerAdmin(playerId)
     return false
 end
 
--- Debug print to confirm function is loaded
-print("[CNR_SERVER_DEBUG] IsPlayerAdmin function has been defined successfully")
 
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
@@ -1126,25 +1124,15 @@ end)
 -- WANTED SYSTEM
 -- =================================================================================================
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
-    -- Only log TRACE if debug logging is enabled
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
-    end
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
         Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
 
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
-    end
     if GetPlayerName(pIdNum) == nil or not IsPlayerRobber(pIdNum) then return end -- Check player online using GetPlayerName
 
     local crimeConfig = Config.WantedSettings.crimes[crimeKey]
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
-    end
     if not crimeConfig then
         Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error")
         return
@@ -1876,11 +1864,8 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     if spawnLocation then
         TriggerClientEvent('cnr:spawnPlayerAt', src, spawnLocation, spawnHeading, selectedRole)
         Log(string.format("Player %s spawned as %s at %s", GetPlayerName(src), selectedRole, tostring(spawnLocation)))
-        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s",
-            GetPlayerName(src), src, selectedRole))
     else
-        Log(string.format("No spawn point found for role %s", selectedRole), "warn")
-        print(string.format("[CNR_SERVER_WARN] No spawn point found for role %s for player %s", selectedRole, src))
+        Log(string.format("No spawn point found for role %s for player %s", selectedRole, src), "warn")
         TriggerClientEvent('cnr:roleSelected', src, false, "No spawn point configured for this role.")
         return
     end
@@ -1888,11 +1873,53 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
 
+-- Helper function to safely send NUI messages
+function SafeSendNUIMessage(playerId, message)
+    if not message or type(message) ~= 'table' then
+        print('[CNR_SERVER_ERROR] Invalid NUI message format:', message)
+        return false
+    end
+    
+    if not message.action or type(message.action) ~= 'string' or message.action == '' then
+        print('[CNR_SERVER_ERROR] NUI message missing or invalid action:', json.encode(message))
+        return false
+    end
+    
+    TriggerClientEvent('cnr:sendNUIMessage', playerId, message)
+    return true
+end
+
+-- Helper function to get proper image path for items
+function GetItemImagePath(configItem)
+    -- If item has a specific image, use it
+    if configItem.image and configItem.image ~= "" then
+        return configItem.image
+    end
+    
+    -- Generate image path based on category and itemId
+    local category = configItem.category or "misc"
+    local itemId = configItem.itemId or "default"
+    
+    -- Set default images based on category
+    if category:lower() == "weapons" then
+        return "img/items/" .. itemId .. ".png"
+    elseif category:lower() == "ammo" then
+        return "img/items/ammo.png"
+    elseif category:lower() == "armor" then
+        return "img/items/armor.png"
+    elseif category:lower() == "tools" then
+        return "img/items/tool.png"
+    elseif category:lower() == "medical" then
+        return "img/items/medical.png"
+    else
+        return "img/items/default.png"
+    end
+end
+
 RegisterNetEvent('cops_and_robbers:getItemList')
 AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName) -- Renamed itemList to vendorItemIds for clarity
     local src = source
     local pData = GetCnrPlayerData(src)
-    -- print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
 
     if not storeName then
         print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
@@ -1915,18 +1942,17 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                 if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
                     foundItem = {
-                        itemId = configItem.itemId,
-                        name = configItem.name,
-                        basePrice = configItem.basePrice, -- NUI will use this as 'price'
-                        price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
-                        category = configItem.category,
+                        itemId = configItem.itemId or itemIdFromVendor, -- Ensure itemId is always present
+                        name = configItem.name or configItem.itemId or itemIdFromVendor,
+                        basePrice = configItem.basePrice or 100, -- Default price if missing
+                        price = configItem.basePrice or 100, -- Explicitly add 'price' for NUI if it uses that
+                        category = configItem.category or "misc",
                         forCop = configItem.forCop,
-                        minLevelCop = configItem.minLevelCop,
-                        minLevelRobber = configItem.minLevelRobber,
-                        icon = configItem.icon, -- Add icon field for modern UI
-                        image = configItem.image or configItem.icon, -- Fallback to icon if no image
-                        -- Add any other fields the NUI might need, like description, weight, etc.
-                        -- e.g., description = configItem.description or ""
+                        minLevelCop = configItem.minLevelCop or 1,
+                        minLevelRobber = configItem.minLevelRobber or 1,
+                        icon = configItem.icon or "📦", -- Default icon
+                        image = GetItemImagePath(configItem), -- Use helper function for proper image path
+                        description = configItem.description or ""
                     }
                     -- Apply dynamic pricing if enabled
                     if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
@@ -1966,7 +1992,6 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
-    -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')
 end)
 
 RegisterNetEvent('cops_and_robbers:getPlayerInventory')
@@ -1996,7 +2021,6 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
         end
     end
 
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s has %d total inventory items, sending %d items with count > 0 to NUI for Sell Tab", src, inventoryCount, #processedInventoryForNui))
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
@@ -2970,7 +2994,6 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     
     -- Check if player is a robber
     if not IsPlayerRobber(src) then
-        print("[CNR_SERVER_DEBUG] Non-robber attempted to report crime: " .. GetPlayerName(src) .. " (" .. src .. ")")
         return
     end
     
@@ -2993,4 +3016,1095 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     UpdatePlayerWantedLevel(src, crimeType)
 end)
 --]]
+
+-- =========================
+--      Banking System
+-- =========================
+
+-- Banking data storage
+local bankAccounts = {}
+local playerLoans = {}
+local playerInvestments = {}
+local atmHackCooldowns = {}
+local dailyWithdrawals = {}
+
+-- Initialize player bank account
+function InitializeBankAccount(playerLicense)
+    if not bankAccounts[playerLicense] then
+        bankAccounts[playerLicense] = {
+            balance = Config.Banking.startingBalance,
+            accountNumber = math.random(100000000, 999999999),
+            openDate = os.time(),
+            transactionHistory = {},
+            dailyWithdrawal = 0,
+            lastWithdrawalReset = os.date("%Y-%m-%d")
+        }
+        SaveBankingData()
+    end
+end
+
+-- Get player bank account
+function GetBankAccount(playerLicense)
+    InitializeBankAccount(playerLicense)
+    return bankAccounts[playerLicense]
+end
+
+-- Add transaction to history
+function AddTransactionHistory(playerLicense, transaction)
+    local account = GetBankAccount(playerLicense)
+    table.insert(account.transactionHistory, {
+        type = transaction.type,
+        amount = transaction.amount,
+        description = transaction.description,
+        timestamp = os.time(),
+        balance = account.balance
+    })
+    
+    -- Keep only last 50 transactions
+    if #account.transactionHistory > 50 then
+        table.remove(account.transactionHistory, 1)
+    end
+end
+
+-- Reset daily withdrawal limits
+function ResetDailyWithdrawals()
+    local today = os.date("%Y-%m-%d")
+    for license, account in pairs(bankAccounts) do
+        if account.lastWithdrawalReset ~= today then
+            account.dailyWithdrawal = 0
+            account.lastWithdrawalReset = today
+        end
+    end
+end
+
+-- Bank deposit
+RegisterNetEvent('cnr:bankDeposit')
+AddEventHandler('cnr:bankDeposit', function(amount)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    amount = tonumber(amount)
+    if not amount or amount <= 0 then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
+        return
+    end
+    
+    local playerMoney = GetPlayerMoney(src)
+    if playerMoney < amount then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient cash', 'error')
+        return
+    end
+    
+    local account = GetBankAccount(playerLicense)
+    
+    -- Remove cash and add to bank
+    RemovePlayerMoney(src, amount)
+    account.balance = account.balance + amount
+    
+    AddTransactionHistory(playerLicense, {
+        type = "deposit",
+        amount = amount,
+        description = "Cash deposit"
+    })
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Deposited $' .. amount, 'success')
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+    SaveBankingData()
+end)
+
+-- Bank withdrawal
+RegisterNetEvent('cnr:bankWithdraw')
+AddEventHandler('cnr:bankWithdraw', function(amount)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    amount = tonumber(amount)
+    if not amount or amount <= 0 then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
+        return
+    end
+    
+    local account = GetBankAccount(playerLicense)
+    ResetDailyWithdrawals()
+    
+    -- Check daily limit
+    if account.dailyWithdrawal + amount > Config.Banking.dailyWithdrawalLimit then
+        TriggerClientEvent('cnr:showNotification', src, 'Daily withdrawal limit exceeded', 'error')
+        return
+    end
+    
+    -- Check balance
+    if account.balance < amount then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient bank balance', 'error')
+        return
+    end
+    
+    -- Process withdrawal
+    account.balance = account.balance - amount
+    account.dailyWithdrawal = account.dailyWithdrawal + amount
+    AddPlayerMoney(src, amount)
+    
+    AddTransactionHistory(playerLicense, {
+        type = "withdrawal",
+        amount = amount,
+        description = "ATM withdrawal"
+    })
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Withdrew $' .. amount, 'success')
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+    SaveBankingData()
+end)
+
+-- Bank transfer
+RegisterNetEvent('cnr:bankTransfer')
+AddEventHandler('cnr:bankTransfer', function(targetId, amount)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    local targetLicense = GetPlayerLicense(targetId)
+    
+    if not playerLicense or not targetLicense then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid player', 'error')
+        return
+    end
+    
+    amount = tonumber(amount)
+    if not amount or amount <= 0 then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
+        return
+    end
+    
+    local senderAccount = GetBankAccount(playerLicense)
+    local receiverAccount = GetBankAccount(targetLicense)
+    
+    local totalCost = amount + Config.Banking.transferFee
+    
+    if senderAccount.balance < totalCost then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient funds (includes $' .. Config.Banking.transferFee .. ' fee)', 'error')
+        return
+    end
+    
+    -- Process transfer
+    senderAccount.balance = senderAccount.balance - totalCost
+    receiverAccount.balance = receiverAccount.balance + amount
+    
+    -- Add transaction history
+    AddTransactionHistory(playerLicense, {
+        type = "transfer_out",
+        amount = totalCost,
+        description = "Transfer to " .. GetPlayerName(targetId) .. " (+$" .. Config.Banking.transferFee .. " fee)"
+    })
+    
+    AddTransactionHistory(targetLicense, {
+        type = "transfer_in",
+        amount = amount,
+        description = "Transfer from " .. GetPlayerName(src)
+    })
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Transferred $' .. amount .. ' (Fee: $' .. Config.Banking.transferFee .. ')', 'success')
+    TriggerClientEvent('cnr:showNotification', targetId, 'Received $' .. amount .. ' from ' .. GetPlayerName(src), 'success')
+    
+    TriggerClientEvent('cnr:updateBankBalance', src, senderAccount.balance)
+    TriggerClientEvent('cnr:updateBankBalance', targetId, receiverAccount.balance)
+    SaveBankingData()
+end)
+
+-- Loan system
+RegisterNetEvent('cnr:requestLoan')
+AddEventHandler('cnr:requestLoan', function(amount, duration)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    local playerLevel = GetPlayerLevel(src)
+    if playerLevel < Config.Banking.loanRequiredLevel then
+        TriggerClientEvent('cnr:showNotification', src, 'Level ' .. Config.Banking.loanRequiredLevel .. ' required for loans', 'error')
+        return
+    end
+    
+    amount = tonumber(amount)
+    duration = tonumber(duration) or 7 -- Default 7 days
+    
+    if not amount or amount <= 0 or amount > Config.Banking.maxLoanAmount then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid loan amount', 'error')
+        return
+    end
+    
+    -- Check if player already has a loan
+    if playerLoans[playerLicense] then
+        TriggerClientEvent('cnr:showNotification', src, 'You already have an active loan', 'error')
+        return
+    end
+    
+    local account = GetBankAccount(playerLicense)
+    local collateralRequired = math.floor(amount * Config.Banking.loanCollateralRate)
+    
+    if account.balance < collateralRequired then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient collateral ($' .. collateralRequired .. ' required)', 'error')
+        return
+    end
+    
+    -- Process loan
+    account.balance = account.balance - collateralRequired + amount
+    
+    playerLoans[playerLicense] = {
+        principal = amount,
+        collateral = collateralRequired,
+        dailyInterest = Config.Banking.loanInterestRate,
+        startDate = os.time(),
+        duration = duration * 24 * 3600, -- Convert days to seconds
+        totalOwed = amount
+    }
+    
+    AddTransactionHistory(playerLicense, {
+        type = "loan",
+        amount = amount,
+        description = "Loan approved (Collateral: $" .. collateralRequired .. ")"
+    })
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Loan approved: $' .. amount, 'success')
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+    SaveBankingData()
+end)
+
+-- Loan repayment
+RegisterNetEvent('cnr:repayLoan')
+AddEventHandler('cnr:repayLoan', function(amount)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    local loan = playerLoans[playerLicense]
+    if not loan then
+        TriggerClientEvent('cnr:showNotification', src, 'No active loan', 'error')
+        return
+    end
+    
+    amount = tonumber(amount)
+    if not amount or amount <= 0 then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
+        return
+    end
+    
+    local account = GetBankAccount(playerLicense)
+    if account.balance < amount then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient bank balance', 'error')
+        return
+    end
+    
+    -- Process repayment
+    account.balance = account.balance - amount
+    loan.totalOwed = loan.totalOwed - amount
+    
+    if loan.totalOwed <= 0 then
+        -- Loan fully repaid, return collateral
+        account.balance = account.balance + loan.collateral
+        playerLoans[playerLicense] = nil
+        
+        TriggerClientEvent('cnr:showNotification', src, 'Loan fully repaid! Collateral returned.', 'success')
+    else
+        TriggerClientEvent('cnr:showNotification', src, 'Payment processed. Remaining: $' .. math.floor(loan.totalOwed), 'success')
+    end
+    
+    AddTransactionHistory(playerLicense, {
+        type = "loan_payment",
+        amount = amount,
+        description = "Loan repayment"
+    })
+    
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+    SaveBankingData()
+end)
+
+-- Investment system
+RegisterNetEvent('cnr:makeInvestment')
+AddEventHandler('cnr:makeInvestment', function(investmentId, amount)
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    local investment = nil
+    for _, inv in pairs(Config.Investments) do
+        if inv.id == investmentId then
+            investment = inv
+            break
+        end
+    end
+    
+    if not investment then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid investment', 'error')
+        return
+    end
+    
+    local playerLevel = GetPlayerLevel(src)
+    if playerLevel < investment.requiredLevel then
+        TriggerClientEvent('cnr:showNotification', src, 'Level ' .. investment.requiredLevel .. ' required', 'error')
+        return
+    end
+    
+    amount = tonumber(amount)
+    if not amount or amount < investment.minInvestment then
+        TriggerClientEvent('cnr:showNotification', src, 'Minimum investment: $' .. investment.minInvestment, 'error')
+        return
+    end
+    
+    local account = GetBankAccount(playerLicense)
+    if account.balance < amount then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient bank balance', 'error')
+        return
+    end
+    
+    -- Process investment
+    account.balance = account.balance - amount
+    
+    if not playerInvestments[playerLicense] then
+        playerInvestments[playerLicense] = {}
+    end
+    
+    table.insert(playerInvestments[playerLicense], {
+        type = investmentId,
+        amount = amount,
+        startTime = os.time(),
+        duration = investment.duration * 3600, -- Convert hours to seconds
+        expectedReturn = investment.expectedReturn,
+        riskLevel = investment.riskLevel
+    })
+    
+    AddTransactionHistory(playerLicense, {
+        type = "investment",
+        amount = amount,
+        description = "Investment: " .. investment.name
+    })
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Investment made: $' .. amount, 'success')
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+    SaveBankingData()
+end)
+
+-- ATM Hacking (for robbers)
+RegisterNetEvent('cnr:hackATM')
+AddEventHandler('cnr:hackATM', function(atmId)
+    local src = source
+    local playerData = playerDataCache[src]
+    
+    if not playerData or playerData.role ~= "robber" then
+        TriggerClientEvent('cnr:showNotification', src, 'Access denied', 'error')
+        return
+    end
+    
+    local playerLicense = GetPlayerLicense(src)
+    local now = GetGameTimer()
+    
+    -- Check cooldown
+    if atmHackCooldowns[atmId] and now - atmHackCooldowns[atmId] < Config.Banking.atmHackCooldown then
+        TriggerClientEvent('cnr:showNotification', src, 'ATM recently compromised', 'error')
+        return
+    end
+    
+    -- Start hacking process
+    TriggerClientEvent('cnr:startATMHack', src, atmId, Config.Banking.atmHackTime)
+    
+    -- Set cooldown
+    atmHackCooldowns[atmId] = now
+    
+    -- Award money after hack time
+    SetTimeout(Config.Banking.atmHackTime, function()
+        local reward = math.random(Config.Banking.atmHackReward[1], Config.Banking.atmHackReward[2])
+        AddPlayerMoney(src, reward)
+        
+        -- Add wanted level
+        UpdatePlayerWantedLevel(src, "atm_hack")
+        
+        TriggerClientEvent('cnr:showNotification', src, 'ATM hacked! Gained $' .. reward, 'success')
+        
+        -- Alert nearby cops
+        local playerCoords = GetEntityCoords(GetPlayerPed(src))
+        for _, playerId in pairs(GetPlayers()) do
+            local targetData = playerDataCache[tonumber(playerId)]
+            if targetData and targetData.role == "cop" then
+                TriggerClientEvent('cnr:policeAlert', playerId, {
+                    type = "ATM Hack",
+                    location = playerCoords,
+                    suspect = GetPlayerName(src)
+                })
+            end
+        end
+    end)
+end)
+
+-- Get bank balance
+RegisterNetEvent('cnr:getBankBalance')
+AddEventHandler('cnr:getBankBalance', function()
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    local account = GetBankAccount(playerLicense)
+    TriggerClientEvent('cnr:updateBankBalance', src, account.balance)
+end)
+
+-- Get transaction history
+RegisterNetEvent('cnr:getTransactionHistory')
+AddEventHandler('cnr:getTransactionHistory', function()
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if not playerLicense then return end
+    
+    local account = GetBankAccount(playerLicense)
+    TriggerClientEvent('cnr:updateTransactionHistory', src, account.transactionHistory)
+end)
+
+-- Banking interest and loan processing (runs every hour)
+function ProcessBankingInterest()
+    local now = os.time()
+    
+    for license, account in pairs(bankAccounts) do
+        -- Process savings interest
+        if account.balance >= Config.Banking.interestMinBalance then
+            local interest = math.floor(account.balance * Config.Banking.interestRate)
+            account.balance = account.balance + interest
+            
+            if interest > 0 then
+                AddTransactionHistory(license, {
+                    type = "interest",
+                    amount = interest,
+                    description = "Daily interest earned"
+                })
+            end
+        end
+    end
+    
+    -- Process loan interest
+    for license, loan in pairs(playerLoans) do
+        local interest = math.floor(loan.totalOwed * loan.dailyInterest)
+        loan.totalOwed = loan.totalOwed + interest
+        
+        -- Check if loan is overdue
+        if now - loan.startDate > loan.duration then
+            -- Loan overdue, additional penalty
+            local penalty = math.floor(loan.totalOwed * 0.1) -- 10% penalty
+            loan.totalOwed = loan.totalOwed + penalty
+        end
+    end
+    
+    -- Process investments
+    for license, investments in pairs(playerInvestments) do
+        for i = #investments, 1, -1 do
+            local investment = investments[i]
+            if now - investment.startTime >= investment.duration then
+                -- Investment matured
+                local account = GetBankAccount(license)
+                
+                -- Calculate return based on risk
+                local returnMultiplier = investment.expectedReturn
+                if investment.riskLevel == "high" then
+                    -- High risk: 70% chance of expected return, 30% chance of loss
+                    if math.random() < 0.7 then
+                        returnMultiplier = returnMultiplier * (0.8 + math.random() * 0.4) -- 80-120% of expected
+                    else
+                        returnMultiplier = -0.2 - math.random() * 0.3 -- 20-50% loss
+                    end
+                elseif investment.riskLevel == "medium" then
+                    -- Medium risk: 85% chance of expected return
+                    if math.random() < 0.85 then
+                        returnMultiplier = returnMultiplier * (0.9 + math.random() * 0.2) -- 90-110% of expected
+                    else
+                        returnMultiplier = -0.1 - math.random() * 0.1 -- 10-20% loss
+                    end
+                else
+                    -- Low risk: guaranteed return with small variance
+                    returnMultiplier = returnMultiplier * (0.95 + math.random() * 0.1) -- 95-105% of expected
+                end
+                
+                local returnAmount = math.floor(investment.amount * (1 + returnMultiplier))
+                account.balance = account.balance + returnAmount
+                
+                local profit = returnAmount - investment.amount
+                AddTransactionHistory(license, {
+                    type = "investment_return",
+                    amount = returnAmount,
+                    description = "Investment return (" .. (profit >= 0 and "+" or "") .. "$" .. profit .. ")"
+                })
+                
+                -- Remove completed investment
+                table.remove(investments, i)
+            end
+        end
+    end
+    
+    SaveBankingData()
+end
+
+-- Banking data persistence
+function SaveBankingData()
+    local data = {
+        accounts = bankAccounts,
+        loans = playerLoans,
+        investments = playerInvestments
+    }
+    SaveResourceFile(GetCurrentResourceName(), "banking_data.json", json.encode(data, {indent = true}), -1)
+end
+
+function LoadBankingData()
+    local file = LoadResourceFile(GetCurrentResourceName(), "banking_data.json")
+    if file then
+        local data = json.decode(file)
+        if data then
+            bankAccounts = data.accounts or {}
+            playerLoans = data.loans or {}
+            playerInvestments = data.investments or {}
+        end
+    end
+end
+
+-- Initialize banking system on resource start
+AddEventHandler('onResourceStart', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        LoadBankingData()
+        
+        -- Start banking interest processing timer (every hour)
+        SetTimeout(3600000, function()
+            ProcessBankingInterest()
+        end)
+    end
+end)
+
+-- Initialize bank account when player joins
+AddEventHandler('playerJoining', function()
+    local src = source
+    local playerLicense = GetPlayerLicense(src)
+    if playerLicense then
+        InitializeBankAccount(playerLicense)
+    end
+end)
+
+-- =========================
+--    Enhanced Heist System
+-- =========================
+
+-- Enhanced heist data storage
+local activeHeists = {}
+local heistCooldowns = {}
+local heistCrews = {}
+local playerCrewRoles = {}
+local heistPlanningRooms = {}
+
+-- Initialize heist crew
+function CreateHeistCrew(leaderId, heistId)
+    local crewId = "crew_" .. leaderId .. "_" .. os.time()
+    
+    heistCrews[crewId] = {
+        id = crewId,
+        leader = leaderId,
+        heistId = heistId,
+        members = {leaderId},
+        roles = {[leaderId] = "mastermind"},
+        status = "recruiting",
+        equipment = {},
+        planningComplete = false,
+        startTime = nil
+    }
+    
+    playerCrewRoles[leaderId] = crewId
+    return crewId
+end
+
+-- Join heist crew
+RegisterNetEvent('cnr:joinHeistCrew')
+AddEventHandler('cnr:joinHeistCrew', function(crewId, role)
+    local src = source
+    local playerData = playerDataCache[src]
+    
+    if not playerData or playerData.role ~= "robber" then
+        TriggerClientEvent('cnr:showNotification', src, 'Only robbers can join heist crews', 'error')
+        return
+    end
+    
+    local crew = heistCrews[crewId]
+    if not crew then
+        TriggerClientEvent('cnr:showNotification', src, 'Crew not found', 'error')
+        return
+    end
+    
+    -- Check if player already in a crew
+    if playerCrewRoles[src] then
+        TriggerClientEvent('cnr:showNotification', src, 'You are already in a crew', 'error')
+        return
+    end
+    
+    -- Check role requirements
+    local roleConfig = nil
+    for _, r in pairs(Config.CrewRoles) do
+        if r.id == role then
+            roleConfig = r
+            break
+        end
+    end
+    
+    if not roleConfig then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid role', 'error')
+        return
+    end
+    
+    local playerLevel = GetPlayerLevel(src)
+    if playerLevel < roleConfig.requiredLevel then
+        TriggerClientEvent('cnr:showNotification', src, 'Level ' .. roleConfig.requiredLevel .. ' required for ' .. roleConfig.name, 'error')
+        return
+    end
+    
+    -- Add to crew
+    table.insert(crew.members, src)
+    crew.roles[src] = role
+    playerCrewRoles[src] = crewId
+    
+    -- Notify crew members
+    for _, memberId in pairs(crew.members) do
+        TriggerClientEvent('cnr:showNotification', memberId, GetPlayerName(src) .. ' joined as ' .. roleConfig.name, 'success')
+        TriggerClientEvent('cnr:updateCrewInfo', memberId, crew)
+    end
+end)
+
+-- Leave heist crew
+RegisterNetEvent('cnr:leaveHeistCrew')
+AddEventHandler('cnr:leaveHeistCrew', function()
+    local src = source
+    local crewId = playerCrewRoles[src]
+    
+    if not crewId then
+        TriggerClientEvent('cnr:showNotification', src, 'You are not in a crew', 'error')
+        return
+    end
+    
+    local crew = heistCrews[crewId]
+    if not crew then return end
+    
+    -- Remove from crew
+    for i, memberId in pairs(crew.members) do
+        if memberId == src then
+            table.remove(crew.members, i)
+            break
+        end
+    end
+    
+    crew.roles[src] = nil
+    playerCrewRoles[src] = nil
+    
+    -- If leader left, disband crew
+    if crew.leader == src then
+        for _, memberId in pairs(crew.members) do
+            playerCrewRoles[memberId] = nil
+            TriggerClientEvent('cnr:showNotification', memberId, 'Crew disbanded - leader left', 'error')
+        end
+        heistCrews[crewId] = nil
+    else
+        -- Notify remaining members
+        for _, memberId in pairs(crew.members) do
+            TriggerClientEvent('cnr:showNotification', memberId, GetPlayerName(src) .. ' left the crew', 'info')
+            TriggerClientEvent('cnr:updateCrewInfo', memberId, crew)
+        end
+    end
+end)
+
+-- Start heist planning
+RegisterNetEvent('cnr:startHeistPlanning')
+AddEventHandler('cnr:startHeistPlanning', function(heistId)
+    local src = source
+    local playerData = playerDataCache[src]
+    
+    if not playerData or playerData.role ~= "robber" then
+        TriggerClientEvent('cnr:showNotification', src, 'Access denied', 'error')
+        return
+    end
+    
+    -- Find heist config
+    local heistConfig = nil
+    for _, heist in pairs(Config.EnhancedHeists) do
+        if heist.id == heistId then
+            heistConfig = heist
+            break
+        end
+    end
+    
+    if not heistConfig then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid heist', 'error')
+        return
+    end
+    
+    -- Check level requirement
+    local playerLevel = GetPlayerLevel(src)
+    if playerLevel < heistConfig.requiredLevel then
+        TriggerClientEvent('cnr:showNotification', src, 'Level ' .. heistConfig.requiredLevel .. ' required', 'error')
+        return
+    end
+    
+    -- Check cooldown
+    local now = os.time()
+    if heistCooldowns[heistId] and now - heistCooldowns[heistId] < heistConfig.cooldown then
+        local remaining = math.ceil((heistConfig.cooldown - (now - heistCooldowns[heistId])) / 60)
+        TriggerClientEvent('cnr:showNotification', src, 'Heist on cooldown (' .. remaining .. ' minutes)', 'error')
+        return
+    end
+    
+    -- Create crew
+    local crewId = CreateHeistCrew(src, heistId)
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Heist planning started. Recruit your crew!', 'success')
+    TriggerClientEvent('cnr:openHeistPlanning', src, heistConfig, crewId)
+end)
+
+-- Purchase heist equipment
+RegisterNetEvent('cnr:purchaseHeistEquipment')
+AddEventHandler('cnr:purchaseHeistEquipment', function(itemId, quantity)
+    local src = source
+    local crewId = playerCrewRoles[src]
+    
+    if not crewId then
+        TriggerClientEvent('cnr:showNotification', src, 'You must be in a crew', 'error')
+        return
+    end
+    
+    local crew = heistCrews[crewId]
+    if not crew or crew.leader ~= src then
+        TriggerClientEvent('cnr:showNotification', src, 'Only crew leader can purchase equipment', 'error')
+        return
+    end
+    
+    -- Find equipment in heist equipment shop
+    local equipment = nil
+    for _, item in pairs(Config.HeistEquipment.items) do
+        if item.id == itemId then
+            equipment = item
+            break
+        end
+    end
+    
+    if not equipment then
+        TriggerClientEvent('cnr:showNotification', src, 'Invalid equipment', 'error')
+        return
+    end
+    
+    local playerLevel = GetPlayerLevel(src)
+    if equipment.requiredLevel and playerLevel < equipment.requiredLevel then
+        TriggerClientEvent('cnr:showNotification', src, 'Level ' .. equipment.requiredLevel .. ' required', 'error')
+        return
+    end
+    
+    quantity = quantity or 1
+    local totalCost = equipment.price * quantity
+    local playerMoney = GetPlayerMoney(src)
+    
+    if playerMoney < totalCost then
+        TriggerClientEvent('cnr:showNotification', src, 'Insufficient funds', 'error')
+        return
+    end
+    
+    -- Purchase equipment
+    RemovePlayerMoney(src, totalCost)
+    
+    if not crew.equipment[itemId] then
+        crew.equipment[itemId] = 0
+    end
+    crew.equipment[itemId] = crew.equipment[itemId] + quantity
+    
+    TriggerClientEvent('cnr:showNotification', src, 'Purchased ' .. quantity .. 'x ' .. equipment.name, 'success')
+    
+    -- Update crew info for all members
+    for _, memberId in pairs(crew.members) do
+        TriggerClientEvent('cnr:updateCrewInfo', memberId, crew)
+    end
+end)
+
+-- Start enhanced heist
+RegisterNetEvent('cnr:startEnhancedHeist')
+AddEventHandler('cnr:startEnhancedHeist', function()
+    local src = source
+    local crewId = playerCrewRoles[src]
+    
+    if not crewId then
+        TriggerClientEvent('cnr:showNotification', src, 'You must be in a crew', 'error')
+        return
+    end
+    
+    local crew = heistCrews[crewId]
+    if not crew or crew.leader ~= src then
+        TriggerClientEvent('cnr:showNotification', src, 'Only crew leader can start heist', 'error')
+        return
+    end
+    
+    -- Find heist config
+    local heistConfig = nil
+    for _, heist in pairs(Config.EnhancedHeists) do
+        if heist.id == crew.heistId then
+            heistConfig = heist
+            break
+        end
+    end
+    
+    if not heistConfig then
+        TriggerClientEvent('cnr:showNotification', src, 'Heist configuration error', 'error')
+        return
+    end
+    
+    -- Check crew size
+    if #crew.members < heistConfig.requiredCrew then
+        TriggerClientEvent('cnr:showNotification', src, 'Need ' .. heistConfig.requiredCrew .. ' crew members', 'error')
+        return
+    end
+    
+    -- Check required equipment
+    for _, requiredItem in pairs(heistConfig.equipment) do
+        if not crew.equipment[requiredItem] or crew.equipment[requiredItem] < 1 then
+            TriggerClientEvent('cnr:showNotification', src, 'Missing required equipment: ' .. requiredItem, 'error')
+            return
+        end
+    end
+    
+    -- Check if enough cops online
+    local copCount = 0
+    for _, playerId in pairs(GetPlayers()) do
+        local playerData = playerDataCache[tonumber(playerId)]
+        if playerData and playerData.role == "cop" then
+            copCount = copCount + 1
+        end
+    end
+    
+    local minCopsRequired = math.max(2, math.floor(heistConfig.requiredCrew / 2))
+    if copCount < minCopsRequired then
+        TriggerClientEvent('cnr:showNotification', src, 'Not enough police online (' .. minCopsRequired .. ' required)', 'error')
+        return
+    end
+    
+    -- Start heist
+    crew.status = "active"
+    crew.startTime = os.time()
+    crew.currentStage = 1
+    crew.stageStartTime = os.time()
+    
+    activeHeists[crewId] = {
+        crew = crew,
+        heistConfig = heistConfig,
+        startTime = os.time(),
+        currentStage = 1,
+        completed = false,
+        failed = false
+    }
+    
+    -- Set cooldown
+    heistCooldowns[crew.heistId] = os.time()
+    
+    -- Notify crew members
+    for _, memberId in pairs(crew.members) do
+        TriggerClientEvent('cnr:startHeistExecution', memberId, heistConfig, crew)
+        TriggerClientEvent('cnr:showNotification', memberId, 'Heist started: ' .. heistConfig.name, 'success')
+        
+        -- Add wanted level
+        UpdatePlayerWantedLevel(memberId, "heist_participation")
+    end
+    
+    -- Alert police
+    local heistLocation = heistConfig.location
+    for _, playerId in pairs(GetPlayers()) do
+        local playerData = playerDataCache[tonumber(playerId)]
+        if playerData and playerData.role == "cop" then
+            TriggerClientEvent('cnr:policeAlert', playerId, {
+                type = "Major Heist",
+                location = heistLocation,
+                heistName = heistConfig.name,
+                crewSize = #crew.members
+            })
+        end
+    end
+    
+    -- Start heist stage timer
+    ProcessHeistStages(crewId)
+end)
+
+-- Process heist stages
+function ProcessHeistStages(crewId)
+    local heist = activeHeists[crewId]
+    if not heist or heist.completed or heist.failed then return end
+    
+    local crew = heist.crew
+    local heistConfig = heist.heistConfig
+    local currentStage = heistConfig.stages[heist.currentStage]
+    
+    if not currentStage then
+        -- Heist completed
+        CompleteHeist(crewId)
+        return
+    end
+    
+    -- Notify crew of current stage
+    for _, memberId in pairs(crew.members) do
+        TriggerClientEvent('cnr:updateHeistStage', memberId, {
+            stage = heist.currentStage,
+            description = currentStage.description,
+            duration = currentStage.duration,
+            timeRemaining = currentStage.duration
+        })
+    end
+    
+    -- Set timer for stage completion
+    SetTimeout(currentStage.duration * 1000, function()
+        if activeHeists[crewId] and not activeHeists[crewId].completed and not activeHeists[crewId].failed then
+            -- Move to next stage
+            activeHeists[crewId].currentStage = activeHeists[crewId].currentStage + 1
+            ProcessHeistStages(crewId)
+        end
+    end)
+end
+
+-- Complete heist
+function CompleteHeist(crewId)
+    local heist = activeHeists[crewId]
+    if not heist then return end
+    
+    local crew = heist.crew
+    local heistConfig = heist.heistConfig
+    
+    heist.completed = true
+    
+    -- Calculate rewards
+    local baseReward = math.random(heistConfig.minReward, heistConfig.maxReward)
+    local crewBonus = 1.0
+    
+    -- Apply crew role bonuses
+    for memberId, role in pairs(crew.roles) do
+        for _, roleConfig in pairs(Config.CrewRoles) do
+            if roleConfig.id == role and roleConfig.bonuses then
+                if roleConfig.bonuses.crew_coordination then
+                    crewBonus = crewBonus * roleConfig.bonuses.crew_coordination
+                end
+                break
+            end
+        end
+    end
+    
+    local totalReward = math.floor(baseReward * crewBonus)
+    local rewardPerMember = math.floor(totalReward / #crew.members)
+    
+    -- Distribute rewards
+    for _, memberId in pairs(crew.members) do
+        AddPlayerMoney(memberId, rewardPerMember)
+        
+        -- Award XP based on heist type
+        local xpReward = 0
+        if heistConfig.type == "major_bank" then
+            xpReward = Config.XPActionsRobber.successful_bank_heist_major or 100
+        elseif heistConfig.type == "small_bank" then
+            xpReward = Config.XPActionsRobber.successful_bank_heist_minor or 50
+        elseif heistConfig.type == "jewelry" then
+            xpReward = Config.XPActionsRobber.successful_store_robbery_large or 35
+        else
+            xpReward = 75 -- Default for other heist types
+        end
+        
+        AddXP(memberId, xpReward, "Enhanced heist completion")
+        
+        TriggerClientEvent('cnr:heistCompleted', memberId, {
+            success = true,
+            reward = rewardPerMember,
+            xp = xpReward,
+            heistName = heistConfig.name
+        })
+        
+        TriggerClientEvent('cnr:showNotification', memberId, 'Heist completed! Reward: $' .. rewardPerMember, 'success')
+    end
+    
+    -- Clean up
+    CleanupHeist(crewId)
+end
+
+-- Fail heist
+function FailHeist(crewId, reason)
+    local heist = activeHeists[crewId]
+    if not heist then return end
+    
+    local crew = heist.crew
+    heist.failed = true
+    
+    -- Notify crew members
+    for _, memberId in pairs(crew.members) do
+        TriggerClientEvent('cnr:heistCompleted', memberId, {
+            success = false,
+            reason = reason,
+            heistName = heist.heistConfig.name
+        })
+        
+        TriggerClientEvent('cnr:showNotification', memberId, 'Heist failed: ' .. reason, 'error')
+    end
+    
+    -- Clean up
+    CleanupHeist(crewId)
+end
+
+-- Cleanup heist
+function CleanupHeist(crewId)
+    local heist = activeHeists[crewId]
+    if not heist then return end
+    
+    local crew = heist.crew
+    
+    -- Remove crew roles
+    for _, memberId in pairs(crew.members) do
+        playerCrewRoles[memberId] = nil
+    end
+    
+    -- Remove heist data
+    activeHeists[crewId] = nil
+    heistCrews[crewId] = nil
+end
+
+-- Heist member arrest (causes heist failure)
+RegisterNetEvent('cnr:heistMemberArrested')
+AddEventHandler('cnr:heistMemberArrested', function(arrestedPlayerId)
+    local crewId = playerCrewRoles[arrestedPlayerId]
+    if crewId and activeHeists[crewId] then
+        FailHeist(crewId, "Crew member arrested")
+    end
+end)
+
+-- Get player's crew info
+RegisterNetEvent('cnr:getCrewInfo')
+AddEventHandler('cnr:getCrewInfo', function()
+    local src = source
+    local crewId = playerCrewRoles[src]
+    
+    if crewId and heistCrews[crewId] then
+        TriggerClientEvent('cnr:updateCrewInfo', src, heistCrews[crewId])
+    else
+        TriggerClientEvent('cnr:updateCrewInfo', src, nil)
+    end
+end)
+
+-- Get available heists
+RegisterNetEvent('cnr:getAvailableHeists')
+AddEventHandler('cnr:getAvailableHeists', function()
+    local src = source
+    local playerLevel = GetPlayerLevel(src)
+    local availableHeists = {}
+    
+    for _, heist in pairs(Config.EnhancedHeists) do
+        if playerLevel >= heist.requiredLevel then
+            local now = os.time()
+            local onCooldown = heistCooldowns[heist.id] and now - heistCooldowns[heist.id] < heist.cooldown
+            
+            table.insert(availableHeists, {
+                id = heist.id,
+                name = heist.name,
+                type = heist.type,
+                difficulty = heist.difficulty,
+                requiredCrew = heist.requiredCrew,
+                minReward = heist.minReward,
+                maxReward = heist.maxReward,
+                duration = heist.duration,
+                onCooldown = onCooldown,
+                cooldownRemaining = onCooldown and math.ceil((heist.cooldown - (now - heistCooldowns[heist.id])) / 60) or 0
+            })
+        end
+    end
+    
+    TriggerClientEvent('cnr:updateAvailableHeists', src, availableHeists)
+end)
 
