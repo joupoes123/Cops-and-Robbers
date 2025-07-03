@@ -314,9 +314,23 @@ function EquipInventoryWeapons()
                         end
                     end
 
+                    -- Ensure weapon model is loaded before giving weapon
+                    if not HasWeaponAssetLoaded(weaponHash) then
+                        RequestWeaponAsset(weaponHash, 31, 0)
+                        local loadTimeout = 0
+                        while not HasWeaponAssetLoaded(weaponHash) and loadTimeout < 50 do
+                            Citizen.Wait(100)
+                            loadTimeout = loadTimeout + 1
+                        end
+                        
+                        if not HasWeaponAssetLoaded(weaponHash) then
+                            Log(string.format("  ✗ WEAPON_LOAD_FAILED: %s (Hash: %s) - Asset failed to load", itemId, weaponHash), "error")
+                        end
+                    end
+
                     -- Give weapon with ammo (without immediately equipping)
                     GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
-                    Citizen.Wait(200) -- Wait between weapons for better compatibility
+                    Citizen.Wait(300) -- Increased wait time for better compatibility
 
                     -- Ensure ammo is set correctly with multiple attempts
                     SetPedAmmo(playerPed, weaponHash, ammoCount)
@@ -329,34 +343,40 @@ function EquipInventoryWeapons()
                         Citizen.Wait(100)
                     end
 
-                    -- Verify the weapon was equipped with retries
+                    -- Verify the weapon was equipped with improved retries
                     local hasWeapon = false
-                    local maxRetries = 5
+                    local maxRetries = 8
                     local retryCount = 0
                     
-                    -- Initial check
+                    -- Initial check with delay
+                    Citizen.Wait(200)
                     hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
                     
                     while retryCount < maxRetries and not hasWeapon do
                         retryCount = retryCount + 1
-                        Citizen.Wait(300) -- Increased wait time
+                        Citizen.Wait(400) -- Increased wait time for better stability
                         
-                        -- Re-attempt giving the weapon with different parameters
-                        GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
-                        Citizen.Wait(100)
-                        SetPedAmmo(playerPed, weaponHash, ammoCount)
-                        Citizen.Wait(100)
-                        
-                        -- Check again
-                        hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
-                        
-                        -- If still not working, try with different approach
-                        if not hasWeapon and retryCount >= 3 then
-                            -- Force equip the weapon
+                        -- Different retry strategies based on attempt number
+                        if retryCount <= 3 then
+                            -- First attempts: Re-give weapon with different parameters
+                            RemoveWeaponFromPed(playerPed, weaponHash)
+                            Citizen.Wait(100)
+                            GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
+                        elseif retryCount <= 6 then
+                            -- Middle attempts: Force equip approach
                             SetCurrentPedWeapon(playerPed, weaponHash, true)
                             Citizen.Wait(100)
-                            hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                            SetPedAmmo(playerPed, weaponHash, ammoCount)
+                        else
+                            -- Final attempts: Complete re-add with component check
+                            RemoveAllPedWeapons(playerPed, true)
+                            Citizen.Wait(200)
+                            GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, true)
+                            SetCurrentPedWeapon(playerPed, weaponHash, true)
                         end
+                        
+                        Citizen.Wait(200)
+                        hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
                     end
                       if hasWeapon then
                         weaponsEquipped = weaponsEquipped + 1

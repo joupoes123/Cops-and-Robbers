@@ -5,7 +5,7 @@ window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
 window.fullItemConfig = null; // Will store Config.Items
 
 // Inventory state variables
-let isInventoryOpen = false;
+window.isInventoryOpen = window.isInventoryOpen || false;
 let currentInventoryData = null;
 let currentEquippedItems = null;
 
@@ -42,6 +42,18 @@ window.addEventListener('message', function(event) {
     }
   
     const data = event.data;
+    
+    // Validate message data
+    if (!data || typeof data !== 'object') {
+        console.error('[CNR_NUI] Invalid message data received:', data);
+        return;
+    }
+    
+    // Ensure action is defined
+    if (!data.action || typeof data.action !== 'string') {
+        console.error('[CNR_NUI] Message missing or invalid action field:', data);
+        return;
+    }
   
     switch (data.action) {
         case 'showRoleSelection':
@@ -342,7 +354,7 @@ window.addEventListener('message', function(event) {
             console.log('[CNR_NUI] Wanted UI shown with level:', data.wantedLevel || 'unknown');
             break;
         default:
-            console.warn(`Unhandled NUI action: ${data.action}`);
+            console.warn(`[CNR_NUI] Unhandled NUI action: "${data.action}" with data:`, data);
     }
 });
 
@@ -696,10 +708,17 @@ function loadGridItems() {
             return;
         }
         
-        // Ensure the item has an itemId
+        // Ensure the item has an itemId, create one if missing
         if (!item.itemId) {
-            console.error('[CNR_NUI_DEBUG] Item missing itemId at index', index, item);
-            return;
+            console.warn('[CNR_NUI_DEBUG] Item missing itemId at index', index, 'attempting to fix...', item);
+            // Try to use name as itemId, or create a fallback
+            if (item.name) {
+                item.itemId = item.name.toLowerCase().replace(/\s+/g, '_');
+            } else {
+                item.itemId = 'unknown_item_' + index;
+                item.name = 'Unknown Item';
+            }
+            console.log('[CNR_NUI_DEBUG] Fixed item with generated itemId:', item.itemId);
         }
         
         // Add a name if missing
@@ -1413,7 +1432,7 @@ window.addEventListener('keydown', function(event) {
 
 // Global escape key listener for inventory
 document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape' && isInventoryOpen) {
+    if (event.key === 'Escape' && window.isInventoryOpen) {
         closeInventoryUI();
     }
 });
@@ -1635,9 +1654,9 @@ function closeInventoryMenu() {
 }
 
 function closeInventoryUI() {
-    if (!isInventoryOpen) return;
-    
-    isInventoryOpen = false;
+    if (!window.isInventoryOpen) return;
+
+    window.isInventoryOpen = false;
     console.log('[CNR_INVENTORY] Closing inventory UI');
     
     const inventoryMenu = document.getElementById('inventory-menu');
@@ -2148,9 +2167,9 @@ function handleInventoryMessage(data) {
 }
 
 function openInventoryUI(data) {
-    if (isInventoryOpen) return;
-    
-    isInventoryOpen = true;
+    if (window.isInventoryOpen) return;
+
+    window.isInventoryOpen = true;
     console.log('[CNR_INVENTORY] Opening inventory UI');
     
     // Set up inventory UI (this will handle both existing and new UI creation)
