@@ -1873,6 +1873,49 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     TriggerClientEvent('cnr:roleSelected', src, true, "Role selected successfully.")
 end)
 
+-- Helper function to safely send NUI messages
+function SafeSendNUIMessage(playerId, message)
+    if not message or type(message) ~= 'table' then
+        print('[CNR_SERVER_ERROR] Invalid NUI message format:', message)
+        return false
+    end
+    
+    if not message.action or type(message.action) ~= 'string' or message.action == '' then
+        print('[CNR_SERVER_ERROR] NUI message missing or invalid action:', json.encode(message))
+        return false
+    end
+    
+    TriggerClientEvent('cnr:sendNUIMessage', playerId, message)
+    return true
+end
+
+-- Helper function to get proper image path for items
+function GetItemImagePath(configItem)
+    -- If item has a specific image, use it
+    if configItem.image and configItem.image ~= "" then
+        return configItem.image
+    end
+    
+    -- Generate image path based on category and itemId
+    local category = configItem.category or "misc"
+    local itemId = configItem.itemId or "default"
+    
+    -- Set default images based on category
+    if category:lower() == "weapons" then
+        return "img/items/" .. itemId .. ".png"
+    elseif category:lower() == "ammo" then
+        return "img/items/ammo.png"
+    elseif category:lower() == "armor" then
+        return "img/items/armor.png"
+    elseif category:lower() == "tools" then
+        return "img/items/tool.png"
+    elseif category:lower() == "medical" then
+        return "img/items/medical.png"
+    else
+        return "img/items/default.png"
+    end
+end
+
 RegisterNetEvent('cops_and_robbers:getItemList')
 AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName) -- Renamed itemList to vendorItemIds for clarity
     local src = source
@@ -1899,18 +1942,17 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                 if configItem.itemId == itemIdFromVendor then
                     -- Create a new table for the item to send, ensuring all necessary fields are present
                     foundItem = {
-                        itemId = configItem.itemId,
-                        name = configItem.name,
-                        basePrice = configItem.basePrice, -- NUI will use this as 'price'
-                        price = configItem.basePrice, -- Explicitly add 'price' for NUI if it uses that
-                        category = configItem.category,
+                        itemId = configItem.itemId or itemIdFromVendor, -- Ensure itemId is always present
+                        name = configItem.name or configItem.itemId or itemIdFromVendor,
+                        basePrice = configItem.basePrice or 100, -- Default price if missing
+                        price = configItem.basePrice or 100, -- Explicitly add 'price' for NUI if it uses that
+                        category = configItem.category or "misc",
                         forCop = configItem.forCop,
-                        minLevelCop = configItem.minLevelCop,
-                        minLevelRobber = configItem.minLevelRobber,
-                        icon = configItem.icon, -- Add icon field for modern UI
-                        image = configItem.image or configItem.icon, -- Fallback to icon if no image
-                        -- Add any other fields the NUI might need, like description, weight, etc.
-                        -- e.g., description = configItem.description or ""
+                        minLevelCop = configItem.minLevelCop or 1,
+                        minLevelRobber = configItem.minLevelRobber or 1,
+                        icon = configItem.icon or "📦", -- Default icon
+                        image = GetItemImagePath(configItem), -- Use helper function for proper image path
+                        description = configItem.description or ""
                     }
                     -- Apply dynamic pricing if enabled
                     if Config.DynamicEconomy and Config.DynamicEconomy.enabled then

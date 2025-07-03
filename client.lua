@@ -1704,6 +1704,17 @@ end)
 -- Register event to send NUI messages from server
 RegisterNetEvent('cnr:sendNUIMessage')
 AddEventHandler('cnr:sendNUIMessage', function(message)
+    -- Validate message before sending to NUI
+    if not message or type(message) ~= 'table' then
+        print('[CNR_CLIENT_ERROR] Invalid NUI message received from server:', message)
+        return
+    end
+    
+    if not message.action or type(message.action) ~= 'string' then
+        print('[CNR_CLIENT_ERROR] NUI message missing action field:', json.encode(message))
+        return
+    end
+    
     SendNUIMessage(message)
 end)
 
@@ -2521,10 +2532,13 @@ function SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
     
 end
 
--- Event handler for receiving character data
+-- Register and handle the network event for receiving character data
+RegisterNetEvent('cnr:receiveCharacterForRole')
 AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
     -- This will be used for future character loading logic
     if characterData then
+        -- Process character data for role selection
+        print("[CNR_CLIENT] Received character data for role selection")
     end
 end)
 
