@@ -2576,3 +2576,340 @@ end)
 AddEventHandler('cnr:spawnPlayerAt', function(spawnLocation, spawnHeading, role)
     SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
 end)
+
+-- =========================
+--      Banking System Client
+-- =========================
+
+-- Banking client variables
+local bankingData = {
+    balance = 0,
+    transactionHistory = {},
+    currentATM = nil,
+    currentBankTeller = nil,
+    isUsingATM = false,
+    isAtBank = false
+}
+
+local atmProps = {}
+local bankTellerPeds = {}
+local atmHackInProgress = false
+
+-- Register banking events
+RegisterNetEvent('cnr:updateBankBalance')
+RegisterNetEvent('cnr:updateTransactionHistory')
+RegisterNetEvent('cnr:startATMHack')
+RegisterNetEvent('cnr:showNotification')
+
+-- Update bank balance
+AddEventHandler('cnr:updateBankBalance', function(balance)
+    bankingData.balance = balance
+    SendNUIMessage({
+        type = "updateBankBalance",
+        balance = balance
+    })
+end)
+
+-- Update transaction history
+AddEventHandler('cnr:updateTransactionHistory', function(history)
+    bankingData.transactionHistory = history
+    SendNUIMessage({
+        type = "updateTransactionHistory",
+        history = history
+    })
+end)
+
+-- Show notification
+AddEventHandler('cnr:showNotification', function(message, type)
+    SendNUIMessage({
+        type = "showNotification",
+        message = message,
+        notificationType = type or "info"
+    })
+end)
+
+-- ATM hacking for robbers
+AddEventHandler('cnr:startATMHack', function(atmId, duration)
+    if atmHackInProgress then return end
+    
+    atmHackInProgress = true
+    local playerPed = PlayerPedId()
+    
+    -- Play hacking animation
+    RequestAnimDict("anim@amb@business@cfid@cfid_machine_use@")
+    while not HasAnimDictLoaded("anim@amb@business@cfid@cfid_machine_use@") do
+        Citizen.Wait(100)
+    end
+    
+    TaskPlayAnim(playerPed, "anim@amb@business@cfid@cfid_machine_use@", "machine_use_enter", 8.0, -8.0, -1, 1, 0, false, false, false)
+    
+    -- Show progress bar
+    SendNUIMessage({
+        type = "showProgressBar",
+        duration = duration,
+        label = "Hacking ATM..."
+    })
+    
+    -- Reset after duration
+    SetTimeout(duration, function()
+        atmHackInProgress = false
+        ClearPedTasks(playerPed)
+        SendNUIMessage({
+            type = "hideProgressBar"
+        })
+    end)
+end)
+
+-- Initialize ATM props on resource start
+function InitializeBankingProps()
+    -- Create ATM props
+    for i, atm in pairs(Config.ATMLocations) do
+        local prop = CreateObject(GetHashKey(atm.model), atm.pos.x, atm.pos.y, atm.pos.z, false, false, false)
+        SetEntityHeading(prop, atm.heading)
+        FreezeEntityPosition(prop, true)
+        
+        atmProps[i] = {
+            prop = prop,
+            coords = atm.pos,
+            id = i
+        }
+    end
+    
+    -- Create bank teller NPCs
+    for i, teller in pairs(Config.BankTellers) do
+        RequestModel(GetHashKey(teller.model))
+        while not HasModelLoaded(GetHashKey(teller.model)) do
+            Citizen.Wait(100)
+        end
+        
+        local ped = CreatePed(4, GetHashKey(teller.model), teller.pos.x, teller.pos.y, teller.pos.z, teller.heading, false, true)
+        SetEntityCanBeDamaged(ped, false)
+        SetPedCanRagdollFromPlayerImpact(ped, false)
+        SetBlockingOfNonTemporaryEvents(ped, true)
+        SetEntityInvincible(ped, true)
+        FreezeEntityPosition(ped, true)
+        
+        bankTellerPeds[i] = {
+            ped = ped,
+            coords = teller.pos,
+            name = teller.name,
+            services = teller.services,
+            id = i
+        }
+    end
+end
+
+-- Main banking interaction thread
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(0)
+        
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local closestATM = nil
+        local closestBankTeller = nil
+        local closestATMDist = math.huge
+        local closestTellerDist = math.huge
+        
+        -- Check ATM proximity
+        for i, atm in pairs(atmProps) do
+            if atm.prop and DoesEntityExist(atm.prop) then
+                local dist = #(playerCoords - atm.coords)
+                if dist < 2.0 and dist < closestATMDist then
+                    closestATM = atm
+                    closestATMDist = dist
+                end
+            end
+        end
+        
+        -- Check bank teller proximity
+        for i, teller in pairs(bankTellerPeds) do
+            if teller.ped and DoesEntityExist(teller.ped) then
+                local dist = #(playerCoords - teller.coords)
+                if dist < 3.0 and dist < closestTellerDist then
+                    closestBankTeller = teller
+                    closestTellerDist = dist
+                end
+            end
+        end
+        
+        -- Handle ATM interactions
+        if closestATM and closestATMDist < 2.0 then
+            if not bankingData.isUsingATM then
+                ShowHelpText("Press ~INPUT_CONTEXT~ to use ATM\nPress ~INPUT_DETONATE~ to hack ATM (Robbers only)")
+                
+                if IsControlJustPressed(0, 38) then -- E key
+                    OpenATMInterface(closestATM)
+                elseif IsControlJustPressed(0, 47) then -- G key (hack)
+                    TriggerServerEvent('cnr:hackATM', closestATM.id)
+                end
+            end
+        end
+        
+        -- Handle bank teller interactions
+        if closestBankTeller and closestTellerDist < 3.0 then
+            if not bankingData.isAtBank then
+                ShowHelpText("Press ~INPUT_CONTEXT~ to speak with " .. closestBankTeller.name)
+                
+                if IsControlJustPressed(0, 38) then -- E key
+                    OpenBankInterface(closestBankTeller)
+                end
+            end
+        end
+        
+        -- If no interactions available, hide help text
+        if not closestATM and not closestBankTeller then
+            bankingData.isUsingATM = false
+            bankingData.isAtBank = false
+        end
+    end
+end)
+
+-- Open ATM interface
+function OpenATMInterface(atm)
+    bankingData.isUsingATM = true
+    bankingData.currentATM = atm
+    
+    -- Request current balance
+    TriggerServerEvent('cnr:getBankBalance')
+    
+    -- Open ATM UI
+    SendNUIMessage({
+        type = "openATM",
+        atmData = {
+            id = atm.id,
+            balance = bankingData.balance
+        }
+    })
+    
+    SetNuiFocus(true, true)
+end
+
+-- Open bank interface
+function OpenBankInterface(teller)
+    bankingData.isAtBank = true
+    bankingData.currentBankTeller = teller
+    
+    -- Request current balance and transaction history
+    TriggerServerEvent('cnr:getBankBalance')
+    TriggerServerEvent('cnr:getTransactionHistory')
+    
+    -- Open bank UI
+    SendNUIMessage({
+        type = "openBank",
+        bankData = {
+            tellerName = teller.name,
+            services = teller.services,
+            balance = bankingData.balance,
+            transactions = bankingData.transactionHistory
+        }
+    })
+    
+    SetNuiFocus(true, true)
+end
+
+-- Close banking interfaces
+function CloseBankingInterface()
+    bankingData.isUsingATM = false
+    bankingData.isAtBank = false
+    bankingData.currentATM = nil
+    bankingData.currentBankTeller = nil
+    
+    SendNUIMessage({
+        type = "closeBanking"
+    })
+    
+    SetNuiFocus(false, false)
+end
+
+-- NUI Callbacks for banking
+RegisterNUICallback('closeBanking', function(data, cb)
+    CloseBankingInterface()
+    cb('ok')
+end)
+
+RegisterNUICallback('bankDeposit', function(data, cb)
+    local amount = tonumber(data.amount)
+    if amount and amount > 0 then
+        TriggerServerEvent('cnr:bankDeposit', amount)
+    end
+    cb('ok')
+end)
+
+RegisterNUICallback('bankWithdraw', function(data, cb)
+    local amount = tonumber(data.amount)
+    if amount and amount > 0 then
+        TriggerServerEvent('cnr:bankWithdraw', amount)
+    end
+    cb('ok')
+end)
+
+RegisterNUICallback('bankTransfer', function(data, cb)
+    local targetId = tonumber(data.targetId)
+    local amount = tonumber(data.amount)
+    if targetId and amount and amount > 0 then
+        TriggerServerEvent('cnr:bankTransfer', targetId, amount)
+    end
+    cb('ok')
+end)
+
+RegisterNUICallback('requestLoan', function(data, cb)
+    local amount = tonumber(data.amount)
+    local duration = tonumber(data.duration)
+    if amount and amount > 0 then
+        TriggerServerEvent('cnr:requestLoan', amount, duration)
+    end
+    cb('ok')
+end)
+
+RegisterNUICallback('repayLoan', function(data, cb)
+    local amount = tonumber(data.amount)
+    if amount and amount > 0 then
+        TriggerServerEvent('cnr:repayLoan', amount)
+    end
+    cb('ok')
+end)
+
+RegisterNUICallback('makeInvestment', function(data, cb)
+    local investmentId = data.investmentId
+    local amount = tonumber(data.amount)
+    if investmentId and amount and amount > 0 then
+        TriggerServerEvent('cnr:makeInvestment', investmentId, amount)
+    end
+    cb('ok')
+end)
+
+-- Helper function to show help text
+function ShowHelpText(text)
+    SetTextComponentFormat("STRING")
+    AddTextComponentString(text)
+    DisplayHelpTextFromStringLabel(0, 0, 1, -1)
+end
+
+-- Initialize banking system when resource starts
+AddEventHandler('onClientResourceStart', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        -- Wait for game to load then initialize banking
+        Citizen.Wait(5000)
+        InitializeBankingProps()
+    end
+end)
+
+-- Clean up banking props when resource stops
+AddEventHandler('onResourceStop', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        -- Clean up ATM props
+        for _, atm in pairs(atmProps) do
+            if atm.prop and DoesEntityExist(atm.prop) then
+                DeleteEntity(atm.prop)
+            end
+        end
+        
+        -- Clean up bank teller peds
+        for _, teller in pairs(bankTellerPeds) do
+            if teller.ped and DoesEntityExist(teller.ped) then
+                DeleteEntity(teller.ped)
+            end
+        end
+    end
+end)

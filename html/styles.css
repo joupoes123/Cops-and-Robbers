@@ -5148,3 +5148,1426 @@ select:focus {
         font-size: 20px;
     }
 }
+
+/* ==========================================================================
+   Banking System Styles
+   ========================================================================== */
+
+.banking-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(8px);
+}
+
+.banking-modal.hidden {
+    display: none;
+}
+
+.banking-modal-content {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.atm-content {
+    max-width: 500px;
+}
+
+.banking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    background: var(--primary-gradient);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.bank-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.bank-logo i {
+    font-size: 24px;
+}
+
+.close-banking-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.close-banking-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.banking-navigation {
+    display: flex;
+    background: var(--surface-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    overflow-x: auto;
+}
+
+.nav-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+}
+
+.nav-tab:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.nav-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: var(--surface-elevated);
+}
+
+.banking-body {
+    padding: var(--spacing-lg);
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.account-summary, .account-overview {
+    margin-bottom: var(--spacing-lg);
+}
+
+.balance-display, .balance-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.balance-card h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.balance-amount {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--success-color);
+    font-family: var(--font-mono);
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.balance-details, .account-info {
+    margin-top: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.account-number {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.atm-actions, .account-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.action-group {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.action-group h4 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.quick-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+}
+
+.quick-btn {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-btn:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.quick-btn i {
+    font-size: 18px;
+}
+
+.transaction-form, .transfer-form, .loan-form {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.form-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-prefix {
+    position: absolute;
+    left: var(--spacing-sm);
+    color: var(--text-muted);
+    font-weight: 600;
+    z-index: 1;
+}
+
+.input-group input, .form-group input, .form-group select {
+    width: 100%;
+    padding: var(--spacing-md);
+    padding-left: var(--spacing-xl);
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+}
+
+.action-btn {
+    background: var(--primary-gradient);
+    border: none;
+    border-radius: 8px;
+    padding: var(--spacing-md) var(--spacing-lg);
+    color: var(--text-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.action-btn.secondary {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+.action-btn.secondary:hover {
+    background: var(--surface-hover);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.action-btn.success {
+    background: var(--success-gradient);
+}
+
+.action-btn.danger {
+    background: var(--error-gradient);
+}
+
+.action-btn.full-width {
+    width: 100%;
+}
+
+.action-btn.large {
+    padding: var(--spacing-lg) var(--spacing-xl);
+    font-size: 18px;
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.atm-limits {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-md);
+}
+
+.limit-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.transfer-fee {
+    display: flex;
+    justify-content: space-between;
+    margin: var(--spacing-md) 0;
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.loan-info {
+    margin-bottom: var(--spacing-lg);
+}
+
+.info-card {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+}
+
+.info-card h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-primary);
+}
+
+.info-card ul {
+    margin: 0;
+    padding-left: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+.loan-calculator {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 8px;
+    margin: var(--spacing-md) 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.loan-status {
+    background: var(--warning-color);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+.loan-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-md);
+    font-size: 14px;
+}
+
+.investment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.investment-option {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.investment-option:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.investment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.investment-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.risk-badge {
+    background: var(--surface-secondary);
+    color: var(--text-secondary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.risk-badge.low {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.risk-badge.medium {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+.risk-badge.high {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--error-color);
+}
+
+.investment-description {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: var(--spacing-md);
+}
+
+.investment-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.transaction-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.transaction-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.transaction-type {
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: capitalize;
+}
+
+.transaction-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.transaction-amount {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.transaction-amount.positive {
+    color: var(--success-color);
+}
+
+.transaction-amount.negative {
+    color: var(--error-color);
+}
+
+.transaction-date {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Heist System Styles
+   ========================================================================== */
+
+.heist-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(8px);
+}
+
+.heist-modal.hidden {
+    display: none;
+}
+
+.heist-modal-content {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    width: 95%;
+    max-width: 1200px;
+    max-height: 95vh;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.completion-content {
+    max-width: 500px;
+}
+
+.heist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.heist-logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.heist-logo i {
+    font-size: 24px;
+}
+
+.close-heist-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+    padding: var(--spacing-sm);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.close-heist-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.heist-navigation {
+    display: flex;
+    background: var(--surface-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    overflow-x: auto;
+}
+
+.heist-nav-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+}
+
+.heist-nav-tab:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.heist-nav-tab.active {
+    color: var(--error-color);
+    border-bottom-color: var(--error-color);
+    background: var(--surface-elevated);
+}
+
+.heist-body {
+    padding: var(--spacing-lg);
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+.heist-tab-content {
+    display: none;
+}
+
+.heist-tab-content.active {
+    display: block;
+}
+
+.heist-overview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-lg);
+}
+
+.heist-details {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.heist-details h3 {
+    margin: 0 0 var(--spacing-lg) 0;
+    color: var(--text-primary);
+    font-size: 20px;
+}
+
+.heist-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.info-item .label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-item .value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.heist-stages {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.heist-stages h4 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-primary);
+}
+
+.stages-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.stage-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 8px;
+}
+
+.stage-number {
+    width: 24px;
+    height: 24px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stage-description {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.stage-duration {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.available-heists {
+    grid-column: 1 / -1;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.available-heists h4 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--text-primary);
+}
+
+.heists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.heist-card {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.heist-card:hover {
+    border-color: var(--error-color);
+    transform: translateY(-2px);
+}
+
+.heist-card.selected {
+    border-color: var(--error-color);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.heist-card.on-cooldown {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.heist-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.heist-card-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.difficulty-badge {
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.difficulty-badge.easy {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.difficulty-badge.intermediate {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+.difficulty-badge.hard, .difficulty-badge.expert {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--error-color);
+}
+
+.heist-card-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: var(--spacing-sm);
+}
+
+.crew-management {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-lg);
+}
+
+.crew-overview {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.crew-members {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.crew-member {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 8px;
+}
+
+.member-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.member-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.member-role {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.member-status {
+    font-size: 11px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.member-status.ready {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.member-status.offline {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--error-color);
+}
+
+.crew-roles {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    grid-column: 1 / -1;
+}
+
+.roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.role-card {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.role-card:hover {
+    border-color: var(--primary-color);
+}
+
+.role-card.available {
+    border-color: var(--success-color);
+}
+
+.role-card.taken {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.role-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.role-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.role-bonuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.bonus-tag {
+    background: var(--primary-color);
+    color: white;
+    padding: 2px var(--spacing-xs);
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+.crew-recruitment {
+    grid-column: 1 / -1;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.recruitment-form {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-end;
+}
+
+.recruitment-form input {
+    flex: 1;
+}
+
+.equipment-management {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--spacing-lg);
+}
+
+.equipment-shop {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.equipment-categories {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.category-btn {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.category-btn:hover {
+    background: var(--surface-hover);
+}
+
+.category-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-sm);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.equipment-item {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.equipment-item:hover {
+    border-color: var(--primary-color);
+}
+
+.equipment-item.required {
+    border-color: var(--error-color);
+}
+
+.equipment-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.equipment-description {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.equipment-price {
+    font-family: var(--font-mono);
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.owned-equipment, .required-equipment {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.owned-equipment-list, .required-equipment-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.equipment-owned {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 6px;
+}
+
+.equipment-quantity {
+    background: var(--primary-color);
+    color: white;
+    padding: 2px var(--spacing-xs);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.heist-execution {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.pre-heist-checklist {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.checklist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.checklist-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--surface-secondary);
+    border-radius: 6px;
+}
+
+.checklist-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+
+.checklist-icon.complete {
+    background: var(--success-color);
+    color: white;
+}
+
+.checklist-icon.incomplete {
+    background: var(--error-color);
+    color: white;
+}
+
+.checklist-text {
+    color: var(--text-secondary);
+}
+
+.checklist-text.complete {
+    color: var(--success-color);
+}
+
+.heist-warnings {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+}
+
+.warning-box {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.warning-box i {
+    color: var(--warning-color);
+    font-size: 24px;
+    margin-top: var(--spacing-xs);
+}
+
+.warning-content h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--warning-color);
+}
+
+.warning-content ul {
+    margin: 0;
+    padding-left: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+.execution-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+}
+
+/* Heist HUD */
+.heist-hud {
+    position: fixed;
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    min-width: 300px;
+    z-index: 1500;
+}
+
+.heist-hud.hidden {
+    display: none;
+}
+
+.heist-info h3 {
+    margin: 0 0 var(--spacing-md) 0;
+    color: var(--error-color);
+    text-align: center;
+}
+
+.heist-progress {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.stage-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stage-timer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--surface-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary-gradient);
+    transition: width 0.3s ease;
+}
+
+.crew-status {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-primary);
+}
+
+.crew-status h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.crew-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.crew-member-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.member-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success-color);
+}
+
+.member-status-indicator.offline {
+    background: var(--error-color);
+}
+
+/* Heist Completion Modal */
+.completion-header {
+    text-align: center;
+    padding: var(--spacing-xl);
+}
+
+.completion-icon {
+    font-size: 48px;
+    margin-bottom: var(--spacing-md);
+}
+
+.completion-icon.success {
+    color: var(--success-color);
+}
+
+.completion-icon.failure {
+    color: var(--error-color);
+}
+
+.completion-body {
+    padding: 0 var(--spacing-xl) var(--spacing-xl);
+}
+
+.completion-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--surface-elevated);
+    border-radius: 6px;
+}
+
+.completion-reason {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: var(--spacing-md);
+}
+
+.completion-actions {
+    padding: 0 var(--spacing-xl) var(--spacing-xl);
+    text-align: center;
+}
+
+/* Progress Overlay */
+.progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2500;
+    backdrop-filter: blur(4px);
+}
+
+.progress-overlay.hidden {
+    display: none;
+}
+
+.progress-content {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 16px;
+    padding: var(--spacing-xl);
+    text-align: center;
+    min-width: 300px;
+}
+
+.progress-icon {
+    font-size: 48px;
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-md);
+    animation: pulse 2s infinite;
+}
+
+.progress-content h3 {
+    margin: 0 0 var(--spacing-lg) 0;
+    color: var(--text-primary);
+}
+
+.progress-content .progress-bar {
+    margin-bottom: var(--spacing-md);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .banking-modal-content, .heist-modal-content {
+        width: 95%;
+        margin: var(--spacing-sm);
+    }
+    
+    .heist-overview, .crew-management, .equipment-management {
+        grid-template-columns: 1fr;
+    }
+    
+    .quick-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .heist-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .banking-navigation, .heist-navigation {
+        flex-wrap: wrap;
+    }
+    
+    .nav-tab, .heist-nav-tab {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .execution-actions {
+        flex-direction: column;
+    }
+    
+    .heist-hud {
+        position: fixed;
+        top: var(--spacing-sm);
+        left: var(--spacing-sm);
+        right: var(--spacing-sm);
+        min-width: auto;
+    }
+}
