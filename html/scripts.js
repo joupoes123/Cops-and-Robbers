@@ -4309,3 +4309,965 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 console.log('[CNR_PROGRESSION] Enhanced Progression System JavaScript loaded');
+
+// ====================================================================
+// Banking System JavaScript
+// ====================================================================
+
+class BankingSystem {
+    constructor() {
+        this.currentBalance = 0;
+        this.transactionHistory = [];
+        this.isATMOpen = false;
+        this.isBankOpen = false;
+        this.currentTab = 'account';
+        
+        this.initializeEventListeners();
+        console.log('[CNR_BANKING] Banking System initialized');
+    }
+
+    initializeEventListeners() {
+        // ATM Interface
+        document.getElementById('close-atm')?.addEventListener('click', () => this.closeATM());
+        document.getElementById('atm-deposit-btn')?.addEventListener('click', () => this.processATMDeposit());
+        document.getElementById('atm-withdraw-btn')?.addEventListener('click', () => this.processATMWithdraw());
+        
+        // Quick withdrawal buttons
+        document.querySelectorAll('.quick-btn[data-action="withdraw"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const amount = parseInt(e.target.closest('.quick-btn').dataset.amount);
+                this.quickWithdraw(amount);
+            });
+        });
+
+        // Bank Interface
+        document.getElementById('close-bank')?.addEventListener('click', () => this.closeBank());
+        document.getElementById('bank-deposit-btn')?.addEventListener('click', () => this.processBankDeposit());
+        document.getElementById('bank-withdraw-btn')?.addEventListener('click', () => this.processBankWithdraw());
+        
+        // Bank navigation tabs
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                this.switchBankTab(tabName);
+            });
+        });
+
+        // Transfer functionality
+        document.getElementById('transfer-submit-btn')?.addEventListener('click', () => this.processTransfer());
+        document.getElementById('transfer-amount')?.addEventListener('input', () => this.updateTransferTotal());
+
+        // Loan functionality
+        document.getElementById('request-loan-btn')?.addEventListener('click', () => this.requestLoan());
+        document.getElementById('repay-loan-btn')?.addEventListener('click', () => this.repayLoan());
+        document.getElementById('loan-amount')?.addEventListener('input', () => this.updateLoanCalculator());
+
+        // Investment functionality
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.investment-option')) {
+                this.selectInvestment(e.target.closest('.investment-option'));
+            }
+        });
+    }
+
+    openATM(atmData) {
+        this.isATMOpen = true;
+        this.currentBalance = atmData.balance || 0;
+        
+        document.getElementById('atm-balance').textContent = `$${this.currentBalance.toLocaleString()}`;
+        document.getElementById('atm-account-number').textContent = `Account: ****${atmData.id || '0000'}`;
+        
+        document.getElementById('atm-interface').classList.remove('hidden');
+        console.log('[CNR_BANKING] ATM interface opened');
+    }
+
+    closeATM() {
+        this.isATMOpen = false;
+        document.getElementById('atm-interface').classList.add('hidden');
+        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        console.log('[CNR_BANKING] ATM interface closed');
+    }
+
+    openBank(bankData) {
+        this.isBankOpen = true;
+        this.currentBalance = bankData.balance || 0;
+        this.transactionHistory = bankData.transactions || [];
+        
+        document.getElementById('bank-name').textContent = bankData.tellerName || 'Bank';
+        document.getElementById('bank-balance').textContent = `$${this.currentBalance.toLocaleString()}`;
+        
+        this.updateTransactionHistory();
+        this.loadInvestmentOptions();
+        
+        document.getElementById('bank-interface').classList.remove('hidden');
+        console.log('[CNR_BANKING] Bank interface opened');
+    }
+
+    closeBank() {
+        this.isBankOpen = false;
+        document.getElementById('bank-interface').classList.add('hidden');
+        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        console.log('[CNR_BANKING] Bank interface closed');
+    }
+
+    switchBankTab(tabName) {
+        // Update navigation
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+
+        this.currentTab = tabName;
+    }
+
+    processATMDeposit() {
+        const amount = parseInt(document.getElementById('atm-amount').value);
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        document.getElementById('atm-amount').value = '';
+    }
+
+    processATMWithdraw() {
+        const amount = parseInt(document.getElementById('atm-amount').value);
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        document.getElementById('atm-amount').value = '';
+    }
+
+    quickWithdraw(amount) {
+        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+    }
+
+    processBankDeposit() {
+        const amount = parseInt(document.getElementById('bank-amount').value);
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        document.getElementById('bank-amount').value = '';
+    }
+
+    processBankWithdraw() {
+        const amount = parseInt(document.getElementById('bank-amount').value);
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        document.getElementById('bank-amount').value = '';
+    }
+
+    processTransfer() {
+        const targetId = parseInt(document.getElementById('transfer-target').value);
+        const amount = parseInt(document.getElementById('transfer-amount').value);
+
+        if (!targetId || !amount || amount <= 0) {
+            this.showNotification('Please enter valid transfer details', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/bankTransfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetId, amount })
+        });
+
+        document.getElementById('transfer-target').value = '';
+        document.getElementById('transfer-amount').value = '';
+        this.updateTransferTotal();
+    }
+
+    updateTransferTotal() {
+        const amount = parseInt(document.getElementById('transfer-amount').value) || 0;
+        const total = amount + 50; // Transfer fee
+        document.getElementById('transfer-total').textContent = `Total: $${total.toLocaleString()}`;
+    }
+
+    requestLoan() {
+        const amount = parseInt(document.getElementById('loan-amount').value);
+        const duration = parseInt(document.getElementById('loan-duration').value);
+
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid loan amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/requestLoan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount, duration })
+        });
+    }
+
+    repayLoan() {
+        const amount = parseInt(document.getElementById('repayment-amount').value);
+
+        if (!amount || amount <= 0) {
+            this.showNotification('Please enter a valid repayment amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/repayLoan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        document.getElementById('repayment-amount').value = '';
+    }
+
+    updateLoanCalculator() {
+        const amount = parseInt(document.getElementById('loan-amount').value) || 0;
+        const collateral = Math.floor(amount * 0.5);
+        const dailyInterest = Math.floor(amount * 0.005);
+
+        document.getElementById('collateral-required').textContent = `Collateral Required: $${collateral.toLocaleString()}`;
+        document.getElementById('daily-interest').textContent = `Daily Interest: $${dailyInterest.toLocaleString()}`;
+    }
+
+    selectInvestment(investmentElement) {
+        const investmentId = investmentElement.dataset.investmentId;
+        const amount = prompt('Enter investment amount:');
+
+        if (!amount || isNaN(amount) || amount <= 0) {
+            this.showNotification('Please enter a valid amount', 'error');
+            return;
+        }
+
+        fetch(`https://${window.cnrResourceName}/makeInvestment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ investmentId, amount: parseInt(amount) })
+        });
+    }
+
+    loadInvestmentOptions() {
+        // This would be populated from server data
+        const investmentGrid = document.getElementById('investment-options');
+        if (!investmentGrid) return;
+
+        // Example investment options (would come from server)
+        const investments = [
+            {
+                id: 'property_development',
+                name: 'Property Development Fund',
+                description: 'Invest in Los Santos real estate development',
+                minInvestment: 25000,
+                expectedReturn: 0.08,
+                riskLevel: 'medium',
+                duration: 72
+            }
+        ];
+
+        investmentGrid.innerHTML = investments.map(inv => `
+            <div class="investment-option" data-investment-id="${inv.id}">
+                <div class="investment-header">
+                    <h4 class="investment-name">${inv.name}</h4>
+                    <span class="risk-badge ${inv.riskLevel}">${inv.riskLevel}</span>
+                </div>
+                <p class="investment-description">${inv.description}</p>
+                <div class="investment-details">
+                    <span>Min: $${inv.minInvestment.toLocaleString()}</span>
+                    <span>Return: ${(inv.expectedReturn * 100).toFixed(1)}%</span>
+                    <span>Duration: ${inv.duration}h</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    updateTransactionHistory() {
+        const transactionList = document.getElementById('transaction-list');
+        if (!transactionList) return;
+
+        transactionList.innerHTML = this.transactionHistory.map(transaction => {
+            const isPositive = ['deposit', 'transfer_in', 'loan', 'investment_return', 'interest'].includes(transaction.type);
+            const amountClass = isPositive ? 'positive' : 'negative';
+            const amountPrefix = isPositive ? '+' : '-';
+            
+            return `
+                <div class="transaction-item">
+                    <div class="transaction-info">
+                        <div class="transaction-type">${transaction.type.replace('_', ' ')}</div>
+                        <div class="transaction-description">${transaction.description}</div>
+                        <div class="transaction-date">${new Date(transaction.timestamp * 1000).toLocaleDateString()}</div>
+                    </div>
+                    <div class="transaction-amount ${amountClass}">
+                        ${amountPrefix}$${Math.abs(transaction.amount).toLocaleString()}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    updateBalance(balance) {
+        this.currentBalance = balance;
+        
+        // Update all balance displays
+        const atmBalance = document.getElementById('atm-balance');
+        const bankBalance = document.getElementById('bank-balance');
+        
+        if (atmBalance) atmBalance.textContent = `$${balance.toLocaleString()}`;
+        if (bankBalance) bankBalance.textContent = `$${balance.toLocaleString()}`;
+    }
+
+    showProgressBar(duration, label) {
+        const progressOverlay = document.getElementById('progress-bar-overlay');
+        const progressLabel = document.getElementById('progress-label');
+        const progressFill = document.getElementById('progress-fill');
+        const progressTime = document.getElementById('progress-time');
+
+        if (!progressOverlay) return;
+
+        progressLabel.textContent = label;
+        progressOverlay.classList.remove('hidden');
+
+        let timeRemaining = duration / 1000;
+        progressTime.textContent = `${timeRemaining}s`;
+
+        const interval = setInterval(() => {
+            timeRemaining--;
+            progressTime.textContent = `${timeRemaining}s`;
+            
+            const progress = (duration / 1000 - timeRemaining) / (duration / 1000) * 100;
+            progressFill.style.width = `${progress}%`;
+
+            if (timeRemaining <= 0) {
+                clearInterval(interval);
+                this.hideProgressBar();
+            }
+        }, 1000);
+    }
+
+    hideProgressBar() {
+        const progressOverlay = document.getElementById('progress-bar-overlay');
+        if (progressOverlay) {
+            progressOverlay.classList.add('hidden');
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Integrate with existing notification system
+        if (window.showCashNotification) {
+            window.showCashNotification(message, type);
+        } else {
+            console.log(`[CNR_BANKING] ${type.toUpperCase()}: ${message}`);
+        }
+    }
+}
+
+// ====================================================================
+// Heist System JavaScript
+// ====================================================================
+
+class HeistSystem {
+    constructor() {
+        this.isHeistPlanningOpen = false;
+        this.selectedHeist = null;
+        this.currentCrew = null;
+        this.activeHeist = null;
+        this.availableHeists = [];
+        this.crewRoles = [];
+        this.ownedEquipment = {};
+        
+        this.initializeEventListeners();
+        console.log('[CNR_HEIST] Heist System initialized');
+    }
+
+    initializeEventListeners() {
+        // Heist Planning Interface
+        document.getElementById('close-heist-planning')?.addEventListener('click', () => this.closeHeistPlanning());
+        
+        // Heist navigation tabs
+        document.querySelectorAll('.heist-nav-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                this.switchHeistTab(tabName);
+            });
+        });
+
+        // Heist execution
+        document.getElementById('start-heist-btn')?.addEventListener('click', () => this.startHeist());
+        document.getElementById('leave-crew-btn')?.addEventListener('click', () => this.leaveCrew());
+
+        // Equipment categories
+        document.querySelectorAll('.category-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.filterEquipment(e.target.dataset.category);
+            });
+        });
+
+        // Crew recruitment
+        document.getElementById('copy-invite-code')?.addEventListener('click', () => this.copyInviteCode());
+
+        // Heist completion modal
+        document.getElementById('close-completion-modal')?.addEventListener('click', () => this.closeCompletionModal());
+
+        // Dynamic event listeners for heist cards, equipment items, etc.
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.heist-card')) {
+                this.selectHeist(e.target.closest('.heist-card'));
+            }
+            if (e.target.closest('.equipment-item')) {
+                this.purchaseEquipment(e.target.closest('.equipment-item'));
+            }
+            if (e.target.closest('.role-card')) {
+                this.selectRole(e.target.closest('.role-card'));
+            }
+        });
+    }
+
+    openHeistPlanning(heistConfig, crewId) {
+        this.isHeistPlanningOpen = true;
+        this.selectedHeist = heistConfig;
+        this.currentCrew = { id: crewId };
+        
+        this.updateHeistDetails();
+        this.loadAvailableHeists();
+        this.loadCrewRoles();
+        this.loadEquipmentShop();
+        
+        document.getElementById('heist-planning-interface').classList.remove('hidden');
+        console.log('[CNR_HEIST] Heist planning opened for:', heistConfig.name);
+    }
+
+    closeHeistPlanning() {
+        this.isHeistPlanningOpen = false;
+        document.getElementById('heist-planning-interface').classList.add('hidden');
+        
+        fetch(`https://${window.cnrResourceName}/closeHeistPlanning`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        
+        console.log('[CNR_HEIST] Heist planning closed');
+    }
+
+    switchHeistTab(tabName) {
+        // Update navigation
+        document.querySelectorAll('.heist-nav-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Update content
+        document.querySelectorAll('.heist-tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+    }
+
+    selectHeist(heistCard) {
+        const heistId = heistCard.dataset.heistId;
+        const heist = this.availableHeists.find(h => h.id === heistId);
+        
+        if (!heist || heist.onCooldown) return;
+
+        // Update selection visually
+        document.querySelectorAll('.heist-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        heistCard.classList.add('selected');
+
+        this.selectedHeist = heist;
+        this.updateHeistDetails();
+
+        // Notify server of heist selection
+        fetch(`https://${window.cnrResourceName}/startHeistPlanning`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ heistId })
+        });
+    }
+
+    updateHeistDetails() {
+        if (!this.selectedHeist) return;
+
+        const heist = this.selectedHeist;
+        
+        document.getElementById('heist-name').textContent = heist.name;
+        document.getElementById('heist-type').textContent = heist.type.replace('_', ' ').toUpperCase();
+        document.getElementById('heist-difficulty').textContent = heist.difficulty.toUpperCase();
+        document.getElementById('heist-crew-size').textContent = heist.requiredCrew;
+        document.getElementById('heist-duration').textContent = `${Math.floor(heist.duration / 60)} minutes`;
+        document.getElementById('heist-reward').textContent = `$${heist.minReward.toLocaleString()} - $${heist.maxReward.toLocaleString()}`;
+        document.getElementById('heist-status').textContent = heist.onCooldown ? 'ON COOLDOWN' : 'AVAILABLE';
+
+        // Update stages
+        this.updateHeistStages();
+        this.updateRequiredEquipment();
+        this.updatePreHeistChecklist();
+    }
+
+    updateHeistStages() {
+        const stagesList = document.getElementById('heist-stages-list');
+        if (!stagesList || !this.selectedHeist?.stages) return;
+
+        stagesList.innerHTML = this.selectedHeist.stages.map((stage, index) => `
+            <div class="stage-item">
+                <div class="stage-number">${index + 1}</div>
+                <div class="stage-description">${stage.description}</div>
+                <div class="stage-duration">${Math.floor(stage.duration / 60)}:${(stage.duration % 60).toString().padStart(2, '0')}</div>
+            </div>
+        `).join('');
+    }
+
+    loadAvailableHeists() {
+        fetch(`https://${window.cnrResourceName}/getAvailableHeists`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+    }
+
+    updateAvailableHeists(heists) {
+        this.availableHeists = heists;
+        const heistsGrid = document.getElementById('heists-grid');
+        if (!heistsGrid) return;
+
+        heistsGrid.innerHTML = heists.map(heist => `
+            <div class="heist-card ${heist.onCooldown ? 'on-cooldown' : ''}" data-heist-id="${heist.id}">
+                <div class="heist-card-header">
+                    <h4 class="heist-card-name">${heist.name}</h4>
+                    <span class="difficulty-badge ${heist.difficulty}">${heist.difficulty}</span>
+                </div>
+                <div class="heist-card-details">
+                    <span>Crew: ${heist.requiredCrew}</span>
+                    <span>Reward: $${heist.minReward.toLocaleString()}+</span>
+                    <span>${heist.onCooldown ? `Cooldown: ${heist.cooldownRemaining}m` : 'Available'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    loadCrewRoles() {
+        // This would typically come from server data
+        const rolesGrid = document.getElementById('crew-roles-grid');
+        if (!rolesGrid) return;
+
+        const exampleRoles = [
+            {
+                id: 'mastermind',
+                name: 'Mastermind',
+                description: 'Plans the heist and coordinates the crew',
+                bonuses: ['Planning Speed +25%', 'Crew Coordination +15%'],
+                available: true
+            },
+            {
+                id: 'hacker',
+                name: 'Hacker',
+                description: 'Specializes in electronic security bypass',
+                bonuses: ['Hacking Speed +50%', 'Camera Disable +30%'],
+                available: true
+            }
+        ];
+
+        rolesGrid.innerHTML = exampleRoles.map(role => `
+            <div class="role-card ${role.available ? 'available' : 'taken'}" data-role-id="${role.id}">
+                <div class="role-name">${role.name}</div>
+                <div class="role-description">${role.description}</div>
+                <div class="role-bonuses">
+                    ${role.bonuses.map(bonus => `<span class="bonus-tag">${bonus}</span>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    selectRole(roleCard) {
+        const roleId = roleCard.dataset.roleId;
+        if (!roleCard.classList.contains('available')) return;
+
+        fetch(`https://${window.cnrResourceName}/joinHeistCrew`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ crewId: this.currentCrew?.id, role: roleId })
+        });
+    }
+
+    loadEquipmentShop() {
+        const equipmentGrid = document.getElementById('equipment-grid');
+        if (!equipmentGrid) return;
+
+        // Example equipment (would come from server)
+        const equipment = [
+            {
+                id: 'lockpick',
+                name: 'Lockpick',
+                description: 'Basic lock bypassing tool',
+                price: 500,
+                category: 'basic',
+                requiredLevel: 1
+            },
+            {
+                id: 'drill',
+                name: 'Diamond Drill',
+                description: 'Drill through vault doors',
+                price: 2500,
+                category: 'advanced',
+                requiredLevel: 15
+            }
+        ];
+
+        equipmentGrid.innerHTML = equipment.map(item => `
+            <div class="equipment-item" data-equipment-id="${item.id}">
+                <div class="equipment-name">${item.name}</div>
+                <div class="equipment-description">${item.description}</div>
+                <div class="equipment-price">$${item.price.toLocaleString()}</div>
+            </div>
+        `).join('');
+    }
+
+    filterEquipment(category) {
+        document.querySelectorAll('.category-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-category="${category}"]`).classList.add('active');
+
+        const equipmentItems = document.querySelectorAll('.equipment-item');
+        equipmentItems.forEach(item => {
+            if (category === 'all' || item.dataset.category === category) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    purchaseEquipment(equipmentItem) {
+        const equipmentId = equipmentItem.dataset.equipmentId;
+        const quantity = prompt('Enter quantity to purchase:', '1');
+
+        if (!quantity || isNaN(quantity) || quantity <= 0) return;
+
+        fetch(`https://${window.cnrResourceName}/purchaseHeistEquipment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: equipmentId, quantity: parseInt(quantity) })
+        });
+    }
+
+    updateRequiredEquipment() {
+        const requiredList = document.getElementById('required-equipment-list');
+        if (!requiredList || !this.selectedHeist?.equipment) return;
+
+        requiredList.innerHTML = this.selectedHeist.equipment.map(item => `
+            <div class="equipment-owned">
+                <span>${item.replace('_', ' ').toUpperCase()}</span>
+                <span class="equipment-quantity ${this.ownedEquipment[item] ? 'owned' : 'missing'}">
+                    ${this.ownedEquipment[item] || 0}/1
+                </span>
+            </div>
+        `).join('');
+    }
+
+    updatePreHeistChecklist() {
+        const checklist = document.getElementById('heist-checklist');
+        if (!checklist) return;
+
+        const checklistItems = [
+            { text: 'Crew assembled', complete: this.currentCrew?.members?.length >= (this.selectedHeist?.requiredCrew || 1) },
+            { text: 'Equipment acquired', complete: this.hasRequiredEquipment() },
+            { text: 'Police online', complete: true }, // Would check actual police count
+            { text: 'Heist available', complete: !this.selectedHeist?.onCooldown }
+        ];
+
+        checklist.innerHTML = checklistItems.map(item => `
+            <div class="checklist-item">
+                <div class="checklist-icon ${item.complete ? 'complete' : 'incomplete'}">
+                    <i class="fas fa-${item.complete ? 'check' : 'times'}"></i>
+                </div>
+                <div class="checklist-text ${item.complete ? 'complete' : ''}">${item.text}</div>
+            </div>
+        `).join('');
+
+        // Update start button
+        const startBtn = document.getElementById('start-heist-btn');
+        if (startBtn) {
+            const allComplete = checklistItems.every(item => item.complete);
+            startBtn.disabled = !allComplete;
+        }
+    }
+
+    hasRequiredEquipment() {
+        if (!this.selectedHeist?.equipment) return true;
+        return this.selectedHeist.equipment.every(item => (this.ownedEquipment[item] || 0) >= 1);
+    }
+
+    startHeist() {
+        if (!this.selectedHeist) return;
+
+        fetch(`https://${window.cnrResourceName}/startEnhancedHeist`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        this.closeHeistPlanning();
+    }
+
+    leaveCrew() {
+        fetch(`https://${window.cnrResourceName}/leaveHeistCrew`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+
+        this.closeHeistPlanning();
+    }
+
+    copyInviteCode() {
+        const inviteCode = document.getElementById('crew-invite-code');
+        if (!inviteCode) return;
+
+        navigator.clipboard.writeText(inviteCode.value).then(() => {
+            this.showNotification('Invite code copied to clipboard!', 'success');
+        });
+    }
+
+    startHeistExecution(heistConfig, crew) {
+        this.activeHeist = { config: heistConfig, crew };
+        
+        document.getElementById('active-heist-name').textContent = heistConfig.name;
+        document.getElementById('heist-execution-hud').classList.remove('hidden');
+        
+        console.log('[CNR_HEIST] Heist execution started:', heistConfig.name);
+    }
+
+    updateHeistStage(stageData) {
+        document.getElementById('current-stage').textContent = `Stage ${stageData.stage}`;
+        document.getElementById('stage-description').textContent = stageData.description;
+        
+        // Update progress bar
+        this.updateStageProgress(stageData.duration, stageData.timeRemaining);
+    }
+
+    updateStageProgress(totalDuration, timeRemaining) {
+        const progress = ((totalDuration - timeRemaining) / totalDuration) * 100;
+        document.getElementById('stage-progress-fill').style.width = `${progress}%`;
+        
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        document.getElementById('stage-time-remaining').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    showHeistCompletion(data) {
+        const modal = document.getElementById('heist-completion-modal');
+        const icon = document.getElementById('completion-icon');
+        const title = document.getElementById('completion-title');
+        const reasonSection = document.getElementById('completion-reason');
+
+        if (data.success) {
+            icon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            icon.className = 'completion-icon success';
+            title.textContent = 'Heist Completed!';
+            reasonSection.classList.add('hidden');
+        } else {
+            icon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            icon.className = 'completion-icon failure';
+            title.textContent = 'Heist Failed!';
+            reasonSection.classList.remove('hidden');
+            document.getElementById('failure-reason-text').textContent = data.reason || 'Unknown reason';
+        }
+
+        document.getElementById('completed-heist-name').textContent = data.heistName || '-';
+        document.getElementById('completion-reward').textContent = `$${(data.reward || 0).toLocaleString()}`;
+        document.getElementById('completion-xp').textContent = `${data.xp || 0} XP`;
+        document.getElementById('completion-duration').textContent = data.duration || '-';
+
+        modal.classList.remove('hidden');
+        
+        // Hide heist HUD
+        document.getElementById('heist-execution-hud').classList.add('hidden');
+    }
+
+    closeCompletionModal() {
+        document.getElementById('heist-completion-modal').classList.add('hidden');
+        this.activeHeist = null;
+    }
+
+    updateCrewInfo(crewData) {
+        this.currentCrew = crewData;
+        this.updateCrewDisplay();
+        this.updatePreHeistChecklist();
+    }
+
+    updateCrewDisplay() {
+        const crewList = document.getElementById('crew-members-list');
+        if (!crewList || !this.currentCrew?.members) return;
+
+        crewList.innerHTML = this.currentCrew.members.map(member => `
+            <div class="crew-member">
+                <div class="member-info">
+                    <div class="member-name">${member.name}</div>
+                    <div class="member-role">${member.role}</div>
+                </div>
+                <div class="member-status ${member.online ? 'ready' : 'offline'}">
+                    ${member.online ? 'Ready' : 'Offline'}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    showNotification(message, type = 'info') {
+        // Integrate with existing notification system
+        if (window.showCashNotification) {
+            window.showCashNotification(message, type);
+        } else {
+            console.log(`[CNR_HEIST] ${type.toUpperCase()}: ${message}`);
+        }
+    }
+}
+
+// ====================================================================
+// Initialize Systems and Enhanced Message Handling
+// ====================================================================
+
+let bankingSystem = null;
+let heistSystem = null;
+
+// Initialize systems when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    bankingSystem = new BankingSystem();
+    heistSystem = new HeistSystem();
+});
+
+// Enhanced message handling for banking and heist systems
+const originalMessageListener = window.addEventListener;
+
+window.addEventListener('message', function(event) {
+    const data = event.data;
+    
+    // Banking system messages
+    switch (data.type) {
+        case 'openATM':
+            if (bankingSystem) {
+                bankingSystem.openATM(data.atmData);
+            }
+            break;
+            
+        case 'openBank':
+            if (bankingSystem) {
+                bankingSystem.openBank(data.bankData);
+            }
+            break;
+            
+        case 'updateBankBalance':
+            if (bankingSystem) {
+                bankingSystem.updateBalance(data.balance);
+            }
+            break;
+            
+        case 'updateTransactionHistory':
+            if (bankingSystem) {
+                bankingSystem.transactionHistory = data.history;
+                bankingSystem.updateTransactionHistory();
+            }
+            break;
+            
+        case 'showProgressBar':
+            if (bankingSystem) {
+                bankingSystem.showProgressBar(data.duration, data.label);
+            }
+            break;
+            
+        case 'hideProgressBar':
+            if (bankingSystem) {
+                bankingSystem.hideProgressBar();
+            }
+            break;
+            
+        case 'showNotification':
+            if (bankingSystem) {
+                bankingSystem.showNotification(data.message, data.notificationType);
+            }
+            break;
+            
+        // Heist system messages
+        case 'openHeistPlanning':
+            if (heistSystem) {
+                heistSystem.openHeistPlanning(data.heistConfig, data.crewId);
+            }
+            break;
+            
+        case 'updateAvailableHeists':
+            if (heistSystem) {
+                heistSystem.updateAvailableHeists(data.heists);
+            }
+            break;
+            
+        case 'updateCrewInfo':
+            if (heistSystem) {
+                heistSystem.updateCrewInfo(data.crew);
+            }
+            break;
+            
+        case 'startHeistExecution':
+            if (heistSystem) {
+                heistSystem.startHeistExecution(data.heistConfig, data.crew);
+            }
+            break;
+            
+        case 'updateHeistStage':
+            if (heistSystem) {
+                heistSystem.updateHeistStage(data.stageData);
+            }
+            break;
+            
+        case 'heistCompleted':
+            if (heistSystem) {
+                heistSystem.showHeistCompletion(data);
+            }
+            break;
+    }
+});
+
+console.log('[CNR_BANKING_HEIST] Banking and Heist UI systems loaded');
