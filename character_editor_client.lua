@@ -294,7 +294,6 @@ function CreateEditorCamera(mode)
     -- Instead, use ped-specific lighting
     SetEntityLights(ped, true)
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Created camera in %s mode at coords: %.2f, %.2f, %.2f (viewport: left 40%%)", mode, coords.x, coords.y, coords.z))
 end
 
 function DestroyCameraEditor()
@@ -407,7 +406,6 @@ function OpenCharacterEditor(role, characterSlot)
     editorUI.isVisible = true
     
     -- Send data to NUI with comprehensive error handling
-    print("[CNR_CHARACTER_EDITOR] Sending NUI message...")
     local success, errorMsg = pcall(function()
         SendNUIMessage({
             action = 'openCharacterEditor',
@@ -430,11 +428,9 @@ function OpenCharacterEditor(role, characterSlot)
     Citizen.SetTimeout(100, function()
         if isInCharacterEditor then
             SetNuiFocus(true, true)
-            print("[CNR_CHARACTER_EDITOR] NUI focus enabled")
         end
     end)
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Opened character editor for %s slot %d", currentRole, currentCharacterSlot))
 end
 
 function CloseCharacterEditor(save)
@@ -505,7 +501,6 @@ function CloseCharacterEditor(save)
             playerCharacters[characterKey] = dataToSave
             TriggerServerEvent('cnr:saveCharacterData', characterKey, dataToSave)
             ShowNotification(string.format("~b~Saving character to %s slot %d...", currentRole, currentCharacterSlot))
-            print(string.format("[CNR_CHARACTER_EDITOR] Attempting to save character data for %s", characterKey))
         else
             ShowNotification("~r~Error: No character data to save")
             print("[CNR_CHARACTER_EDITOR] Error: currentCharacterData is invalid")
@@ -551,7 +546,6 @@ function CloseCharacterEditor(save)
         })
     end)
     
-    print("[CNR_CHARACTER_EDITOR] Closed character editor")
 end
 
 function UpdateCharacterFeature(category, feature, value)
@@ -601,23 +595,19 @@ function UpdateCharacterFeature(category, feature, value)
         end
     end
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Updated %s to %s", feature, tostring(value)))
 end
 
 function PreviewUniformPreset(presetIndex)
     if not isInCharacterEditor or not currentRole then
-        print("[CNR_CHARACTER_EDITOR] PreviewUniformPreset: Not in editor or no role")
         return
     end
 
     local presets = Config.CharacterEditor.uniformPresets[currentRole]
     if not presets or not presets[presetIndex] then
-        print(string.format("[CNR_CHARACTER_EDITOR] PreviewUniformPreset: Invalid preset index %s for role %s", tostring(presetIndex), currentRole))
         return
     end
 
     local preset = presets[presetIndex]
-    print(string.format("[CNR_CHARACTER_EDITOR] Previewing uniform: %s (index %s)", preset.name, presetIndex))
     local ped = PlayerPedId()
     
     -- Store current clothing if not already previewing
@@ -750,7 +740,6 @@ end)
 RegisterNetEvent('cnr:loadedPlayerCharacters')
 AddEventHandler('cnr:loadedPlayerCharacters', function(characters)
     playerCharacters = characters or {}
-    print("[CNR_CHARACTER_EDITOR] Loaded player characters")
 end)
 
 RegisterNetEvent('cnr:applyCharacterData')
@@ -765,7 +754,6 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     if newPlayerData then
         playerData = newPlayerData
         playerRole = newPlayerData.role
-        print(string.format("[CNR_CHARACTER_EDITOR] Updated player role to: %s", playerRole or "nil"))
     end
 end)
 
@@ -824,7 +812,6 @@ RegisterNUICallback('characterEditor_switchGender', function(data, cb)
         -- Recreate camera for new ped
         CreateEditorCamera(currentCameraMode or "face")
         
-        print(string.format("[CNR_CHARACTER_EDITOR] Successfully changed gender to %s (model: %s)", gender, newModel))
         cb({success = true})
     else
         print("[CNR_CHARACTER_EDITOR] Failed to load model: " .. newModel)
@@ -836,7 +823,6 @@ RegisterNUICallback('characterEditor_previewUniform', function(data, cb)
     if data.presetIndex then
         -- Convert from 0-based JavaScript index to 1-based Lua index
         local luaIndex = data.presetIndex + 1
-        print(string.format("[CNR_CHARACTER_EDITOR] NUI sent preset index %s, converting to Lua index %s", data.presetIndex, luaIndex))
         PreviewUniformPreset(luaIndex)
     end
     cb({success = true})
@@ -912,7 +898,6 @@ end)
 
 -- Handle character editor opened confirmation
 RegisterNUICallback('characterEditor_opened', function(data, cb)
-    print("[CNR_CHARACTER_EDITOR] NUI confirmed character editor opened successfully")
     cb({success = true})
 end)
 
@@ -927,7 +912,6 @@ end)
 
 -- Handle character editor closed confirmation
 RegisterNUICallback('characterEditor_closed', function(data, cb)
-    print("[CNR_CHARACTER_EDITOR] NUI confirmed character editor closed")
     cb({success = true})
 end)
 
@@ -936,23 +920,19 @@ RegisterNetEvent('cnr:characterSaveResult')
 AddEventHandler('cnr:characterSaveResult', function(success, message)
     if success then
         ShowNotification(string.format("~g~%s", message))
-        print(string.format("[CNR_CHARACTER_EDITOR] Save success: %s", message))
         
         -- Reload character data to update UI
         TriggerServerEvent('cnr:loadPlayerCharacters')
     else
         ShowNotification(string.format("~r~Save failed: %s", message))
-        print(string.format("[CNR_CHARACTER_EDITOR] Save failed: %s", message))
     end
 end)
 
 -- Handle test result
 RegisterNUICallback('characterEditor_test_result', function(data, cb)
     if data.elementFound then
-        print("[CNR_CHARACTER_EDITOR] Test result: Character editor element EXISTS")
         ShowNotification("~g~Character editor element found in UI")
     else
-        print("[CNR_CHARACTER_EDITOR] Test result: Character editor element MISSING")
         ShowNotification("~r~Character editor element missing from UI")
     end
     cb({success = true})
@@ -1047,7 +1027,6 @@ TriggerEvent('chat:addSuggestion', '/chareditor', 'Open character editor', {
 
 -- Emergency command to force close character editor
 RegisterCommand('closechareditor', function(source, args, rawCommand)
-    print("[CNR_CHARACTER_EDITOR] Emergency close command triggered")
     
     -- Force disable NUI focus regardless of state
     SetNuiFocus(false, false)
@@ -1082,14 +1061,12 @@ RegisterCommand('closechareditor', function(source, args, rawCommand)
     end)
     
     ShowNotification("~y~Character editor emergency closed - you should now be able to move")
-    print("[CNR_CHARACTER_EDITOR] Emergency close completed")
 end, false)
 
 TriggerEvent('chat:addSuggestion', '/closechareditor', 'Emergency close character editor if stuck')
 
 -- Additional emergency command with shorter name
 RegisterCommand('fixui', function(source, args, rawCommand)
-    print("[CNR_CHARACTER_EDITOR] UI fix command triggered")
     
     -- Force disable NUI focus
     SetNuiFocus(false, false)
@@ -1111,14 +1088,12 @@ RegisterCommand('fixui', function(source, args, rawCommand)
     editorUI.isVisible = false
     
     ShowNotification("~g~UI fixed - NUI focus disabled")
-    print("[CNR_CHARACTER_EDITOR] UI fix completed")
 end, false)
 
 TriggerEvent('chat:addSuggestion', '/fixui', 'Fix stuck UI/mouse cursor')
 
 -- Debug command to test character editor UI
 RegisterCommand('testchareditor', function(source, args, rawCommand)
-    print("[CNR_CHARACTER_EDITOR] Testing character editor UI...")
     
     -- Send a test message to check if NUI is responsive
     SendNUIMessage({
@@ -1145,7 +1120,6 @@ Citizen.CreateThread(function()
             elseif not isInCharacterEditor then
                 -- Show notification if player doesn't have a valid role
                 ShowNotification("~r~You must be a Cop or Robber to use the Character Editor")
-                print(string.format("[CNR_CHARACTER_EDITOR] F3 pressed but player role is: %s", playerRole or "nil"))
             end
         end
         
@@ -1153,13 +1127,11 @@ Citizen.CreateThread(function()
         if isInCharacterEditor then
             -- ESC key to close character editor (normal close)
             if IsControlJustPressed(0, 322) then -- ESC key
-                print("[CNR_CHARACTER_EDITOR] ESC key pressed - closing editor")
                 CloseCharacterEditor(false)
             end
             
             -- Safety Close: Ctrl + F3 (emergency exit)
             if IsControlPressed(0, 36) and IsControlJustPressed(0, Config.Keybinds.openCharacterEditor) then -- CTRL + F3
-                print("[CNR_CHARACTER_EDITOR] Safety close triggered (Ctrl+F3)")
                 CloseCharacterEditor(false)
                 ShowNotification("~y~Character editor safety closed")
             end
@@ -1178,7 +1150,6 @@ Citizen.CreateThread(function()
             
             -- BACKSPACE key emergency exit (kept for compatibility)
             if IsControlJustPressed(0, 194) then -- BACKSPACE key
-                print("[CNR_CHARACTER_EDITOR] BACKSPACE emergency exit triggered")
                 CloseCharacterEditor(false)
             end
         end

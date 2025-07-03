@@ -79,7 +79,6 @@ function SavePlayerCharacters(playerId, characterData)
         return false
     end
     
-    print("[CNR_CHARACTER_EDITOR] Successfully saved character data for: " .. GetPlayerName(playerId))
     return true
 end
 
@@ -254,7 +253,6 @@ function SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
     -- Persist to file
     local success = SavePlayerCharacters(playerId, playerCharacterData[identifier])
     if success then
-        print(string.format("[CNR_CHARACTER_EDITOR] Saved character %s for player %s", characterKey, GetPlayerName(playerId)))
         return true, "Character saved successfully"
     else
         return false, "Failed to save character data"
@@ -276,7 +274,6 @@ function DeletePlayerCharacterSlot(playerId, characterKey)
         
         local success = SavePlayerCharacters(playerId, playerCharacterData[identifier])
         if success then
-            print(string.format("[CNR_CHARACTER_EDITOR] Deleted character %s for player %s", characterKey, GetPlayerName(playerId)))
             return true, "Character deleted successfully"
         else
             return false, "Failed to delete character data"
@@ -302,7 +299,6 @@ function ApplyCharacterToPlayer(playerId, characterKey)
     -- Trigger client to apply character
     TriggerClientEvent('cnr:applyCharacterData', playerId, characterData)
     
-    print(string.format("[CNR_CHARACTER_EDITOR] Applied character %s to player %s", characterKey, GetPlayerName(playerId)))
     return true, "Character applied successfully"
 end
 
@@ -394,4 +390,3 @@ exports('ApplyCharacterToPlayer', ApplyCharacterToPlayer)
 exports('GetCharacterForRoleSelection', GetCharacterForRoleSelection)
 exports('HasCharacterForRole', HasCharacterForRole)
 
-print("[CNR_CHARACTER_EDITOR] Character Editor Server initialized")

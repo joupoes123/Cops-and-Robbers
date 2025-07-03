@@ -246,7 +246,6 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if characterData and characterData.model then
         -- Use saved character model
         modelToLoad = characterData.model
-        print(string.format("[CNR_CHARACTER_EDITOR] Using saved character model: %s", modelToLoad))
     else
         -- Use default role models
         if newRole == "cop" then
@@ -256,7 +255,6 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
         else
             modelToLoad = "mp_m_freemode_01"
         end
-        print(string.format("[CNR_CHARACTER_EDITOR] Using default model: %s", modelToLoad))
     end
     
     modelHash = GetHashKey(modelToLoad)
@@ -341,7 +339,6 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
    Citizen.Wait(50) -- Optional small delay to ensure ped model is fully set and previous weapons are processed.
    local currentResourceName = GetCurrentResourceName()
    if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
-       print(string.format("[CNR_CLIENT_DEBUG] ApplyRoleVisualsAndLoadout: Calling %s:EquipInventoryWeapons to restore owned weapons.", currentResourceName))
        exports[currentResourceName]:EquipInventoryWeapons()
    else
        print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Could not find export EquipInventoryWeapons in resource %s.", currentResourceName))
@@ -385,7 +382,6 @@ end
 
 -- Handle wanted level notifications from server
 AddEventHandler('cnr:showWantedLevel', function(stars, points, level)
-    print("[CNR_CLIENT_DEBUG] Showing wanted level notification: " .. stars .. " stars, " .. points .. " points, level " .. level)
     SendNUIMessage({
         action = 'showWantedNotification',
         stars = stars,
@@ -406,7 +402,6 @@ AddEventHandler('cnr:updateWantedLevel', function(stars, points, level)
     points = points or 0
     level = level or ("" .. stars .. " star" .. (stars ~= 1 and "s" or ""))
     
-    print("[CNR_CLIENT_DEBUG] Updating wanted level: " .. stars .. " stars, " .. points .. " points, level " .. level)
     SendNUIMessage({
         action = 'showWantedNotification', 
         stars = stars,
@@ -455,7 +450,6 @@ end
 -- Aggressive police NPC suppression: Removes police NPCs and their vehicles near players with a wanted level.
 Citizen.CreateThread(function()
     local policeSuppressInterval = 500 -- ms
-    print("[CNR_CLIENT_DEBUG] Aggressive Police NPC Suppression Thread Started. Interval: " .. policeSuppressInterval .. "ms")
     while true do
         Citizen.Wait(policeSuppressInterval)
         local playerPed = PlayerPedId()
@@ -534,9 +528,7 @@ Citizen.CreateThread(function()
 
         if currentWantedLevel > 0 then
             if role == "cop" then
-                print("[CNR_CLIENT_DEBUG] Suppressing GTA wanted level for cop player")
             elseif role == "robber" then
-                print("[CNR_CLIENT_DEBUG] Suppressing GTA wanted level for robber player (using custom system)")
             end
             SetPlayerWantedLevel(playerId, 0, false)
             SetPlayerWantedLevelNow(playerId, false)
@@ -563,15 +555,11 @@ Citizen.CreateThread(function()
     while true do
         Citizen.Wait(100) -- Reduced frequency to prevent performance issues
         if IsControlJustPressed(0, Config.Keybinds.openInventory or 244) then -- M Key (INPUT_INTERACTION_MENU)
-            print("[CNR_CLIENT_DEBUG] M key pressed, attempting to open inventory")
             local currentResourceName = GetCurrentResourceName()
-            print(string.format("[CNR_CLIENT_DEBUG] Current resource name: %s", currentResourceName))
 
             if exports[currentResourceName] and exports[currentResourceName].ToggleInventoryUI then
-                print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export found, calling it")
                 exports[currentResourceName]:ToggleInventoryUI()
             else
-                print("[CNR_CLIENT_DEBUG] ToggleInventoryUI export not found, using fallback event")
                 -- Fallback: try to trigger inventory event
                 TriggerEvent('cnr:openInventory')
             end
@@ -584,7 +572,6 @@ RegisterCommand('getweapons', function()
     local currentResourceName = GetCurrentResourceName()
     if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
         exports[currentResourceName]:EquipInventoryWeapons()
-        print("[CNR_CLIENT] Weapons equipped from inventory")
     else
         print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
     end
@@ -594,7 +581,6 @@ RegisterCommand('equipweapns', function()
     local currentResourceName = GetCurrentResourceName()
     if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
         exports[currentResourceName]:EquipInventoryWeapons()
-        print("[CNR_CLIENT] Weapons equipped from inventory")
     else
         print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
     end
@@ -688,7 +674,6 @@ Citizen.CreateThread(function()
         Citizen.Wait(0)
         
         if IsControlJustPressed(0, 166) then -- F5 key
-            print("[CNR_CLIENT_DEBUG] F5 pressed - opening role selection")
             TriggerEvent('cnr:showRoleSelection')
         end
     end
@@ -739,13 +724,11 @@ function UpdateCopStoreBlips()
                         AddTextComponentSubstringPlayerName(vendor.name)
                         EndTextCommandSetBlipName(blip)
                         copStoreBlips[blipKey] = blip
-                        print(string.format("[CNR_CLIENT_DEBUG] Created blip for Cop Store '%s' at: %s", vendor.name, blipKey))
                     end
                 else
                     if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
                         RemoveBlip(copStoreBlips[blipKey])
                         copStoreBlips[blipKey] = nil
-                        print(string.format("[CNR_CLIENT_DEBUG] Removed Cop Store blip for non-cop role at: %s", blipKey))
                     end
                 end
             else
@@ -776,10 +759,8 @@ function UpdateCopStoreBlips()
                 RemoveBlip(blipId)
             end
             copStoreBlips[blipKey] = nil
-            print(string.format("[CNR_CLIENT_DEBUG] Cleaned up orphaned/renamed Cop Store blip for key: %s", blipKey))
         end
     end
-    print("[CNR_CLIENT_DEBUG] UpdateCopStoreBlips finished. Current copStoreBlips count: " .. tablelength(copStoreBlips))
 end
 
 -- Update Robber Store Blips (visible only to robbers)
@@ -826,7 +807,6 @@ function UpdateRobberStoreBlips()
                         SetBlipScale(blip, 0.8)
                         SetBlipAsShortRange(blip, true)
                         robberStoreBlips[blipKey] = blip
-                        print(string.format("[CNR_CLIENT_DEBUG] Created robber store blip for '%s' at %s", vendor.name, tostring(vendor.location)))
                     end
                 else
                     if robberStoreBlips[blipKey] and DoesBlipExist(robberStoreBlips[blipKey]) then
@@ -858,10 +838,8 @@ function UpdateRobberStoreBlips()
                 RemoveBlip(blipId)
             end
             robberStoreBlips[blipKey] = nil
-            print(string.format("[CNR_CLIENT_DEBUG] Cleaned up orphaned/renamed Robber Store blip for key: %s", blipKey))
         end
     end
-    print("[CNR_CLIENT_DEBUG] UpdateRobberStoreBlips finished. Current robberStoreBlips count: " .. tablelength(robberStoreBlips))
 end
 
 -- =====================================
@@ -915,7 +893,6 @@ function SpawnCopStorePed()
     FreezeEntityPosition(ped, true)
     g_protectedPolicePeds[ped] = true
     g_spawnedNPCs["CopStore"] = ped
-    print("[CNR_CLIENT_DEBUG] Spawned and protected Cop Store ped at PD.")
 end
 
 -- Helper to spawn Robber Store peds and protect them from suppression
@@ -958,7 +935,6 @@ function SpawnRobberStorePeds()
                 g_protectedPolicePeds[ped] = true
                 g_spawnedNPCs[vendor.name] = ped
 
-                print(string.format("[CNR_CLIENT_DEBUG] Spawned and protected %s ped at %s", vendor.name, tostring(vendor.location)))
             end
         end
     end
@@ -968,7 +944,6 @@ end
 function SpawnRobberVehicles()
     -- Prevent multiple spawning
     if g_robberVehiclesSpawned then
-        print("[CNR_CLIENT_DEBUG] Robber vehicles already spawned, skipping")
         return
     end
 
@@ -977,7 +952,6 @@ function SpawnRobberVehicles()
         return
     end
 
-    print("[CNR_CLIENT_DEBUG] Spawning robber vehicles...")
     g_robberVehiclesSpawned = true
 
     for _, vehicleSpawn in ipairs(Config.RobberVehicleSpawns) do
@@ -1017,7 +991,6 @@ function SpawnRobberVehicles()
                     SetVehicleOnGroundProperly(vehicle)
                     SetVehicleEngineOn(vehicle, false, true, false)
                     SetVehicleDoorsLocked(vehicle, 1) -- Unlocked
-                    print(string.format("[CNR_CLIENT_DEBUG] Spawned robber vehicle %s at %s", vehicleSpawn.model, tostring(vehicleSpawn.location)))
                 else
                     print(string.format("[CNR_CLIENT_ERROR] Failed to create vehicle %s", vehicleSpawn.model))
                 end
@@ -1075,7 +1048,6 @@ end)
 
 RegisterNetEvent('cnr:updatePlayerData')
 AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
-    print(string.format("[CNR_CLIENT_DEBUG] Received cnr:updatePlayerData. Current client role: %s, New role from server: %s, Money: %s, XP: %s, Level: %s", role or "nil", newPlayerData and newPlayerData.role or "nil", newPlayerData and newPlayerData.money or "nil", newPlayerData and newPlayerData.xp or "nil", newPlayerData and newPlayerData.level or "nil"))
     if not newPlayerData then
         print("Error: 'cnr:updatePlayerData' received nil data.")
         ShowNotification("~r~Error: Failed to load player data.")
@@ -1177,8 +1149,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
         Citizen.CreateThread(function()
             Citizen.Wait(1500)
             g_isPlayerPedReady = true
-            print("[CNR_CLIENT] Player Ped is now considered READY (g_isPlayerPedReady = true). Role: " .. role)
-        end)
+            end)
     elseif role == "citizen" and g_isPlayerPedReady then
         g_isPlayerPedReady = false
         print("[CNR_CLIENT] Player Ped is NO LONGER READY (g_isPlayerPedReady = false) due to role change to citizen.")
@@ -1258,7 +1229,6 @@ AddEventHandler('cnr:wantedLevelSync', function(wantedData)
     -- Update the wanted level display
     SetWantedLevelForPlayerRole(currentWantedStarsClient, currentWantedPointsClient)
     
-    print(string.format("[CNR_CLIENT_DEBUG] Wanted level synced: %d stars, %d points", currentWantedStarsClient, currentWantedPointsClient))
 end)
 
 -- =====================================
@@ -1365,33 +1335,27 @@ end)
 
 -- Register NUI callback for setting NUI focus
 RegisterNUICallback('setNuiFocus', function(data, cb)
-    print("[CNR_CLIENT_DEBUG] NUI setNuiFocus called with hasFocus: " .. tostring(data.hasFocus) .. ", hasCursor: " .. tostring(data.hasCursor))
     SetNuiFocus(data.hasFocus, data.hasCursor)
     cb({success = true})
 end)
 
 -- Register NUI callbacks for robber menu actions
 RegisterNUICallback('startHeist', function(data, cb)
-    print("[CNR_CLIENT_DEBUG] NUI startHeist called")
     TriggerEvent('cnr:startHeist')
     cb({success = true})
 end)
 
 RegisterNUICallback('viewBounties', function(data, cb)
-    print("[CNR_CLIENT_DEBUG] NUI viewBounties called")
     TriggerEvent('cnr:viewBounties')
     cb({success = true})
 end)
 
 RegisterNUICallback('findHideout', function(data, cb)
-    print("[CNR_CLIENT_DEBUG] NUI findHideout called")
     TriggerEvent('cnr:findHideout')
     cb({success = true})
 end)
 
 RegisterNUICallback('buyContraband', function(data, cb)
-    print("[CNR_CLIENT_DEBUG] NUI buyContraband called")
-    print("[CNR_CLIENT_DEBUG] Attempting to buy contraband")
     
     -- Check if player is near a contraband dealer
     local playerPos = GetEntityCoords(PlayerPedId())
@@ -1482,7 +1446,6 @@ end)
 
 RegisterNetEvent('cnr:startHeist')
 AddEventHandler('cnr:startHeist', function()
-    print("[CNR_CLIENT_DEBUG] Robber is attempting to start a heist")
     -- Check if player is near a heist location
     local playerPos = GetEntityCoords(PlayerPedId())
     local nearHeist = false
@@ -1507,14 +1470,12 @@ end)
 
 RegisterNetEvent('cnr:viewBounties')
 AddEventHandler('cnr:viewBounties', function()
-    print("[CNR_CLIENT_DEBUG] Viewing available bounties")
     TriggerServerEvent('cnr:requestBountyList')
 end)
 
 -- Add new event handler for receiving bounty list
 RegisterNetEvent('cnr:receiveBountyList')
 AddEventHandler('cnr:receiveBountyList', function(bountyList)
-    print("[CNR_CLIENT_DEBUG] Received bounty list with " .. #bountyList .. " bounties")
     
     -- Send the bounty list to the UI
     SendNUIMessage({
@@ -1528,7 +1489,6 @@ end)
 
 RegisterNetEvent('cnr:findHideout')
 AddEventHandler('cnr:findHideout', function()
-    print("[CNR_CLIENT_DEBUG] Searching for hideout locations")
     
     -- Example: Show the nearest hideout on the map
     local nearestHideout = nil
@@ -1570,7 +1530,6 @@ end)
 
 RegisterNetEvent('cnr:buyContraband')
 AddEventHandler('cnr:buyContraband', function()
-    print("[CNR_CLIENT_DEBUG] Attempting to buy contraband")
     
     -- Check if player is near a contraband dealer
     local playerPos = GetEntityCoords(PlayerPedId())
@@ -2560,15 +2519,12 @@ function SpawnPlayerAtLocation(spawnLocation, spawnHeading, role)
         ApplyRoleVisualsAndLoadout(role)
     end
     
-    print(string.format("[CNR_CLIENT_DEBUG] Player spawned at location: %s, heading: %s, role: %s", 
-        tostring(spawnLocation), tostring(spawnHeading), tostring(role)))
 end
 
 -- Event handler for receiving character data
 AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
     -- This will be used for future character loading logic
     if characterData then
-        print("[CNR_CLIENT_DEBUG] Received character data for role spawn")
     end
 end)
 

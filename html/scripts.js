@@ -57,13 +57,11 @@ window.addEventListener('message', function(event) {
                 const playerCashEl = document.getElementById('player-cash-amount');
                 if (playerCashEl) {
                     playerCashEl.textContent = `$${data.cash.toLocaleString()}`;
-                    console.log('[CNR_NUI_DEBUG] updateMoney - Updated cash display to:', `$${data.cash.toLocaleString()}`);
                 }
                 
                 // Show cash notification if cash changed and store is open
                 const storeMenuElement = document.getElementById('store-menu');
                 if (storeMenuElement && storeMenuElement.style.display === 'block' && previousCash !== null && previousCash !== data.cash) {
-                    console.log('[CNR_NUI_DEBUG] Cash changed from', previousCash, 'to', data.cash);
                     showCashNotification(data.cash, previousCash);
                 }
                 
@@ -83,22 +81,16 @@ window.addEventListener('message', function(event) {
             }
             openStoreMenu(data.storeName, data.items, data.playerInfo);
             break;        case 'updateStoreData':
-            console.log('[CNR_NUI] Received updateStoreData with', data.items ? data.items.length : 0, 'items');
             if (data.items && data.items.length > 0) {
                 // Update the current store data
                 window.items = data.items; // Fix: Set window.items so loadGridItems() can access it
                 window.currentStoreItems = data.items;
                 window.playerInfo = data.playerInfo; // Fix: Set window.playerInfo for level checks
                 window.currentPlayerInfo = data.playerInfo;
-                console.log('[CNR_NUI_DEBUG] Updated window.items with', data.items.length, 'items');
-                console.log('[CNR_NUI_DEBUG] Sample item IDs:', data.items.slice(0, 3).map(item => item.itemId).join(','));
-                console.log('[CNR_NUI_DEBUG] Current tab before refresh:', window.currentTab);
                 // Refresh the currently displayed tab
                 if (window.currentTab === 'buy') {
-                    console.log('[CNR_NUI_DEBUG] Calling loadGridItems() for Buy tab refresh');
                     loadGridItems(); // Fix: Call without parameters
                 } else if (window.currentTab === 'sell') {
-                    console.log('[CNR_NUI_DEBUG] Calling loadSellItems() for Sell tab refresh');
                     loadSellItems();
                 }
             } else {
@@ -136,7 +128,6 @@ window.addEventListener('message', function(event) {
             updateXPDisplayElements(data.currentXP, data.currentLevel, data.xpForNextLevel, data.xpGained);
             break;
         case 'refreshSellListIfNeeded':
-            // console.log("[CNR_NUI] Received refreshSellListIfNeeded. Calling loadSellItems().");
             const storeMenu = document.getElementById('store-menu');
             if (storeMenu && storeMenu.style.display === 'block' && window.currentTab === 'sell') {
                 loadSellItems();
@@ -183,7 +174,6 @@ window.addEventListener('message', function(event) {
         case 'storeFullItemConfig':
             if (data.itemConfig) {
                 window.fullItemConfig = data.itemConfig;
-                console.log('[CNR_NUI] Stored full item config. Item count:', window.fullItemConfig ? Object.keys(window.fullItemConfig).length : 0);
                 
                 // Fix any missing item images by setting default images
                 for (const itemId in window.fullItemConfig) {

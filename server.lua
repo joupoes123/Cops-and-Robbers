@@ -54,8 +54,6 @@ function IsPlayerAdmin(playerId)
     return false
 end
 
--- Debug print to confirm function is loaded
-print("[CNR_SERVER_DEBUG] IsPlayerAdmin function has been defined successfully")
 
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
@@ -1126,25 +1124,15 @@ end)
 -- WANTED SYSTEM
 -- =================================================================================================
 UpdatePlayerWantedLevel = function(playerId, crimeKey, officerId)
-    -- Only log TRACE if debug logging is enabled
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel START - pID: %s, crime: %s, officer: %s', playerId, crimeKey, officerId or 'nil'))
-    end
     local pIdNum = tonumber(playerId)
     if not pIdNum or pIdNum <= 0 then
         Log("UpdatePlayerWantedLevel: Invalid player ID " .. tostring(playerId), "error")
         return
     end
 
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Player valid check. pIDNum: %s, Name: %s, IsRobber: %s', pIdNum, GetPlayerName(pIdNum) or "N/A", tostring(IsPlayerRobber(pIdNum))))
-    end
     if GetPlayerName(pIdNum) == nil or not IsPlayerRobber(pIdNum) then return end -- Check player online using GetPlayerName
 
     local crimeConfig = Config.WantedSettings.crimes[crimeKey]
-    if Config.DebugLogging then
-        print(string.format('[CNR_SERVER_TRACE] UpdatePlayerWantedLevel: Crime config for %s is: %s', crimeKey, crimeConfig and json.encode(crimeConfig) or "nil"))
-    end
     if not crimeConfig then
         Log("UpdatePlayerWantedLevel: Unknown crimeKey: " .. crimeKey, "error")
         return
@@ -1876,11 +1864,8 @@ AddEventHandler('cnr:selectRole', function(selectedRole)
     if spawnLocation then
         TriggerClientEvent('cnr:spawnPlayerAt', src, spawnLocation, spawnHeading, selectedRole)
         Log(string.format("Player %s spawned as %s at %s", GetPlayerName(src), selectedRole, tostring(spawnLocation)))
-        print(string.format("[CNR_SERVER_DEBUG] Role selection successful: Player %s (%s) spawned as %s",
-            GetPlayerName(src), src, selectedRole))
     else
-        Log(string.format("No spawn point found for role %s", selectedRole), "warn")
-        print(string.format("[CNR_SERVER_WARN] No spawn point found for role %s for player %s", selectedRole, src))
+        Log(string.format("No spawn point found for role %s for player %s", selectedRole, src), "warn")
         TriggerClientEvent('cnr:roleSelected', src, false, "No spawn point configured for this role.")
         return
     end
@@ -1892,7 +1877,6 @@ RegisterNetEvent('cops_and_robbers:getItemList')
 AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemIds, storeName) -- Renamed itemList to vendorItemIds for clarity
     local src = source
     local pData = GetCnrPlayerData(src)
-    -- print('[CNR_SERVER_DEBUG] Received cops_and_robbers:getItemList from', src, 'storeType:', storeType, 'storeName:', storeName)
 
     if not storeName then
         print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
@@ -1966,7 +1950,6 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
-    -- print('[CNR_SERVER_DEBUG] Triggered cops_and_robbers:sendItemList to', src, 'for store', storeName, 'with full details.')
 end)
 
 RegisterNetEvent('cops_and_robbers:getPlayerInventory')
@@ -1996,7 +1979,6 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
         end
     end
 
-    print(string.format("[CNR_SERVER_DEBUG] Selling: Player %s has %d total inventory items, sending %d items with count > 0 to NUI for Sell Tab", src, inventoryCount, #processedInventoryForNui))
     TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, processedInventoryForNui)
 end)
 
@@ -2970,7 +2952,6 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     
     -- Check if player is a robber
     if not IsPlayerRobber(src) then
-        print("[CNR_SERVER_DEBUG] Non-robber attempted to report crime: " .. GetPlayerName(src) .. " (" .. src .. ")")
         return
     end
     
