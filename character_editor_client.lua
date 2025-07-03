@@ -37,6 +37,53 @@ end)
 
 function GetDefaultCharacterData()
     local defaultData = {}
+    
+    -- Ensure Config.CharacterEditor exists
+    if not Config.CharacterEditor or not Config.CharacterEditor.defaultCharacter then
+        print("[CNR_CHARACTER_EDITOR] Warning: Config.CharacterEditor.defaultCharacter not found, using fallback")
+        -- Fallback default character data
+        return {
+            model = "mp_m_freemode_01",
+            face = 0,
+            skin = 0,
+            hair = 0,
+            hairColor = 0,
+            hairHighlight = 0,
+            beard = -1,
+            beardColor = 0,
+            beardOpacity = 1.0,
+            eyebrows = -1,
+            eyebrowsColor = 0,
+            eyebrowsOpacity = 1.0,
+            eyeColor = 0,
+            faceFeatures = {
+                noseWidth = 0.0,
+                noseHeight = 0.0,
+                noseLength = 0.0,
+                noseBridge = 0.0,
+                noseTip = 0.0,
+                noseShift = 0.0,
+                browHeight = 0.0,
+                browWidth = 0.0,
+                cheekboneHeight = 0.0,
+                cheekboneWidth = 0.0,
+                cheeksWidth = 0.0,
+                eyesOpening = 0.0,
+                lipsThickness = 0.0,
+                jawWidth = 0.0,
+                jawHeight = 0.0,
+                chinLength = 0.0,
+                chinPosition = 0.0,
+                chinWidth = 0.0,
+                chinShape = 0.0,
+                neckWidth = 0.0
+            },
+            components = {},
+            props = {},
+            tattoos = {}
+        }
+    end
+    
     -- Lua 5.4 compatible deep copy
     for k, v in next, Config.CharacterEditor.defaultCharacter do
         if type(v) == "table" then

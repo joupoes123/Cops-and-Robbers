@@ -9,6 +9,17 @@ let isInventoryOpen = false;
 let currentInventoryData = null;
 let currentEquippedItems = null;
 
+// Character Editor state variables
+let characterEditorData = {
+    isOpen: false,
+    currentRole: null,
+    currentSlot: 1,
+    characterData: null,
+    uniformPresets: [],
+    customizationRanges: {},
+    selectedUniformPreset: null
+};
+
 // Jail Timer UI elements
 const jailTimerContainer = document.getElementById('jail-timer-container');
 const jailTimeRemainingElement = document.getElementById('jail-time-remaining');
@@ -2658,6 +2669,9 @@ function openCharacterEditor(data) {
         // Update sliders with current character data
         updateSlidersFromCharacterData();
 
+        // Setup event handlers if not already done
+        setupCharacterEditorEventHandlers();
+
         // Show the character editor
         characterEditor.classList.remove('hidden');
         
@@ -2770,6 +2784,250 @@ function updateUniformPresets() {
 
         presetList.appendChild(presetElement);
     });
+}
+
+function updateSlidersFromCharacterData() {
+    if (!characterEditorData.characterData) {
+        console.log('[CNR_CHARACTER_EDITOR] No character data to update sliders');
+        return;
+    }
+    
+    const data = characterEditorData.characterData;
+    console.log('[CNR_CHARACTER_EDITOR] Updating sliders with character data:', data);
+    
+    // Update basic appearance sliders
+    const basicSliders = [
+        'face', 'skin', 'hair', 'hairColor', 'hairHighlight', 'eyeColor',
+        'beard', 'beardColor', 'beardOpacity', 'eyebrows', 'eyebrowsColor', 'eyebrowsOpacity',
+        'blush', 'blushColor', 'blushOpacity', 'lipstick', 'lipstickColor', 'lipstickOpacity',
+        'makeup', 'makeupColor', 'makeupOpacity', 'ageing', 'ageingOpacity',
+        'complexion', 'complexionOpacity', 'sundamage', 'sundamageOpacity',
+        'freckles', 'frecklesOpacity', 'bodyBlemishes', 'bodyBlemishesOpacity',
+        'chesthair', 'chesthairColor', 'chesthairOpacity'
+    ];
+    
+    basicSliders.forEach(sliderName => {
+        const slider = document.getElementById(`${sliderName}-slider`);
+        const valueDisplay = document.getElementById(`${sliderName}-value`);
+        
+        if (slider && data[sliderName] !== undefined) {
+            slider.value = data[sliderName];
+            if (valueDisplay) {
+                valueDisplay.textContent = data[sliderName];
+            }
+        }
+    });
+    
+    // Update face feature sliders
+    if (data.faceFeatures) {
+        Object.keys(data.faceFeatures).forEach(featureName => {
+            const slider = document.getElementById(`${featureName}-slider`);
+            const valueDisplay = document.getElementById(`${featureName}-value`);
+            
+            if (slider && data.faceFeatures[featureName] !== undefined) {
+                slider.value = data.faceFeatures[featureName];
+                if (valueDisplay) {
+                    valueDisplay.textContent = data.faceFeatures[featureName].toFixed(2);
+                }
+            }
+        });
+    }
+    
+    console.log('[CNR_CHARACTER_EDITOR] Successfully updated sliders');
+}
+
+// Character Editor Slider Event Handlers
+function setupCharacterEditorEventHandlers() {
+    console.log('[CNR_CHARACTER_EDITOR] Setting up event handlers');
+    
+    // Basic appearance sliders
+    const basicSliders = [
+        'face', 'skin', 'hair', 'hairColor', 'hairHighlight', 'eyeColor',
+        'beard', 'beardColor', 'beardOpacity', 'eyebrows', 'eyebrowsColor', 'eyebrowsOpacity',
+        'blush', 'blushColor', 'blushOpacity', 'lipstick', 'lipstickColor', 'lipstickOpacity',
+        'makeup', 'makeupColor', 'makeupOpacity', 'ageing', 'ageingOpacity',
+        'complexion', 'complexionOpacity', 'sundamage', 'sundamageOpacity',
+        'freckles', 'frecklesOpacity', 'bodyBlemishes', 'bodyBlemishesOpacity',
+        'chesthair', 'chesthairColor', 'chesthairOpacity'
+    ];
+    
+    basicSliders.forEach(sliderName => {
+        const slider = document.getElementById(`${sliderName}-slider`);
+        if (slider) {
+            slider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                const valueDisplay = document.getElementById(`${sliderName}-value`);
+                
+                if (valueDisplay) {
+                    valueDisplay.textContent = value;
+                }
+                
+                // Update character data
+                if (characterEditorData.characterData) {
+                    characterEditorData.characterData[sliderName] = value;
+                    
+                    // Send update to client
+                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            category: 'appearance', 
+                            feature: sliderName, 
+                            value: value 
+                        })
+                    }).catch(error => {
+                        console.error('[CNR_CHARACTER_EDITOR] Error updating feature:', error);
+                    });
+                }
+            });
+        }
+    });
+    
+    // Face feature sliders
+    const faceFeatures = [
+        'noseWidth', 'noseHeight', 'noseLength', 'noseBridge', 'noseTip', 'noseShift',
+        'browHeight', 'browWidth', 'cheekboneHeight', 'cheekboneWidth', 'cheeksWidth',
+        'eyesOpening', 'lipsThickness', 'jawWidth', 'jawHeight', 'chinLength',
+        'chinPosition', 'chinWidth', 'chinShape', 'neckWidth'
+    ];
+    
+    faceFeatures.forEach(featureName => {
+        const slider = document.getElementById(`${featureName}-slider`);
+        if (slider) {
+            slider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                const valueDisplay = document.getElementById(`${featureName}-value`);
+                
+                if (valueDisplay) {
+                    valueDisplay.textContent = value.toFixed(2);
+                }
+                
+                // Update character data
+                if (characterEditorData.characterData) {
+                    if (!characterEditorData.characterData.faceFeatures) {
+                        characterEditorData.characterData.faceFeatures = {};
+                    }
+                    characterEditorData.characterData.faceFeatures[featureName] = value;
+                    
+                    // Send update to client
+                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            category: 'faceFeatures', 
+                            feature: featureName, 
+                            value: value 
+                        })
+                    }).catch(error => {
+                        console.error('[CNR_CHARACTER_EDITOR] Error updating face feature:', error);
+                    });
+                }
+            });
+        }
+    });
+    
+    // Character editor buttons
+    const saveBtn = document.getElementById('character-editor-save-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ success: true })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error saving character:', error);
+            });
+        });
+    }
+    
+    const cancelBtn = document.getElementById('character-editor-cancel-btn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ success: true })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error canceling character editor:', error);
+            });
+        });
+    }
+    
+    // Camera mode buttons
+    const faceViewBtn = document.getElementById('camera-face-btn');
+    if (faceViewBtn) {
+        faceViewBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'face' })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error changing camera:', error);
+            });
+        });
+    }
+    
+    const bodyViewBtn = document.getElementById('camera-body-btn');
+    if (bodyViewBtn) {
+        bodyViewBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'body' })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error changing camera:', error);
+            });
+        });
+    }
+    
+    const fullViewBtn = document.getElementById('camera-full-btn');
+    if (fullViewBtn) {
+        fullViewBtn.addEventListener('click', function() {
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'full' })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error changing camera:', error);
+            });
+        });
+    }
+    
+    // Gender switch buttons
+    const maleBtn = document.getElementById('gender-male-btn');
+    const femaleBtn = document.getElementById('gender-female-btn');
+    
+    if (maleBtn) {
+        maleBtn.addEventListener('click', function() {
+            document.getElementById('gender-female-btn')?.classList.remove('active');
+            this.classList.add('active');
+            
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gender: 'male' })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error switching gender:', error);
+            });
+        });
+    }
+    
+    if (femaleBtn) {
+        femaleBtn.addEventListener('click', function() {
+            document.getElementById('gender-male-btn')?.classList.remove('active');
+            this.classList.add('active');
+            
+            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gender: 'female' })
+            }).catch(error => {
+                console.error('[CNR_CHARACTER_EDITOR] Error switching gender:', error);
+            });
+        });
+    }
+    
+    console.log('[CNR_CHARACTER_EDITOR] Event handlers setup complete');
 }
 
 function updateCharacterSlots() {

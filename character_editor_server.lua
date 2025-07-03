@@ -100,6 +100,12 @@ function ValidateCharacterData(characterData, role)
         end
     end
     
+    -- Ensure Config.CharacterEditor exists before validation
+    if not Config.CharacterEditor or not Config.CharacterEditor.customization then
+        print("[CNR_CHARACTER_EDITOR] Warning: Config.CharacterEditor.customization not found, skipping detailed validation")
+        return true, "Valid (basic validation only)"
+    end
+    
     -- Validate customization ranges
     local customization = Config.CharacterEditor.customization
     for feature, range in pairs(customization) do
@@ -118,7 +124,7 @@ function ValidateCharacterData(characterData, role)
         for feature, value in pairs(characterData.faceFeatures) do
             if customization[feature] then
                 local range = customization[feature]
-                if value < range.min or value > range.max then
+                if type(value) == "number" and value < range.min or value > range.max then
                     return false, "Invalid face feature value for " .. feature .. ": " .. value
                 end
             end
