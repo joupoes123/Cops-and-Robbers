@@ -9,13 +9,13 @@ version '1.2.0'
 -- Define shared scripts, loaded first on both server and client.
 shared_scripts {
     'config.lua',       -- Game mode configuration.
-    'constants.lua'     -- Centralized constants and configuration values.
+    'constants.lua',    -- Centralized constants and configuration values.
+    'safe_utils.lua'    -- Safe utility functions (shared between client and server).
 }
 
 -- Define server-side scripts in dependency order.
 server_scripts {
     -- Core utilities and constants (loaded first)
-    'safe_utils.lua',    -- Safe utility functions.
     
     -- New refactored systems (loaded in dependency order)
     'validation.lua',    -- Server-side validation system.
