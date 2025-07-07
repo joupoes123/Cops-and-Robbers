@@ -77,7 +77,7 @@ function PerformanceOptimizer.CreateOptimizedLoop(callback, baseInterval, maxInt
             loopData.lastExecution = startTime
             
             -- Adjust interval based on performance
-            PerformanceOptimizer.AdjustLoopInterval(loopData, executionTime)
+            AdjustLoopInterval(loopData, executionTime)
             
             Citizen.Wait(loopData.currentInterval)
         end
@@ -430,5 +430,4 @@ end
 -- Initialize when loaded
 PerformanceOptimizer.Initialize()
 
--- Export the performance optimizer module
-return PerformanceOptimizer
+-- PerformanceOptimizer module is now available globally
