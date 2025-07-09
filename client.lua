@@ -500,6 +500,145 @@ function ApplyCharacterData(characterData, ped)
     return true
 end
 
+-- Get current character data
+function GetCurrentCharacterData(ped)
+    if not ped or not DoesEntityExist(ped) then
+        return nil
+    end
+    return currentCharacterData
+end
+
+-- Open character editor
+function OpenCharacterEditor(role, characterSlot)
+    if isInCharacterEditor then
+        return
+    end
+
+    currentRole = role or "cop"
+    currentCharacterSlot = characterSlot or 1
+    
+    local ped = PlayerPedId()
+    if not DoesEntityExist(ped) then
+        return
+    end
+    
+    originalPlayerData = GetCurrentCharacterData(ped)
+    
+    local characterKey = currentRole .. "_" .. currentCharacterSlot
+    if playerCharacters[characterKey] then
+        currentCharacterData = playerCharacters[characterKey]
+    else
+        currentCharacterData = GetDefaultCharacterData()
+        local currentModel = GetEntityModel(ped)
+        if currentModel == GetHashKey("mp_f_freemode_01") then
+            currentCharacterData.model = "mp_f_freemode_01"
+        else
+            currentCharacterData.model = "mp_m_freemode_01"
+        end
+    end
+    
+    local modelToUse = currentCharacterData.model or "mp_m_freemode_01"
+    local modelHash = GetHashKey(modelToUse)
+    
+    RequestModel(modelHash)
+    local attempts = 0
+    while not HasModelLoaded(modelHash) and attempts < 100 do
+        Citizen.Wait(50)
+        attempts = attempts + 1
+    end
+    
+    if HasModelLoaded(modelHash) then
+        SetPlayerModel(PlayerId(), modelHash)
+        Citizen.Wait(100)
+        ped = PlayerPedId()
+    end
+
+    local previewLocation = vector3(-1042.0, -2745.0, 21.36)
+    SetEntityCoords(ped, previewLocation.x, previewLocation.y, previewLocation.z, false, false, false, true)
+    SetEntityHeading(ped, 180.0)
+    
+    Wait(200)
+    
+    DisplayHud(false)
+    DisplayRadar(false)
+    
+    Wait(100)
+    
+    ApplyCharacterData(currentCharacterData, ped)
+    
+    FreezeEntityPosition(ped, true)
+    SetEntityInvincible(ped, true)
+    
+    isInCharacterEditor = true
+    editorUI.isVisible = true
+    
+    SendNUIMessage({
+        action = 'openCharacterEditor',
+        role = currentRole,
+        characterSlot = currentCharacterSlot,
+        characterData = currentCharacterData,
+        uniformPresets = {},
+        customizationRanges = {},
+        playerCharacters = playerCharacters
+    })
+    
+    Citizen.SetTimeout(100, function()
+        if isInCharacterEditor then
+            SetNuiFocus(true, true)
+        end
+    end)
+end
+
+-- Close character editor
+function CloseCharacterEditor(save)
+    if not isInCharacterEditor then
+        return
+    end
+
+    local ped = PlayerPedId()
+    
+    SetNuiFocus(false, false)
+    
+    if save then
+        local characterKey = string.format("%s_%d", currentRole, currentCharacterSlot)
+        
+        if currentCharacterData and type(currentCharacterData) == "table" then
+            playerCharacters[characterKey] = currentCharacterData
+            TriggerServerEvent('cnr:saveCharacterData', characterKey, currentCharacterData)
+        end
+    else
+        if originalPlayerData then
+            ApplyCharacterData(originalPlayerData, ped)
+        end
+    end
+    
+    FreezeEntityPosition(ped, false)
+    SetEntityInvincible(ped, false)
+    
+    SetEntityVisible(ped, true, false)
+    SetEntityAlpha(ped, 255, false)
+    
+    if currentRole and Config.SpawnPoints and Config.SpawnPoints[currentRole] then
+        local spawnPoint = Config.SpawnPoints[currentRole]
+        SetEntityCoords(ped, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
+        SetEntityHeading(ped, 0.0)
+    end
+    
+    isInCharacterEditor = false
+    editorUI.isVisible = false
+    previewingUniform = false
+    currentUniformPreset = nil
+    currentRole = nil
+    currentCharacterSlot = 1
+    
+    SendNUIMessage({
+        action = 'closeCharacterEditor'
+    })
+    
+    DisplayHud(true)
+    DisplayRadar(true)
+end
+
 -- =====================================
 --     PROGRESSION SYSTEM (CONSOLIDATED)
 -- =====================================
@@ -701,30 +840,9 @@ local function DisplayHelpText(text)
     EndTextCommandDisplayHelp(0, false, true, -1)
 end
 
--- Helper function to calculate XP required for next level
-function CalculateXpForNextLevelClient(currentLevel, playerRole)
-    -- Base XP requirements
-    local baseXP = 100
-    local multiplier = 1.5
-    
-    -- Role-specific XP scaling
-    local roleMultiplier = 1.0
-    if playerRole == "cop" then
-        roleMultiplier = 1.2  -- Cops need slightly more XP to level up
-    elseif playerRole == "robber" then
-        roleMultiplier = 1.0  -- Robbers have standard XP requirements
-    end
-    
-    -- Calculate next level XP requirement: baseXP * (multiplier ^ currentLevel) * roleMultiplier
-    return math.floor(baseXP * (multiplier ^ currentLevel) * roleMultiplier)
-end
+-- CalculateXpForNextLevelClient function already defined in consolidated progression section
 
--- Helper function to count table entries
-function tablelength(T)
-  local count = 0
-  for _ in pairs(T) do count = count + 1 end
-  return count
-end
+-- tablelength function already defined in consolidated inventory section
 
 -- Helper function to spawn player at role-specific location
 local function spawnPlayer(playerRole)
@@ -846,7 +964,9 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
         print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
         return
-    end    if newRole == "cop" then
+    end
+    
+    if newRole == "cop" then
         local taserHash = GetHashKey("weapon_stungun")
         GiveWeaponToPed(playerPed, taserHash, 5, false, true)
         playerWeapons["weapon_stungun"] = true
@@ -1428,7 +1548,9 @@ function SpawnRobberStorePeds()
     if not Config or not Config.NPCVendors then
         print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
         return
-    end    for _, vendor in ipairs(Config.NPCVendors) do
+    end
+    
+    for _, vendor in ipairs(Config.NPCVendors) do
         if vendor.name == "Black Market Dealer" or vendor.name == "Gang Supplier" then
             -- Check if already spawned
             if not g_spawnedNPCs[vendor.name] then
@@ -1715,7 +1837,8 @@ AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
 end)
 
 RegisterNetEvent('cops_and_robbers:updateWantedDisplay')
-AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)    currentWantedStarsClient = stars
+AddEventHandler('cops_and_robbers:updateWantedDisplay', function(stars, points)
+    currentWantedStarsClient = stars
     currentWantedPointsClient = points
     local newUiLabel = ""
     if stars > 0 then
