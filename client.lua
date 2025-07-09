@@ -2006,6 +2006,12 @@ RegisterNUICallback('findHideout', function(data, cb)
     cb({success = true})
 end)
 
+-- NUI Callback for UI test results
+RegisterNUICallback('uiTestResults', function(data, cb)
+    TriggerServerEvent('cnr:uiTestResults', data)
+    cb('ok')
+end)
+
 RegisterNUICallback('buyContraband', function(data, cb)
     
     -- Check if player is near a contraband dealer

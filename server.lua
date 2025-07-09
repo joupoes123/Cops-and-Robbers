@@ -2310,11 +2310,16 @@ AddEventHandler('cnr:getUITestResults', function()
     })
 end)
 
--- NUI Callback for UI test results
-RegisterNUICallback('uiTestResults', function(data, cb)
-    TriggerEvent('cnr:uiTestResults', data)
-    cb('ok')
+-- Handle UI test results from client
+RegisterNetEvent('cnr:uiTestResults')
+AddEventHandler('cnr:uiTestResults', function(data)
+    local src = source
+    -- Process UI test results here
+    print(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})))
+    -- You can add additional processing logic here if needed
 end)
+
+
 
 -- Enhanced buy/sell operations with immediate inventory saves
 -- REFACTORED: Secure buy item handler using new validation and transaction systems
