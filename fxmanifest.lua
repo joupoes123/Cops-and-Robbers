@@ -29,7 +29,6 @@ server_scripts {
     -- Original systems (maintained for compatibility)
     'server.lua',       -- Core server logic (refactored to use new systems).
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'inventory_server.lua', -- Legacy inventory system (will be phased out).
     'character_editor_server.lua', -- Character editor server logic.
     'progression_server.lua' -- Enhanced progression system server logic.
 }

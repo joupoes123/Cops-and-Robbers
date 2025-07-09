@@ -588,16 +588,7 @@ end
 
 
 -- OLD INVENTORY FUNCTIONS REMOVED - Using enhanced versions with save marking below
-
--- Ensure InitializePlayerInventory is defined (even if simple)
-function InitializePlayerInventory(pData, playerId)
-    if not pData then
-        Log("InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"), "error", "CNR_SERVER")
-        return
-    end
-    pData.inventory = pData.inventory or {}
-    -- Log("InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"), "info")
-end
+-- InitializePlayerInventory is now handled by integration_manager.lua
 
 LoadPlayerData = function(playerId)
     -- Log(string.format("LoadPlayerData: Called for player ID %s.", playerId), "info")

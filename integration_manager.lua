@@ -140,6 +140,17 @@ function IntegrationManager.SetupLegacyCompatibility()
         DataManager.MarkPlayerForSave(playerId)
     end
     
+    -- InitializePlayerInventory compatibility
+    InitializePlayerInventory = function(pData, playerId)
+        if not pData then
+            print("[CNR_INTEGRATION] InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"))
+            return
+        end
+        -- Ensure inventory exists in the expected format
+        pData.inventory = pData.inventory or {}
+        print("[CNR_INTEGRATION] InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"))
+    end
+    
     print("[CNR_INTEGRATION] ✅ Legacy compatibility layer established")
 end
 
