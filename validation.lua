@@ -513,4 +513,33 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- ====================================================================
+-- MEMORY MANAGEMENT INTEGRATION
+-- ====================================================================
+
+--- Cleanup validation data for disconnected player
+--- @param playerId number Player ID
+--- @return number Number of items cleaned
+function Validation.CleanupPlayerData(playerId)
+    local cleanedItems = 0
+    
+    -- Clear rate limiting data for this player
+    if rateLimitData[playerId] then
+        rateLimitData[playerId] = nil
+        cleanedItems = cleanedItems + 1
+    end
+    
+    -- Clear any cached validation results
+    -- (Add more cleanup as validation system grows)
+    
+    LogValidation(playerId, "cleanup", string.format("Validation cleanup completed (%d items)", cleanedItems))
+    return cleanedItems
+end
+
+--- Legacy cleanup function for compatibility
+--- @param playerId number Player ID
+function Validation.CleanupPlayer(playerId)
+    Validation.CleanupPlayerData(playerId)
+end
+
 -- Validation module is now available globally

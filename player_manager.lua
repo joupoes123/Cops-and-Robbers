@@ -531,6 +531,27 @@ function PlayerManager.CleanupPlayer(playerId)
     LogPlayerManager(playerId, "cleanup", "Player cleanup completed")
 end
 
+--- Enhanced cleanup for memory manager integration
+--- @param playerId number Player ID
+--- @return number Number of items cleaned
+function PlayerManager.CleanupPlayerCache(playerId)
+    local cleanedItems = 0
+    
+    -- Remove from cache
+    if playerDataCache[playerId] then
+        playerDataCache[playerId] = nil
+        cleanedItems = cleanedItems + 1
+    end
+    
+    if playerLoadingStates[playerId] then
+        playerLoadingStates[playerId] = nil
+        cleanedItems = cleanedItems + 1
+    end
+    
+    LogPlayerManager(playerId, "cleanup", string.format("Cache cleanup completed (%d items)", cleanedItems))
+    return cleanedItems
+end
+
 -- ====================================================================
 -- ROLE MANAGEMENT
 -- ====================================================================

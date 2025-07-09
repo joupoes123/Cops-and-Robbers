@@ -596,7 +596,7 @@ function SecureInventory.Initialize()
     end)
 end
 
---- Cleanup on player disconnect
+--- Enhanced cleanup with memory manager integration
 --- @param playerId number Player ID
 function SecureInventory.CleanupPlayer(playerId)
     -- Remove any active transactions
@@ -610,6 +610,49 @@ function SecureInventory.CleanupPlayer(playerId)
     UnlockInventory(playerId)
     
     LogInventory(playerId, "cleanup", "Player inventory cleaned up")
+end
+
+--- Cleanup player data for memory manager
+--- @param playerId number Player ID
+--- @return number Number of items cleaned
+function SecureInventory.CleanupPlayerData(playerId)
+    local cleanedItems = 0
+    
+    -- Remove active transactions
+    for txnId, txn in pairs(activeTransactions) do
+        if txn.playerId == playerId then
+            activeTransactions[txnId] = nil
+            cleanedItems = cleanedItems + 1
+        end
+    end
+    
+    -- Unlock inventory
+    UnlockInventory(playerId)
+    cleanedItems = cleanedItems + 1
+    
+    LogInventory(playerId, "cleanup", string.format("Memory cleanup completed (%d items)", cleanedItems))
+    return cleanedItems
+end
+
+--- Cleanup inventory cache for offline players
+--- @return number Number of items cleaned
+function SecureInventory.CleanupInventoryCache()
+    local onlinePlayers = {}
+    for _, playerId in ipairs(GetPlayers()) do
+        onlinePlayers[tonumber(playerId)] = true
+    end
+    
+    local cleanedCount = 0
+    
+    -- Clean up active transactions for offline players
+    for txnId, txn in pairs(activeTransactions) do
+        if not onlinePlayers[txn.playerId] then
+            activeTransactions[txnId] = nil
+            cleanedCount = cleanedCount + 1
+        end
+    end
+    
+    return cleanedCount
 end
 
 -- Initialize when loaded

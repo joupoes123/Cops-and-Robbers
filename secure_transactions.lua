@@ -502,7 +502,7 @@ function SecureTransactions.Initialize()
     end)
 end
 
---- Cleanup on player disconnect
+--- Enhanced cleanup with memory manager integration
 --- @param playerId number Player ID
 function SecureTransactions.CleanupPlayer(playerId)
     -- Cancel any active transactions for this player
@@ -513,6 +513,60 @@ function SecureTransactions.CleanupPlayer(playerId)
     end
     
     LogTransaction(playerId, "cleanup", "Player transactions cleaned up")
+end
+
+--- Cleanup player transactions for memory manager
+--- @param playerId number Player ID
+--- @return number Number of items cleaned
+function SecureTransactions.CleanupPlayerTransactions(playerId)
+    local cleanedCount = 0
+    
+    -- Cancel any active transactions for this player
+    for txnId, txn in pairs(activeTransactions) do
+        if txn.playerId == playerId then
+            CompleteTransaction(txnId, false, {error = "Player disconnected"})
+            cleanedCount = cleanedCount + 1
+        end
+    end
+    
+    -- Clean up old completed transactions for this player
+    local cutoffTime = os.time() - 3600 -- 1 hour ago
+    for txnId, txn in pairs(completedTransactions) do
+        if txn.playerId == playerId and txn.completedAt < cutoffTime then
+            completedTransactions[txnId] = nil
+            cleanedCount = cleanedCount + 1
+        end
+    end
+    
+    LogTransaction(playerId, "cleanup", string.format("Memory cleanup completed (%d items)", cleanedCount))
+    return cleanedCount
+end
+
+--- Cleanup expired transactions
+--- @return number Number of transactions cleaned
+function SecureTransactions.CleanupExpiredTransactions()
+    local currentTime = os.time()
+    local cleanedCount = 0
+    
+    -- Clean up old completed transactions (older than 24 hours)
+    local cutoffTime = currentTime - (24 * 3600) -- 24 hours ago
+    for txnId, txn in pairs(completedTransactions) do
+        if txn.completedAt < cutoffTime then
+            completedTransactions[txnId] = nil
+            cleanedCount = cleanedCount + 1
+        end
+    end
+    
+    -- Clean up expired active transactions (older than 5 minutes)
+    local expiredCutoff = currentTime - 300 -- 5 minutes ago
+    for txnId, txn in pairs(activeTransactions) do
+        if txn.createdAt < expiredCutoff then
+            CompleteTransaction(txnId, false, {error = "Transaction expired"})
+            cleanedCount = cleanedCount + 1
+        end
+    end
+    
+    return cleanedCount
 end
 
 -- Initialize when loaded

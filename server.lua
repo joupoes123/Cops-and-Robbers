@@ -2248,38 +2248,72 @@ AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     end)
 end)
 
--- REFACTORED: Player disconnection handler using new PlayerManager system
+-- ENHANCED: Player disconnection handler with comprehensive memory management
 AddEventHandler('playerDropped', function(reason)
     local src = source
     local playerName = GetPlayerName(src) or "Unknown"
 
     Log(string.format("Player %s (ID: %s) disconnected. Reason: %s", playerName, src, reason), "info", "CNR_SERVER")
 
-    -- Use PlayerManager for proper cleanup and saving
-    PlayerManager.OnPlayerDisconnected(src, reason)
-
-    -- Clean up legacy global tracking tables (for compatibility)
-    if playersSavePending then playersSavePending[src] = nil end
-    if playersData then playersData[src] = nil end
-    if copsOnDuty then copsOnDuty[src] = nil end
-    if robbersActive then robbersActive[src] = nil end
-    if wantedPlayers then wantedPlayers[src] = nil end
-    if jail then jail[src] = nil end
-    if activeBounties then activeBounties[src] = nil end
-    if playerSpeedingData then playerSpeedingData[src] = nil end
-    if playerVehicleData then playerVehicleData[src] = nil end
-    if playerRestrictedAreaData then playerRestrictedAreaData[src] = nil end
-    if k9Engagements then k9Engagements[src] = nil end
-    if playerDeployedSpikeStripsCount then playerDeployedSpikeStripsCount[src] = nil end
-    
-    -- Clean up any active spike strips deployed by this player
-    if activeSpikeStrips then
-        for stripId, stripData in pairs(activeSpikeStrips) do
-            if stripData.copId == src then
-                activeSpikeStrips[stripId] = nil
+    -- Use enhanced memory management system
+    if MemoryManager then
+        MemoryManager.QueuePlayerCleanup(src, reason)
+    else
+        -- Fallback to direct cleanup if MemoryManager not available
+        if PlayerManager then
+            PlayerManager.OnPlayerDisconnected(src, reason)
+        end
+        
+        -- Clean up legacy global tracking tables (for compatibility)
+        local globalTables = {
+            'playersSavePending', 'playersData', 'copsOnDuty', 'robbersActive', 
+            'wantedPlayers', 'jail', 'activeBounties', 'playerSpeedingData',
+            'playerVehicleData', 'playerRestrictedAreaData', 'k9Engagements',
+            'playerDeployedSpikeStripsCount'
+        }
+        
+        for _, tableName in ipairs(globalTables) do
+            local globalTable = _G[tableName]
+            if globalTable then
+                globalTable[src] = nil
+            end
+        end
+        
+        -- Clean up any active spike strips deployed by this player
+        if activeSpikeStrips then
+            for stripId, stripData in pairs(activeSpikeStrips) do
+                if stripData and stripData.copId == src then
+                    activeSpikeStrips[stripId] = nil
+                end
             end
         end
     end
+end)
+
+-- ====================================================================
+-- PERFORMANCE TESTING EVENT HANDLERS
+-- ====================================================================
+
+RegisterNetEvent('cnr:performUITest')
+AddEventHandler('cnr:performUITest', function()
+    local src = source
+    TriggerClientEvent('cnr:sendNUIMessage', src, {
+        action = 'performUITest'
+    })
+end)
+
+RegisterNetEvent('cnr:getUITestResults')
+AddEventHandler('cnr:getUITestResults', function()
+    local src = source
+    TriggerClientEvent('cnr:sendNUIMessage', src, {
+        action = 'getUITestResults'
+    })
+end)
+
+-- NUI Callback for UI test results
+RegisterNUICallback('uiTestResults', function(data, cb)
+    TriggerEvent('cnr:uiTestResults', data)
+    cb('ok')
 end)
 
 -- Enhanced buy/sell operations with immediate inventory saves

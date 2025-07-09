@@ -99,8 +99,18 @@ Constants.FILES = {
     BACKUP_EXT = ".bak",
     
     -- Backup settings
+    MAX_BACKUPS = 5,
     MAX_BACKUPS_PER_FILE = 5,
     BACKUP_INTERVAL_HOURS = 24
+}
+
+-- Database and persistence constants
+Constants.DATABASE = {
+    BATCH_SIZE = 5,                    -- Items to process per batch
+    SAVE_INTERVAL_MS = 2000,           -- Minimum time between saves
+    MAX_PENDING_SAVES = 50,            -- Maximum queued saves
+    TRANSACTION_TIMEOUT_MS = 300000,   -- 5 minutes
+    BACKUP_RETENTION_DAYS = 7
 }
 
 -- Network event names (centralized to prevent typos)
@@ -268,7 +278,18 @@ Constants.PERFORMANCE = {
     MAX_EXECUTION_TIME_MS = 50,    -- Maximum time for a single operation
     MEMORY_WARNING_THRESHOLD_MB = 100,
     CPU_WARNING_THRESHOLD_PERCENT = 80,
-    MAX_CONCURRENT_OPERATIONS = 10
+    MAX_CONCURRENT_OPERATIONS = 10,
+    
+    -- Memory management
+    CLEANUP_INTERVAL_MS = 300000,  -- 5 minutes
+    GC_INTERVAL_MS = 900000,       -- 15 minutes
+    CACHE_MAX_SIZE = 1000,
+    
+    -- UI Performance
+    DOM_BATCH_SIZE = 20,           -- Items to process per frame
+    VIRTUAL_SCROLL_BUFFER = 5,     -- Extra items to render
+    DEBOUNCE_DELAY_MS = 100,       -- Default debounce delay
+    THROTTLE_LIMIT_MS = 16         -- ~60fps throttle limit
 }
 
 -- Constants table is now available globally

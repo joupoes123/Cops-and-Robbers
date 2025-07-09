@@ -713,45 +713,72 @@ function loadGridItems() {
         return;
     }
     
-    // Create document fragment for better performance
-    const fragment = document.createDocumentFragment();
-    
-    // Make sure each item has required properties
-    itemsArray.forEach((item, index) => {
-        if (!item) {
-            console.error('[CNR_NUI_DEBUG] Null item at index', index);
-            return;
-        }
-        
-        // Ensure the item has an itemId, create one if missing
-        if (!item.itemId) {
-            console.warn('[CNR_NUI_DEBUG] Item missing itemId at index', index, 'attempting to fix...', item);
-            // Try to use name as itemId, or create a fallback
-            if (item.name) {
-                item.itemId = item.name.toLowerCase().replace(/\s+/g, '_');
-            } else {
-                item.itemId = 'unknown_item_' + index;
-                item.name = 'Unknown Item';
+    // Use optimized rendering if UIOptimizer is available
+    if (window.UIOptimizer) {
+        // Validate and fix items before rendering
+        const validatedItems = itemsArray.map((item, index) => {
+            if (!item) return null;
+            
+            // Ensure the item has an itemId
+            if (!item.itemId) {
+                if (item.name) {
+                    item.itemId = item.name.toLowerCase().replace(/\s+/g, '_');
+                } else {
+                    item.itemId = 'unknown_item_' + index;
+                    item.name = 'Unknown Item';
+                }
             }
-            console.log('[CNR_NUI_DEBUG] Fixed item with generated itemId:', item.itemId);
-        }
+            
+            // Add a name if missing
+            if (!item.name) {
+                item.name = item.itemId;
+            }
+            
+            return item;
+        }).filter(item => item !== null);
         
-        // Add a name if missing
-        if (!item.name) {
-            item.name = item.itemId;
-        }
+        window.UIOptimizer.renderGridOptimized(gridContainer, validatedItems, (item) => {
+            return window.UIOptimizer.createOptimizedInventorySlot(item, 'buy');
+        });
+    } else {
+        // Fallback to original method
+        const fragment = document.createDocumentFragment();
         
-        console.log('[CNR_NUI_DEBUG] Creating slot for item:', item.itemId, item.name);
-        const slot = createInventorySlot(item, 'buy');
-        if (slot) {
-            fragment.appendChild(slot);
-            console.log('[CNR_NUI_DEBUG] Successfully created slot for:', item.itemId);
-        } else {
-            console.error('[CNR_NUI_DEBUG] Failed to create slot for:', item.itemId);
-        }
-    });
-    
-    gridContainer.appendChild(fragment);
+        itemsArray.forEach((item, index) => {
+            if (!item) {
+                console.error('[CNR_NUI_DEBUG] Null item at index', index);
+                return;
+            }
+            
+            // Ensure the item has an itemId, create one if missing
+            if (!item.itemId) {
+                console.warn('[CNR_NUI_DEBUG] Item missing itemId at index', index, 'attempting to fix...', item);
+                if (item.name) {
+                    item.itemId = item.name.toLowerCase().replace(/\s+/g, '_');
+                } else {
+                    item.itemId = 'unknown_item_' + index;
+                    item.name = 'Unknown Item';
+                }
+                console.log('[CNR_NUI_DEBUG] Fixed item with generated itemId:', item.itemId);
+            }
+            
+            // Add a name if missing
+            if (!item.name) {
+                item.name = item.itemId;
+            }
+            
+            console.log('[CNR_NUI_DEBUG] Creating slot for item:', item.itemId, item.name);
+            const slot = createInventorySlot(item, 'buy');
+            if (slot) {
+                fragment.appendChild(slot);
+                console.log('[CNR_NUI_DEBUG] Successfully created slot for:', item.itemId);
+            } else {
+                console.error('[CNR_NUI_DEBUG] Failed to create slot for:', item.itemId);
+            }
+        });
+        
+        gridContainer.appendChild(fragment);
+    }
     console.log('[CNR_NUI_DEBUG] Rendered', itemsArray.length, 'items to grid');
     console.log('[CNR_NUI_DEBUG] Grid container children count:', gridContainer.children.length);
 }

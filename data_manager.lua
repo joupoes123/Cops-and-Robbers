@@ -15,6 +15,7 @@ local pendingSaves = {}
 local saveQueue = {}
 local isProcessingSaves = false
 local lastSaveTime = 0
+local lastBackupTime = 0
 local backupSchedule = {}
 
 -- Performance monitoring
@@ -158,10 +159,37 @@ end
 --- Clean old backup files to prevent disk space issues
 --- @param originalFilename string Original filename
 function CleanOldBackups(originalFilename)
-    -- This is a simplified version - in a real implementation,
-    -- you would scan the backup directory and remove old files
-    -- For now, we'll just log the intent
-    LogDataManager(string.format("Cleaning old backups for %s", originalFilename))
+    local maxBackups = Constants.FILES.MAX_BACKUPS or 5
+    local backupPattern = originalFilename:gsub(Constants.FILES.JSON_EXT .. "$", "")
+    
+    -- Track backup files for this original file
+    local backupFiles = {}
+    
+    -- In a real implementation, you would scan the backup directory
+    -- For now, we'll implement a simple rotation system using timestamps
+    local backupTracker = _G.backupTracker or {}
+    _G.backupTracker = backupTracker
+    
+    if not backupTracker[originalFilename] then
+        backupTracker[originalFilename] = {}
+    end
+    
+    local fileBackups = backupTracker[originalFilename]
+    
+    -- Add current backup timestamp
+    table.insert(fileBackups, os.time())
+    
+    -- Sort by timestamp (oldest first)
+    table.sort(fileBackups)
+    
+    -- Remove old backups if we exceed the limit
+    while #fileBackups > maxBackups do
+        local oldestBackup = table.remove(fileBackups, 1)
+        LogDataManager(string.format("Rotated old backup for %s (timestamp: %d)", originalFilename, oldestBackup))
+    end
+    
+    LogDataManager(string.format("Backup rotation completed for %s (%d/%d backups)", 
+        originalFilename, #fileBackups, maxBackups))
 end
 
 --- Schedule automatic backups
@@ -395,14 +423,149 @@ function DataManager.MarkPlayerForSave(playerId)
     end
 end
 
---- Process pending player saves
-local function ProcessPendingSaves()
-    for playerId, queueTime in pairs(pendingSaves) do
-        local playerData = GetCnrPlayerData(playerId)
-        if playerData then
-            DataManager.SavePlayerData(playerId, playerData, false)
+--- Enhanced batch processing with priority queuing
+local function ProcessSaveQueueBatched()
+    if isProcessingSaves or #saveQueue == 0 then
+        return
+    end
+    
+    isProcessingSaves = true
+    local processed = 0
+    local maxProcessPerCycle = Constants.DATABASE.BATCH_SIZE or 5
+    local startTime = GetGameTimer()
+    
+    -- Sort queue by priority and age
+    table.sort(saveQueue, function(a, b)
+        if a.priority == b.priority then
+            return a.timestamp < b.timestamp -- Older items first for same priority
         end
-        pendingSaves[playerId] = nil
+        return a.priority > b.priority -- Higher priority first
+    end)
+    
+    -- Process batch
+    local batchData = {}
+    while #saveQueue > 0 and processed < maxProcessPerCycle do
+        local saveItem = table.remove(saveQueue, 1)
+        
+        -- Group similar operations for batch processing
+        local batchKey = saveItem.filename:match("^(.+)_") or "misc"
+        if not batchData[batchKey] then
+            batchData[batchKey] = {}
+        end
+        table.insert(batchData[batchKey], saveItem)
+        processed = processed + 1
+    end
+    
+    -- Execute batched saves
+    for batchKey, items in pairs(batchData) do
+        Citizen.CreateThread(function()
+            for _, saveItem in ipairs(items) do
+                local success, error = DataManager.SaveToFile(saveItem.filename, saveItem.data, true)
+                if not success then
+                    LogDataManager(string.format("Failed to save batched file %s: %s", saveItem.filename, error), Constants.LOG_LEVELS.ERROR)
+                    -- Re-queue failed saves with lower priority
+                    DataManager.QueueSave(saveItem.filename, saveItem.data, math.max(1, saveItem.priority - 1))
+                end
+            end
+        end)
+    end
+    
+    isProcessingSaves = false
+    lastSaveTime = GetGameTimer()
+    
+    local processingTime = GetGameTimer() - startTime
+    if processed > 0 then
+        LogDataManager(string.format("Processed %d saves in %d batches (took %dms, %d remaining)", 
+            processed, GetTableSize(batchData), processingTime, #saveQueue))
+    end
+end
+
+--- Process pending player saves with improved batching
+local function ProcessPendingSaves()
+    local currentTime = GetGameTimer()
+    local batchedSaves = {}
+    local minBatchDelay = 2000 -- Minimum 2 seconds before batching
+    
+    -- Group pending saves by age and priority
+    for playerId, queueTime in pairs(pendingSaves) do
+        local age = currentTime - queueTime
+        
+        -- Only process saves that have been pending for minimum delay
+        if age >= minBatchDelay then
+            local playerData = PlayerManager and PlayerManager.GetPlayerData(playerId)
+            if playerData then
+                -- Determine priority based on player status
+                local priority = 2 -- Default priority
+                if not GetPlayerName(playerId) then
+                    priority = 3 -- Higher priority for disconnected players
+                end
+                
+                table.insert(batchedSaves, {
+                    playerId = playerId,
+                    playerData = playerData,
+                    priority = priority,
+                    age = age
+                })
+            end
+            pendingSaves[playerId] = nil
+        end
+    end
+    
+    -- Sort by priority and age
+    table.sort(batchedSaves, function(a, b)
+        if a.priority == b.priority then
+            return a.age > b.age -- Older saves first for same priority
+        end
+        return a.priority > b.priority
+    end)
+    
+    -- Process in batches to avoid frame drops
+    local batchSize = Constants.DATABASE.BATCH_SIZE or 3
+    for i = 1, #batchedSaves, batchSize do
+        Citizen.CreateThread(function()
+            for j = i, math.min(i + batchSize - 1, #batchedSaves) do
+                local saveData = batchedSaves[j]
+                DataManager.SavePlayerData(saveData.playerId, saveData.playerData, false)
+            end
+        end)
+        
+        -- Small delay between batches
+        if i + batchSize <= #batchedSaves then
+            Citizen.Wait(100)
+        end
+    end
+    
+    if #batchedSaves > 0 then
+        LogDataManager(string.format("Processed %d pending player saves in batches", #batchedSaves))
+    end
+end
+
+--- Process scheduled backup operations
+local function ProcessScheduledBackups()
+    local currentTime = os.time()
+    local backupInterval = (Constants.FILES.BACKUP_INTERVAL_HOURS or 24) * 3600 -- Convert to seconds
+    
+    -- Check if it's time for scheduled backups
+    if not lastBackupTime or (currentTime - lastBackupTime) >= backupInterval then
+        LogDataManager("Starting scheduled backup process")
+        
+        -- Backup critical system files
+        local systemFiles = {
+            Constants.FILES.BANS_FILE,
+            Constants.FILES.PURCHASE_HISTORY_FILE,
+            Constants.FILES.BANKING_DATA_FILE
+        }
+        
+        for _, filename in ipairs(systemFiles) do
+            local success, data = DataManager.LoadFromFile(filename)
+            if success and data then
+                CreateBackup(filename, data)
+                CleanOldBackups(filename)
+            end
+        end
+        
+        lastBackupTime = currentTime
+        LogDataManager("Scheduled backup process completed")
     end
 end
 
@@ -448,6 +611,51 @@ function DataManager.LoadSystemData(dataType)
     
     return DataManager.LoadFromFile(filename)
 end
+
+-- ====================================================================
+-- MAIN PROCESSING THREADS
+-- ====================================================================
+
+--- Main data processing thread with improved batching
+Citizen.CreateThread(function()
+    while true do
+        local startTime = GetGameTimer()
+        
+        -- Process save queue with batching
+        ProcessSaveQueueBatched()
+        
+        -- Process pending saves
+        ProcessPendingSaves()
+        
+        -- Process scheduled backups
+        ProcessScheduledBackups()
+        
+        local processingTime = GetGameTimer() - startTime
+        
+        -- Adaptive wait time based on processing load
+        local waitTime = 1000 -- Base wait time
+        if processingTime > 100 then
+            waitTime = waitTime + (processingTime * 2) -- Increase wait if processing is slow
+        elseif processingTime < 50 then
+            waitTime = math.max(500, waitTime - 100) -- Decrease wait if processing is fast
+        end
+        
+        Citizen.Wait(waitTime)
+    end
+end)
+
+--- Performance monitoring thread
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(60000) -- Every minute
+        
+        local stats = DataManager.GetStats()
+        if stats.queueSize > 10 or stats.pendingSaves > 5 then
+            LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
+                stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
+        end
+    end
+end)
 
 -- ====================================================================
 -- MONITORING AND STATISTICS

@@ -19,11 +19,13 @@ server_scripts {
     
     -- New refactored systems (loaded in dependency order)
     'validation.lua',    -- Server-side validation system.
-    'data_manager.lua',  -- Improved data persistence system.
+    'memory_manager.lua', -- Comprehensive memory management and cleanup system.
+    'data_manager.lua',  -- Improved data persistence system with batching.
     'secure_inventory.lua', -- Secure inventory system with anti-duplication.
     'secure_transactions.lua', -- Secure transaction system for purchases/sales.
     'player_manager.lua', -- Refactored player data management system.
     'performance_optimizer.lua', -- Performance optimization and monitoring.
+    'performance_test.lua', -- Performance testing and benchmarking utilities.
     'integration_manager.lua', -- Integration and compatibility manager.
     
     -- Original systems (maintained for compatibility)
@@ -49,6 +51,7 @@ ui_page 'html/main_ui.html' -- Consolidated NUI page for role selection, store, 
 files {
     'html/main_ui.html',     -- Main HTML file for the NUI.
     'html/styles.css',       -- CSS styles for the NUI.
+    'html/ui_optimizer.js',  -- Client-side UI performance optimization system.
     'html/scripts.js',       -- JavaScript for NUI interactions.
     'purchase_history.json', -- For dynamic pricing persistence (ensure write access for server).
     'player_data/*',         -- Wildcard for player save files (ensure server has write access to this conceptual path).
