@@ -35,6 +35,30 @@ local inventoryStats = {
 -- UTILITY FUNCTIONS
 -- ====================================================================
 
+--- Helper function to count table entries
+--- @param T table Table to count
+--- @return number Count of entries
+local function tablelength(T)
+    if not T or type(T) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
+end
+
+--- Minimize inventory data for client synchronization
+--- @param richInventory table Full inventory data
+--- @return table Minimized inventory data
+local function MinimizeInventoryForSync(richInventory)
+    if not richInventory then return {} end
+    local minimalInv = {}
+    for itemId, itemData in pairs(richInventory) do
+        if itemData and itemData.count then
+            minimalInv[itemId] = { count = itemData.count }
+        end
+    end
+    return minimalInv
+end
+
 --- Generate unique transaction ID
 --- @return string Unique transaction ID
 local function GenerateTransactionId()
@@ -485,33 +509,30 @@ function SecureInventory.FixInventoryIntegrity(playerId)
             playerData.inventory[itemId] = nil
             fixes = fixes + 1
             LogInventory(playerId, "fix_integrity", string.format("Removed unknown item: %s", itemId))
-            goto continue
+        else
+            -- Fix invalid counts
+            if not itemData.count or type(itemData.count) ~= "number" or itemData.count < 0 then
+                itemData.count = 0
+                changed = true
+            end
+            
+            -- Cap excessive quantities
+            if itemData.count > Constants.VALIDATION.MAX_ITEM_QUANTITY then
+                itemData.count = Constants.VALIDATION.MAX_ITEM_QUANTITY
+                changed = true
+            end
+            
+            -- Remove items with zero count
+            if itemData.count <= 0 then
+                playerData.inventory[itemId] = nil
+                changed = true
+            end
+            
+            if changed then
+                fixes = fixes + 1
+                LogInventory(playerId, "fix_integrity", string.format("Fixed item: %s", itemId))
+            end
         end
-        
-        -- Fix invalid counts
-        if not itemData.count or type(itemData.count) ~= "number" or itemData.count < 0 then
-            itemData.count = 0
-            changed = true
-        end
-        
-        -- Cap excessive quantities
-        if itemData.count > Constants.VALIDATION.MAX_ITEM_QUANTITY then
-            itemData.count = Constants.VALIDATION.MAX_ITEM_QUANTITY
-            changed = true
-        end
-        
-        -- Remove items with zero count
-        if itemData.count <= 0 then
-            playerData.inventory[itemId] = nil
-            changed = true
-        end
-        
-        if changed then
-            fixes = fixes + 1
-            LogInventory(playerId, "fix_integrity", string.format("Fixed item: %s", itemId))
-        end
-        
-        ::continue::
     end
     
     if fixes > 0 then
