@@ -515,6 +515,9 @@ function PlayerManager.CleanupPlayer(playerId)
     playerDataCache[playerId] = nil
     playerLoadingStates[playerId] = nil
     
+    -- Clean up character data
+    PlayerManager.CleanupPlayerCharacterData(playerId)
+    
     -- Clean up other systems
     if Validation then
         Validation.CleanupPlayer(playerId)
@@ -550,6 +553,218 @@ function PlayerManager.CleanupPlayerCache(playerId)
     
     LogPlayerManager(playerId, "cleanup", string.format("Cache cleanup completed (%d items)", cleanedItems))
     return cleanedItems
+end
+
+-- ====================================================================
+-- PLAYER UTILITY FUNCTIONS (Consolidated from server.lua)
+-- ====================================================================
+
+--- Get player's license identifier
+--- @param playerId number Player ID
+--- @return string|nil License identifier
+function PlayerManager.GetPlayerLicense(playerId)
+    local identifiers = GetPlayerIdentifiers(tostring(playerId))
+    if identifiers then
+        for _, identifier in ipairs(identifiers) do
+            if string.match(identifier, "^license:") then
+                return identifier
+            end
+        end
+    end
+    return nil
+end
+
+--- Get player money
+--- @param playerId number Player ID
+--- @return number Money amount
+function PlayerManager.GetPlayerMoney(playerId)
+    local playerData = playerDataCache[tonumber(playerId)]
+    if playerData and playerData.money then
+        return playerData.money
+    end
+    return 0
+end
+
+--- Add money to a player
+--- @param playerId number Player ID
+--- @param amount number Amount to add
+--- @param type string Money type (default: 'cash')
+--- @return boolean Success status
+function PlayerManager.AddPlayerMoney(playerId, amount, type)
+    type = type or 'cash'
+    local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        LogPlayerManager(pId, "add_money", string.format("Invalid player ID %s", tostring(playerId)), Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+
+    local playerData = playerDataCache[pId]
+    if playerData then
+        if type == 'cash' then
+            playerData.money = (playerData.money or 0) + amount
+            LogPlayerManager(pId, "add_money", string.format("Added %d to %s account. New balance: %d", amount, type, playerData.money))
+            
+            -- Send notification to client
+            TriggerClientEvent('chat:addMessage', pId, { args = {"^2Money", string.format("You received $%d.", amount)} })
+            
+            -- Update client with new player data
+            local pDataForBasicInfo = shallowcopy(playerData)
+            pDataForBasicInfo.inventory = nil
+            TriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+            
+            -- Mark for save
+            DataManager.MarkPlayerForSave(pId)
+            
+            return true
+        else
+            LogPlayerManager(pId, "add_money", string.format("Unsupported account type '%s'", type), Constants.LOG_LEVELS.WARN)
+            return false
+        end
+    else
+        LogPlayerManager(pId, "add_money", "Player data not found", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+end
+
+--- Remove money from a player
+--- @param playerId number Player ID
+--- @param amount number Amount to remove
+--- @param type string Money type (default: 'cash')
+--- @return boolean Success status
+function PlayerManager.RemovePlayerMoney(playerId, amount, type)
+    type = type or 'cash'
+    local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        LogPlayerManager(pId, "remove_money", string.format("Invalid player ID %s", tostring(playerId)), Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+
+    local playerData = playerDataCache[pId]
+    if playerData then
+        if type == 'cash' then
+            if (playerData.money or 0) >= amount then
+                playerData.money = playerData.money - amount
+                LogPlayerManager(pId, "remove_money", string.format("Removed %d from %s account. New balance: %d", amount, type, playerData.money))
+                
+                -- Update client with new player data
+                local pDataForBasicInfo = shallowcopy(playerData)
+                pDataForBasicInfo.inventory = nil
+                TriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+                
+                -- Mark for save
+                DataManager.MarkPlayerForSave(pId)
+                
+                return true
+            else
+                -- Notify client about insufficient funds
+                TriggerClientEvent('chat:addMessage', pId, { args = {"^1Error", "You don't have enough money."} })
+                return false
+            end
+        else
+            LogPlayerManager(pId, "remove_money", string.format("Unsupported account type '%s'", type), Constants.LOG_LEVELS.WARN)
+            return false
+        end
+    else
+        LogPlayerManager(pId, "remove_money", "Player data not found", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+end
+
+--- Add XP to a player
+--- @param playerId number Player ID
+--- @param amount number XP amount to add
+--- @return boolean Success status
+function PlayerManager.AddPlayerXP(playerId, amount)
+    local pId = tonumber(playerId)
+    if not pId or pId <= 0 then
+        LogPlayerManager(pId, "add_xp", string.format("Invalid player ID %s", tostring(playerId)), Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+
+    local playerData = playerDataCache[pId]
+    if playerData then
+        -- Add XP
+        playerData.xp = (playerData.xp or 0) + amount
+        
+        -- Check if player leveled up
+        local oldLevel = playerData.level or 1
+        -- Use a simple level calculation formula
+        local newLevel = math.floor(math.sqrt(playerData.xp / 100)) + 1
+        playerData.level = newLevel
+        
+        -- Send XP notification to client
+        TriggerClientEvent('cnr:xpGained', pId, amount)
+        
+        -- Send level up notification if needed
+        if newLevel > oldLevel then
+            TriggerClientEvent('cnr:levelUp', pId, newLevel)
+            LogPlayerManager(pId, "add_xp", string.format("Player leveled up from %d to %d", oldLevel, newLevel))
+        end
+        
+        -- Update client with new player data
+        local pDataForBasicInfo = shallowcopy(playerData)
+        pDataForBasicInfo.inventory = nil
+        TriggerClientEvent('cnr:updatePlayerData', pId, pDataForBasicInfo)
+        
+        -- Mark for save
+        DataManager.MarkPlayerForSave(pId)
+        
+        LogPlayerManager(pId, "add_xp", string.format("Added %d XP. Total: %d, Level: %d", amount, playerData.xp, newLevel))
+        return true
+    else
+        LogPlayerManager(pId, "add_xp", "Player data not found", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+end
+
+--- Check if player is admin
+--- @param playerId number Player ID
+--- @return boolean Is admin
+function PlayerManager.IsAdmin(playerId)
+    local src = tonumber(playerId)
+    if not src then return false end
+
+    local identifiers = GetPlayerIdentifiers(tostring(src))
+    if not identifiers then return false end
+
+    if not Config or type(Config.Admins) ~= "table" then
+        LogPlayerManager(src, "is_admin", "Config.Admins is not loaded or not a table", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+
+    for _, identifier in ipairs(identifiers) do
+        if Config.Admins[identifier] then
+            LogPlayerManager(src, "is_admin", string.format("Player with identifier %s IS an admin", identifier))
+            return true
+        end
+    end
+    
+    return false
+end
+
+--- Get player role
+--- @param playerId number Player ID
+--- @return string Player role
+function PlayerManager.GetPlayerRole(playerId)
+    local playerData = playerDataCache[tonumber(playerId)]
+    if playerData then 
+        return playerData.role 
+    end
+    return Constants.ROLES.CITIZEN
+end
+
+--- Check if player is cop
+--- @param playerId number Player ID
+--- @return boolean Is cop
+function PlayerManager.IsPlayerCop(playerId)
+    return PlayerManager.GetPlayerRole(playerId) == Constants.ROLES.COP
+end
+
+--- Check if player is robber
+--- @param playerId number Player ID
+--- @return boolean Is robber
+function PlayerManager.IsPlayerRobber(playerId)
+    return PlayerManager.GetPlayerRole(playerId) == Constants.ROLES.ROBBER
 end
 
 -- ====================================================================
@@ -650,6 +865,426 @@ function PlayerManager.LogStats()
 end
 
 -- ====================================================================
+-- CHARACTER EDITOR SYSTEM (Consolidated from character_editor_server.lua)
+-- ====================================================================
+
+-- Character data cache
+local playerCharacterData = {}
+
+--- Load player character data from file
+--- @param playerId number Player ID
+--- @return table Character data
+function PlayerManager.LoadPlayerCharacters(playerId)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        return {}
+    end
+    
+    local fileName = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
+    
+    -- Use FiveM's LoadResourceFile function
+    local content = LoadResourceFile(GetCurrentResourceName(), fileName)
+    
+    if content then
+        local success, data = pcall(json.decode, content)
+        if success and data then
+            return data
+        else
+            LogPlayerManager(playerId, "load_characters", "Failed to decode character data", Constants.LOG_LEVELS.ERROR)
+        end
+    end
+    
+    return {}
+end
+
+--- Save player character data to file
+--- @param playerId number Player ID
+--- @param characterData table Character data to save
+--- @return boolean Success status
+function PlayerManager.SavePlayerCharacters(playerId, characterData)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        LogPlayerManager(playerId, "save_characters", "No identifier available", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+    
+    -- Get the resource path for proper file handling
+    local resourcePath = GetResourcePath(GetCurrentResourceName())
+    local playerDataDir = resourcePath .. "/player_data"
+    
+    -- Ensure player_data directory exists with proper path handling
+    local success = pcall(function()
+        -- Create directory using FiveM's built-in functions
+        local dirExists = LoadResourceFile(GetCurrentResourceName(), "player_data/test.txt")
+        if not dirExists then
+            -- Try to create a test file to ensure directory exists
+            SaveResourceFile(GetCurrentResourceName(), "player_data/.gitkeep", "# Directory placeholder", -1)
+        end
+    end)
+    
+    if not success then
+        LogPlayerManager(playerId, "save_characters", "Could not verify player_data directory", Constants.LOG_LEVELS.WARN)
+    end
+    
+    local fileName = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
+    
+    -- Try to encode the data first
+    local jsonData
+    local encodeSuccess = pcall(function()
+        jsonData = json.encode(characterData, {indent = true})
+    end)
+    
+    if not encodeSuccess or not jsonData then
+        LogPlayerManager(playerId, "save_characters", "Failed to encode character data", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+    
+    -- Use FiveM's SaveResourceFile function for proper file handling
+    local saveSuccess = pcall(function()
+        SaveResourceFile(GetCurrentResourceName(), fileName, jsonData, -1)
+    end)
+    
+    if not saveSuccess then
+        LogPlayerManager(playerId, "save_characters", "Failed to save character data", Constants.LOG_LEVELS.ERROR)
+        return false
+    end
+    
+    return true
+end
+
+--- Validate character data
+--- @param characterData table Character data to validate
+--- @param role string Player role
+--- @return boolean, string Validation result and message
+function PlayerManager.ValidateCharacterData(characterData, role)
+    if not characterData or type(characterData) ~= "table" then
+        return false, "Invalid character data"
+    end
+    
+    -- Validate basic required fields
+    local requiredFields = {"model", "face", "skin", "hair"}
+    for _, field in ipairs(requiredFields) do
+        if characterData[field] == nil then
+            return false, "Missing required field: " .. field
+        end
+    end
+    
+    -- Ensure Config.CharacterEditor exists before validation
+    if not Config.CharacterEditor or not Config.CharacterEditor.customization then
+        LogPlayerManager(nil, "validate_character", "Config.CharacterEditor.customization not found, skipping detailed validation", Constants.LOG_LEVELS.WARN)
+        return true, "Valid (basic validation only)"
+    end
+    
+    -- Validate customization ranges
+    local customization = Config.CharacterEditor.customization
+    for feature, range in pairs(customization) do
+        if characterData[feature] ~= nil then
+            local value = characterData[feature]
+            if type(value) == "number" then
+                if value < range.min or value > range.max then
+                    return false, "Invalid value for " .. feature .. ": " .. value
+                end
+            end
+        end
+    end
+    
+    -- Validate face features
+    if characterData.faceFeatures then
+        for feature, value in pairs(characterData.faceFeatures) do
+            if customization[feature] then
+                local range = customization[feature]
+                if type(value) == "number" and value < range.min or value > range.max then
+                    return false, "Invalid face feature value for " .. feature .. ": " .. value
+                end
+            end
+        end
+    end
+    
+    return true, "Valid"
+end
+
+--- Sanitize character data for security
+--- @param characterData table Raw character data
+--- @return table Sanitized character data
+function PlayerManager.SanitizeCharacterData(characterData)
+    local sanitized = {}
+    
+    -- Copy safe fields
+    local safeFields = {
+        "model", "face", "skin", "hair", "hairColor", "hairHighlight",
+        "beard", "beardColor", "beardOpacity", "eyebrows", "eyebrowsColor", "eyebrowsOpacity",
+        "eyeColor", "blush", "blushColor", "blushOpacity", "lipstick", "lipstickColor", "lipstickOpacity",
+        "makeup", "makeupColor", "makeupOpacity", "ageing", "ageingOpacity", "complexion", "complexionOpacity",
+        "sundamage", "sundamageOpacity", "freckles", "frecklesOpacity", "bodyBlemishes", "bodyBlemishesOpacity",
+        "addBodyBlemishes", "addBodyBlemishesOpacity", "moles", "molesOpacity", "chesthair", "chesthairColor", "chesthairOpacity"
+    }
+    
+    for _, field in ipairs(safeFields) do
+        if characterData[field] ~= nil then
+            sanitized[field] = characterData[field]
+        end
+    end
+    
+    -- Copy face features
+    if characterData.faceFeatures and type(characterData.faceFeatures) == "table" then
+        sanitized.faceFeatures = {}
+        local safeFeatures = {
+            "noseWidth", "noseHeight", "noseLength", "noseBridge", "noseTip", "noseShift",
+            "browHeight", "browWidth", "cheekboneHeight", "cheekboneWidth", "cheeksWidth",
+            "eyesOpening", "lipsThickness", "jawWidth", "jawHeight", "chinLength",
+            "chinPosition", "chinWidth", "chinShape", "neckWidth"
+        }
+        
+        for _, feature in ipairs(safeFeatures) do
+            if characterData.faceFeatures[feature] ~= nil then
+                sanitized.faceFeatures[feature] = characterData.faceFeatures[feature]
+            end
+        end
+    end
+    
+    -- Copy components and props
+    if characterData.components and type(characterData.components) == "table" then
+        sanitized.components = {}
+        for componentId, component in pairs(characterData.components) do
+            if type(component) == "table" and component.drawable and component.texture then
+                sanitized.components[componentId] = {
+                    drawable = tonumber(component.drawable) or 0,
+                    texture = tonumber(component.texture) or 0
+                }
+            end
+        end
+    end
+    
+    if characterData.props and type(characterData.props) == "table" then
+        sanitized.props = {}
+        for propId, prop in pairs(characterData.props) do
+            if type(prop) == "table" and prop.drawable and prop.texture then
+                sanitized.props[propId] = {
+                    drawable = tonumber(prop.drawable) or -1,
+                    texture = tonumber(prop.texture) or 0
+                }
+            end
+        end
+    end
+    
+    -- Copy tattoos
+    if characterData.tattoos and type(characterData.tattoos) == "table" then
+        sanitized.tattoos = {}
+        for _, tattoo in ipairs(characterData.tattoos) do
+            if type(tattoo) == "table" and tattoo.collection and tattoo.name then
+                table.insert(sanitized.tattoos, {
+                    collection = tostring(tattoo.collection),
+                    name = tostring(tattoo.name)
+                })
+            end
+        end
+    end
+    
+    return sanitized
+end
+
+--- Get player character slots
+--- @param playerId number Player ID
+--- @return table Character slots data
+function PlayerManager.GetPlayerCharacterSlots(playerId)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        return {}
+    end
+    
+    if not playerCharacterData[identifier] then
+        playerCharacterData[identifier] = PlayerManager.LoadPlayerCharacters(playerId)
+    end
+    
+    return playerCharacterData[identifier]
+end
+
+--- Save a character slot
+--- @param playerId number Player ID
+--- @param characterKey string Character key (e.g., "cop_1", "robber_1")
+--- @param characterData table Character data
+--- @param role string Player role
+--- @return boolean, string Success status and message
+function PlayerManager.SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        return false, "Invalid player identifier"
+    end
+    
+    -- Validate character data
+    local isValid, errorMsg = PlayerManager.ValidateCharacterData(characterData, role)
+    if not isValid then
+        return false, errorMsg
+    end
+    
+    -- Sanitize character data
+    local sanitizedData = PlayerManager.SanitizeCharacterData(characterData)
+    
+    -- Load current character data
+    if not playerCharacterData[identifier] then
+        playerCharacterData[identifier] = PlayerManager.LoadPlayerCharacters(playerId)
+    end
+    
+    -- Save character data
+    playerCharacterData[identifier][characterKey] = sanitizedData
+    
+    -- Persist to file
+    local success = PlayerManager.SavePlayerCharacters(playerId, playerCharacterData[identifier])
+    if success then
+        LogPlayerManager(playerId, "save_character_slot", string.format("Character %s saved successfully", characterKey))
+        return true, "Character saved successfully"
+    else
+        return false, "Failed to save character data"
+    end
+end
+
+--- Delete a character slot
+--- @param playerId number Player ID
+--- @param characterKey string Character key to delete
+--- @return boolean, string Success status and message
+function PlayerManager.DeletePlayerCharacterSlot(playerId, characterKey)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        return false, "Invalid player identifier"
+    end
+    
+    if not playerCharacterData[identifier] then
+        playerCharacterData[identifier] = PlayerManager.LoadPlayerCharacters(playerId)
+    end
+    
+    if playerCharacterData[identifier][characterKey] then
+        playerCharacterData[identifier][characterKey] = nil
+        
+        local success = PlayerManager.SavePlayerCharacters(playerId, playerCharacterData[identifier])
+        if success then
+            LogPlayerManager(playerId, "delete_character_slot", string.format("Character %s deleted successfully", characterKey))
+            return true, "Character deleted successfully"
+        else
+            return false, "Failed to delete character data"
+        end
+    else
+        return false, "Character not found"
+    end
+end
+
+--- Apply character to player
+--- @param playerId number Player ID
+--- @param characterKey string Character key to apply
+--- @return boolean, string Success status and message
+function PlayerManager.ApplyCharacterToPlayer(playerId, characterKey)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if not identifier then
+        return false, "Invalid player identifier"
+    end
+    
+    local characters = PlayerManager.GetPlayerCharacterSlots(playerId)
+    local characterData = characters[characterKey]
+    
+    if not characterData then
+        return false, "Character not found"
+    end
+    
+    -- Trigger client to apply character
+    TriggerClientEvent('cnr:applyCharacterData', playerId, characterData)
+    
+    LogPlayerManager(playerId, "apply_character", string.format("Character %s applied successfully", characterKey))
+    return true, "Character applied successfully"
+end
+
+--- Get character data for role selection
+--- @param playerId number Player ID
+--- @param role string Role name
+--- @param slot number Slot number (optional, defaults to 1)
+--- @return table Character data or nil
+function PlayerManager.GetCharacterForRoleSelection(playerId, role, slot)
+    local characters = PlayerManager.GetPlayerCharacterSlots(playerId)
+    local characterKey = role .. "_" .. (slot or 1)
+    return characters[characterKey]
+end
+
+--- Check if player has created a character for a role
+--- @param playerId number Player ID
+--- @param role string Role name
+--- @return boolean Has character
+function PlayerManager.HasCharacterForRole(playerId, role)
+    local characters = PlayerManager.GetPlayerCharacterSlots(playerId)
+    local characterKey = role .. "_1"
+    return characters[characterKey] ~= nil
+end
+
+--- Clean up character data for a player
+--- @param playerId number Player ID
+function PlayerManager.CleanupPlayerCharacterData(playerId)
+    local identifier = GetPlayerIdentifier(playerId, 0)
+    if identifier and playerCharacterData[identifier] then
+        playerCharacterData[identifier] = nil
+        LogPlayerManager(playerId, "cleanup_characters", "Character data cleaned up")
+    end
+end
+
+-- ====================================================================
+-- CHARACTER EDITOR EVENT HANDLERS
+-- ====================================================================
+
+RegisterNetEvent('cnr:loadPlayerCharacters')
+AddEventHandler('cnr:loadPlayerCharacters', function()
+    local playerId = source
+    local characters = PlayerManager.GetPlayerCharacterSlots(playerId)
+    TriggerClientEvent('cnr:loadedPlayerCharacters', playerId, characters)
+end)
+
+RegisterNetEvent('cnr:saveCharacterData')
+AddEventHandler('cnr:saveCharacterData', function(characterKey, characterData)
+    local playerId = source
+    
+    -- Extract role from character key
+    local role = string.match(characterKey, "^(%w+)_")
+    if not role or (role ~= "cop" and role ~= "robber") then
+        LogPlayerManager(playerId, "save_character_event", string.format("Invalid character key format: %s", characterKey), Constants.LOG_LEVELS.ERROR)
+        return
+    end
+    
+    local success, message = PlayerManager.SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
+    
+    if success then
+        TriggerClientEvent('cnr:characterSaveResult', playerId, true, message)
+    else
+        TriggerClientEvent('cnr:characterSaveResult', playerId, false, message)
+        LogPlayerManager(playerId, "save_character_event", string.format("Failed to save character: %s", message), Constants.LOG_LEVELS.ERROR)
+    end
+end)
+
+RegisterNetEvent('cnr:deleteCharacterData')
+AddEventHandler('cnr:deleteCharacterData', function(characterKey)
+    local playerId = source
+    local success, message = PlayerManager.DeletePlayerCharacterSlot(playerId, characterKey)
+    
+    if success then
+        TriggerClientEvent('cnr:characterDeleteResult', playerId, true, message)
+    else
+        TriggerClientEvent('cnr:characterDeleteResult', playerId, false, message)
+        LogPlayerManager(playerId, "delete_character_event", string.format("Failed to delete character: %s", message), Constants.LOG_LEVELS.ERROR)
+    end
+end)
+
+RegisterNetEvent('cnr:applyCharacterToPlayer')
+AddEventHandler('cnr:applyCharacterToPlayer', function(characterKey)
+    local playerId = source
+    local success, message = PlayerManager.ApplyCharacterToPlayer(playerId, characterKey)
+    
+    if not success then
+        LogPlayerManager(playerId, "apply_character_event", string.format("Failed to apply character: %s", message), Constants.LOG_LEVELS.ERROR)
+    end
+end)
+
+RegisterNetEvent('cnr:getCharacterForRole')
+AddEventHandler('cnr:getCharacterForRole', function(role, slot)
+    local playerId = source
+    local characterData = PlayerManager.GetCharacterForRoleSelection(playerId, role, slot)
+    TriggerClientEvent('cnr:receiveCharacterForRole', playerId, characterData)
+end)
+
+-- ====================================================================
 -- COMPATIBILITY FUNCTIONS
 -- ====================================================================
 
@@ -688,6 +1323,54 @@ function SetPlayerRole(playerId, role, skipNotify)
     PlayerManager.SetPlayerRole(playerId, role, skipNotify)
 end
 
+--- Compatibility functions for moved player utility functions
+function GetPlayerLicense(playerId)
+    return PlayerManager.GetPlayerLicense(playerId)
+end
+
+function GetPlayerMoney(playerId)
+    return PlayerManager.GetPlayerMoney(playerId)
+end
+
+function AddPlayerMoney(playerId, amount, type)
+    return PlayerManager.AddPlayerMoney(playerId, amount, type)
+end
+
+function RemovePlayerMoney(playerId, amount, type)
+    return PlayerManager.RemovePlayerMoney(playerId, amount, type)
+end
+
+function AddPlayerXP(playerId, amount)
+    return PlayerManager.AddPlayerXP(playerId, amount)
+end
+
+function IsAdmin(playerId)
+    return PlayerManager.IsAdmin(playerId)
+end
+
+function GetPlayerRole(playerId)
+    return PlayerManager.GetPlayerRole(playerId)
+end
+
+function IsPlayerCop(playerId)
+    return PlayerManager.IsPlayerCop(playerId)
+end
+
+function IsPlayerRobber(playerId)
+    return PlayerManager.IsPlayerRobber(playerId)
+end
+
+-- Global exports for compatibility
+_G.GetPlayerLicense = GetPlayerLicense
+_G.GetPlayerMoney = GetPlayerMoney
+_G.AddPlayerMoney = AddPlayerMoney
+_G.RemovePlayerMoney = RemovePlayerMoney
+_G.AddPlayerXP = AddPlayerXP
+_G.IsAdmin = IsAdmin
+_G.GetPlayerRole = GetPlayerRole
+_G.IsPlayerCop = IsPlayerCop
+_G.IsPlayerRobber = IsPlayerRobber
+
 -- ====================================================================
 -- INITIALIZATION
 -- ====================================================================
@@ -707,5 +1390,62 @@ end
 
 -- Initialize when loaded
 PlayerManager.Initialize()
+
+-- ====================================================================
+-- CHARACTER EDITOR COMPATIBILITY FUNCTIONS
+-- ====================================================================
+
+--- Compatibility functions for existing character editor calls
+function LoadPlayerCharacters(playerId)
+    return PlayerManager.LoadPlayerCharacters(playerId)
+end
+
+function SavePlayerCharacters(playerId, characterData)
+    return PlayerManager.SavePlayerCharacters(playerId, characterData)
+end
+
+function ValidateCharacterData(characterData, role)
+    return PlayerManager.ValidateCharacterData(characterData, role)
+end
+
+function SanitizeCharacterData(characterData)
+    return PlayerManager.SanitizeCharacterData(characterData)
+end
+
+function GetPlayerCharacterSlots(playerId)
+    return PlayerManager.GetPlayerCharacterSlots(playerId)
+end
+
+function SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
+    return PlayerManager.SavePlayerCharacterSlot(playerId, characterKey, characterData, role)
+end
+
+function DeletePlayerCharacterSlot(playerId, characterKey)
+    return PlayerManager.DeletePlayerCharacterSlot(playerId, characterKey)
+end
+
+function ApplyCharacterToPlayer(playerId, characterKey)
+    return PlayerManager.ApplyCharacterToPlayer(playerId, characterKey)
+end
+
+function GetCharacterForRoleSelection(playerId, role, slot)
+    return PlayerManager.GetCharacterForRoleSelection(playerId, role, slot)
+end
+
+function HasCharacterForRole(playerId, role)
+    return PlayerManager.HasCharacterForRole(playerId, role)
+end
+
+-- ====================================================================
+-- EXPORTS
+-- ====================================================================
+
+-- Export character editor functions for other scripts
+exports('GetPlayerCharacterSlots', GetPlayerCharacterSlots)
+exports('SavePlayerCharacterSlot', SavePlayerCharacterSlot)
+exports('DeletePlayerCharacterSlot', DeletePlayerCharacterSlot)
+exports('ApplyCharacterToPlayer', ApplyCharacterToPlayer)
+exports('GetCharacterForRoleSelection', GetCharacterForRoleSelection)
+exports('HasCharacterForRole', HasCharacterForRole)
 
 -- PlayerManager module is now available globally

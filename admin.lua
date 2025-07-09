@@ -96,17 +96,38 @@ RegisterCommand("setcash", function(source, args, rawCommand)
 
     local targetIdStr = args[1]
     local targetId = tonumber(targetIdStr)
-    local amount = tonumber(args[2])    if targetId and IsValidPlayer(targetId) and amount then
+    
+    -- SECURITY FIX: Comprehensive validation for setcash command
+    if not Validation then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Validation system not available" } })
+        return
+    end
+    
+    -- Validate target player
+    local validTarget, targetError = Validation.ValidatePlayer(targetId)
+    if not validTarget then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid target player: " .. targetError } })
+        return
+    end
+    
+    -- Validate money amount with bounds checking
+    local validMoney, validatedAmount, moneyError = Validation.ValidateMoney(args[2], false)
+    if not validMoney then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid amount: " .. moneyError } })
+        return
+    end
+    
+    if targetId and IsValidPlayer(targetId) and validatedAmount then
         -- Log admin command (direct server-side logging)
         print(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand))
         
         -- Set cash directly (since we're already on server)
         local pData = GetCnrPlayerData(targetId)
         if pData then
-            pData.cash = amount
+            pData.cash = validatedAmount
             SaveCnrPlayerData(targetId, pData)
             TriggerClientEvent('cnr:updatePlayerData', targetId, pData.role, pData.cash, pData.xp, pData.level)
-            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Set cash for " .. SafeGetPlayerName(targetId) .. " to $" .. amount } })
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Set cash for " .. SafeGetPlayerName(targetId) .. " to $" .. validatedAmount } })
         else
             TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
         end

@@ -51,32 +51,49 @@ end
 -- AddItem: Adds an item to player's inventory
 -- Accepts pData directly. playerId (4th arg) is for logging & events.
 function AddItem(pData, itemId, quantity, playerId)
-    quantity = tonumber(quantity) or 1
+    -- SECURITY FIX: Comprehensive input validation
+    if not Validation then
+        Log("AddItem: Validation module not loaded", "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate quantity with proper bounds checking
+    local validQty, validatedQuantity, qtyError = Validation.ValidateQuantity(quantity)
+    if not validQty then
+        Log("AddItem: " .. qtyError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    quantity = validatedQuantity
 
     if not pData then
         Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
         return false
     end
+    
+    -- Validate player ID if provided
+    if playerId then
+        local validPlayer, playerError = Validation.ValidatePlayer(playerId)
+        if not validPlayer then
+            Log("AddItem: " .. playerError, "error", "CNR_INV_SERVER")
+            return false
+        end
+    end
+    -- Validate item exists and get configuration
+    local validItem, itemConfig, itemError = Validation.ValidateItem(itemId)
+    if not validItem then
+        Log("AddItem: " .. itemError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate inventory space before adding
+    local validSpace, spaceError = Validation.ValidateInventorySpace(pData, quantity)
+    if not validSpace then
+        Log("AddItem: " .. spaceError .. " for player " .. (playerId or "Unknown"), "warn", "CNR_INV_SERVER")
+        return false
+    end
+
     -- Ensure inventory table exists on pData
     if not pData.inventory then InitializePlayerInventory(pData, playerId) end
-
-    local itemConfig = nil
-    if Config and Config.Items and type(Config.Items) == "table" then
-        for _, cfgItem in ipairs(Config.Items) do
-            if cfgItem.itemId == itemId then
-                itemConfig = cfgItem
-                break
-            end
-        end
-    else
-        Log("AddItem: Config.Items not available or not properly configured for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
-        return false
-    end
-
-    if not itemConfig then
-        Log("AddItem: Item config not found for " .. itemId .. " for player " .. (playerId or "Unknown"), "warn", "CNR_INV_SERVER")
-        return false
-    end
 
     if not pData.inventory[itemId] then
         pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
@@ -95,10 +112,45 @@ end
 -- RemoveItem: Removes an item from player's inventory
 -- Accepts pData directly. playerId (4th arg) is for logging & events.
 function RemoveItem(pData, itemId, quantity, playerId)
-    quantity = tonumber(quantity) or 1
+    -- SECURITY FIX: Comprehensive input validation
+    if not Validation then
+        Log("RemoveItem: Validation module not loaded", "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate quantity with proper bounds checking
+    local validQty, validatedQuantity, qtyError = Validation.ValidateQuantity(quantity)
+    if not validQty then
+        Log("RemoveItem: " .. qtyError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    quantity = validatedQuantity
+    
+    -- Validate player ID if provided
+    if playerId then
+        local validPlayer, playerError = Validation.ValidatePlayer(playerId)
+        if not validPlayer then
+            Log("RemoveItem: " .. playerError, "error", "CNR_INV_SERVER")
+            return false
+        end
+    end
 
     if not pData or not pData.inventory then
         Log("RemoveItem: Player data (pData) or inventory not provided for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate item exists
+    local validItem, itemConfig, itemError = Validation.ValidateItem(itemId)
+    if not validItem then
+        Log("RemoveItem: " .. itemError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate player has sufficient items
+    local validSale, saleError = Validation.ValidateItemSale(playerId, itemId, quantity, pData)
+    if not validSale then
+        Log("RemoveItem: " .. saleError .. " for player " .. (playerId or "Unknown"), "warn", "CNR_INV_SERVER")
         return false
     end
 

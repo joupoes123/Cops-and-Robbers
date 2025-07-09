@@ -655,6 +655,242 @@ function SecureInventory.CleanupInventoryCache()
     return cleanedCount
 end
 
+-- ====================================================================
+-- EVENT HANDLERS (Consolidated from inventory_server.lua)
+-- ====================================================================
+
+--- Event: Get inventory for UI
+RegisterNetEvent('cnr:getInventoryForUI')
+AddEventHandler('cnr:getInventoryForUI', function()
+    local playerId = source
+    local success, inventory = SecureInventory.GetInventory(playerId)
+    
+    if success then
+        -- Send minimized inventory to client
+        local minimizedInventory = MinimizeInventoryForSync(inventory)
+        TriggerClientEvent('cnr:receiveInventoryForUI', playerId, minimizedInventory)
+    else
+        LogSecureInventory(playerId, "get_inventory_ui", "Failed to get inventory for UI", Constants.LOG_LEVELS.ERROR)
+        TriggerClientEvent('cnr:receiveInventoryForUI', playerId, {})
+    end
+end)
+
+--- Event: Use item
+RegisterNetEvent('cnr:useItem')
+AddEventHandler('cnr:useItem', function(itemId)
+    local playerId = source
+    
+    -- Validate input
+    if not Validation.ValidateString(itemId, 1, 50) then
+        LogSecureInventory(playerId, "use_item", "Invalid item ID", Constants.LOG_LEVELS.WARN)
+        return
+    end
+    
+    -- Check if player has the item
+    local hasItem, actualCount = SecureInventory.HasItem(playerId, itemId, 1)
+    if not hasItem then
+        TriggerClientEvent('cnr:showNotification', playerId, "You don't have this item", Constants.NOTIFICATION_TYPES.ERROR)
+        return
+    end
+    
+    -- Get item config
+    if not Config.Items or not Config.Items[itemId] then
+        LogSecureInventory(playerId, "use_item", string.format("Unknown item: %s", itemId), Constants.LOG_LEVELS.WARN)
+        return
+    end
+    
+    local itemConfig = Config.Items[itemId]
+    local consumed = false
+    
+    -- Handle different item types
+    if itemConfig.category == "Medical" then
+        -- Handle medical items
+        if itemId == "medkit" then
+            TriggerClientEvent('cnr:healPlayer', playerId, 100)
+            consumed = true
+        elseif itemId == "bandage" then
+            TriggerClientEvent('cnr:healPlayer', playerId, 25)
+            consumed = true
+        end
+    elseif itemConfig.category == "Food" then
+        -- Handle food items
+        TriggerClientEvent('cnr:healPlayer', playerId, itemConfig.healAmount or 10)
+        consumed = true
+    elseif itemConfig.category == "Tools" then
+        -- Tools are not consumed on use
+        TriggerClientEvent('cnr:showNotification', playerId, string.format("Using %s", itemConfig.name), Constants.NOTIFICATION_TYPES.INFO)
+    end
+    
+    -- Remove item if consumed
+    if consumed then
+        local success, error = SecureInventory.RemoveItem(playerId, itemId, 1, "item_used")
+        if success then
+            TriggerClientEvent('cnr:showNotification', playerId, string.format("Used %s", itemConfig.name), Constants.NOTIFICATION_TYPES.SUCCESS)
+            LogSecureInventory(playerId, "use_item", string.format("Used item: %s", itemId))
+        else
+            LogSecureInventory(playerId, "use_item", string.format("Failed to remove used item: %s", error), Constants.LOG_LEVELS.ERROR)
+        end
+    end
+end)
+
+--- Event: Drop item
+RegisterNetEvent('cnr:dropItem')
+AddEventHandler('cnr:dropItem', function(itemId, quantity)
+    local playerId = source
+    quantity = tonumber(quantity) or 1
+    
+    -- Validate input
+    if not Validation.ValidateString(itemId, 1, 50) or not Validation.ValidateNumber(quantity, 1, 1000) then
+        LogSecureInventory(playerId, "drop_item", "Invalid parameters", Constants.LOG_LEVELS.WARN)
+        return
+    end
+    
+    -- Check if player has enough items
+    local hasItem, actualCount = SecureInventory.HasItem(playerId, itemId, quantity)
+    if not hasItem then
+        TriggerClientEvent('cnr:showNotification', playerId, "You don't have enough of this item", Constants.NOTIFICATION_TYPES.ERROR)
+        return
+    end
+    
+    -- Remove item from inventory
+    local success, error = SecureInventory.RemoveItem(playerId, itemId, quantity, "item_dropped")
+    if success then
+        -- Get item config for display
+        local itemConfig = Config.Items and Config.Items[itemId]
+        local itemName = itemConfig and itemConfig.name or itemId
+        
+        TriggerClientEvent('cnr:showNotification', playerId, 
+            string.format("Dropped %dx %s", quantity, itemName), 
+            Constants.NOTIFICATION_TYPES.INFO)
+        
+        LogSecureInventory(playerId, "drop_item", string.format("Dropped %dx %s", quantity, itemId))
+        
+        -- TODO: Create physical item drop in world (if needed)
+        -- This would require additional world item management system
+    else
+        LogSecureInventory(playerId, "drop_item", string.format("Failed to drop item: %s", error), Constants.LOG_LEVELS.ERROR)
+        TriggerClientEvent('cnr:showNotification', playerId, "Failed to drop item", Constants.NOTIFICATION_TYPES.ERROR)
+    end
+end)
+
+--- Event: Request player inventory
+RegisterServerEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local playerId = source
+    local success, inventory = SecureInventory.GetInventory(playerId)
+    
+    if success then
+        local minimizedInventory = MinimizeInventoryForSync(inventory)
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, minimizedInventory)
+    else
+        LogSecureInventory(playerId, "request_inventory", "Failed to get inventory", Constants.LOG_LEVELS.ERROR)
+        TriggerClientEvent('cnr:receiveMyInventory', playerId, {})
+    end
+end)
+
+--- Event: Request config items
+RegisterServerEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local playerId = source
+    
+    if Config and Config.Items then
+        TriggerClientEvent('cnr:receiveConfigItems', playerId, Config.Items)
+    else
+        LogSecureInventory(playerId, "request_config", "Config.Items not available", Constants.LOG_LEVELS.WARN)
+        TriggerClientEvent('cnr:receiveConfigItems', playerId, {})
+    end
+end)
+
+-- ====================================================================
+-- COMPATIBILITY FUNCTIONS (from inventory_server.lua)
+-- ====================================================================
+
+--- Initialize player inventory (compatibility function)
+--- @param pData table Player data
+--- @param playerId number Player ID
+function InitializePlayerInventory(pData, playerId)
+    if pData and not pData.inventory then
+        pData.inventory = {}
+        LogSecureInventory(playerId, "init_inventory", "Initialized empty inventory")
+    end
+end
+
+--- Check if player can carry item (compatibility function)
+--- @param playerId number Player ID
+--- @param itemId string Item ID
+--- @param quantity number Quantity to check
+--- @return boolean Can carry
+function CanCarryItem(playerId, itemId, quantity)
+    -- Use secure inventory validation
+    local success, inventory = SecureInventory.GetInventory(playerId)
+    if not success then return false end
+    
+    -- Check if Config.Items exists for the item
+    if not Config.Items or not Config.Items[itemId] then
+        LogSecureInventory(playerId, "can_carry", string.format("Unknown item ID: %s", itemId), Constants.LOG_LEVELS.WARN)
+        return false
+    end
+    
+    -- Calculate current inventory count
+    local currentCount = 0
+    for _, item in pairs(inventory) do
+        currentCount = currentCount + (item.quantity or 0)
+    end
+    
+    -- Basic slot limit check (50 items max for simplicity)
+    local maxSlots = 50
+    return (currentCount + quantity) <= maxSlots
+end
+
+--- Add item (compatibility function)
+--- @param pData table Player data (unused in secure version)
+--- @param itemId string Item ID
+--- @param quantity number Quantity
+--- @param playerId number Player ID
+--- @return boolean Success
+function AddItem(pData, itemId, quantity, playerId)
+    local success, error = SecureInventory.AddItem(playerId, itemId, quantity, "legacy_add")
+    return success
+end
+
+--- Remove item (compatibility function)
+--- @param pData table Player data (unused in secure version)
+--- @param itemId string Item ID
+--- @param quantity number Quantity
+--- @param playerId number Player ID
+--- @return boolean Success
+function RemoveItem(pData, itemId, quantity, playerId)
+    local success, error = SecureInventory.RemoveItem(playerId, itemId, quantity, "legacy_remove")
+    return success
+end
+
+--- Get inventory (compatibility function)
+--- @param pData table Player data (unused in secure version)
+--- @param specificItemId string Specific item ID (optional)
+--- @param playerId number Player ID
+--- @return table Inventory
+function GetInventory(pData, specificItemId, playerId)
+    local success, inventory = SecureInventory.GetInventory(playerId)
+    if not success then return {} end
+    
+    if specificItemId then
+        return inventory[specificItemId] or {}
+    end
+    
+    return inventory
+end
+
+--- Check if player has item (compatibility function)
+--- @param pData table Player data (unused in secure version)
+--- @param itemId string Item ID
+--- @param quantity number Quantity
+--- @param playerId number Player ID
+--- @return boolean Has item
+function HasItem(pData, itemId, quantity, playerId)
+    local hasItem, actualCount = SecureInventory.HasItem(playerId, itemId, quantity)
+    return hasItem
+end
+
 -- Initialize when loaded
 SecureInventory.Initialize()
 

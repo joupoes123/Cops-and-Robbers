@@ -3085,10 +3085,21 @@ AddEventHandler('cnr:bankDeposit', function(amount)
     local playerLicense = GetPlayerLicense(src)
     if not playerLicense then return end
     
-    amount = tonumber(amount)
-    if not amount or amount <= 0 then
-        TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
-        return
+    -- SECURITY FIX: Enhanced validation for bank deposit
+    if SecurityEnhancements then
+        local validTransaction, validatedAmount, error = SecurityEnhancements.SecureMoneyTransaction(src, amount, "remove")
+        if not validTransaction then
+            TriggerClientEvent('cnr:showNotification', src, 'Invalid amount: ' .. error, 'error')
+            return
+        end
+        amount = validatedAmount
+    else
+        -- Fallback validation
+        amount = tonumber(amount)
+        if not amount or amount <= 0 or amount > Constants.VALIDATION.MAX_MONEY_TRANSACTION then
+            TriggerClientEvent('cnr:showNotification', src, 'Invalid amount', 'error')
+            return
+        end
     end
     
     local playerMoney = GetPlayerMoney(src)
