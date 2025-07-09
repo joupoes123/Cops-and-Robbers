@@ -98,6 +98,540 @@ local g_protectedPolicePeds = {}
 
 -- Track spawned NPCs to prevent duplicates
 local g_spawnedNPCs = {}
+
+-- =====================================
+--     INVENTORY SYSTEM (CONSOLIDATED)
+-- =====================================
+
+-- Inventory system variables
+local clientConfigItems = nil
+local isInventoryOpen = false
+local localPlayerInventory = {}
+local localPlayerEquippedItems = {}
+
+-- Function to get the items, accessible by other parts of this script
+function GetClientConfigItems()
+    return clientConfigItems
+end
+
+-- Update full inventory function from inventory_client.lua
+function UpdateFullInventory(minimalInventoryData)
+    Log("UpdateFullInventory received data. Attempting reconstruction...", "info", "CNR_INV_CLIENT")
+    local reconstructedInventory = {}
+    local configItems = GetClientConfigItems()
+
+    if not configItems then
+        localPlayerInventory = minimalInventoryData or {}
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Requested Config.Items from server due to missing data.", "info", "CNR_INV_CLIENT")
+        
+        TriggerEvent('chat:addMessage', {
+            color = {255, 165, 0},
+            multiline = true,
+            args = {"System", "Loading inventory data..."}
+        })
+        
+        Citizen.CreateThread(function()
+            local attempts = 0
+            local maxAttempts = 3
+            
+            while not GetClientConfigItems() and attempts < maxAttempts do
+                Citizen.Wait(3000)
+                attempts = attempts + 1
+                
+                if not GetClientConfigItems() then
+                    TriggerServerEvent('cnr:requestConfigItems')
+                    Log("Retry requesting Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "warn", "CNR_INV_CLIENT")
+                end
+            end
+
+            if GetClientConfigItems() and localPlayerInventory and next(localPlayerInventory) then
+                Log("Config.Items received after retry, attempting inventory reconstruction again", "info", "CNR_INV_CLIENT")
+                UpdateFullInventory(localPlayerInventory)
+            end
+        end)
+        return
+    end
+
+    Log("Config.Items available, proceeding with inventory reconstruction. Config items count: " .. tablelength(configItems), "info", "CNR_INV_CLIENT")
+
+    if minimalInventoryData and type(minimalInventoryData) == 'table' then
+        for itemId, minItemData in pairs(minimalInventoryData) do
+            if minItemData and minItemData.count and minItemData.count > 0 then
+                local itemDetails = nil
+                for _, cfgItem in ipairs(configItems) do
+                    if cfgItem.itemId == itemId then
+                        itemDetails = cfgItem
+                        break
+                    end
+                end
+
+                if itemDetails then
+                    reconstructedInventory[itemId] = {
+                        itemId = itemId,
+                        name = itemDetails.name,
+                        category = itemDetails.category,
+                        count = minItemData.count,
+                        basePrice = itemDetails.basePrice
+                    }
+                else
+                    Log(string.format("UpdateFullInventory: ItemId '%s' not found in local clientConfigItems. Storing with minimal details.", itemId), "warn", "CNR_INV_CLIENT")
+                    reconstructedInventory[itemId] = {
+                        itemId = itemId,
+                        name = itemId,
+                        category = "Unknown",
+                        count = minItemData.count
+                    }
+                end
+            end
+        end
+    end
+
+    localPlayerInventory = reconstructedInventory
+    Log("Full inventory reconstructed. Item count: " .. tablelength(localPlayerInventory), "info", "CNR_INV_CLIENT")
+
+    SendNUIMessage({
+        action = 'refreshSellListIfNeeded'
+    })
+
+    EquipInventoryWeapons()
+    Log("UpdateFullInventory: Called EquipInventoryWeapons() after inventory reconstruction.", "info", "CNR_INV_CLIENT")
+end
+
+-- Equipment function for inventory weapons
+function EquipInventoryWeapons()
+    local playerPed = PlayerPedId()
+
+    if not playerPed or playerPed == 0 or playerPed == -1 then
+        Log("EquipInventoryWeapons: Invalid playerPed. Cannot equip weapons/armor.", "error", "CNR_INV_CLIENT")
+        return
+    end
+
+    localPlayerEquippedItems = {}
+    Log("EquipInventoryWeapons: Starting equipment process. Inv count: " .. tablelength(localPlayerInventory), "info", "CNR_INV_CLIENT")
+
+    if not localPlayerInventory or tablelength(localPlayerInventory) == 0 then
+        Log("EquipInventoryWeapons: Player inventory is empty or nil.", "info", "CNR_INV_CLIENT")
+        return
+    end
+
+    RemoveAllPedWeapons(playerPed, true)
+    Citizen.Wait(500)
+
+    local processedItemCount = 0
+    local weaponsEquipped = 0
+    local armorApplied = false
+
+    for itemId, itemData in pairs(localPlayerInventory) do
+        processedItemCount = processedItemCount + 1
+
+        if type(itemData) == "table" and itemData.category and itemData.count and itemData.name then
+            if itemData.category == "Armor" and itemData.count > 0 and not armorApplied then
+                local armorAmount = 100
+                if itemId == "heavy_armor" then
+                    armorAmount = 200
+                end
+
+                SetPedArmour(playerPed, armorAmount)
+                armorApplied = true
+                Log(string.format("  ✓ APPLIED ARMOR: %s (Amount: %d)", itemData.name or itemId, armorAmount), "info", "CNR_INV_CLIENT")
+
+            elseif (itemData.category == "Weapons" or itemData.category == "Melee Weapons" or
+                   (itemData.category == "Utility" and string.find(itemId, "weapon_"))) and itemData.count > 0 then
+                
+                local weaponHash = 0
+                local attemptedHashes = {}
+                
+                weaponHash = GetHashKey(itemId)
+                table.insert(attemptedHashes, itemId .. " -> " .. weaponHash)
+                
+                if weaponHash == 0 or weaponHash == -1 then
+                    local upperItemId = string.upper(itemId)
+                    weaponHash = GetHashKey(upperItemId)
+                    table.insert(attemptedHashes, upperItemId .. " -> " .. weaponHash)
+                end
+                
+                if (weaponHash == 0 or weaponHash == -1) and not string.find(itemId, "weapon_") then
+                    local prefixedId = "weapon_" .. itemId
+                    weaponHash = GetHashKey(prefixedId)
+                    table.insert(attemptedHashes, prefixedId .. " -> " .. weaponHash)
+                end
+
+                if weaponHash ~= 0 and weaponHash ~= -1 then
+                    local ammoCount = itemData.ammo
+                    if ammoCount == nil then
+                        if Config and Config.DefaultWeaponAmmo and Config.DefaultWeaponAmmo[itemId] then
+                           ammoCount = Config.DefaultWeaponAmmo[itemId]
+                        else
+                           ammoCount = 250
+                        end
+                    end
+
+                    if not HasWeaponAssetLoaded(weaponHash) then
+                        RequestWeaponAsset(weaponHash, 31, 0)
+                        local loadTimeout = 0
+                        while not HasWeaponAssetLoaded(weaponHash) and loadTimeout < 50 do
+                            Citizen.Wait(100)
+                            loadTimeout = loadTimeout + 1
+                        end
+                    end
+
+                    GiveWeaponToPed(playerPed, weaponHash, ammoCount, false, false)
+                    Citizen.Wait(300)
+                    SetPedAmmo(playerPed, weaponHash, ammoCount)
+                    
+                    local hasWeapon = HasPedGotWeapon(playerPed, weaponHash, false)
+                    if hasWeapon then
+                        weaponsEquipped = weaponsEquipped + 1
+                        localPlayerEquippedItems[itemId] = true
+                        Log(string.format("  ✓ EQUIPPED: %s (ID: %s, Hash: %s) Ammo: %d", itemData.name or itemId, itemId, weaponHash, ammoCount), "info", "CNR_INV_CLIENT")
+                    else
+                        localPlayerEquippedItems[itemId] = false
+                        Log(string.format("  ✗ FAILED_EQUIP: %s (ID: %s, Hash: %s)", itemData.name or itemId, itemId, weaponHash), "error", "CNR_INV_CLIENT")
+                    end
+                end
+            end
+        end
+    end
+
+    Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info", "CNR_INV_CLIENT")
+end
+
+-- Helper function for table length
+local function tablelength(T)
+    if type(T) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
+end
+
+-- Function to get local inventory
+function GetLocalInventory()
+    return localPlayerInventory
+end
+
+-- Function to toggle inventory UI
+function ToggleInventoryUI()
+    if isInventoryOpen then
+        TriggerEvent('cnr:closeInventory')
+    else
+        TriggerEvent('cnr:openInventory')
+    end
+end
+
+-- =====================================
+--     CHARACTER EDITOR (CONSOLIDATED)
+-- =====================================
+
+-- Character editor variables
+local isInCharacterEditor = false
+local currentCharacterData = {}
+local originalPlayerData = {}
+local editorCamera = nil
+local currentCameraMode = "face"
+local currentRole = nil
+local currentCharacterSlot = 1
+local playerCharacters = {}
+local previewingUniform = false
+local currentUniformPreset = nil
+local renderThread = false
+
+-- Character editor UI state
+local editorUI = {
+    currentCategory = "appearance",
+    currentSubCategory = "face",
+    isVisible = false
+}
+
+-- Get default character data
+function GetDefaultCharacterData()
+    local defaultData = {}
+    
+    if not Config.CharacterEditor or not Config.CharacterEditor.defaultCharacter then
+        return {
+            model = "mp_m_freemode_01",
+            face = 0,
+            skin = 0,
+            hair = 0,
+            hairColor = 0,
+            hairHighlight = 0,
+            beard = -1,
+            beardColor = 0,
+            beardOpacity = 1.0,
+            eyebrows = -1,
+            eyebrowsColor = 0,
+            eyebrowsOpacity = 1.0,
+            eyeColor = 0,
+            faceFeatures = {
+                noseWidth = 0.0,
+                noseHeight = 0.0,
+                noseLength = 0.0,
+                noseBridge = 0.0,
+                noseTip = 0.0,
+                noseShift = 0.0,
+                browHeight = 0.0,
+                browWidth = 0.0,
+                cheekboneHeight = 0.0,
+                cheekboneWidth = 0.0,
+                cheeksWidth = 0.0,
+                eyesOpening = 0.0,
+                lipsThickness = 0.0,
+                jawWidth = 0.0,
+                jawHeight = 0.0,
+                chinLength = 0.0,
+                chinPosition = 0.0,
+                chinWidth = 0.0,
+                chinShape = 0.0,
+                neckWidth = 0.0
+            },
+            components = {},
+            props = {},
+            tattoos = {}
+        }
+    end
+    
+    for k, v in next, Config.CharacterEditor.defaultCharacter do
+        if type(v) == "table" then
+            defaultData[k] = {}
+            for k2, v2 in next, v do
+                defaultData[k][k2] = v2
+            end
+        else
+            defaultData[k] = v
+        end
+    end
+    return defaultData
+end
+
+-- Apply character data to ped
+function ApplyCharacterData(characterData, ped)
+    if not characterData or not ped or not DoesEntityExist(ped) then
+        return false
+    end
+
+    SetPedHeadBlendData(ped, characterData.face or 0, characterData.face or 0, 0, 
+                       characterData.skin or 0, characterData.skin or 0, 0, 
+                       0.5, 0.5, 0.0, false)
+
+    SetPedComponentVariation(ped, 2, characterData.hair or 0, 0, 0)
+    SetPedHairColor(ped, characterData.hairColor or 0, characterData.hairHighlight or 0)
+
+    if characterData.faceFeatures then
+        local features = {
+            {0, characterData.faceFeatures.noseWidth or 0.0},
+            {1, characterData.faceFeatures.noseHeight or 0.0},
+            {2, characterData.faceFeatures.noseLength or 0.0},
+            {3, characterData.faceFeatures.noseBridge or 0.0},
+            {4, characterData.faceFeatures.noseTip or 0.0},
+            {5, characterData.faceFeatures.noseShift or 0.0},
+            {6, characterData.faceFeatures.browHeight or 0.0},
+            {7, characterData.faceFeatures.browWidth or 0.0},
+            {8, characterData.faceFeatures.cheekboneHeight or 0.0},
+            {9, characterData.faceFeatures.cheekboneWidth or 0.0},
+            {10, characterData.faceFeatures.cheeksWidth or 0.0},
+            {11, characterData.faceFeatures.eyesOpening or 0.0},
+            {12, characterData.faceFeatures.lipsThickness or 0.0},
+            {13, characterData.faceFeatures.jawWidth or 0.0},
+            {14, characterData.faceFeatures.jawHeight or 0.0},
+            {15, characterData.faceFeatures.chinLength or 0.0},
+            {16, characterData.faceFeatures.chinPosition or 0.0},
+            {17, characterData.faceFeatures.chinWidth or 0.0},
+            {18, characterData.faceFeatures.chinShape or 0.0},
+            {19, characterData.faceFeatures.neckWidth or 0.0}
+        }
+        
+        for _, feature in ipairs(features) do
+            SetPedFaceFeature(ped, feature[1], feature[2])
+        end
+    end
+
+    local overlays = {
+        {1, characterData.beard or -1, characterData.beardOpacity or 1.0, characterData.beardColor or 0, characterData.beardColor or 0},
+        {2, characterData.eyebrows or -1, characterData.eyebrowsOpacity or 1.0, characterData.eyebrowsColor or 0, characterData.eyebrowsColor or 0},
+        {5, characterData.blush or -1, characterData.blushOpacity or 0.0, characterData.blushColor or 0, characterData.blushColor or 0},
+        {8, characterData.lipstick or -1, characterData.lipstickOpacity or 0.0, characterData.lipstickColor or 0, characterData.lipstickColor or 0},
+        {4, characterData.makeup or -1, characterData.makeupOpacity or 0.0, characterData.makeupColor or 0, characterData.makeupColor or 0},
+        {3, characterData.ageing or -1, characterData.ageingOpacity or 0.0, 0, 0},
+        {6, characterData.complexion or -1, characterData.complexionOpacity or 0.0, 0, 0},
+        {7, characterData.sundamage or -1, characterData.sundamageOpacity or 0.0, 0, 0},
+        {9, characterData.freckles or -1, characterData.frecklesOpacity or 0.0, 0, 0},
+        {0, characterData.bodyBlemishes or -1, characterData.bodyBlemishesOpacity or 0.0, 0, 0},
+        {10, characterData.chesthair or -1, characterData.chesthairOpacity or 0.0, characterData.chesthairColor or 0, characterData.chesthairColor or 0},
+        {11, characterData.addBodyBlemishes or -1, characterData.addBodyBlemishesOpacity or 0.0, 0, 0},
+        {12, characterData.moles or -1, characterData.molesOpacity or 0.0, 0, 0}
+    }
+
+    for _, overlay in ipairs(overlays) do
+        if overlay[2] ~= -1 then
+            SetPedHeadOverlay(ped, overlay[1], overlay[2], overlay[3])
+            if overlay[4] ~= 0 or overlay[5] ~= 0 then
+                SetPedHeadOverlayColor(ped, overlay[1], 1, overlay[4], overlay[5])
+            end
+        else
+            SetPedHeadOverlay(ped, overlay[1], 255, 0.0)
+        end
+    end
+
+    SetPedEyeColor(ped, characterData.eyeColor or 0)
+
+    if characterData.components then
+        for componentId, component in pairs(characterData.components) do
+            SetPedComponentVariation(ped, tonumber(componentId), component.drawable, component.texture, 0)
+        end
+    end
+
+    if characterData.props then
+        for propId, prop in pairs(characterData.props) do
+            if prop.drawable == -1 then
+                ClearPedProp(ped, tonumber(propId))
+            else
+                SetPedPropIndex(ped, tonumber(propId), prop.drawable, prop.texture, true)
+            end
+        end
+    end
+
+    if characterData.tattoos then
+        ClearPedDecorations(ped)
+        for _, tattoo in ipairs(characterData.tattoos) do
+            AddPedDecorationFromHashes(ped, GetHashKey(tattoo.collection), GetHashKey(tattoo.name))
+        end
+    end
+
+    return true
+end
+
+-- =====================================
+--     PROGRESSION SYSTEM (CONSOLIDATED)
+-- =====================================
+
+-- Progression variables
+local playerAbilities = {}
+local currentChallenges = {}
+local activeSeasonalEvent = nil
+local prestigeInfo = nil
+local progressionUIVisible = false
+local lastXPGain = 0
+local xpGainTimer = 0
+local currentXP = 0
+local currentLevel = 1
+local currentNextLvlXP = 100
+
+-- Enhanced logging function
+local function LogProgressionClient(message, level)
+    level = level or "info"
+    if Config and Config.DebugLogging then
+        print(string.format("[CNR_PROGRESSION_CLIENT] [%s] %s", string.upper(level), message))
+    end
+end
+
+-- Show enhanced notification
+local function ShowProgressionNotification(message, type, duration)
+    type = type or "info"
+    duration = duration or 5000
+    
+    SendNUIMessage({
+        action = "showProgressionNotification",
+        message = message,
+        type = type,
+        duration = duration
+    })
+    
+    SetNotificationTextEntry("STRING")
+    AddTextComponentString(message)
+    DrawNotification(false, false)
+end
+
+-- Calculate XP for next level (client-side version)
+function CalculateXpForNextLevelClient(currentLevel, role)
+    if not Config or not Config.LevelingSystemEnabled or currentLevel >= (Config.MaxLevel or 50) then 
+        return 0 
+    end
+    
+    return (Config.XPTable and Config.XPTable[currentLevel]) or 1000
+end
+
+-- Update XP display with enhanced animations
+function UpdateXPDisplayElements(xp, level, nextLvlXp, xpGained)
+    xpGained = xpGained or 0
+    
+    currentXP = xp or 0
+    currentLevel = level or 1
+    currentNextLvlXP = nextLvlXp or 100
+    lastXPGain = xpGained
+    
+    local totalXPForCurrentLevel = 0
+    if Config and Config.XPTable then
+        for i = 1, currentLevel - 1 do
+            totalXPForCurrentLevel = totalXPForCurrentLevel + (Config.XPTable[i] or 1000)
+        end
+    end
+    
+    local xpInCurrentLevel = currentXP - totalXPForCurrentLevel
+    local progressPercent = (xpInCurrentLevel / currentNextLvlXP) * 100
+    
+    SendNUIMessage({
+        action = "updateProgressionDisplay",
+        data = {
+            currentXP = currentXP,
+            currentLevel = currentLevel,
+            xpForNextLevel = currentNextLvlXP,
+            xpGained = xpGained,
+            progressPercent = progressPercent,
+            xpInCurrentLevel = xpInCurrentLevel,
+            prestigeInfo = prestigeInfo,
+            seasonalEvent = activeSeasonalEvent
+        }
+    })
+    
+    if xpGained > 0 then
+        ShowXPGainAnimation(xpGained)
+        xpGainTimer = GetGameTimer() + 3000
+    end
+end
+
+-- Show XP gain animation
+function ShowXPGainAnimation(amount)
+    SendNUIMessage({
+        action = "showXPGainAnimation",
+        amount = amount,
+        timestamp = GetGameTimer()
+    })
+    
+    PlaySoundFrontend(-1, "RANK_UP", "HUD_AWARDS", true)
+end
+
+-- Play level up effects
+function PlayLevelUpEffects(newLevel)
+    SetTransitionTimecycleModifier("MP_Celeb_Win", 2.0)
+    
+    PlaySoundFrontend(-1, "RANK_UP", "HUD_AWARDS", true)
+    Wait(500)
+    PlaySoundFrontend(-1, "MEDAL_UP", "HUD_AWARDS", true)
+    
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    
+    RequestNamedPtfxAsset("scr_indep_fireworks")
+    while not HasNamedPtfxAssetLoaded("scr_indep_fireworks") do
+        Wait(1)
+    end
+    
+    UseParticleFxAssetNextCall("scr_indep_fireworks")
+    StartParticleFxNonLoopedAtCoord("scr_indep_fireworks_burst_spawn", 
+        playerCoords.x, playerCoords.y, playerCoords.z + 2.0, 
+        0.0, 0.0, 0.0, 1.0, false, false, false)
+    
+    SendNUIMessage({
+        action = "showLevelUpAnimation",
+        newLevel = newLevel,
+        timestamp = GetGameTimer()
+    })
+    
+    CreateThread(function()
+        Wait(3000)
+        ClearTimecycleModifier()
+    end)
+end
 local g_spawnedVehicles = {}
 local g_robberVehiclesSpawned = false
 
@@ -2895,3 +3429,253 @@ AddEventHandler('onResourceStop', function(resourceName)
         end
     end
 end)
+
+-- =====================================
+--     CONSOLIDATED EVENT HANDLERS
+-- =====================================
+
+-- Event handlers for inventory system
+AddEventHandler('cnr:receiveMyInventory', function(minimalInventoryData, equippedItemsArray)
+    Log("Received cnr:receiveMyInventory event. Processing inventory data...", "info", "CNR_INV_CLIENT")
+    
+    if equippedItemsArray and type(equippedItemsArray) == "table" then
+        Log("Received equipped items list with " .. #equippedItemsArray .. " items", "info", "CNR_INV_CLIENT")
+        
+        localPlayerEquippedItems = {}
+        for _, itemId in ipairs(equippedItemsArray) do
+            localPlayerEquippedItems[itemId] = true
+        end
+    end
+    
+    UpdateFullInventory(minimalInventoryData)
+end)
+
+AddEventHandler('cnr:syncInventory', function(minimalInventoryData)
+    Log("Received cnr:syncInventory event. Processing inventory data...", "info", "CNR_INV_CLIENT")
+    UpdateFullInventory(minimalInventoryData)
+end)
+
+AddEventHandler('cnr:inventoryUpdated', function(updatedMinimalInventory)
+    Log("Received cnr:inventoryUpdated. This event might need review if cnr:syncInventory is primary.", "warn", "CNR_INV_CLIENT")
+    UpdateFullInventory(updatedMinimalInventory)
+end)
+
+AddEventHandler('cnr:receiveConfigItems', function(receivedConfigItems)
+    clientConfigItems = receivedConfigItems
+    Log("Received Config.Items from server. Item count: " .. tablelength(clientConfigItems or {}), "info", "CNR_INV_CLIENT")
+
+    SendNUIMessage({
+        action = 'storeFullItemConfig',
+        itemConfig = clientConfigItems
+    })
+    Log("Sent Config.Items to NUI via SendNUIMessage.", "info", "CNR_INV_CLIENT")
+
+    if localPlayerInventory and next(localPlayerInventory) then
+        local firstItemId = next(localPlayerInventory)
+        if localPlayerInventory[firstItemId] and (localPlayerInventory[firstItemId].name == firstItemId or localPlayerInventory[firstItemId].name == nil) then
+             Log("Config.Items received after minimal inventory was stored. Attempting full reconstruction.", "info", "CNR_INV_CLIENT")
+             UpdateFullInventory(localPlayerInventory)
+        else
+             Log("Config.Items received, inventory appears processed. Re-equipping weapons to ensure visibility.", "info", "CNR_INV_CLIENT")
+             EquipInventoryWeapons()
+        end
+    else
+        Log("Config.Items received but no pending inventory to reconstruct.", "info", "CNR_INV_CLIENT")
+    end
+end)
+
+-- Event handlers for progression system
+AddEventHandler('cnr:xpGained', function(amount, reason)
+    UpdateXPDisplayElements(currentXP + amount, currentLevel, currentNextLvlXP, amount)
+    
+    if reason then
+        ShowProgressionNotification(string.format("+%d XP (%s)", amount, reason), "xp", 3000)
+    end
+end)
+
+AddEventHandler('cnr:levelUp', function(newLevel, newTotalXp)
+    local oldLevel = currentLevel
+    currentLevel = newLevel
+    currentXP = newTotalXp
+    
+    PlayLevelUpEffects(newLevel)
+    ShowProgressionNotification(string.format("🎉 LEVEL UP! You reached Level %d!", newLevel), "levelup", 7000)
+end)
+
+AddEventHandler('cnr:playLevelUpEffects', function(newLevel)
+    PlayLevelUpEffects(newLevel)
+end)
+
+-- Event handlers for character editor
+AddEventHandler('cnr:openCharacterEditor', function(role, characterSlot)
+    OpenCharacterEditor(role, characterSlot)
+end)
+
+AddEventHandler('cnr:loadedPlayerCharacters', function(characters)
+    playerCharacters = characters or {}
+end)
+
+AddEventHandler('cnr:applyCharacterData', function(characterData)
+    local ped = PlayerPedId()
+    ApplyCharacterData(characterData, ped)
+end)
+
+-- Inventory UI event handlers
+AddEventHandler('cnr:openInventory', function()
+    Log("Received cnr:openInventory event", "info", "CNR_INV_CLIENT")
+
+    if not clientConfigItems or not next(clientConfigItems) then
+        TriggerEvent('chat:addMessage', { args = {"^1[Inventory]", "Inventory system is still loading. Please try again in a few seconds."} })
+        Log("Inventory open failed: Config.Items not yet available", "warn", "CNR_INV_CLIENT")
+        return
+    end
+
+    if not isInventoryOpen then
+        isInventoryOpen = true
+        SendNUIMessage({
+            action = 'openInventory',
+            inventory = localPlayerInventory
+        })
+        SetNuiFocus(true, true)
+        Log("Inventory UI opened via event", "info", "CNR_INV_CLIENT")
+    end
+end)
+
+AddEventHandler('cnr:closeInventory', function()
+    Log("Received cnr:closeInventory event", "info", "CNR_INV_CLIENT")
+    if isInventoryOpen then
+        isInventoryOpen = false
+        SendNUIMessage({
+            action = 'closeInventory'
+        })
+        
+        SetNuiFocus(false, false)
+        SetPlayerControl(PlayerId(), true, 0)
+        
+        Log("Inventory UI closed via event", "info", "CNR_INV_CLIENT")
+    end
+end)
+
+-- =====================================
+--     CONSOLIDATED NUI CALLBACKS
+-- =====================================
+
+-- NUI callbacks for inventory system
+RegisterNUICallback('getPlayerInventoryForUI', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventoryForUI", "info", "CNR_INV_CLIENT")
+    
+    if localPlayerInventory and next(localPlayerInventory) then
+        local equippedItems = {}
+        local playerPed = PlayerPedId()
+        
+        for itemId, itemData in pairs(localPlayerInventory) do
+            if itemData.type == "weapon" and itemData.weaponHash then
+                if HasPedGotWeapon(playerPed, itemData.weaponHash, false) then
+                    table.insert(equippedItems, itemId)
+                    localPlayerEquippedItems[itemId] = true
+                else
+                    localPlayerEquippedItems[itemId] = false
+                end
+            end
+        end
+        
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items and " .. #equippedItems .. " equipped items", "info", "CNR_INV_CLIENT")
+        
+        cb({
+            success = true,
+            inventory = localPlayerInventory,
+            equippedItems = equippedItems
+        })
+    else
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {},
+            equippedItems = {}
+        })
+    end
+end)
+
+RegisterNUICallback('getPlayerInventory', function(data, cb)
+    Log("NUI requested inventory via getPlayerInventory", "info", "CNR_INV_CLIENT")
+    
+    if localPlayerInventory and next(localPlayerInventory) then
+        Log("Returning inventory with " .. tablelength(localPlayerInventory) .. " items for sell tab", "info", "CNR_INV_CLIENT")
+        
+        cb({
+            success = true,
+            inventory = localPlayerInventory
+        })
+    else
+        TriggerServerEvent('cnr:requestMyInventory')
+        
+        cb({
+            success = false,
+            error = "Inventory data not available, requesting from server",
+            inventory = {}
+        })
+    end
+end)
+
+RegisterNUICallback('setNuiFocus', function(data, cb)
+    Log("NUI requested SetNuiFocus: " .. tostring(data.hasFocus) .. ", " .. tostring(data.hasCursor), "info", "CNR_INV_CLIENT")
+    
+    SetNuiFocus(data.hasFocus or false, data.hasCursor or false)
+    
+    cb({
+        success = true
+    })
+end)
+
+RegisterNUICallback('closeInventory', function(data, cb)
+    Log("NUI requested to close inventory", "info", "CNR_INV_CLIENT")
+    
+    TriggerEvent('cnr:closeInventory')
+    
+    cb({
+        success = true
+    })
+end)
+
+-- Initialize consolidated client systems
+Citizen.CreateThread(function()
+    -- Wait for player to be fully spawned
+    while not NetworkIsPlayerActive(PlayerId()) do
+        Citizen.Wait(500)
+    end
+
+    Citizen.Wait(3000)
+
+    local attempts = 0
+    local maxAttempts = 10
+
+    while not clientConfigItems and attempts < maxAttempts do
+        attempts = attempts + 1
+        TriggerServerEvent('cnr:requestConfigItems')
+        Log("Requested Config.Items from server (attempt " .. attempts .. "/" .. maxAttempts .. ")", "info", "CNR_INV_CLIENT")
+
+        Citizen.Wait(3000)
+    end
+
+    if not clientConfigItems then
+        Log("Failed to receive Config.Items from server after " .. maxAttempts .. " attempts", "error", "CNR_INV_CLIENT")
+    end
+    
+    -- Initialize character editor
+    TriggerServerEvent('cnr:loadPlayerCharacters')
+    
+    Log("Consolidated client systems initialized", "info", "CNR_CLIENT")
+end)
+
+-- Export consolidated functions for other scripts
+exports('EquipInventoryWeapons', EquipInventoryWeapons)
+exports('GetClientConfigItems', GetClientConfigItems)
+exports('UpdateFullInventory', UpdateFullInventory)
+exports('ToggleInventoryUI', ToggleInventoryUI)
+exports('ApplyCharacterData', ApplyCharacterData)
+exports('GetDefaultCharacterData', GetDefaultCharacterData)
+exports('UpdateXPDisplayElements', UpdateXPDisplayElements)
+exports('ShowXPGainAnimation', ShowXPGainAnimation)
+exports('PlayLevelUpEffects', PlayLevelUpEffects)

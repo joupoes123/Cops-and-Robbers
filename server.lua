@@ -4120,3 +4120,350 @@ AddEventHandler('cnr:getAvailableHeists', function()
     TriggerClientEvent('cnr:updateAvailableHeists', src, availableHeists)
 end)
 
+-- ====================================================================
+-- CONSOLIDATED SERVER SYSTEMS
+-- ====================================================================
+
+-- =====================================
+--     INVENTORY SYSTEM (CONSOLIDATED)
+-- =====================================
+
+-- Helper function to get player data - uses global function from server.lua
+local function GetCnrPlayerData(playerId)
+    if _G.GetCnrPlayerData then
+        return _G.GetCnrPlayerData(playerId)
+    end
+    return nil
+end
+
+-- Initialize player inventory when they load (called from main server.lua)
+-- Accepts pData directly to avoid global lookups. playerId is for logging.
+function InitializePlayerInventory(pData, playerId)
+    if pData and not pData.inventory then
+        pData.inventory = {} -- { itemId = { count = X, metadata = {...} } }
+        Log("Initialized empty inventory for player " .. (playerId or "Unknown"), "info", "CNR_INV_SERVER")
+    end
+end
+
+-- CanCarryItem: Checks if a player can carry an item
+function CanCarryItem(playerId, itemId, quantity)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory then return false end
+    
+    -- Check if Config.Items exists for the item
+    if not Config.Items[itemId] then
+        Log("CanCarryItem: Unknown item ID: " .. tostring(itemId), "warn", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Calculate current inventory count
+    local currentCount = 0
+    for _, item in pairs(pData.inventory) do
+        currentCount = currentCount + (item.quantity or 0)
+    end
+    
+    -- Basic slot limit check (50 items max for simplicity)
+    local maxSlots = 50
+    if (currentCount + quantity) > maxSlots then
+        return false
+    end
+    
+    return true
+end
+
+-- AddItem: Adds an item to player's inventory
+-- Accepts pData directly. playerId (4th arg) is for logging & events.
+function AddItem(pData, itemId, quantity, playerId)
+    -- SECURITY FIX: Comprehensive input validation
+    if not Validation then
+        Log("AddItem: Validation module not loaded", "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate quantity with proper bounds checking
+    local validQty, validatedQuantity, qtyError = Validation.ValidateQuantity(quantity)
+    if not validQty then
+        Log("AddItem: " .. qtyError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    quantity = validatedQuantity
+
+    if not pData then
+        Log("AddItem: Player data (pData) not provided for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate player ID if provided
+    if playerId then
+        local validPlayer, playerError = Validation.ValidatePlayer(playerId)
+        if not validPlayer then
+            Log("AddItem: " .. playerError, "error", "CNR_INV_SERVER")
+            return false
+        end
+    end
+    -- Validate item exists and get configuration
+    local validItem, itemConfig, itemError = Validation.ValidateItem(itemId)
+    if not validItem then
+        Log("AddItem: " .. itemError .. " for player " .. (playerId or "Unknown"), "error", "CNR_INV_SERVER")
+        return false
+    end
+    
+    -- Validate inventory space before adding
+    local validSpace, spaceError = Validation.ValidateInventorySpace(pData, quantity)
+    if not validSpace then
+        Log("AddItem: " .. spaceError .. " for player " .. (playerId or "Unknown"), "warn", "CNR_INV_SERVER")
+        return false
+    end
+
+    -- Ensure inventory table exists on pData
+    if not pData.inventory then InitializePlayerInventory(pData, playerId) end
+
+    if not pData.inventory[itemId] then
+        pData.inventory[itemId] = { count = 0, name = itemConfig.name, category = itemConfig.category } -- Store basic info
+    end
+
+    pData.inventory[itemId].count = pData.inventory[itemId].count + quantity
+    
+    -- Sync to client
+    if playerId then
+        TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory))
+        Log("AddItem: Added " .. quantity .. " of " .. itemId .. " to player " .. playerId, "info", "CNR_INV_SERVER")
+    end
+    
+    return true
+end
+
+-- RemoveItem: Removes an item from player's inventory
+function RemoveItem(pData, itemId, quantity, playerId)
+    if not pData or not pData.inventory then return false end
+    
+    -- Validate with secure inventory if available
+    if SecureInventory then
+        return SecureInventory.RemoveItem(pData, itemId, quantity, playerId)
+    end
+    
+    if not pData.inventory[itemId] or pData.inventory[itemId].count < quantity then
+        return false
+    end
+    
+    pData.inventory[itemId].count = pData.inventory[itemId].count - quantity
+    
+    if pData.inventory[itemId].count <= 0 then
+        pData.inventory[itemId] = nil
+    end
+    
+    -- Sync to client
+    if playerId then
+        TriggerClientEvent('cnr:syncInventory', playerId, MinimizeInventoryForSync(pData.inventory))
+        Log("RemoveItem: Removed " .. quantity .. " of " .. itemId .. " from player " .. playerId, "info", "CNR_INV_SERVER")
+    end
+    
+    return true
+end
+
+-- Get player's inventory
+function GetPlayerInventory(playerId)
+    local pData = GetCnrPlayerData(playerId)
+    if not pData or not pData.inventory then return {} end
+    return pData.inventory
+end
+
+-- Event handler for requesting config items
+RegisterNetEvent('cnr:requestConfigItems')
+AddEventHandler('cnr:requestConfigItems', function()
+    local src = source
+    if Config.Items then
+        TriggerClientEvent('cnr:receiveConfigItems', src, Config.Items)
+        Log("Sent Config.Items to client " .. src, "info", "CNR_INV_SERVER")
+    else
+        Log("Config.Items not available to send to client " .. src, "warn", "CNR_INV_SERVER")
+    end
+end)
+
+-- Event handler for requesting player inventory
+RegisterNetEvent('cnr:requestMyInventory')
+AddEventHandler('cnr:requestMyInventory', function()
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    if pData and pData.inventory then
+        TriggerClientEvent('cnr:receiveMyInventory', src, MinimizeInventoryForSync(pData.inventory))
+        Log("Sent inventory to client " .. src, "info", "CNR_INV_SERVER")
+    else
+        Log("No inventory found for player " .. src, "warn", "CNR_INV_SERVER")
+    end
+end)
+
+-- =====================================
+--     PROGRESSION SYSTEM (CONSOLIDATED)
+-- =====================================
+
+-- Progression system variables
+local playerPerks = {} -- Store active perks for each player
+local playerChallenges = {} -- Store challenge progress for each player
+local activeSeasonalEvent = nil -- Current seasonal event
+local prestigeData = {} -- Store prestige information
+
+-- Calculate total XP required to reach a specific level
+local function CalculateTotalXPForLevel(targetLevel, role)
+    if not Config.LevelingSystemEnabled then return 0 end
+    
+    local totalXP = 0
+    for level = 1, math.min(targetLevel - 1, Config.MaxLevel - 1) do
+        local xpForNext = (Config.XPTable and Config.XPTable[level]) or 1000
+        totalXP = totalXP + xpForNext
+    end
+    return totalXP
+end
+
+-- Calculate XP needed for next level
+local function CalculateXPForNextLevel(currentLevel, role)
+    if not Config.LevelingSystemEnabled or currentLevel >= Config.MaxLevel then 
+        return 0 
+    end
+    
+    return (Config.XPTable and Config.XPTable[currentLevel]) or 1000
+end
+
+-- Enhanced level calculation
+function CalculateLevel(xp, role)
+    if not Config.LevelingSystemEnabled then return 1 end
+    
+    local currentLevel = 1
+    local cumulativeXp = 0
+    
+    -- Apply prestige XP multiplier if applicable
+    local playerId = source
+    if playerId and prestigeData[playerId] and prestigeData[playerId].level > 0 then
+        local prestigeReward = Config.PrestigeSystem.prestigeRewards[prestigeData[playerId].level]
+        if prestigeReward and prestigeReward.xpMultiplier then
+            xp = math.floor(xp * prestigeReward.xpMultiplier)
+        end
+    end
+    
+    -- Iterate through XP table to find current level
+    for level = 1, (Config.MaxLevel or 50) - 1 do
+        local xpForNext = (Config.XPTable and Config.XPTable[level]) or 1000
+        cumulativeXp = cumulativeXp + xpForNext
+        if xp >= cumulativeXp then
+            currentLevel = level + 1
+        else
+            break
+        end
+    end
+    
+    return math.min(currentLevel, Config.MaxLevel)
+end
+
+-- Enhanced ApplyPerks Function
+function ApplyPerks(playerId, level, role)
+    if not Config.LevelingSystemEnabled then return end
+    
+    local pIdNum = tonumber(playerId)
+    if not pIdNum then return end
+    
+    -- Initialize player perks if not exists
+    if not playerPerks[pIdNum] then
+        playerPerks[pIdNum] = {}
+    end
+    
+    -- Clear existing perks
+    playerPerks[pIdNum] = {}
+    
+    -- Apply all perks up to current level
+    local unlocks = Config.LevelUnlocks[role]
+    if not unlocks then return end
+    
+    for unlockLevel = 1, level do
+        local levelUnlocks = unlocks[unlockLevel]
+        if levelUnlocks then
+            for _, unlock in ipairs(levelUnlocks) do
+                if unlock.type == "passive_perk" then
+                    playerPerks[pIdNum][unlock.perkId] = unlock.value
+                    Log(string.format("Applied perk %s to player %s (value: %s)", unlock.perkId, pIdNum, tostring(unlock.value)), "info", "CNR_PROGRESSION")
+                end
+            end
+        end
+    end
+end
+
+-- Award XP to player
+function AwardXP(playerId, amount, reason)
+    if not Config.LevelingSystemEnabled then return end
+    
+    local pData = GetCnrPlayerData(playerId)
+    if not pData then return end
+    
+    -- Apply prestige multiplier if applicable
+    if prestigeData[playerId] and prestigeData[playerId].level > 0 then
+        local prestigeReward = Config.PrestigeSystem.prestigeRewards[prestigeData[playerId].level]
+        if prestigeReward and prestigeReward.xpMultiplier then
+            amount = math.floor(amount * prestigeReward.xpMultiplier)
+        end
+    end
+    
+    local oldXP = pData.xp or 0
+    local oldLevel = pData.level or 1
+    
+    pData.xp = oldXP + amount
+    pData.level = CalculateLevel(pData.xp, pData.role)
+    
+    -- Check for level up
+    if pData.level > oldLevel then
+        TriggerClientEvent('cnr:levelUp', playerId, pData.level, pData.xp)
+        
+        -- Apply new perks
+        ApplyPerks(playerId, pData.level, pData.role)
+        
+        -- Check for unlocks
+        local unlocks = Config.LevelUnlocks[pData.role]
+        if unlocks and unlocks[pData.level] then
+            for _, unlock in ipairs(unlocks[pData.level]) do
+                TriggerClientEvent('cnr:showUnlockNotification', playerId, unlock, pData.level)
+            end
+        end
+    end
+    
+    -- Notify client of XP gain
+    TriggerClientEvent('cnr:xpGained', playerId, amount, reason)
+    
+    Log(string.format("Awarded %d XP to player %s (reason: %s). New total: %d, Level: %d", 
+        amount, playerId, reason or "Unknown", pData.xp, pData.level), "info", "CNR_PROGRESSION")
+end
+
+-- Get player's current perk value
+function GetPlayerPerk(playerId, perkId)
+    local pIdNum = tonumber(playerId)
+    if not pIdNum or not playerPerks[pIdNum] then return nil end
+    
+    return playerPerks[pIdNum][perkId]
+end
+
+-- Event handler for requesting progression data
+RegisterNetEvent('cnr:requestProgressionData')
+AddEventHandler('cnr:requestProgressionData', function()
+    local src = source
+    local pData = GetCnrPlayerData(src)
+    if pData then
+        TriggerClientEvent('cnr:updateProgressionData', src, {
+            xp = pData.xp or 0,
+            level = pData.level or 1,
+            perks = playerPerks[src] or {},
+            challenges = playerChallenges[src] or {},
+            prestige = prestigeData[src] or {}
+        })
+    end
+end)
+
+-- Make global functions available
+_G.InitializePlayerInventory = InitializePlayerInventory
+_G.AddItem = AddItem
+_G.RemoveItem = RemoveItem
+_G.GetPlayerInventory = GetPlayerInventory
+_G.CanCarryItem = CanCarryItem
+_G.AwardXP = AwardXP
+_G.GetPlayerPerk = GetPlayerPerk
+_G.ApplyPerks = ApplyPerks
+_G.CalculateLevel = CalculateLevel
+
+Log("Consolidated server systems loaded", "info", "CNR_SERVER")
+

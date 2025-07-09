@@ -30,19 +30,14 @@ server_scripts {
     'security_test.lua', -- Security validation testing utilities.
     'integration_manager.lua', -- Integration and compatibility manager.
     
-    -- Original systems (maintained for compatibility)
-    'server.lua',       -- Core server logic (refactored to use new systems).
+    -- Consolidated server system (includes inventory, progression, and core logic)
+    'server.lua',       -- Core server logic with consolidated systems.
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'progression_server.lua' -- Enhanced progression system server logic.
 }
 
 -- Define client-side scripts.
 client_scripts {
-    'client.lua',        -- Core client logic and event handling.
-    'client_consolidated.lua', -- Consolidated client system with lazy loading
-    'inventory_client.lua', -- Legacy inventory client (for compatibility)
-    'character_editor_client.lua', -- Legacy character editor client (for compatibility)
-    'progression_client.lua' -- Legacy progression client (for compatibility)
+    'client.lua',        -- Core client logic with consolidated systems (inventory, character editor, progression).
 }
 
 -- Define the NUI page.
