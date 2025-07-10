@@ -6,8 +6,8 @@ lint-lua-code:
   stage: test
   tags:
     - cops-and-robbers
-  # This new line tells GitLab not to fail the pipeline because of warnings.
-  # The job will be marked as "passed with warnings" (a yellow icon).
+  # This new line tells GitLab: 'Run the linter, show the warnings,
+  # but do not fail the pipeline because of them.'
   allow_failure: true
   script:
     - echo "Running Lua linter..."
