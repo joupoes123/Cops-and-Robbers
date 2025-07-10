@@ -1,36 +1,36 @@
+# The stages define the order of execution for jobs.
 stages:
   - test
   - package
 
+# This job runs the linter to check for code quality.
 lint-lua-code:
   stage: test
   tags:
     - cops-and-robbers
-  # This new line tells GitLab: 'Run the linter, show the warnings,
-  # but do not fail the pipeline because of them.'
+  # This is the most critical line. It tells GitLab that this job is allowed to
+  # finish with warnings without failing the entire pipeline. The job will get
+  # a yellow "passed with warnings" icon instead of a red "failed" icon.
   allow_failure: true
   script:
     - echo "Running Lua linter..."
     - luacheck .
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
 
+# This job packages the resource into a .zip file for distribution.
 package-resource:
   stage: package
   tags:
     - cops-and-robbers
   script:
     - echo "Packaging resource..."
-    # This command uses PowerShell's native 'Compress-Archive' to create the zip file.
-    # We list all the files and directories we want to include.
-    - Compress-Archive -Path "fxmanifest.lua", "*.lua", "html", "player_data", "*.json", "data" -DestinationPath "${CI_PROJECT_NAME}.zip" -Force
+    # This uses PowerShell's native command to create the zip file.
+    - Compress-Archive -Path "fxmanifest.lua", "*.lua", "html", "player_data", "docs", "*.json", "data" -DestinationPath "${CI_PROJECT_NAME}.zip" -Force
   artifacts:
-    # The artifacts section is the same, as it's a GitLab feature.
+    # This makes the .zip file available for download after the job succeeds.
     name: "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA"
     paths:
       - "*.zip"
     expire_in: 1 week
-  # This rule ensures the package job only runs on the main branch.
+  # This rule ensures the package job only runs on commits to the 'main' branch.
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
