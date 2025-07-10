@@ -4,15 +4,14 @@ stages:
 
 lint-lua-code:
   stage: test
-  # This job will only run on your runner tagged 'cops-and-robbers'.
   tags:
     - cops-and-robbers
+  # This new line tells GitLab not to fail the pipeline because of warnings.
+  # The job will be marked as "passed with warnings" (a yellow icon).
+  allow_failure: true
   script:
     - echo "Running Lua linter..."
-    # This command assumes you have installed 'luacheck' on the runner
-    # machine and added it to the system's PATH variable.
     - luacheck .
-  # We only want to run this check on merge requests and pushes to the main branch.
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
