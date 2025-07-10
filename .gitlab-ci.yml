@@ -1,0 +1,19 @@
+stages:
+  - build
+  - test
+
+build-job:
+  stage: build
+  tags:
+    - cops-and-robbers # Make sure this tag matches one you gave your runner
+  script:
+    - echo "Compiling the code..."
+    - echo "Compile complete."
+
+test-job:
+  stage: test
+  tags:
+    - cops-and-robbers # Make sure this tag matches one you gave your runner
+  script:
+    - echo "Running tests..."
+    - echo "No tests to run."
