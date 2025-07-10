@@ -6,8 +6,6 @@
 -- For safety, ensure Log definition handles potential nil Config if script order changes.
 local Config = Config -- Keep this near the top as Log depends on it.
 
-
-
 function shallowcopy(original)
     local copy = {}
     for k, v in pairs(original) do
@@ -22,8 +20,6 @@ function tablelength(T)
     for _ in pairs(T) do count = count + 1 end
     return count
 end
-
-
 
 function MinimizeInventoryForSync(richInventory)
     if not richInventory then return {} end
@@ -53,7 +49,6 @@ local function SafeGetByPlayerId(tbl, playerId)
     end
     return nil
 end
-
 
 -- Forward declarations for functions defined later
 local MarkPlayerForInventorySave
