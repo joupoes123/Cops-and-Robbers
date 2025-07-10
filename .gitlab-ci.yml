@@ -1,19 +1,37 @@
 stages:
-  - build
   - test
+  - package
 
-build-job:
-  stage: build
-  tags:
-    - cops-and-robbers # Make sure this tag matches one you gave your runner
-  script:
-    - echo "Compiling the code..."
-    - echo "Compile complete."
-
-test-job:
+lint-lua-code:
   stage: test
+  # This job will only run on your runner tagged 'cops-and-robbers'.
   tags:
-    - cops-and-robbers # Make sure this tag matches one you gave your runner
+    - cops-and-robbers
   script:
-    - echo "Running tests..."
-    - echo "No tests to run."
+    - echo "Running Lua linter..."
+    # This command assumes you have installed 'luacheck' on the runner
+    # machine and added it to the system's PATH variable.
+    - luacheck .
+  # We only want to run this check on merge requests and pushes to the main branch.
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+package-resource:
+  stage: package
+  tags:
+    - cops-and-robbers
+  script:
+    - echo "Packaging resource..."
+    # This command uses PowerShell's native 'Compress-Archive' to create the zip file.
+    # We list all the files and directories we want to include.
+    - Compress-Archive -Path "fxmanifest.lua", "*.lua", "html", "player_data", "*.json", "data" -DestinationPath "${CI_PROJECT_NAME}.zip" -Force
+  artifacts:
+    # The artifacts section is the same, as it's a GitLab feature.
+    name: "$CI_PROJECT_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - "*.zip"
+    expire_in: 1 week
+  # This rule ensures the package job only runs on the main branch.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
