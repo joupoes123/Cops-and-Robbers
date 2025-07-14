@@ -2,7 +2,7 @@
 
 **Cops & Robbers** is an open-source game mode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements.
 
-## 🚀 Latest Version: 2.0.0 (July 2025)
+## 🚀 Latest Version: 1.2.0 (July 2025)
 
 ### Major Features
 - **50-Level Progression System** with prestige levels and role-specific rewards
