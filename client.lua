@@ -34,6 +34,13 @@ RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
 RegisterNetEvent('cnr:sendToJail')
 RegisterNetEvent('cnr:releaseFromJail')
 RegisterNetEvent('cnr:wantedLevelSync') -- Register wanted level sync event
+RegisterNetEvent('cnr:applyCharacterData')
+RegisterNetEvent('cnr:loadedPlayerCharacters')
+RegisterNetEvent('cnr:characterSaveResult')
+RegisterNetEvent('cnr:characterDeleteResult')
+RegisterNetEvent('cnr:receiveCharacterForRole')
+RegisterNetEvent('cnr:performUITest')
+RegisterNetEvent('cnr:getUITestResults')
 
 -- =====================================
 --           VARIABLES
@@ -3647,6 +3654,60 @@ end)
 AddEventHandler('cnr:applyCharacterData', function(characterData)
     local ped = PlayerPedId()
     ApplyCharacterData(characterData, ped)
+end)
+
+-- Character editor result handlers
+AddEventHandler('cnr:characterSaveResult', function(success, message)
+    if success then
+        TriggerEvent('chat:addMessage', { args = {"^2[Character Editor]", message or "Character saved successfully!"} })
+    else
+        TriggerEvent('chat:addMessage', { args = {"^1[Character Editor]", message or "Failed to save character."} })
+    end
+end)
+
+AddEventHandler('cnr:characterDeleteResult', function(success, message)
+    if success then
+        TriggerEvent('chat:addMessage', { args = {"^2[Character Editor]", message or "Character deleted successfully!"} })
+    else
+        TriggerEvent('chat:addMessage', { args = {"^1[Character Editor]", message or "Failed to delete character."} })
+    end
+end)
+
+AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
+    -- Handle character data received for role selection
+    if characterData then
+        local ped = PlayerPedId()
+        ApplyCharacterData(characterData, ped)
+    end
+end)
+
+-- Performance test event handlers
+AddEventHandler('cnr:performUITest', function()
+    -- Perform UI performance test
+    local startTime = GetGameTimer()
+    
+    -- Simulate UI operations
+    for i = 1, 100 do
+        SendNUIMessage({
+            action = 'testPerformance',
+            iteration = i
+        })
+        Wait(1)
+    end
+    
+    local endTime = GetGameTimer()
+    local duration = endTime - startTime
+    
+    TriggerServerEvent('cnr:uiTestResult', duration)
+end)
+
+AddEventHandler('cnr:getUITestResults', function()
+    -- Send UI test results back to server
+    TriggerServerEvent('cnr:sendUITestResults', {
+        fps = GetFrameCount(),
+        memory = collectgarbage("count"),
+        timestamp = GetGameTimer()
+    })
 end)
 
 -- Inventory UI event handlers

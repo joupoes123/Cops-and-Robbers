@@ -355,7 +355,8 @@ Config.Items = {
     { name = "Parachute",            itemId = "gadget_parachute",        basePrice = 300,  category = "Utility", icon = "🪂" },
     { name = "Drill",                itemId = "drill",                   basePrice = 500,  category = "Utility", minLevelRobber = 3, icon = "🔧" },
     { name = "Thermite",             itemId = "thermite",                basePrice = 1500, category = "Utility", minLevelRobber = 8, icon = "🧨" },
-    { name = "C4 Explosive",         itemId = "c4",                      basePrice = 2000, category = "Utility", minLevelRobber = 12, icon = "💣" },    { name = "Sticky Bomb",          itemId = "weapon_stickybomb",       basePrice = 2500, category = "Utility", minLevelRobber = 15, icon = "💣" },
+    { name = "C4 Explosive",         itemId = "c4",                      basePrice = 2000, category = "Utility", minLevelRobber = 12, icon = "💣" },
+    { name = "Sticky Bomb",          itemId = "weapon_stickybomb",       basePrice = 2500, category = "Utility", minLevelRobber = 15, icon = "💣" },
 
     -- Accessories (Primarily for role-play or appearance, server logic might give minor effects)
     { name = "Mask",              itemId = "mask",                  basePrice = 200,  category = "Accessories", icon = "🎭" },
@@ -368,6 +369,65 @@ Config.Items = {
     { name = "Spike Strip",       itemId = "spikestrip_item",       basePrice = 250,  category = "Cop Gear", forCop = true, icon = "⚡" },
     { name = "Speed Radar Gun",   itemId = "speedradar_gun",        basePrice = 500,  category = "Cop Gear", forCop = true, minLevelCop = 2, icon = "📡" },
     { name = "K9 Whistle",        itemId = "k9whistle",             basePrice = 1000, category = "Cop Gear", forCop = true, minLevelCop = 3, icon = "🐕" }
+}
+
+-- =========================
+-- Default Weapon Ammo Configuration
+-- =========================
+-- Default ammo amounts when weapons are equipped
+Config.DefaultWeaponAmmo = {
+    ["weapon_pistol"] = 12,
+    ["weapon_combatpistol"] = 12,
+    ["weapon_pistol_mk2"] = 12,
+    ["weapon_appistol"] = 18,
+    ["weapon_heavypistol"] = 18,
+    ["weapon_doubleaction"] = 6,
+    ["weapon_revolver_mk2"] = 6,
+    ["weapon_vintagepistol"] = 7,
+    ["weapon_snspistol"] = 6,
+    ["weapon_machinepistol"] = 12,
+    ["weapon_smg"] = 30,
+    ["weapon_microsmg"] = 16,
+    ["weapon_minismg"] = 20,
+    ["weapon_assaultrifle"] = 30,
+    ["weapon_carbinerifle"] = 30,
+    ["weapon_specialcarbine"] = 30,
+    ["weapon_specialcarbine_mk2"] = 30,
+    ["weapon_bullpuprifle"] = 30,
+    ["weapon_compactrifle"] = 30,
+    ["weapon_advancedrifle"] = 30,
+    ["weapon_combatmg"] = 100,
+    ["weapon_combatmg_mk2"] = 100,
+    ["weapon_machinegun"] = 50,
+    ["weapon_minigun"] = 500,
+    ["weapon_gusenberg"] = 50,
+    ["weapon_pumpshotgun"] = 8,
+    ["weapon_sawnoffshotgun"] = 8,
+    ["weapon_bullpupshotgun"] = 14,
+    ["weapon_assaultshotgun"] = 8,
+    ["weapon_musket"] = 1,
+    ["weapon_heavyshotgun"] = 6,
+    ["weapon_dbshotgun"] = 2,
+    ["weapon_autoshotgun"] = 10,
+    ["weapon_combatshotgun"] = 8,
+    ["weapon_sniperrifle"] = 10,
+    ["weapon_heavysniper"] = 6,
+    ["weapon_heavysniper_mk2"] = 6,
+    ["weapon_marksmanrifle"] = 8,
+    ["weapon_marksmanrifle_mk2"] = 8,
+    ["weapon_rpg"] = 1,
+    ["weapon_grenadelauncher"] = 10,
+    ["weapon_hominglauncher"] = 1,
+    ["weapon_firework"] = 20,
+    ["weapon_railgun"] = 1,
+    ["weapon_emplauncher"] = 20,
+    ["weapon_flaregun"] = 25,
+    ["weapon_stungun"] = 1,
+    ["weapon_bzgas"] = 25,
+    ["weapon_smokegrenade"] = 25,
+    ["weapon_grenade"] = 25,
+    ["weapon_stickybomb"] = 25,
+    ["weapon_flare"] = 25
 }
 
 -- =========================
@@ -442,7 +502,8 @@ Config.WantedSettings = {
     crimes = {                 -- Points assigned for specific crimes. These keys are used in server.lua when calling IncreaseWantedPoints.
         -- Traffic Violations
         speeding                   = 2,    -- For receiving a speeding ticket.
-        reckless_driving           = 3,    -- Example: driving on sidewalk, excessive near misses.        hit_and_run_vehicle        = 5,    -- Hitting a vehicle and fleeing.
+        reckless_driving           = 3,    -- Example: driving on sidewalk, excessive near misses.
+        hit_and_run_vehicle        = 5,    -- Hitting a vehicle and fleeing.
         hit_and_run_ped            = 8,    -- Hitting a pedestrian and fleeing.
         hit_and_run_civilian       = 8,    -- Hitting a civilian pedestrian and fleeing.
         hit_and_run_cop            = 15,   -- Hitting a police officer and fleeing.
@@ -1430,12 +1491,17 @@ Config.ContrabandDealers = {
 --        Bounty Settings
 -- =========================
 Config.BountySettings = {
+    enabled = true,           -- Enable/disable bounty system
     wantedLevelThreshold = 2, -- Minimum wanted level (stars) to trigger a bounty
     baseAmount = 1000,        -- Base bounty amount
     multiplier = 1.5,         -- Multiplier per wanted level above threshold
     maxAmount = 10000,        -- Maximum bounty that can be placed
+    maxBounty = 10000,        -- Maximum bounty that can be accumulated
     duration = 30,            -- Minutes that a bounty remains active
-    cooldownMinutes = 10      -- Cooldown before another bounty can be placed on the same player
+    durationMinutes = 30,     -- Duration in minutes (alternative reference)
+    cooldownMinutes = 10,     -- Cooldown before another bounty can be placed on the same player
+    increasePerMinute = 100,  -- Amount bounty increases per minute
+    claimMethod = "arrest"    -- How bounties are claimed ("arrest" or other methods)
 }
 
 -- =========================
