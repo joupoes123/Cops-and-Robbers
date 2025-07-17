@@ -1,0 +1,30 @@
+steps:
+  - label: ":pipeline: Upload pipeline"
+    command: buildkite-agent pipeline upload
+    key: upload
+
+  - label: ":hammer: Build Resources"
+    command: ./scripts/build_resources.sh
+    key: build
+    artifact_paths:
+      - build/**/*
+    depends_on: upload
+
+  - label: ":test_tube: Run Tests"
+    command: ./scripts/run_tests.sh
+    key: test
+    depends_on: build
+
+  - wait
+
+  - label: ":rocket: Deploy to Staging"
+    command: ./scripts/deploy.sh staging
+    key: deploy-staging
+    depends_on: test
+    if: build.branch == "main"
+
+  - label: ":rocket: Deploy to Production"
+    command: ./scripts/deploy.sh production
+    key: deploy-production
+    depends_on: deploy-staging
+    if: build.branch == "main" && build.tag =~ /^v\d+\.\d+\.\d+$/
