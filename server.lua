@@ -1249,17 +1249,23 @@ CreateThread(function() -- Wanted level decay with cop sight detection
                         local playerCoords = GetEntityCoords(playerPed)
                         local copSightDistance = Config.WantedSettings.copSightDistance or 50.0
                         
-                        -- Check distance to all online cops
+                        -- Check distance to all online cops with caching
                         for copId, _ in pairs(copsOnDuty) do
                             if GetPlayerName(copId) ~= nil then -- Cop is online
                                 local copPed = GetPlayerPed(copId)
                                 if copPed and copPed > 0 and DoesEntityExist(copPed) then
                                     local copCoords = GetEntityCoords(copPed)
-                                    local distance = #(playerCoords - copCoords)
+                                    
+                                    -- Use cached distance calculation if available
+                                    local distance
+                                    if PerformanceOptimizer and PerformanceOptimizer.GetDistanceCached then
+                                        distance = PerformanceOptimizer.GetDistanceCached(playerCoords, copCoords, 1000)
+                                    else
+                                        distance = #(playerCoords - copCoords)
+                                    end
                                     
                                     if distance <= copSightDistance then
                                         canDecay = false
-                                        -- Update last cop sight time
                                         data.lastCopSightTime = currentTime
                                         break
                                     end

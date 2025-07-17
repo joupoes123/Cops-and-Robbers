@@ -97,6 +97,20 @@ local activeDropBlips = {}
 local clientActiveContrabandDrops = {}
 
 -- Blip tracking
+-- Performance monitoring for optimized loops
+if PerformanceOptimizer then
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(30000)
+            local metrics = PerformanceOptimizer.GetMetrics()
+            if metrics and metrics.memoryUsage and metrics.memoryUsage > 50000 then
+                print("[CNR_CLIENT] High memory usage detected: " .. math.floor(metrics.memoryUsage/1024) .. "MB")
+            end
+        end
+    end)
+end
+
+
 local copStoreBlips = {}
 local robberStoreBlips = {}
 
@@ -1312,10 +1326,9 @@ end)
 -- F2 - Robber Menu / Admin Panel
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         if IsControlJustPressed(0, Config.Keybinds.toggleAdminPanel or 289) then -- F2
-            -- Check if player is admin first, otherwise show robber menu
             TriggerServerEvent('cnr:checkAdminStatus')
         end
     end
@@ -1324,7 +1337,7 @@ end)
 -- F5 - Role Selection Menu
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         if IsControlJustPressed(0, 166) then -- F5 key
             TriggerEvent('cnr:showRoleSelection')
@@ -2401,16 +2414,23 @@ AddEventHandler('cnr:sendNUIMessage', function(message)
 end)
 
 -- Thread to check for nearby stores
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(0) -- Run every frame for responsive key detection
-        
-        -- Only check for nearby stores if player ped exists and is ready
+if PerformanceOptimizer then
+    PerformanceOptimizer.CreateOptimizedLoop(function()
         if g_isPlayerPedReady then
             CheckNearbyStores()
         end
-    end
-end)
+    end, 200, 500, 2)
+else
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(200)
+            
+            if g_isPlayerPedReady then
+                CheckNearbyStores()
+            end
+        end
+    end)
+end
 
 -- OLD CLIENT-SIDE CRIME DETECTION DISABLED
 -- This has been replaced by server-side crime detection systems
@@ -2551,9 +2571,8 @@ end)
 -- Add detection for weapon discharge
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(50)
         
-        -- Only check if player is ready and is a robber
         if g_isPlayerPedReady and role == "robber" then
             local playerPed = PlayerPedId()
             
@@ -2800,43 +2819,26 @@ local function StartJailUpdateThread(duration)
                 time = jailTimeRemaining
             })
 
-            -- Enforce Jail Restrictions (Step 3 of plan)
-            -- Example: Disable combat controls
-            DisableControlAction(0, 24, true)  -- INPUT_ATTACK
-            DisableControlAction(0, 25, true)  -- INPUT_AIM
-            DisableControlAction(0, 140, true) -- INPUT_MELEE_ATTACK_LIGHT
-            DisableControlAction(0, 141, true) -- INPUT_MELEE_ATTACK_HEAVY
-            DisableControlAction(0, 142, true) -- INPUT_MELEE_ATTACK_ALTERNATE
-            DisableControlAction(0, 257, true) -- INPUT_ATTACK2
-            DisableControlAction(0, 263, true) -- INPUT_MELEE_ATTACK1
-            DisableControlAction(0, 264, true) -- INPUT_MELEE_ATTACK2
-
-
-            -- Prevent equipping weapons (more robustly handled by clearing them on jail entry)
-            -- Forcing unarmed:
-             if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
-                 SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
-             end
-
-            -- TODO: Add more restrictions like preventing inventory access, vehicle entry, etc.
-            DisableControlAction(0, 23, true)    -- INPUT_ENTER_VEHICLE
-            DisableControlAction(0, 51, true)    -- INPUT_CONTEXT (E) - Be careful if E is used for other things
-            DisableControlAction(0, 22, true)    -- INPUT_JUMP
-            if Config.Keybinds and Config.Keybinds.openInventory then
-                DisableControlAction(0, Config.Keybinds.openInventory, true) -- Disable inventory key
-            else
-                DisableControlAction(0, 244, true) -- Fallback M key for inventory (INPUT_INTERACTION_MENU)
+            -- Enforce Jail Restrictions (Optimized to avoid redundant calls)
+            local controlsToDisable = {
+                24, 25, 140, 141, 142, 257, 263, 264,
+                23, 51, 22,
+                246, 12, 13, 14, 15, 44, 45
+            }
+            
+            for _, control in ipairs(controlsToDisable) do
+                DisableControlAction(0, control, true)
+            end
+            
+            if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
+                SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
             end
 
-            -- Additional restrictions for phone, weapon selection, cover, reload
-            DisableControlAction(0, 246, true)   -- INPUT_PHONE (Up Arrow/Cellphone)
-            DisableControlAction(0, 12, true)    -- INPUT_WEAPON_WHEEL_NEXT
-            DisableControlAction(0, 13, true)    -- INPUT_WEAPON_WHEEL_PREV
-            DisableControlAction(0, 14, true)    -- INPUT_SELECT_PREV_WEAPON
-            DisableControlAction(0, 15, true)    -- INPUT_SELECT_NEXT_WEAPON
-            DisableControlAction(0, 44, true)    -- INPUT_COVER (Q)
-            DisableControlAction(0, 45, true)    -- INPUT_RELOAD (R)
-            -- Add more specific keybinds to disable if needed (e.g., phone, specific menus)
+            if Config.Keybinds and Config.Keybinds.openInventory then
+                DisableControlAction(0, Config.Keybinds.openInventory, true)
+            else
+                DisableControlAction(0, 244, true)
+            end
 
             -- Confinement to jail area
             local currentPos = GetEntityCoords(playerPed)
@@ -3052,7 +3054,7 @@ end)
 -- Interaction with contraband dealers
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         local playerPed = PlayerPedId()
         local playerCoords = GetEntityCoords(playerPed)
@@ -3354,7 +3356,7 @@ end
 -- Main banking interaction thread
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         local playerPed = PlayerPedId()
         local playerCoords = GetEntityCoords(playerPed)
