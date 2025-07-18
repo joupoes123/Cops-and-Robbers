@@ -52,7 +52,11 @@ end
 local function LogDataManager(message, level)
     level = level or Constants.LOG_LEVELS.INFO
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        print(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message))
+        if Log then
+            Log(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message), level)
+        else
+            print(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message))
+        end
     end
 end
 
@@ -559,7 +563,7 @@ local function ProcessScheduledBackups()
         for _, filename in ipairs(systemFiles) do
             local success, data = DataManager.LoadFromFile(filename)
             if success and data then
-                CreateBackup(filename, data)
+                CreateBackup(filename)
                 CleanOldBackups(filename)
             end
         end

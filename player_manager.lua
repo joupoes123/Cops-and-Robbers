@@ -46,7 +46,7 @@ local function LogPlayerManager(playerId, operation, message, level)
     local playerName = GetPlayerName(playerId) or "Unknown"
     
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        print(string.format("[CNR_PLAYER_MANAGER] [%s] Player %s (%d) - %s: %s", 
+        Log(string.format("[CNR_PLAYER_MANAGER] [%s] Player %s (%d) - %s: %s", 
             string.upper(level), playerName, playerId, operation, message))
     end
 end
@@ -859,7 +859,7 @@ end
 --- Log player manager statistics
 function PlayerManager.LogStats()
     local stats = PlayerManager.GetStats()
-    print(string.format("[CNR_PLAYER_MANAGER] Stats - Loads: %d (%.1f%% success), Saves: %d (%.1f%% success), Avg Load: %.1fms, Avg Save: %.1fms, Cached: %d, Loading: %d",
+    Log(string.format("[CNR_PLAYER_MANAGER] Stats - Loads: %d (%.1f%% success), Saves: %d (%.1f%% success), Avg Load: %.1fms, Avg Save: %.1fms, Cached: %d, Loading: %d",
         stats.totalLoads, stats.loadSuccessRate, stats.totalSaves, stats.saveSuccessRate,
         stats.averageLoadTime, stats.averageSaveTime, stats.cachedPlayers, stats.loadingPlayers))
 end
@@ -1377,7 +1377,7 @@ _G.IsPlayerRobber = IsPlayerRobber
 
 --- Initialize player manager
 function PlayerManager.Initialize()
-    print("[CNR_PLAYER_MANAGER] Player Manager initialized")
+    Log("[CNR_PLAYER_MANAGER] Player Manager initialized")
     
     -- Statistics logging thread
     Citizen.CreateThread(function()
@@ -1447,5 +1447,381 @@ exports('DeletePlayerCharacterSlot', DeletePlayerCharacterSlot)
 exports('ApplyCharacterToPlayer', ApplyCharacterToPlayer)
 exports('GetCharacterForRoleSelection', GetCharacterForRoleSelection)
 exports('HasCharacterForRole', HasCharacterForRole)
+
+-- ====================================================================
+-- ====================================================================
+
+-- Integration status tracking
+local integrationStatus = {
+    initialized = false,
+    modulesLoaded = {},
+    migrationComplete = false,
+    startTime = 0
+}
+
+-- Legacy compatibility layer
+local legacyFunctions = {}
+
+--- Initialize all refactored systems in the correct order
+function PlayerManager.InitializeIntegration()
+    integrationStatus.startTime = GetGameTimer()
+    
+    Log("[CNR_INTEGRATION] Starting system initialization...", Constants.LOG_LEVELS.INFO)
+    
+    -- Initialize core systems first
+    local initOrder = {
+        {name = "Constants", module = Constants, required = true},
+        {name = "Validation", module = Validation, required = true},
+        {name = "DataManager", module = DataManager, required = true},
+        {name = "SecureInventory", module = SecureInventory, required = true},
+        {name = "SecureTransactions", module = SecureTransactions, required = true},
+        {name = "PlayerManager", module = PlayerManager, required = true},
+        {name = "PerformanceManager", module = PerformanceManager, required = false}
+    }
+    
+    for _, system in ipairs(initOrder) do
+        local success = PlayerManager.InitializeSystem(system.name, system.module, system.required)
+        integrationStatus.modulesLoaded[system.name] = success
+        
+        if system.required and not success then
+            error(string.format("Failed to initialize required system: %s", system.name))
+        end
+    end
+    
+    -- Set up legacy compatibility
+    PlayerManager.SetupLegacyCompatibility()
+    
+    -- Perform data migration if needed
+    PlayerManager.PerformDataMigration()
+    
+    -- Start monitoring systems
+    PlayerManager.StartMonitoring()
+    
+    integrationStatus.initialized = true
+    local initTime = GetGameTimer() - integrationStatus.startTime
+    
+    Log(string.format("[CNR_INTEGRATION] System initialization completed in %dms", initTime), Constants.LOG_LEVELS.INFO)
+    
+    -- Log initialization status
+    PlayerManager.LogInitializationStatus()
+end
+
+--- Initialize a specific system with error handling
+--- @param systemName string Name of the system
+--- @param systemModule table System module
+--- @param required boolean Whether the system is required
+--- @return boolean Success status
+function PlayerManager.InitializeSystem(systemName, systemModule, required)
+    Log(string.format("[CNR_INTEGRATION] Initializing %s...", systemName), Constants.LOG_LEVELS.INFO)
+    
+    local success, error = pcall(function()
+        if systemModule and systemModule.Initialize then
+            systemModule.Initialize()
+        end
+    end)
+    
+    if success then
+        Log(string.format("[CNR_INTEGRATION] ✅ %s initialized successfully", systemName), Constants.LOG_LEVELS.INFO)
+        return true
+    else
+        local logLevel = required and "error" or "warn"
+        Log(string.format("[CNR_INTEGRATION] ❌ Failed to initialize %s: %s", systemName, tostring(error)), logLevel == "error" and Constants.LOG_LEVELS.ERROR or Constants.LOG_LEVELS.WARN)
+        return false
+    end
+end
+
+--- Set up compatibility functions for existing code
+function PlayerManager.SetupLegacyCompatibility()
+    Log("[CNR_INTEGRATION] Setting up legacy compatibility layer...", Constants.LOG_LEVELS.INFO)
+    
+    -- Store original functions if they exist
+    legacyFunctions.AddItemToPlayerInventory = AddItemToPlayerInventory
+    legacyFunctions.RemoveItemFromPlayerInventory = RemoveItemFromPlayerInventory
+    legacyFunctions.AddPlayerMoney = AddPlayerMoney
+    legacyFunctions.RemovePlayerMoney = RemovePlayerMoney
+    
+    -- Replace with secure versions
+    AddItemToPlayerInventory = function(playerId, itemId, quantity, itemDetails)
+        local success, message = SecureInventory.AddItem(playerId, itemId, quantity, "legacy_add")
+        return success, message
+    end
+    
+    RemoveItemFromPlayerInventory = function(playerId, itemId, quantity)
+        local success, message = SecureInventory.RemoveItem(playerId, itemId, quantity, "legacy_remove")
+        return success, message
+    end
+    
+    AddPlayerMoney = function(playerId, amount)
+        local success, message = SecureTransactions.AddMoney(playerId, amount, "legacy_add")
+        return success
+    end
+    
+    RemovePlayerMoney = function(playerId, amount)
+        local success, message = SecureTransactions.RemoveMoney(playerId, amount, "legacy_remove")
+        return success
+    end
+    
+    -- Enhanced MarkPlayerForInventorySave compatibility
+    MarkPlayerForInventorySave = function(playerId)
+        DataManager.MarkPlayerForSave(playerId)
+    end
+    
+    -- InitializePlayerInventory compatibility
+    InitializePlayerInventory = function(pData, playerId)
+        if not pData then
+            Log("[CNR_INTEGRATION] InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"), Constants.LOG_LEVELS.WARN)
+            return
+        end
+        -- Ensure inventory exists in the expected format
+        pData.inventory = pData.inventory or {}
+        Log("[CNR_INTEGRATION] InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"), Constants.LOG_LEVELS.DEBUG)
+    end
+    
+    Log("[CNR_INTEGRATION] ✅ Legacy compatibility layer established", Constants.LOG_LEVELS.INFO)
+end
+
+--- Perform data migration from old format to new format
+function PlayerManager.PerformDataMigration()
+    Log("[CNR_INTEGRATION] Starting data migration...", Constants.LOG_LEVELS.INFO)
+    
+    -- Check if migration is needed
+    local migrationNeeded = PlayerManager.CheckMigrationNeeded()
+    
+    if not migrationNeeded then
+        Log("[CNR_INTEGRATION] No data migration needed", Constants.LOG_LEVELS.INFO)
+        integrationStatus.migrationComplete = true
+        return
+    end
+    
+    -- Perform migration
+    local success, error = pcall(function()
+        PlayerManager.MigrateSystemData()
+    end)
+    
+    if success then
+        Log("[CNR_INTEGRATION] ✅ Data migration completed successfully", Constants.LOG_LEVELS.INFO)
+        integrationStatus.migrationComplete = true
+    else
+        Log(string.format("[CNR_INTEGRATION] ❌ Data migration failed: %s", tostring(error)), Constants.LOG_LEVELS.ERROR)
+    end
+end
+
+--- Check if data migration is needed
+--- @return boolean Whether migration is needed
+function PlayerManager.CheckMigrationNeeded()
+    -- Check for old format files
+    local oldFormatFiles = {
+        "bans.json",
+        "purchase_history.json"
+    }
+    
+    for _, filename in ipairs(oldFormatFiles) do
+        local fileData = LoadResourceFile(GetCurrentResourceName(), filename)
+        if fileData then
+            local success, data = pcall(json.decode, fileData)
+            if success and data and not data.version then
+                return true -- Old format detected
+            end
+        end
+    end
+    
+    return false
+end
+
+--- Migrate system data files
+function PlayerManager.MigrateSystemData()
+    print("[CNR_INTEGRATION] Migrating system data...")
+    
+    -- Migrate bans.json
+    local success, bansData = DataManager.LoadSystemData("bans")
+    if success and bansData then
+        if not bansData.version then
+            bansData.version = "1.2.0"
+            bansData.migrated = os.time()
+            DataManager.SaveSystemData("bans", bansData)
+            print("[CNR_INTEGRATION] Migrated bans.json")
+        end
+    end
+    
+    -- Migrate purchase_history.json
+    local success, purchaseData = DataManager.LoadSystemData("purchases")
+    if success and purchaseData then
+        if not purchaseData.version then
+            purchaseData.version = "1.2.0"
+            purchaseData.migrated = os.time()
+            DataManager.SaveSystemData("purchases", purchaseData)
+            print("[CNR_INTEGRATION] Migrated purchase_history.json")
+        end
+    end
+end
+
+--- Start monitoring systems
+function PlayerManager.StartMonitoring()
+    print("[CNR_INTEGRATION] Starting system monitoring...")
+    
+    -- Create monitoring loop using PerformanceManager
+    if PerformanceManager then
+        PerformanceManager.CreateOptimizedLoop(function()
+            PlayerManager.PerformHealthCheck()
+        end, 60000, 120000, 3) -- 1 minute base interval, medium priority
+        
+        PerformanceManager.CreateOptimizedLoop(function()
+            PlayerManager.LogSystemStats()
+        end, 300000, 600000, 5) -- 5 minute base interval, low priority
+    end
+end
+
+--- Perform health check on all systems
+function PlayerManager.PerformHealthCheck()
+    local issues = {}
+    
+    -- Check each system
+    for systemName, loaded in pairs(integrationStatus.modulesLoaded) do
+        if not loaded then
+            table.insert(issues, string.format("%s not loaded", systemName))
+        end
+    end
+    
+    -- Check data integrity
+    if DataManager then
+        local stats = DataManager.GetStats()
+        if stats.failedSaves > 0 then
+            table.insert(issues, string.format("DataManager has %d failed saves", stats.failedSaves))
+        end
+    end
+    
+    -- Check performance
+    if PerformanceManager then
+        local metrics = PerformanceManager.GetMetrics()
+        if metrics.memoryUsage > Constants.PERFORMANCE.MEMORY_WARNING_THRESHOLD_MB * 1024 then
+            table.insert(issues, string.format("High memory usage: %.1fMB", metrics.memoryUsage / 1024))
+        end
+    end
+    
+    -- Log issues if any
+    if #issues > 0 then
+        print(string.format("[CNR_INTEGRATION] Health check found %d issues:", #issues))
+        for _, issue in ipairs(issues) do
+            print(string.format("[CNR_INTEGRATION] - %s", issue))
+        end
+    end
+end
+
+--- Log comprehensive system statistics
+function PlayerManager.LogSystemStats()
+    print("[CNR_INTEGRATION] === SYSTEM STATISTICS ===")
+    
+    -- Integration status
+    print(string.format("[CNR_INTEGRATION] Initialized: %s, Migration: %s", 
+        tostring(integrationStatus.initialized), 
+        tostring(integrationStatus.migrationComplete)))
+    
+    -- Module status
+    for systemName, loaded in pairs(integrationStatus.modulesLoaded) do
+        print(string.format("[CNR_INTEGRATION] %s: %s", systemName, loaded and "✅" or "❌"))
+    end
+    
+    -- System-specific stats
+    if DataManager then DataManager.LogStats() end
+    if SecureInventory then SecureInventory.LogStats() end
+    if SecureTransactions then SecureTransactions.LogStats() end
+    if PlayerManager then PlayerManager.LogStats() end
+    if PerformanceManager then PerformanceManager.LogStats() end
+    
+    print("[CNR_INTEGRATION] === END STATISTICS ===")
+end
+
+--- Log initialization status
+function PlayerManager.LogInitializationStatus()
+    print("[CNR_INTEGRATION] === INITIALIZATION SUMMARY ===")
+    
+    local totalSystems = 0
+    local loadedSystems = 0
+    
+    for systemName, loaded in pairs(integrationStatus.modulesLoaded) do
+        totalSystems = totalSystems + 1
+        if loaded then loadedSystems = loadedSystems + 1 end
+        
+        print(string.format("[CNR_INTEGRATION] %s: %s", 
+            systemName, loaded and "✅ LOADED" or "❌ FAILED"))
+    end
+    
+    print(string.format("[CNR_INTEGRATION] Systems: %d/%d loaded", loadedSystems, totalSystems))
+    print(string.format("[CNR_INTEGRATION] Migration: %s", 
+        integrationStatus.migrationComplete and "✅ COMPLETE" or "❌ PENDING"))
+    print(string.format("[CNR_INTEGRATION] Status: %s", 
+        integrationStatus.initialized and "✅ READY" or "❌ NOT READY"))
+    
+    print("[CNR_INTEGRATION] === END SUMMARY ===")
+end
+
+--- Get integration status
+--- @return table Integration status information
+function PlayerManager.GetIntegrationStatus()
+    return {
+        initialized = integrationStatus.initialized,
+        migrationComplete = integrationStatus.migrationComplete,
+        modulesLoaded = integrationStatus.modulesLoaded,
+        uptime = GetGameTimer() - integrationStatus.startTime
+    }
+end
+
+--- Check if all systems are ready
+--- @return boolean Whether all systems are ready
+function PlayerManager.IsReady()
+    if not integrationStatus.initialized then return false end
+    if not integrationStatus.migrationComplete then return false end
+    
+    for _, loaded in pairs(integrationStatus.modulesLoaded) do
+        if not loaded then return false end
+    end
+    
+    return true
+end
+
+--- Cleanup all systems on resource stop
+function PlayerManager.CleanupIntegration()
+    print("[CNR_INTEGRATION] Starting system cleanup...")
+    
+    -- Cleanup systems in reverse order
+    local cleanupOrder = {
+        "PerformanceManager", "PlayerManager", "SecureTransactions",
+        "SecureInventory", "DataManager", "Validation"
+    }
+    
+    for _, systemName in ipairs(cleanupOrder) do
+        local system = _G[systemName]
+        if system and system.Cleanup then
+            local success, error = pcall(system.Cleanup)
+            if success then
+                print(string.format("[CNR_INTEGRATION] ✅ %s cleaned up", systemName))
+            else
+                print(string.format("[CNR_INTEGRATION] ❌ %s cleanup failed: %s", systemName, tostring(error)))
+            end
+        end
+    end
+    
+    print("[CNR_INTEGRATION] System cleanup completed")
+end
+
+-- ====================================================================
+-- ====================================================================
+
+--- Handle resource start
+AddEventHandler('onResourceStart', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        -- Small delay to ensure all scripts are loaded
+        Citizen.SetTimeout(1000, function()
+            PlayerManager.InitializeIntegration()
+        end)
+    end
+end)
+
+--- Handle resource stop
+AddEventHandler('onResourceStop', function(resourceName)
+    if GetCurrentResourceName() == resourceName then
+        PlayerManager.CleanupIntegration()
+    end
+end)
 
 -- PlayerManager module is now available globally

@@ -6,31 +6,6 @@
 -- For safety, ensure Log definition handles potential nil Config if script order changes.
 local Config = Config -- Keep this near the top as Log depends on it.
 
-function shallowcopy(original)
-    local copy = {}
-    for k, v in pairs(original) do
-        copy[k] = v
-    end
-    return copy
-end
-
-function tablelength(T)
-    if not T or type(T) ~= "table" then return 0 end
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
-end
-
-function MinimizeInventoryForSync(richInventory)
-    if not richInventory then return {} end
-    local minimalInv = {}
-    for itemId, itemData in pairs(richInventory) do
-        if itemData and itemData.count then
-            minimalInv[itemId] = { count = itemData.count }
-        end
-    end
-    return minimalInv
-end
 
 -- Safe table assignment wrapper for player IDs
 local function SafeSetByPlayerId(tbl, playerId, value)
@@ -583,7 +558,7 @@ end
 
 
 -- OLD INVENTORY FUNCTIONS REMOVED - Using enhanced versions with save marking below
--- InitializePlayerInventory is now handled by integration_manager.lua
+-- InitializePlayerInventory is now handled by player_manager.lua
 
 LoadPlayerData = function(playerId)
     -- Log(string.format("LoadPlayerData: Called for player ID %s.", playerId), "info")
@@ -1021,44 +996,45 @@ function CheckAndPlaceBounty(playerId)
 end
 
 CreateThread(function() -- Bounty Increase & Expiry Loop
-    while true do Wait(60000)
-        if not Config.BountySettings.enabled then goto continue_bounty_loop end
-        local bountyUpdatedThisCycle = false
-        local currentTime = os.time()
-        for playerIdStr, bountyData in pairs(activeBounties) do
-            local playerId = tonumber(playerIdStr)
-            -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
-            local pData = GetCnrPlayerData(playerId)
-            local wantedData = wantedPlayers[playerId]
-            local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
+    while true do 
+        Wait(60000)
+        if Config.BountySettings.enabled then
+            local bountyUpdatedThisCycle = false
+            local currentTime = os.time()
+            for playerIdStr, bountyData in pairs(activeBounties) do
+                local playerId = tonumber(playerIdStr)
+                -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
+                local pData = GetCnrPlayerData(playerId)
+                local wantedData = wantedPlayers[playerId]
+                local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
 
-            if isPlayerOnline and pData and wantedData and wantedData.stars >= Config.BountySettings.wantedLevelThreshold and currentTime < bountyData.expiresAt then
-                if bountyData.amount < Config.BountySettings.maxBounty then
-                    bountyData.amount = math.min(bountyData.amount + Config.BountySettings.increasePerMinute, Config.BountySettings.maxBounty)
-                    bountyData.lastIncreasedTimestamp = currentTime
-                    Log(string.format("Bounty for %s (ID: %d) increased to $%d.", bountyData.name, playerId, bountyData.amount), "info", "CNR_SERVER")
+                if isPlayerOnline and pData and wantedData and wantedData.stars >= Config.BountySettings.wantedLevelThreshold and currentTime < bountyData.expiresAt then
+                    if bountyData.amount < Config.BountySettings.maxBounty then
+                        bountyData.amount = math.min(bountyData.amount + Config.BountySettings.increasePerMinute, Config.BountySettings.maxBounty)
+                        bountyData.lastIncreasedTimestamp = currentTime
+                        Log(string.format("Bounty for %s (ID: %d) increased to $%d.", bountyData.name, playerId, bountyData.amount), "info", "CNR_SERVER")
+                        bountyUpdatedThisCycle = true
+                    end
+                elseif currentTime >= bountyData.expiresAt or (isPlayerOnline and pData and wantedData and wantedData.stars < Config.BountySettings.wantedLevelThreshold) then
+                    local bountyAmount = bountyData.amount or 0
+                    local bountyName = bountyData.name or "Unknown"
+                    local starCount = (wantedData and wantedData.stars) or "N/A"
+                    Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyAmount, bountyName, tostring(playerId), tostring(isPlayerOnline), tostring(starCount)), "info", "CNR_SERVER")
+                    if activeBounties and playerId then
+                        activeBounties[playerId] = nil
+                    end
+                    if pData then
+                        local cooldownMinutes = Config.BountySettings.cooldownMinutes
+                        if cooldownMinutes then
+                            pData.bountyCooldownUntil = currentTime + (cooldownMinutes * 60)
+                        end
+                        if isPlayerOnline then SavePlayerData(playerId) end
+                    end
                     bountyUpdatedThisCycle = true
                 end
-            elseif currentTime >= bountyData.expiresAt or (isPlayerOnline and pData and wantedData and wantedData.stars < Config.BountySettings.wantedLevelThreshold) then
-                local bountyAmount = bountyData.amount or 0
-                local bountyName = bountyData.name or "Unknown"
-                local starCount = (wantedData and wantedData.stars) or "N/A"
-                Log(string.format("Bounty of $%d expired/removed for %s (ID: %s). Player online: %s, Stars: %s", bountyAmount, bountyName, tostring(playerId), tostring(isPlayerOnline), tostring(starCount)), "info", "CNR_SERVER")
-                if activeBounties and playerId then
-                    activeBounties[playerId] = nil
-                end
-                if pData then
-                    local cooldownMinutes = Config.BountySettings.cooldownMinutes
-                    if cooldownMinutes then
-                        pData.bountyCooldownUntil = currentTime + (cooldownMinutes * 60)
-                    end
-                    if isPlayerOnline then SavePlayerData(playerId) end
-                end
-                bountyUpdatedThisCycle = true
             end
+            if bountyUpdatedThisCycle then TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties) end
         end
-        if bountyUpdatedThisCycle then TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties) end
-        ::continue_bounty_loop::
     end
 end)
 
@@ -1248,17 +1224,23 @@ CreateThread(function() -- Wanted level decay with cop sight detection
                         local playerCoords = GetEntityCoords(playerPed)
                         local copSightDistance = Config.WantedSettings.copSightDistance or 50.0
                         
-                        -- Check distance to all online cops
+                        -- Check distance to all online cops with caching
                         for copId, _ in pairs(copsOnDuty) do
                             if GetPlayerName(copId) ~= nil then -- Cop is online
                                 local copPed = GetPlayerPed(copId)
                                 if copPed and copPed > 0 and DoesEntityExist(copPed) then
                                     local copCoords = GetEntityCoords(copPed)
-                                    local distance = #(playerCoords - copCoords)
+                                    
+                                    -- Use cached distance calculation if available
+                                    local distance
+                                    if PerformanceOptimizer and PerformanceOptimizer.GetDistanceCached then
+                                        distance = PerformanceOptimizer.GetDistanceCached(playerCoords, copCoords, 1000)
+                                    else
+                                        distance = #(playerCoords - copCoords)
+                                    end
                                     
                                     if distance <= copSightDistance then
                                         canDecay = false
-                                        -- Update last cop sight time
                                         data.lastCopSightTime = currentTime
                                         break
                                     end
@@ -1848,12 +1830,12 @@ end)
 -- Helper function to safely send NUI messages
 function SafeSendNUIMessage(playerId, message)
     if not message or type(message) ~= 'table' then
-        print('[CNR_SERVER_ERROR] Invalid NUI message format:', message)
+        Log('[CNR_SERVER_ERROR] Invalid NUI message format: ' .. tostring(message), "error", "CNR_SERVER")
         return false
     end
     
     if not message.action or type(message.action) ~= 'string' or message.action == '' then
-        print('[CNR_SERVER_ERROR] NUI message missing or invalid action:', json.encode(message))
+        Log('[CNR_SERVER_ERROR] NUI message missing or invalid action: ' .. json.encode(message), "error", "CNR_SERVER")
         return false
     end
     
@@ -1894,7 +1876,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     local pData = GetCnrPlayerData(src)
 
     if not storeName then
-        print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
+        Log('[CNR_SERVER_ERROR] Store name missing in getItemList event from ' .. tostring(src), "error", "CNR_SERVER")
         return
     end
 
@@ -1912,7 +1894,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     end
     
     if not hasAccess then
-        print(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName))
+        Log(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName), "warn", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
         return
     end
@@ -1920,7 +1902,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     -- The vendorItemIds from client (originating from Config.NPCVendors[storeName].items) is a list of strings.
     -- We need to transform this into a list of full item objects using Config.Items.
     if not vendorItemIds or type(vendorItemIds) ~= 'table' then
-        print('[CNR_SERVER_ERROR] Item ID list missing or not a table for store', storeName, 'from', src)
+        Log('[CNR_SERVER_ERROR] Item ID list missing or not a table for store ' .. tostring(storeName) .. ' from ' .. tostring(src), "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list on error
         return
     end
@@ -1955,11 +1937,11 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                 end
             end
             if not foundItem then
-                print(string.format("[CNR_SERVER_WARN] Item ID '%s' specified for vendor '%s' not found in Config.Items. Skipping.", itemIdFromVendor, storeName))
+                Log(string.format("[CNR_SERVER_WARN] Item ID '%s' specified for vendor '%s' not found in Config.Items. Skipping.", itemIdFromVendor, storeName), "warn", "CNR_SERVER")
             end
         end
     else
-        print("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.")
+        Log("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.", "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
         return
     end    -- Include player level, role, and cash information for UI to check restrictions and display
@@ -1976,8 +1958,8 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         
         -- Update stored level if different (with debug logging)
         if pData.level ~= calculatedLevel then
-            print(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
-                src, pData.level or 1, calculatedLevel, pData.xp))
+            Log(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
+                src, pData.level or 1, calculatedLevel, pData.xp), "debug", "CNR_SERVER")
             pData.level = calculatedLevel
         end
     elseif pData and pData.level then
@@ -1986,8 +1968,8 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     end
     
     -- Debug log for level display issues
-    print(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
-        src, playerInfo.level, pData and pData.xp or 0))
+    Log(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
+        src, playerInfo.level, pData and pData.xp or 0), "debug", "CNR_SERVER")
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
@@ -1999,7 +1981,7 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local pData = GetCnrPlayerData(src)
 
     if not pData or not pData.inventory then
-        print(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
+        Log(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src), "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
@@ -2310,7 +2292,7 @@ RegisterNetEvent('cnr:uiTestResults')
 AddEventHandler('cnr:uiTestResults', function(data)
     local src = source
     -- Process UI test results here
-    print(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})))
+    Log(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})), "info", "CNR_SERVER")
     -- You can add additional processing logic here if needed
 end)
 
@@ -4466,4 +4448,489 @@ _G.ApplyPerks = ApplyPerks
 _G.CalculateLevel = CalculateLevel
 
 Log("Consolidated server systems loaded", "info", "CNR_SERVER")
+
+-- ====================================================================
+-- ====================================================================
+
+-- Helper function to log admin commands (replaces TriggerServerEvent calls)
+local function LogAdminCommand(source, rawCommand)
+    Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+end
+
+-- Helper function to check if a player ID is valid (i.e. currently connected)
+local function IsValidPlayer(targetId)
+    targetId = tonumber(targetId)
+    if not targetId then return false end
+
+    for _, playerId in ipairs(GetPlayers()) do
+        if tonumber(playerId) == targetId then
+            return true
+        end
+    end
+    return false
+end
+
+-- Kick command
+RegisterCommand("kick", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+
+    if targetId and IsValidPlayer(targetId) then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        DropPlayer(tostring(targetId), "You have been kicked by an admin.")
+        TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", "Player " .. SafeGetPlayerName(targetId) .. " has been kicked." } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+    end
+end, false)
+
+-- Ban command
+RegisterCommand("ban", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local reason = table.concat(args, " ", 2) -- Combine remaining args for reason
+
+    if not reason or reason == "" then
+        reason = "No reason provided."
+    end
+    
+    if targetId and IsValidPlayer(targetId) then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        
+        -- Handle ban directly (since we're on server)
+        local playerIdentifiers = SafeGetPlayerIdentifiers(targetId)
+        if playerIdentifiers then
+            -- Add to ban list (assuming there's a ban management system)
+            TriggerEvent('cops_and_robbers:banPlayer', targetId, reason)
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Player " .. SafeGetPlayerName(targetId) .. " has been banned." } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to get player identifiers for ban." } })
+        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+    end
+end, false)
+
+-- Set cash command
+RegisterCommand("setcash", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    
+    local amount = tonumber(args[2])
+    
+    -- SECURITY FIX: Comprehensive validation for setcash command
+    if not Validation then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Validation system not available" } })
+        return
+    end
+    
+    -- Validate target player
+    local validTarget, targetError = Validation.ValidatePlayer(targetId)
+    if not validTarget then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid target player: " .. targetError } })
+        return
+    end
+    
+    -- Validate money amount with bounds checking
+    local validMoney, validatedAmount, moneyError = Validation.ValidateMoney(amount, false)
+    if not validMoney then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid amount: " .. moneyError } })
+        return
+    end
+    
+    if targetId and IsValidPlayer(targetId) and validatedAmount then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        
+        -- Set cash directly (since we're already on server)
+        local pData = GetCnrPlayerData(targetId)
+        if pData then
+            pData.money = validatedAmount
+            DataManager.MarkPlayerForSave(targetId)
+            local pDataForBasicInfo = shallowcopy(pData)
+            pDataForBasicInfo.inventory = nil
+            TriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Set cash for " .. SafeGetPlayerName(targetId) .. " to $" .. validatedAmount } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
+        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /setcash <playerId> <amount>" } })
+    end
+end, false)
+
+-- Add cash command
+RegisterCommand("addcash", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local amount = tonumber(args[2])
+    
+    if targetId and IsValidPlayer(targetId) and amount then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        
+        -- Add cash directly (since we're already on server)
+        local pData = GetCnrPlayerData(targetId)
+        if pData then
+            pData.money = (pData.money or 0) + amount
+            DataManager.MarkPlayerForSave(targetId)
+            local pDataForBasicInfo = shallowcopy(pData)
+            pDataForBasicInfo.inventory = nil
+            TriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Added $" .. amount .. " to " .. SafeGetPlayerName(targetId) } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
+        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /addcash <playerId> <amount>" } })
+    end
+end, false)
+
+-- Remove cash command
+RegisterCommand("removecash", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local amount = tonumber(args[2])
+    
+    if targetId and IsValidPlayer(targetId) and amount then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        
+        -- Remove cash directly (since we're already on server)
+        local pData = GetCnrPlayerData(targetId)
+        if pData then
+            pData.money = math.max(0, (pData.money or 0) - amount)
+            DataManager.MarkPlayerForSave(targetId)
+            local pDataForBasicInfo = shallowcopy(pData)
+            pDataForBasicInfo.inventory = nil
+            TriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Removed $" .. amount .. " from " .. SafeGetPlayerName(targetId) } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
+        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /removecash <playerId> <amount>" } })
+    end
+end, false)
+
+-- Remove weapon command
+RegisterCommand("removeweapon", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local weaponName = args[2]
+    
+    if targetId and IsValidPlayer(targetId) and weaponName then
+        LogAdminCommand(source, rawCommand) -- Log before action
+        TriggerEvent('cops_and_robbers:removeWeapon', targetId, weaponName) -- Changed to server event
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Removed weapon " .. weaponName .. " from " .. SafeGetPlayerName(targetId) } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /removeweapon <playerId> <weaponName>" } })
+    end
+end, false)
+
+-- Reassign team command
+RegisterCommand("reassign", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+    
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local newRole = args[2]   -- Should be "cop" or "robber"
+
+    if targetId and IsValidPlayer(targetId) and (newRole == "cop" or newRole == "robber") then
+        LogAdminCommand(source, rawCommand) -- Log before action
+        TriggerEvent('cops_and_robbers:reassignRoleServer', targetId, newRole) -- Ensure server event handles all logic
+        -- Client event 'cops_and_robbers:reassignRole' or 'cops_and_robbers:setRole' is triggered by server for target client
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Reassigned " .. SafeGetPlayerName(targetId) .. " to " .. newRole } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /reassign <playerId> <cop|robber>" } })
+    end
+end, false)
+
+-- Freeze command
+RegisterCommand("freeze", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    
+    if targetId and IsValidPlayer(targetId) then
+        LogAdminCommand(source, rawCommand) -- Log before action
+        TriggerClientEvent('cops_and_robbers:toggleFreeze', targetId)
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Toggled freeze for " .. SafeGetPlayerName(targetId) } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+    end
+end, false)
+
+-- Teleport command
+RegisterCommand("teleport", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    
+    if targetId and IsValidPlayer(targetId) then
+        LogAdminCommand(source, rawCommand) -- Log before action
+        TriggerClientEvent('cops_and_robbers:teleportToPlayer', source, targetId)
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Teleported to " .. SafeGetPlayerName(targetId) } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+    end
+end, false)
+
+-- Scenario Trigger Commands
+RegisterCommand("triggerarmoredcar", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    LogAdminCommand(source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminTriggerArmoredCar')
+    TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Armored car event triggered." } })
+end, false)
+
+RegisterCommand("triggerbankheist", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local bankId = tonumber(args[1])
+    if not bankId then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerbankheist <bankId>" } })
+        return
+    end
+    
+    LogAdminCommand(source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminTriggerBankHeist', bankId)
+    TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Bank heist event triggered for bank ID: " .. bankId } })
+end, false)
+
+RegisterCommand("triggerstorerobbery", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local storeId = tonumber(args[1])
+    if not storeId then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerstorerobbery <storeId>" } })
+        return
+    end
+    
+    LogAdminCommand(source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminTriggerStoreRobbery', storeId)
+    TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Store robbery event triggered for store ID: " .. storeId } })
+end, false)
+
+RegisterCommand("triggerpoweroutage", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local gridId = tonumber(args[1])
+    if not gridId then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /triggerpoweroutage <gridId>" } })
+        return
+    end
+    
+    LogAdminCommand(source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminTriggerPowerOutage', gridId)
+    TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Power outage event triggered for grid ID: " .. gridId } })
+end, false)
+
+-- Set level command
+RegisterCommand("setlevel", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetId = tonumber(args[1])
+    local newLevel = tonumber(args[2])
+
+    if not targetId or not newLevel then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Usage: /setlevel <playerId> <level>" } })
+        return
+    end
+
+    if not IsValidPlayer(targetId) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID." } })
+        return
+    end
+    
+    if newLevel < 1 or newLevel > 100 then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Level must be between 1 and 100." } })
+        return
+    end
+    
+    TriggerEvent('cops_and_robbers:logAdminCommand', SafeGetPlayerName(source), source, rawCommand)
+    TriggerEvent('cops_and_robbers:adminSetLevel', targetId, newLevel)
+
+    TriggerClientEvent('chat:addMessage', source, {
+        args = { "^1Admin", string.format("Set level for %s to %d", SafeGetPlayerName(targetId), newLevel) }
+    })
+    TriggerClientEvent('chat:addMessage', targetId, {
+        args = { "^1Admin", string.format("Admin set your level to %d", newLevel) }
+    })
+end, false)
+
+-- Jail command
+RegisterCommand("jail", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local durationStr = args[2]
+    local reason = table.concat(args, " ", 3)
+
+    local targetId = tonumber(targetIdStr)
+    local durationSeconds = tonumber(durationStr)
+
+    if not targetId or not IsValidPlayer(targetId) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid or offline player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    if not durationSeconds or durationSeconds <= 0 then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid duration. Must be a positive number of seconds." } })
+        return
+    end
+
+    reason = (reason and reason ~= "") and reason or "Jailed by Admin"
+
+    -- Log admin command
+    LogAdminCommand(source, rawCommand)
+
+    -- Call the global SendToJail function from server.lua
+    -- SendToJail = function(playerId, durationSeconds, arrestingOfficerId, arrestOptions)
+    local adminName = SafeGetPlayerName(source)
+    SendToJail(targetId, durationSeconds, adminName .. " (Admin)", {isAdminAction = true})
+
+    TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", string.format("Player %s (ID: %d) has been jailed by %s for %d seconds. Reason: %s", SafeGetPlayerName(targetId), targetId, adminName, durationSeconds, reason) } })
+end, false)
+
+-- Unjail command
+RegisterCommand("unjail", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local reason = table.concat(args, " ", 2)
+    local targetId = tonumber(targetIdStr)
+
+    if not targetId then -- No need to check IsValidPlayer here, can unjail offline players by clearing their persisted data
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    local targetName = SafeGetPlayerName(targetId) -- Get name if online, otherwise will be "Unknown Player" or based on GetCnrPlayerData if enhanced
+    local pData = GetCnrPlayerData(targetId)
+    if not pData or not pData.jailData then
+        if not jail[targetId] then -- Check live jail table too
+             TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", string.format("Player %s (ID: %d) is not currently jailed.", targetName, targetId) } })
+             return
+        end
+    end
+
+    reason = (reason and reason ~= "") and reason or "Unjailed by Admin"
+
+    LogAdminCommand(source, rawCommand)
+
+    -- Call the global ForceReleasePlayerFromJail function from server.lua
+    local success = ForceReleasePlayerFromJail(targetId, SafeGetPlayerName(source) .. " (Admin - Reason: " .. reason .. ")")
+
+    if success then
+        TriggerClientEvent('chat:addMessage', -1, { args = { "^1Admin", string.format("Player %s (ID: %d) has been unjailed by %s. Reason: %s", targetName, targetId, SafeGetPlayerName(source), reason) } })
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", string.format("Failed to unjail player %s (ID: %d). Check server console.", targetName, targetId) } })
+    end
+end, false)
+
+-- Checkjail command
+RegisterCommand("checkjail", function(source, args, rawCommand)
+    if not IsPlayerAdmin(source) then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1System", "You do not have permission to use this command." } })
+        return
+    end
+
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+
+    if not targetId then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid player ID: " .. (targetIdStr or "nil") } })
+        return
+    end
+
+    local targetName = SafeGetPlayerName(targetId) -- Works if player is online
+
+    -- Check live jail table first (for online players)
+    if jail[targetId] and jail[targetId].remainingTime then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Online) has %d seconds remaining.", targetName, targetId, jail[targetId].remainingTime) } })
+        return
+    end
+
+    -- If not in live jail, check persisted data (for offline players or if not in live table for some reason)
+    local pData = GetCnrPlayerData(targetId)
+    if pData and pData.jailData and pData.jailData.originalDuration and pData.jailData.jailedTimestamp then
+        local totalTimeElapsedSinceJailing = os.time() - pData.jailData.jailedTimestamp
+        local calculatedRemainingTime = math.max(0, pData.jailData.originalDuration - totalTimeElapsedSinceJailing)
+
+        if calculatedRemainingTime > 0 then
+            TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Offline/Persisted) has approximately %d seconds remaining.", targetName, targetId, calculatedRemainingTime) } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d, Offline/Persisted) should be released (jail time expired).", targetName, targetId) } })
+        end
+        return
+    end
+
+    TriggerClientEvent('chat:addMessage', source, { args = { "^3Jail Info", string.format("Player %s (ID: %d) is not found in jail records.", targetName, targetId) } })
+end, false)
 

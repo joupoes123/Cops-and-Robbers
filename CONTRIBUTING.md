@@ -6,7 +6,7 @@ Thank you for your interest in contributing to the Cops & Robbers – FiveM Game
 
 ## Code of Conduct
 
-We expect all contributors to follow our [Code of Conduct](CODE_OF_CONDUCT.md). Please be respectful, collaborative, and constructive in all interactions.
+We expect all contributors to follow our [Code of Conduct](docs/CODE_OF_CONDUCT.md). Please be respectful, collaborative, and constructive in all interactions.
 
 ---
 
@@ -17,7 +17,7 @@ There are several ways to contribute, including reporting issues, submitting fea
 ### Reporting Issues
 
 - **Bug Reports & Feature Requests:**  
-  Please use the GitHub [Issues](https://github.com/Indom-hub/Cops-and-Robbers/issues) section to report bugs or suggest enhancements.  
+  Please use the GitHub [Issues](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/-/issues) section to report bugs or suggest enhancements.  
   - Provide clear steps to reproduce bugs.
   - Include expected vs. actual behavior.
   - Add screenshots or logs if applicable.
@@ -66,7 +66,7 @@ There are several ways to contribute, including reporting issues, submitting fea
   Some tasks may have deadlines (e.g., GitHub issues with a resolution date). Please only commit to deadlines you are confident you can meet. We understand that life happens—communication is key if adjustments are needed.
 
 - **Communication:**  
-  - Join our [Discord Server](YOUR_DISCORD_INVITE_LINK) for real-time discussions and support.
+  - Join our [Discord Server](https://discord.gg/p72NyP3kUC) for real-time discussions and support.
   - Follow the repository on GitHub for updates on issues and PRs.
 
 ---

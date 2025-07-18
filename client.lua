@@ -34,6 +34,13 @@ RegisterNetEvent('cnr:sendNUIMessage') -- Register new event for NUI messages
 RegisterNetEvent('cnr:sendToJail')
 RegisterNetEvent('cnr:releaseFromJail')
 RegisterNetEvent('cnr:wantedLevelSync') -- Register wanted level sync event
+RegisterNetEvent('cnr:applyCharacterData')
+RegisterNetEvent('cnr:loadedPlayerCharacters')
+RegisterNetEvent('cnr:characterSaveResult')
+RegisterNetEvent('cnr:characterDeleteResult')
+RegisterNetEvent('cnr:receiveCharacterForRole')
+RegisterNetEvent('cnr:performUITest')
+RegisterNetEvent('cnr:getUITestResults')
 
 -- =====================================
 --           VARIABLES
@@ -90,6 +97,17 @@ local activeDropBlips = {}
 local clientActiveContrabandDrops = {}
 
 -- Blip tracking
+-- Performance monitoring for optimized loops
+if PerformanceOptimizer then
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        local metrics = PerformanceOptimizer.GetMetrics()
+        if metrics and metrics.memoryUsage and metrics.memoryUsage > Constants.PERFORMANCE.MEMORY_WARNING_THRESHOLD_MB * 1024 then
+            Log("[CNR_CLIENT] High memory usage detected: " .. math.floor(metrics.memoryUsage/1024) .. "MB", "warn", "CNR_CLIENT")
+        end
+    end, Constants.TIME_MS.MINUTE / 2, Constants.TIME_MS.MINUTE, 4)
+end
+
+
 local copStoreBlips = {}
 local robberStoreBlips = {}
 
@@ -98,6 +116,10 @@ local g_protectedPolicePeds = {}
 
 -- Track spawned NPCs to prevent duplicates
 local g_spawnedNPCs = {}
+
+-- Track spawned vehicles to prevent duplicates
+local g_spawnedVehicles = {}
+local g_robberVehiclesSpawned = false
 
 -- =====================================
 --     INVENTORY SYSTEM (CONSOLIDATED)
@@ -297,13 +319,6 @@ function EquipInventoryWeapons()
     Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info", "CNR_INV_CLIENT")
 end
 
--- Helper function for table length
-local function tablelength(T)
-    if type(T) ~= "table" then return 0 end
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
-end
 
 -- Function to get local inventory
 function GetLocalInventory()
@@ -328,13 +343,11 @@ local isInCharacterEditor = false
 local currentCharacterData = {}
 local originalPlayerData = {}
 local editorCamera = nil
-local currentCameraMode = "face"
 local currentRole = nil
 local currentCharacterSlot = 1
 local playerCharacters = {}
 local previewingUniform = false
 local currentUniformPreset = nil
-local renderThread = false
 
 -- Character editor UI state
 local editorUI = {
@@ -659,7 +672,7 @@ local currentNextLvlXP = 100
 local function LogProgressionClient(message, level)
     level = level or "info"
     if Config and Config.DebugLogging then
-        print(string.format("[CNR_PROGRESSION_CLIENT] [%s] %s", string.upper(level), message))
+        Log(message, level, "CNR_PROGRESSION_CLIENT")
     end
 end
 
@@ -771,8 +784,6 @@ function PlayLevelUpEffects(newLevel)
         ClearTimecycleModifier()
     end)
 end
-local g_spawnedVehicles = {}
-local g_robberVehiclesSpawned = false
 
 -- Safe Zone Client State
 local isCurrentlyInSafeZone = false
@@ -795,10 +806,10 @@ local isRobberStoreUiOpen = false
 local isJailed = false
 local jailTimeRemaining = 0
 local jailTimerDisplayActive = false
-local jailReleaseLocation = nil -- To be set by config or default spawn
-local JailMainPoint = vector3(1651.0, 2570.0, 45.5) -- Default, will be updated by server
-local JailRadius = 50.0 -- Max distance from JailMainPoint before teleported back
-local originalPlayerModelHash = nil -- Variable to store the player's model before jailing
+local jailReleaseLocation = nil
+local JailMainPoint = Config.PrisonLocation or vector3(1651.0, 2570.0, 45.5)
+local JailRadius = Constants.DISTANCES.SAFE_ZONE_DEFAULT_RADIUS or 50.0
+local originalPlayerModelHash = nil
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -821,7 +832,7 @@ end
 -- Helper function to show notifications
 local function ShowNotification(text)
     if not text or text == "" then
-        print("ShowNotification: Received nil or empty text.")
+        Log("ShowNotification: Received nil or empty text.", "warn", "CNR_CLIENT")
         return
     end
     SetNotificationTextEntry("STRING")
@@ -832,7 +843,7 @@ end
 -- Helper function to display help text
 local function DisplayHelpText(text)
     if not text or text == "" then
-        print("DisplayHelpText: Received nil or empty text.")
+        Log("DisplayHelpText: Received nil or empty text.", "warn", "CNR_CLIENT")
         return
     end
     BeginTextCommandDisplayHelp("STRING")
@@ -847,7 +858,7 @@ end
 -- Helper function to spawn player at role-specific location
 local function spawnPlayer(playerRole)
     if not playerRole then
-        print("Error: spawnPlayer called with nil role.")
+        Log("Error: spawnPlayer called with nil role.", "error", "CNR_CLIENT")
         ShowNotification("~r~Error: Could not determine spawn point. Role not set.")
         return
     end
@@ -858,10 +869,10 @@ local function spawnPlayer(playerRole)
             SetEntityCoords(playerPed, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
             ShowNotification("Spawned as " .. playerRole)
         else
-            print("[CNR_CLIENT_WARN] spawnPlayer: playerPed invalid, cannot set coords.")
+            Log("spawnPlayer: playerPed invalid, cannot set coords.", "warn", "CNR_CLIENT")
         end
     else
-        print("Error: Invalid or missing spawn point for role: " .. tostring(playerRole))
+        Log("Error: Invalid or missing spawn point for role: " .. tostring(playerRole), "error", "CNR_CLIENT")
         ShowNotification("~r~Error: Spawn point not found for your role.")
     end
 end
@@ -870,7 +881,7 @@ end
 local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     local playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
-        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
+        Log("ApplyRoleVisualsAndLoadout: Invalid playerPed.", "error", "CNR_CLIENT")
         return
     end
     
@@ -922,13 +933,13 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
                 if exports['cops-and-robbers'] and exports['cops-and-robbers'].ApplyCharacterData then
                     local success = exports['cops-and-robbers']:ApplyCharacterData(characterData, playerPed)
                     if success then
-                        print("[CNR_CHARACTER_EDITOR] Applied saved character data")
+                        Log("Applied saved character data", "info", "CNR_CHARACTER_EDITOR")
                     else
-                        print("[CNR_CHARACTER_EDITOR] Failed to apply saved character data, using defaults")
+                        Log("Failed to apply saved character data, using defaults", "warn", "CNR_CHARACTER_EDITOR")
                         SetPedDefaultComponentVariation(playerPed)
                     end
                 else
-                    print("[CNR_CHARACTER_EDITOR] Character editor not available, using defaults")
+                    Log("Character editor not available, using defaults", "warn", "CNR_CHARACTER_EDITOR")
                     SetPedDefaultComponentVariation(playerPed)
                 end
             else
@@ -953,16 +964,16 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
             
             SetModelAsNoLongerNeeded(modelHash)
         else
-            print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
+            Log(string.format("ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad), "error", "CNR_CLIENT")
         end
     else
-        print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
+        Log(string.format("ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad), "error", "CNR_CLIENT")
     end
     
     Citizen.Wait(500)
     playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
-        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
+        Log("ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.", "error", "CNR_CLIENT")
         return
     end
     
@@ -1305,10 +1316,9 @@ end)
 -- F2 - Robber Menu / Admin Panel
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         if IsControlJustPressed(0, Config.Keybinds.toggleAdminPanel or 289) then -- F2
-            -- Check if player is admin first, otherwise show robber menu
             TriggerServerEvent('cnr:checkAdminStatus')
         end
     end
@@ -1317,7 +1327,7 @@ end)
 -- F5 - Role Selection Menu
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         if IsControlJustPressed(0, 166) then -- F5 key
             TriggerEvent('cnr:showRoleSelection')
@@ -2394,16 +2404,23 @@ AddEventHandler('cnr:sendNUIMessage', function(message)
 end)
 
 -- Thread to check for nearby stores
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(0) -- Run every frame for responsive key detection
-        
-        -- Only check for nearby stores if player ped exists and is ready
+if PerformanceOptimizer then
+    PerformanceOptimizer.CreateOptimizedLoop(function()
         if g_isPlayerPedReady then
             CheckNearbyStores()
         end
-    end
-end)
+    end, 200, 500, 2)
+else
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(200)
+            
+            if g_isPlayerPedReady then
+                CheckNearbyStores()
+            end
+        end
+    end)
+end
 
 -- OLD CLIENT-SIDE CRIME DETECTION DISABLED
 -- This has been replaced by server-side crime detection systems
@@ -2544,9 +2561,8 @@ end)
 -- Add detection for weapon discharge
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(50)
         
-        -- Only check if player is ready and is a robber
         if g_isPlayerPedReady and role == "robber" then
             local playerPed = PlayerPedId()
             
@@ -2793,43 +2809,26 @@ local function StartJailUpdateThread(duration)
                 time = jailTimeRemaining
             })
 
-            -- Enforce Jail Restrictions (Step 3 of plan)
-            -- Example: Disable combat controls
-            DisableControlAction(0, 24, true)  -- INPUT_ATTACK
-            DisableControlAction(0, 25, true)  -- INPUT_AIM
-            DisableControlAction(0, 140, true) -- INPUT_MELEE_ATTACK_LIGHT
-            DisableControlAction(0, 141, true) -- INPUT_MELEE_ATTACK_HEAVY
-            DisableControlAction(0, 142, true) -- INPUT_MELEE_ATTACK_ALTERNATE
-            DisableControlAction(0, 257, true) -- INPUT_ATTACK2
-            DisableControlAction(0, 263, true) -- INPUT_MELEE_ATTACK1
-            DisableControlAction(0, 264, true) -- INPUT_MELEE_ATTACK2
-
-
-            -- Prevent equipping weapons (more robustly handled by clearing them on jail entry)
-            -- Forcing unarmed:
-             if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
-                 SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
-             end
-
-            -- TODO: Add more restrictions like preventing inventory access, vehicle entry, etc.
-            DisableControlAction(0, 23, true)    -- INPUT_ENTER_VEHICLE
-            DisableControlAction(0, 51, true)    -- INPUT_CONTEXT (E) - Be careful if E is used for other things
-            DisableControlAction(0, 22, true)    -- INPUT_JUMP
-            if Config.Keybinds and Config.Keybinds.openInventory then
-                DisableControlAction(0, Config.Keybinds.openInventory, true) -- Disable inventory key
-            else
-                DisableControlAction(0, 244, true) -- Fallback M key for inventory (INPUT_INTERACTION_MENU)
+            -- Enforce Jail Restrictions (Optimized to avoid redundant calls)
+            local controlsToDisable = {
+                24, 25, 140, 141, 142, 257, 263, 264,
+                23, 51, 22,
+                246, 12, 13, 14, 15, 44, 45
+            }
+            
+            for _, control in ipairs(controlsToDisable) do
+                DisableControlAction(0, control, true)
+            end
+            
+            if GetSelectedPedWeapon(playerPed) ~= GetHashKey("WEAPON_UNARMED") then
+                SetCurrentPedWeapon(playerPed, GetHashKey("WEAPON_UNARMED"), true)
             end
 
-            -- Additional restrictions for phone, weapon selection, cover, reload
-            DisableControlAction(0, 246, true)   -- INPUT_PHONE (Up Arrow/Cellphone)
-            DisableControlAction(0, 12, true)    -- INPUT_WEAPON_WHEEL_NEXT
-            DisableControlAction(0, 13, true)    -- INPUT_WEAPON_WHEEL_PREV
-            DisableControlAction(0, 14, true)    -- INPUT_SELECT_PREV_WEAPON
-            DisableControlAction(0, 15, true)    -- INPUT_SELECT_NEXT_WEAPON
-            DisableControlAction(0, 44, true)    -- INPUT_COVER (Q)
-            DisableControlAction(0, 45, true)    -- INPUT_RELOAD (R)
-            -- Add more specific keybinds to disable if needed (e.g., phone, specific menus)
+            if Config.Keybinds and Config.Keybinds.openInventory then
+                DisableControlAction(0, Config.Keybinds.openInventory, true)
+            else
+                DisableControlAction(0, 244, true)
+            end
 
             -- Confinement to jail area
             local currentPos = GetEntityCoords(playerPed)
@@ -3045,7 +3044,7 @@ end)
 -- Interaction with contraband dealers
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         local playerPed = PlayerPedId()
         local playerCoords = GetEntityCoords(playerPed)
@@ -3347,7 +3346,7 @@ end
 -- Main banking interaction thread
 Citizen.CreateThread(function()
     while true do
-        Citizen.Wait(0)
+        Citizen.Wait(100)
         
         local playerPed = PlayerPedId()
         local playerCoords = GetEntityCoords(playerPed)
@@ -3647,6 +3646,60 @@ end)
 AddEventHandler('cnr:applyCharacterData', function(characterData)
     local ped = PlayerPedId()
     ApplyCharacterData(characterData, ped)
+end)
+
+-- Character editor result handlers
+AddEventHandler('cnr:characterSaveResult', function(success, message)
+    if success then
+        TriggerEvent('chat:addMessage', { args = {"^2[Character Editor]", message or "Character saved successfully!"} })
+    else
+        TriggerEvent('chat:addMessage', { args = {"^1[Character Editor]", message or "Failed to save character."} })
+    end
+end)
+
+AddEventHandler('cnr:characterDeleteResult', function(success, message)
+    if success then
+        TriggerEvent('chat:addMessage', { args = {"^2[Character Editor]", message or "Character deleted successfully!"} })
+    else
+        TriggerEvent('chat:addMessage', { args = {"^1[Character Editor]", message or "Failed to delete character."} })
+    end
+end)
+
+AddEventHandler('cnr:receiveCharacterForRole', function(characterData)
+    -- Handle character data received for role selection
+    if characterData then
+        local ped = PlayerPedId()
+        ApplyCharacterData(characterData, ped)
+    end
+end)
+
+-- Performance test event handlers
+AddEventHandler('cnr:performUITest', function()
+    -- Perform UI performance test
+    local startTime = GetGameTimer()
+    
+    -- Simulate UI operations
+    for i = 1, 100 do
+        SendNUIMessage({
+            action = 'testPerformance',
+            iteration = i
+        })
+        Wait(1)
+    end
+    
+    local endTime = GetGameTimer()
+    local duration = endTime - startTime
+    
+    TriggerServerEvent('cnr:uiTestResult', duration)
+end)
+
+AddEventHandler('cnr:getUITestResults', function()
+    -- Send UI test results back to server
+    TriggerServerEvent('cnr:sendUITestResults', {
+        fps = GetFrameCount(),
+        memory = collectgarbage("count"),
+        timestamp = GetGameTimer()
+    })
 end)
 
 -- Inventory UI event handlers

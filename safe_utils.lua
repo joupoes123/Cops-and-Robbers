@@ -74,3 +74,32 @@ function IsPlayerAdmin(playerId)
     end
     return false
 end
+
+-- ====================================================================
+-- ====================================================================
+
+function shallowcopy(original)
+    local copy = {}
+    for k, v in pairs(original) do
+        copy[k] = v
+    end
+    return copy
+end
+
+function tablelength(T)
+    if not T or type(T) ~= "table" then return 0 end
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
+end
+
+function MinimizeInventoryForSync(richInventory)
+    if not richInventory then return {} end
+    local minimalInv = {}
+    for itemId, itemData in pairs(richInventory) do
+        if itemData and itemData.count then
+            minimalInv[itemId] = { count = itemData.count }
+        end
+    end
+    return minimalInv
+end

@@ -18,22 +18,15 @@ server_scripts {
     -- Core utilities and constants (loaded first)
     
     -- New refactored systems (loaded in dependency order)
-    'validation.lua',    -- Server-side validation system.
-    'security_enhancements.lua', -- Enhanced security validation and monitoring.
-    'memory_manager.lua', -- Comprehensive memory management and cleanup system.
+    'security_enhancements.lua', -- Enhanced security validation and monitoring (includes validation functions).
     'data_manager.lua',  -- Improved data persistence system with batching.
-    'secure_inventory.lua', -- Secure inventory system with anti-duplication.
-    'secure_transactions.lua', -- Secure transaction system for purchases/sales.
-    'player_manager.lua', -- Refactored player data management system.
-    'performance_optimizer.lua', -- Performance optimization and monitoring.
-    'performance_test.lua', -- Performance testing and benchmarking utilities.
-    'security_test.lua', -- Security validation testing utilities.
-    'integration_manager.lua', -- Integration and compatibility manager.
+    'secure_systems.lua', -- Secure inventory and transaction systems with anti-duplication.
+    'performance_manager.lua', -- Performance optimization and memory management.
+    'system_test.lua', -- Performance and security testing utilities.
+    'player_manager.lua', -- Refactored player data management system (includes integration management).
     
     -- Consolidated server system (includes inventory, progression, and core logic)
-    'server.lua',       -- Core server logic with consolidated systems.
-    'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'character_editor_server.lua', -- Character editor server-side logic.
+    'server.lua',       -- Core server logic with consolidated systems (includes admin commands).
 }
 
 -- Define client-side scripts.

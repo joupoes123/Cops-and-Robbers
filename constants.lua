@@ -54,7 +54,8 @@ Constants.DISTANCES = {
     STORE_INTERACTION_RANGE = 5.0,
     COP_SIGHT_DISTANCE = 50.0,
     HEIST_RADIUS = 1000.0,
-    SAFE_ZONE_DEFAULT_RADIUS = 25.0,
+    SAFE_ZONE_DEFAULT_RADIUS = 50.0,
+    SAFE_ZONE_RADIUS = 50.0,
     EMP_RADIUS = 15.0,
     SPIKE_STRIP_EFFECT_RADIUS = 10.0
 }
@@ -77,7 +78,7 @@ Constants.VALIDATION = {
     MIN_ITEM_QUANTITY = 1,
     MAX_MONEY_TRANSACTION = 1000000,
     MIN_MONEY_TRANSACTION = 1,
-    MAX_STRING_LENGTH = 255,
+    MAX_STRING_LENGTH = 50,
     MAX_REASON_LENGTH = 500,
     
     -- Rate limiting
@@ -265,7 +266,7 @@ Constants.PED_HASHES = {
 }
 
 -- Database/Storage constants (for future database implementation)
-Constants.DATABASE = {
+Constants.DATABASE_CONFIG = {
     BATCH_SIZE = 100,
     CONNECTION_TIMEOUT = 30000,
     QUERY_TIMEOUT = 10000,
@@ -276,8 +277,11 @@ Constants.DATABASE = {
 -- Performance monitoring constants
 Constants.PERFORMANCE = {
     MAX_EXECUTION_TIME_MS = 50,    -- Maximum time for a single operation
-    MEMORY_WARNING_THRESHOLD_MB = 100,
+    MAX_LOOP_TIME_MS = 16,
+    MEMORY_WARNING_THRESHOLD_MB = 50,
+    MEMORY_WARNING_THRESHOLD_KB = 50000,
     CPU_WARNING_THRESHOLD_PERCENT = 80,
+    OPTIMIZATION_CHECK_INTERVAL_MS = 30000,
     MAX_CONCURRENT_OPERATIONS = 10,
     
     -- Memory management

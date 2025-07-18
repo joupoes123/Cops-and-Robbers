@@ -1,7 +1,8 @@
 # Ignore development and documentation folders
 .github/
-.vscode/
+.vscode/*
 .zencoder/*
+.buildkite/*
 # Exception: track docs folder
 
 # Common files to ignore
