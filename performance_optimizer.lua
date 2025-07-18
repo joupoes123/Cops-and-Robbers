@@ -10,13 +10,6 @@ end
 -- Initialize PerformanceOptimizer module
 PerformanceOptimizer = PerformanceOptimizer or {}
 
--- Utility function to get table length (for tables with non-numeric keys)
-local function tablelength(T)
-    if not T or type(T) ~= "table" then return 0 end
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
-end
 
 -- Performance monitoring data
 local performanceMetrics = {

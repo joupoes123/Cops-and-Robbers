@@ -33,7 +33,6 @@ server_scripts {
     -- Consolidated server system (includes inventory, progression, and core logic)
     'server.lua',       -- Core server logic with consolidated systems.
     'admin.lua',         -- Admin commands and server-side admin functionalities.
-    'character_editor_server.lua', -- Character editor server-side logic.
 }
 
 -- Define client-side scripts.
