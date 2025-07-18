@@ -1,26 +1,21 @@
 steps:
   - label: ":lua: Lint Code"
-    # This is a good practice step to check for code quality.
-    # It requires you to have a linter like luacheck installed on your agent.
-    # You can skip this step if you don't need it.
     command: "luacheck ."
-    soft_fail: true # Allows the pipeline to continue even if linting fails
+    plugins:
+      # This tells Buildkite to run the command inside a Docker container
+      - docker#v5.9.0:
+          # Use a public Docker image that has luacheck pre-installed
+          image: "lua-check/lua-check:latest"
+    soft_fail: true
 
   - label: ":package: Package Resource Artifacts"
-    # This command bundles all of your resource files into a Buildkite "artifact".
-    # Artifacts are stored by Buildkite and can be downloaded in later steps.
     command: "buildkite-agent artifact upload '**/*'"
 
   - wait
-    # The 'wait' step pauses the pipeline until the previous steps are complete.
 
   - block: "Deploy to Server?"
-    # This creates a manual approval step in the Buildkite UI.
-    # It will only appear for builds on your 'main' branch.
     if: build.branch == "main"
 
   - label: ":rocket: Deploy"
-    # This step runs only after being unblocked and only on the main branch.
     if: build.branch == "main"
-    # This runs a deployment script that you create.
     command: "./scripts/deploy.sh"
