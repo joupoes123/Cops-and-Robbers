@@ -17,3 +17,4 @@ Dockerfile
 .DS_Store
 Thumbs.db
 /player_data
+.env.example
