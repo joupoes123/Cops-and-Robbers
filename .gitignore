@@ -3,6 +3,11 @@
 .vscode/*
 .zencoder/*
 .buildkite/*
+.luacheckrc
+.env.example
+.dockerignore
+docker-compose.yml
+Dockerfile
 # Exception: track docs folder
 
 # Common files to ignore
