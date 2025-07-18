@@ -3,8 +3,8 @@ steps:
     command: "luacheck ."
     plugins:
       - docker#v5.9.0:
-          # Use the name of your locally built image
-          image: "my-luacheck:latest"
+          # Use the correct, valid image name
+          image: "mpeterv/luacheck:latest"
     soft_fail: true
 
 - label: ":package: Package Resource Artifacts"
