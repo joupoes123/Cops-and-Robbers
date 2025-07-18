@@ -1,14 +1,9 @@
 steps:
-  - label: ":pipeline: Upload pipeline"
-    command: buildkite-agent pipeline upload
-    key: upload
-
   - label: ":hammer: Build Resources"
     command: ./scripts/build_resources.sh
     key: build
     artifact_paths:
       - build/**/*
-    depends_on: upload
 
   - label: ":test_tube: Run Tests"
     command: ./scripts/run_tests.sh
