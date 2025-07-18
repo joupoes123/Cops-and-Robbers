@@ -2,10 +2,9 @@ steps:
   - label: ":lua: Lint Code"
     command: "luacheck ."
     plugins:
-      # This tells Buildkite to run the command inside a Docker container
       - docker#v5.9.0:
-          # Use a valid, public image from Docker Hub
-          image: "peterdavehello/luacheck:latest"
+          # Use the correct, valid image name
+          image: "mpeterv/luacheck:latest"
     soft_fail: true
 
   - label: ":package: Package Resource Artifacts"
