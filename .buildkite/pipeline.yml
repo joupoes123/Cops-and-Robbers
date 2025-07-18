@@ -7,14 +7,7 @@ steps:
           image: "my-luacheck:latest"
     soft_fail: true
 
-  - label: ":package: Package Resource Artifacts"
+- label: ":package: Package Resource Artifacts"
     command: "buildkite-agent artifact upload '**/*'"
 
-  - wait
-
-  - block: "Deploy to Server?"
-    if: build.branch == "main"
-
-  - label: ":rocket: Deploy"
-    if: build.branch == "main"
-    command: "./scripts/deploy.sh"
+# The pipeline will now finish after this step.
