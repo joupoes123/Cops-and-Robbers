@@ -63,6 +63,70 @@ For detailed information, guides, and advanced features, visit our **[Wiki Docum
 | **Players** | 1-32 | 32-128 |
 | **Dependencies** | None | None |
 
+## 🐳 Docker Deployment
+
+### Prerequisites
+- Docker and Docker Compose installed
+- FiveM license key from [keymaster.fivem.net](https://keymaster.fivem.net/)
+
+### Quick Start with Docker
+
+1. Clone the repository:
+```bash
+git clone https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers.git
+cd cops-and-robbers
+```
+
+2. Copy the environment file and configure your license key:
+```bash
+cp .env.example .env
+# Edit .env and add your LICENSE_KEY
+```
+
+3. Start the server:
+```bash
+docker-compose up -d
+```
+
+4. Access txAdmin web interface at `http://localhost:40120` (if enabled)
+
+### Docker Build Only
+
+If you prefer to use docker run instead of docker-compose:
+
+```bash
+# Build the image
+docker build -t cops-and-robbers .
+
+# Run the container
+docker run -d \
+  --name cops-and-robbers-server \
+  --restart=unless-stopped \
+  -e LICENSE_KEY=your_license_key_here \
+  -p 30120:30120/tcp \
+  -p 30120:30120/udp \
+  -p 40120:40120/tcp \
+  -v cops_config:/config \
+  -v cops_txdata:/txData \
+  -v cops_playerdata:/opt/cfx-server/resources/cops-and-robbers/player_data \
+  -it \
+  cops-and-robbers
+```
+
+### Data Persistence
+
+The Docker setup includes persistent volumes for:
+- `/config` - FiveM server configuration
+- `/txData` - txAdmin data and settings
+- `/opt/cfx-server/resources/cops-and-robbers/player_data` - Player save files
+
+### Environment Variables
+
+- `LICENSE_KEY` (required) - Your FiveM license key
+- `RCON_PASSWORD` (optional) - RCON password for server administration
+
+
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
