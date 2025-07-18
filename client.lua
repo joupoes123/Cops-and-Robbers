@@ -319,13 +319,6 @@ function EquipInventoryWeapons()
     Log(string.format("EquipInventoryWeapons: Finished. Processed %d items. Successfully equipped %d weapons. Armor applied: %s", processedItemCount, weaponsEquipped, armorApplied and "Yes" or "No"), "info", "CNR_INV_CLIENT")
 end
 
--- Helper function for table length
-local function tablelength(T)
-    if type(T) ~= "table" then return 0 end
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
-end
 
 -- Function to get local inventory
 function GetLocalInventory()
