@@ -35,29 +35,6 @@ local inventoryStats = {
 -- UTILITY FUNCTIONS
 -- ====================================================================
 
---- Helper function to count table entries
---- @param T table Table to count
---- @return number Count of entries
-local function tablelength(T)
-    if not T or type(T) ~= "table" then return 0 end
-    local count = 0
-    for _ in pairs(T) do count = count + 1 end
-    return count
-end
-
---- Minimize inventory data for client synchronization
---- @param richInventory table Full inventory data
---- @return table Minimized inventory data
-local function MinimizeInventoryForSync(richInventory)
-    if not richInventory then return {} end
-    local minimalInv = {}
-    for itemId, itemData in pairs(richInventory) do
-        if itemData and itemData.count then
-            minimalInv[itemId] = { count = itemData.count }
-        end
-    end
-    return minimalInv
-end
 
 --- Generate unique transaction ID
 --- @return string Unique transaction ID
