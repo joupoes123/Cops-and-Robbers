@@ -25,7 +25,7 @@ local isTestingActive = false
 
 --- Test memory cleanup on player disconnect simulation
 function PerformanceTest.TestMemoryCleanup()
-    print("[PERFORMANCE_TEST] Starting memory cleanup test...")
+    Log("[PERFORMANCE_TEST] Starting memory cleanup test...", Constants.LOG_LEVELS.INFO)
     
     local initialMemory = collectgarbage("count")
     local testPlayerId = 99999 -- Fake player ID for testing
@@ -78,10 +78,10 @@ function PerformanceTest.TestMemoryCleanup()
     
     testResults.memoryCleanup = results
     
-    print(string.format("[PERFORMANCE_TEST] Memory cleanup test completed:"))
-    print(string.format("  Memory created: %.1fKB", results.memoryCreated))
-    print(string.format("  Memory freed: %.1fKB", results.memoryFreed))
-    print(string.format("  Cleanup efficiency: %.1f%%", results.cleanupEfficiency))
+    Log(string.format("[PERFORMANCE_TEST] Memory cleanup test completed:"), Constants.LOG_LEVELS.INFO)
+    Log(string.format("  Memory created: %.1fKB", results.memoryCreated), Constants.LOG_LEVELS.INFO)
+    Log(string.format("  Memory freed: %.1fKB", results.memoryFreed), Constants.LOG_LEVELS.INFO)
+    Log(string.format("  Cleanup efficiency: %.1f%%", results.cleanupEfficiency), Constants.LOG_LEVELS.INFO)
     
     return results
 end
@@ -92,10 +92,10 @@ end
 
 --- Test data persistence performance with batching
 function PerformanceTest.TestDataPersistence()
-    print("[PERFORMANCE_TEST] Starting data persistence test...")
+    Log("[PERFORMANCE_TEST] Starting data persistence test...", Constants.LOG_LEVELS.INFO)
     
     if not DataManager then
-        print("[PERFORMANCE_TEST] DataManager not available, skipping test")
+        Log("[PERFORMANCE_TEST] DataManager not available, skipping test", Constants.LOG_LEVELS.WARN)
         return nil
     end
     
@@ -152,8 +152,8 @@ function PerformanceTest.TestDataPersistence()
             savesPerSecond = (saveCount / totalTime) * 1000
         }
         
-        print(string.format("[PERFORMANCE_TEST] Batch size %d: %d saves in %dms (%.1f saves/sec)",
-            batchSize, saveCount, totalTime, results[batchSize].savesPerSecond))
+        Log(string.format("[PERFORMANCE_TEST] Batch size %d: %d saves in %dms (%.1f saves/sec)",
+            batchSize, saveCount, totalTime, results[batchSize].savesPerSecond), Constants.LOG_LEVELS.INFO)
     end
     
     testResults.dataPersistence = results
@@ -166,7 +166,7 @@ end
 
 --- Test UI performance by simulating DOM operations
 function PerformanceTest.TestUIPerformance()
-    print("[PERFORMANCE_TEST] Starting UI performance test...")
+    Log("[PERFORMANCE_TEST] Starting UI performance test...", Constants.LOG_LEVELS.INFO)
     
     -- This test needs to be run on client side
     TriggerClientEvent('cnr:performUITest', -1)
@@ -184,12 +184,12 @@ end
 --- Run all performance tests
 function PerformanceTest.RunAllTests()
     if isTestingActive then
-        print("[PERFORMANCE_TEST] Tests already running, please wait...")
+        Log("[PERFORMANCE_TEST] Tests already running, please wait...", Constants.LOG_LEVELS.WARN)
         return
     end
     
     isTestingActive = true
-    print("[PERFORMANCE_TEST] Starting comprehensive performance test suite...")
+    Log("[PERFORMANCE_TEST] Starting comprehensive performance test suite...", Constants.LOG_LEVELS.INFO)
     
     local overallStartTime = GetGameTimer()
     
@@ -208,7 +208,7 @@ function PerformanceTest.RunAllTests()
     local overallEndTime = GetGameTimer()
     local totalTestTime = overallEndTime - overallStartTime
     
-    print(string.format("[PERFORMANCE_TEST] All tests completed in %dms", totalTestTime))
+    Log(string.format("[PERFORMANCE_TEST] All tests completed in %dms", totalTestTime), Constants.LOG_LEVELS.INFO)
     
     -- Generate report
     PerformanceTest.GenerateReport()

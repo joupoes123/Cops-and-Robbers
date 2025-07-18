@@ -28,7 +28,7 @@ local testResults = {}
 
 --- Test input validation with various edge cases
 function SecurityTest.TestInputValidation()
-    print("[SECURITY_TEST] Starting input validation tests...")
+    Log("[SECURITY_TEST] Starting input validation tests...", Constants.LOG_LEVELS.INFO)
     
     local results = {
         quantityTests = {},
@@ -61,8 +61,8 @@ function SecurityTest.TestInputValidation()
             error = error
         })
         
-        print(string.format("[SECURITY_TEST] Quantity test: %s - %s", 
-            testCase.description, passed and "PASS" or "FAIL"))
+        Log(string.format("[SECURITY_TEST] Quantity test: %s - %s", 
+            testCase.description, passed and "PASS" or "FAIL"), Constants.LOG_LEVELS.INFO)
     end
     
     -- Test money validation
@@ -89,8 +89,8 @@ function SecurityTest.TestInputValidation()
             error = error
         })
         
-        print(string.format("[SECURITY_TEST] Money test: %s - %s", 
-            testCase.description, passed and "PASS" or "FAIL"))
+        Log(string.format("[SECURITY_TEST] Money test: %s - %s", 
+            testCase.description, passed and "PASS" or "FAIL"), Constants.LOG_LEVELS.INFO)
     end
     
     testResults.inputValidation = results
@@ -99,7 +99,7 @@ end
 
 --- Test rate limiting functionality
 function SecurityTest.TestRateLimiting()
-    print("[SECURITY_TEST] Starting rate limiting tests...")
+    Log("[SECURITY_TEST] Starting rate limiting tests...", Constants.LOG_LEVELS.INFO)
     
     local testPlayerId = 99999 -- Fake player ID for testing
     local results = {
@@ -131,8 +131,8 @@ function SecurityTest.TestRateLimiting()
         passed = (allowedCount == inventoryLimit and blockedCount == 5)
     }
     
-    print(string.format("[SECURITY_TEST] Inventory rate limit: %d allowed, %d blocked - %s",
-        allowedCount, blockedCount, results.inventoryRateLimit.passed and "PASS" or "FAIL"))
+    Log(string.format("[SECURITY_TEST] Inventory rate limit: %d allowed, %d blocked - %s",
+        allowedCount, blockedCount, results.inventoryRateLimit.passed and "PASS" or "FAIL"), Constants.LOG_LEVELS.INFO)
     
     -- Clean up test data
     Validation.CleanupRateLimit(testPlayerId)
@@ -143,10 +143,10 @@ end
 
 --- Test security enhancements if available
 function SecurityTest.TestSecurityEnhancements()
-    print("[SECURITY_TEST] Starting security enhancements tests...")
+    Log("[SECURITY_TEST] Starting security enhancements tests...", Constants.LOG_LEVELS.INFO)
     
     if not SecurityEnhancements then
-        print("[SECURITY_TEST] SecurityEnhancements module not available, skipping tests")
+        Log("[SECURITY_TEST] SecurityEnhancements module not available, skipping tests", Constants.LOG_LEVELS.WARN)
         return nil
     end
     
@@ -181,8 +181,8 @@ function SecurityTest.TestSecurityEnhancements()
             error = error
         })
         
-        print(string.format("[SECURITY_TEST] Secure money transaction (%s %s): %s",
-            testCase.operation, tostring(testCase.amount), passed and "PASS" or "FAIL"))
+        Log(string.format("[SECURITY_TEST] Secure money transaction (%s %s): %s",
+            testCase.operation, tostring(testCase.amount), passed and "PASS" or "FAIL"), Constants.LOG_LEVELS.INFO)
     end
     
     -- Test security statistics
@@ -192,8 +192,8 @@ function SecurityTest.TestSecurityEnhancements()
         stats = stats
     }
     
-    print(string.format("[SECURITY_TEST] Security stats: %d validation failures, %d suspicious activities",
-        stats.validationFailures, stats.suspiciousActivity))
+    Log(string.format("[SECURITY_TEST] Security stats: %d validation failures, %d suspicious activities",
+        stats.validationFailures, stats.suspiciousActivity), Constants.LOG_LEVELS.INFO)
     
     testResults.securityEnhancements = results
     return results
@@ -201,7 +201,7 @@ end
 
 --- Run all security tests
 function SecurityTest.RunAllTests()
-    print("[SECURITY_TEST] Starting comprehensive security test suite...")
+    Log("[SECURITY_TEST] Starting comprehensive security test suite...", Constants.LOG_LEVELS.INFO)
     
     local overallStartTime = GetGameTimer()
     
@@ -220,7 +220,7 @@ function SecurityTest.RunAllTests()
     local overallEndTime = GetGameTimer()
     local totalTestTime = overallEndTime - overallStartTime
     
-    print(string.format("[SECURITY_TEST] All security tests completed in %dms", totalTestTime))
+    Log(string.format("[SECURITY_TEST] All security tests completed in %dms", totalTestTime), Constants.LOG_LEVELS.INFO)
     
     -- Generate report
     SecurityTest.GenerateReport()

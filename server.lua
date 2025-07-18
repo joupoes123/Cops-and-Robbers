@@ -1855,12 +1855,12 @@ end)
 -- Helper function to safely send NUI messages
 function SafeSendNUIMessage(playerId, message)
     if not message or type(message) ~= 'table' then
-        print('[CNR_SERVER_ERROR] Invalid NUI message format:', message)
+        Log('[CNR_SERVER_ERROR] Invalid NUI message format: ' .. tostring(message), "error", "CNR_SERVER")
         return false
     end
     
     if not message.action or type(message.action) ~= 'string' or message.action == '' then
-        print('[CNR_SERVER_ERROR] NUI message missing or invalid action:', json.encode(message))
+        Log('[CNR_SERVER_ERROR] NUI message missing or invalid action: ' .. json.encode(message), "error", "CNR_SERVER")
         return false
     end
     
@@ -1901,7 +1901,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     local pData = GetCnrPlayerData(src)
 
     if not storeName then
-        print('[CNR_SERVER_ERROR] Store name missing in getItemList event from', src)
+        Log('[CNR_SERVER_ERROR] Store name missing in getItemList event from ' .. tostring(src), "error", "CNR_SERVER")
         return
     end
 
@@ -1919,7 +1919,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     end
     
     if not hasAccess then
-        print(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName))
+        Log(string.format('[CNR_SERVER_SECURITY] Player %s (role: %s) attempted unauthorized access to %s', src, playerRole, storeName), "warn", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
         return
     end
@@ -1927,7 +1927,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     -- The vendorItemIds from client (originating from Config.NPCVendors[storeName].items) is a list of strings.
     -- We need to transform this into a list of full item objects using Config.Items.
     if not vendorItemIds or type(vendorItemIds) ~= 'table' then
-        print('[CNR_SERVER_ERROR] Item ID list missing or not a table for store', storeName, 'from', src)
+        Log('[CNR_SERVER_ERROR] Item ID list missing or not a table for store ' .. tostring(storeName) .. ' from ' .. tostring(src), "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list on error
         return
     end
@@ -1962,11 +1962,11 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                 end
             end
             if not foundItem then
-                print(string.format("[CNR_SERVER_WARN] Item ID '%s' specified for vendor '%s' not found in Config.Items. Skipping.", itemIdFromVendor, storeName))
+                Log(string.format("[CNR_SERVER_WARN] Item ID '%s' specified for vendor '%s' not found in Config.Items. Skipping.", itemIdFromVendor, storeName), "warn", "CNR_SERVER")
             end
         end
     else
-        print("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.")
+        Log("[CNR_SERVER_ERROR] Config.Items is not defined or not a table. Cannot populate item details.", "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, {}) -- Send empty list
         return
     end    -- Include player level, role, and cash information for UI to check restrictions and display
@@ -1983,8 +1983,8 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
         
         -- Update stored level if different (with debug logging)
         if pData.level ~= calculatedLevel then
-            print(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
-                src, pData.level or 1, calculatedLevel, pData.xp))
+            Log(string.format("[CNR_LEVEL_DEBUG] Level correction for player %s: stored=%d, calculated=%d from XP=%d", 
+                src, pData.level or 1, calculatedLevel, pData.xp), "debug", "CNR_SERVER")
             pData.level = calculatedLevel
         end
     elseif pData and pData.level then
@@ -1993,8 +1993,8 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
     end
     
     -- Debug log for level display issues
-    print(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
-        src, playerInfo.level, pData and pData.xp or 0))
+    Log(string.format("[CNR_LEVEL_DEBUG] Sending level to store UI for player %s: level=%d, XP=%d", 
+        src, playerInfo.level, pData and pData.xp or 0), "debug", "CNR_SERVER")
     
     -- Send the constructed list of full item details to the client
     TriggerClientEvent('cops_and_robbers:sendItemList', src, storeName, fullItemDetailsList, playerInfo)
@@ -2006,7 +2006,7 @@ AddEventHandler('cops_and_robbers:getPlayerInventory', function()
     local pData = GetCnrPlayerData(src)
 
     if not pData or not pData.inventory then
-        print(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src))
+        Log(string.format("[CNR_CRITICAL_LOG] [ERROR] Player data or inventory not found for src %s in getPlayerInventory.", src), "error", "CNR_SERVER")
         TriggerClientEvent('cops_and_robbers:sendPlayerInventory', src, {}) -- Send empty table if no inventory
         return
     end
@@ -2317,7 +2317,7 @@ RegisterNetEvent('cnr:uiTestResults')
 AddEventHandler('cnr:uiTestResults', function(data)
     local src = source
     -- Process UI test results here
-    print(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})))
+    Log(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})), "info", "CNR_SERVER")
     -- You can add additional processing logic here if needed
 end)
 

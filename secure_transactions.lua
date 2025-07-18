@@ -28,7 +28,8 @@ local transactionStats = {
     successfulTransactions = 0,
     failedTransactions = 0,
     totalMoneyTransferred = 0,
-    averageTransactionTime = 0
+    averageTransactionTime = 0,
+    itemPurchases = {} -- Track purchase counts per item for dynamic pricing
 }
 
 -- ====================================================================
@@ -51,7 +52,7 @@ local function LogTransaction(playerId, operation, message, level)
     local playerName = GetPlayerName(playerId) or "Unknown"
     
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        print(string.format("[CNR_SECURE_TRANSACTIONS] [%s] Player %s (%d) - %s: %s", 
+        Log(string.format("[CNR_SECURE_TRANSACTIONS] [%s] Player %s (%d) - %s: %s", 
             string.upper(level), playerName, playerId, operation, message))
     end
 end
@@ -73,8 +74,22 @@ end
 local function CalculateBuyPrice(itemConfig, quantity)
     local basePrice = itemConfig.basePrice or 0
     
-    -- TODO: Implement dynamic pricing based on purchase history
-    -- For now, just return base price
+    -- Implement dynamic pricing based on purchase history
+    if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
+        local purchaseCount = transactionStats.itemPurchases and transactionStats.itemPurchases[itemConfig.id] or 0
+        local demandMultiplier = 1.0
+        
+        if purchaseCount > 10 then
+            demandMultiplier = math.min(Constants.ECONOMY.DYNAMIC_PRICE_MAX_MULTIPLIER, 
+                1.0 + (purchaseCount - 10) * 0.05)
+        elseif purchaseCount < 5 then
+            demandMultiplier = math.max(Constants.ECONOMY.DYNAMIC_PRICE_MIN_MULTIPLIER,
+                1.0 - (5 - purchaseCount) * 0.1)
+        end
+        
+        return math.floor(basePrice * demandMultiplier * quantity)
+    end
+    
     return basePrice * quantity
 end
 
@@ -226,7 +241,15 @@ function SecureTransactions.ProcessPurchase(playerId, itemId, quantity)
     
     -- Record purchase in history (for dynamic pricing)
     if Config.DynamicEconomy and Config.DynamicEconomy.enabled then
-        -- TODO: Record purchase for dynamic pricing
+        -- Record purchase for dynamic pricing
+        if not transactionStats.itemPurchases[itemId] then
+            transactionStats.itemPurchases[itemId] = 0
+        end
+        transactionStats.itemPurchases[itemId] = transactionStats.itemPurchases[itemId] + validatedQuantity
+        
+        if transactionStats.itemPurchases[itemId] > 100 then
+            transactionStats.itemPurchases[itemId] = math.floor(transactionStats.itemPurchases[itemId] * 0.8)
+        end
     end
     
     -- Complete transaction
@@ -449,7 +472,7 @@ end
 --- Log transaction statistics
 function SecureTransactions.LogStats()
     local stats = SecureTransactions.GetStats()
-    print(string.format("[CNR_SECURE_TRANSACTIONS] Stats - Total: %d, Success: %d, Failed: %d, Success Rate: %.1f%%, Money: $%d, Avg Time: %.1fms, Active: %d",
+    Log(string.format("[CNR_SECURE_TRANSACTIONS] Stats - Total: %d, Success: %d, Failed: %d, Success Rate: %.1f%%, Money: $%d, Avg Time: %.1fms, Active: %d",
         stats.totalTransactions, stats.successfulTransactions, stats.failedTransactions,
         stats.successRate, stats.totalMoneyTransferred, stats.averageTransactionTime, stats.activeTransactions))
 end
@@ -483,7 +506,7 @@ end
 
 --- Initialize secure transactions system
 function SecureTransactions.Initialize()
-    print("[CNR_SECURE_TRANSACTIONS] Secure Transactions System initialized")
+    Log("[CNR_SECURE_TRANSACTIONS] Secure Transactions System initialized")
     
     -- Start cleanup thread
     Citizen.CreateThread(function()

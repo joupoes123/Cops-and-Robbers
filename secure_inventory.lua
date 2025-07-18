@@ -75,7 +75,7 @@ local function LogInventory(playerId, operation, message, level)
     local playerName = GetPlayerName(playerId) or "Unknown"
     
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        print(string.format("[CNR_SECURE_INVENTORY] [%s] Player %s (%d) - %s: %s", 
+        Log(string.format("[CNR_SECURE_INVENTORY] [%s] Player %s (%d) - %s: %s", 
             string.upper(level), playerName, playerId, operation, message))
     end
 end
@@ -566,7 +566,7 @@ end
 --- Log inventory statistics
 function SecureInventory.LogStats()
     local stats = SecureInventory.GetStats()
-    print(string.format("[CNR_SECURE_INVENTORY] Stats - Operations: %d, Failed: %d, Duplicates: %d, Success Rate: %.1f%%, Avg Time: %.1fms, Active: %d, Locked: %d",
+    Log(string.format("[CNR_SECURE_INVENTORY] Stats - Operations: %d, Failed: %d, Duplicates: %d, Success Rate: %.1f%%, Avg Time: %.1fms, Active: %d, Locked: %d",
         stats.totalOperations, stats.failedOperations, stats.duplicateAttempts,
         stats.successRate, stats.averageOperationTime, stats.activeTransactions, stats.lockedInventories))
 end
@@ -577,7 +577,7 @@ end
 
 --- Initialize secure inventory system
 function SecureInventory.Initialize()
-    print("[CNR_SECURE_INVENTORY] Secure Inventory System initialized")
+    Log("[CNR_SECURE_INVENTORY] Secure Inventory System initialized")
     
     -- Start cleanup thread
     Citizen.CreateThread(function()
@@ -681,8 +681,9 @@ AddEventHandler('cnr:useItem', function(itemId)
     local playerId = source
     
     -- Validate input
-    if not Validation.ValidateString(itemId, 1, 50) then
-        LogSecureInventory(playerId, "use_item", "Invalid item ID", Constants.LOG_LEVELS.WARN)
+    local validString, stringError = ValidateString(itemId, Constants.VALIDATION.MAX_STRING_LENGTH, false)
+    if not validString then
+        LogInventory(playerId, "use_item", "Invalid item ID: " .. stringError, Constants.LOG_LEVELS.WARN)
         return
     end
     
@@ -694,12 +695,11 @@ AddEventHandler('cnr:useItem', function(itemId)
     end
     
     -- Get item config
-    if not Config.Items or not Config.Items[itemId] then
-        LogSecureInventory(playerId, "use_item", string.format("Unknown item: %s", itemId), Constants.LOG_LEVELS.WARN)
+    local validItem, itemConfig, itemError = Validation.ValidateItem(itemId)
+    if not validItem then
+        LogInventory(playerId, "use_item", string.format("Unknown item: %s - %s", itemId, itemError), Constants.LOG_LEVELS.WARN)
         return
     end
-    
-    local itemConfig = Config.Items[itemId]
     local consumed = false
     
     -- Handle different item types
@@ -740,10 +740,18 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
     quantity = tonumber(quantity) or 1
     
     -- Validate input
-    if not Validation.ValidateString(itemId, 1, 50) or not Validation.ValidateNumber(quantity, 1, 1000) then
-        LogSecureInventory(playerId, "drop_item", "Invalid parameters", Constants.LOG_LEVELS.WARN)
+    local validString, stringError = ValidateString(itemId, Constants.VALIDATION.MAX_STRING_LENGTH, false)
+    if not validString then
+        LogInventory(playerId, "drop_item", "Invalid item ID: " .. stringError, Constants.LOG_LEVELS.WARN)
         return
     end
+    
+    local validQty, validatedQuantity, qtyError = Validation.ValidateQuantity(quantity)
+    if not validQty then
+        LogInventory(playerId, "drop_item", "Invalid quantity: " .. qtyError, Constants.LOG_LEVELS.WARN)
+        return
+    end
+    quantity = validatedQuantity
     
     -- Check if player has enough items
     local hasItem, actualCount = SecureInventory.HasItem(playerId, itemId, quantity)
@@ -756,8 +764,8 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
     local success, error = SecureInventory.RemoveItem(playerId, itemId, quantity, "item_dropped")
     if success then
         -- Get item config for display
-        local itemConfig = Config.Items and Config.Items[itemId]
-        local itemName = itemConfig and itemConfig.name or itemId
+        local validItem, itemConfig = Validation.ValidateItem(itemId)
+        local itemName = (validItem and itemConfig and itemConfig.name) or itemId
         
         TriggerClientEvent('cnr:showNotification', playerId, 
             string.format("Dropped %dx %s", quantity, itemName), 
@@ -765,8 +773,6 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
         
         LogSecureInventory(playerId, "drop_item", string.format("Dropped %dx %s", quantity, itemId))
         
-        -- TODO: Create physical item drop in world (if needed)
-        -- This would require additional world item management system
     else
         LogSecureInventory(playerId, "drop_item", string.format("Failed to drop item: %s", error), Constants.LOG_LEVELS.ERROR)
         TriggerClientEvent('cnr:showNotification', playerId, "Failed to drop item", Constants.NOTIFICATION_TYPES.ERROR)
@@ -825,20 +831,21 @@ function CanCarryItem(playerId, itemId, quantity)
     local success, inventory = SecureInventory.GetInventory(playerId)
     if not success then return false end
     
-    -- Check if Config.Items exists for the item
-    if not Config.Items or not Config.Items[itemId] then
-        LogSecureInventory(playerId, "can_carry", string.format("Unknown item ID: %s", itemId), Constants.LOG_LEVELS.WARN)
+    -- Check if item exists in configuration
+    local validItem, itemConfig, itemError = Validation.ValidateItem(itemId)
+    if not validItem then
+        LogInventory(playerId, "can_carry", string.format("Unknown item ID: %s - %s", itemId, itemError), Constants.LOG_LEVELS.WARN)
         return false
     end
     
     -- Calculate current inventory count
     local currentCount = 0
     for _, item in pairs(inventory) do
-        currentCount = currentCount + (item.quantity or 0)
+        currentCount = currentCount + (item.count or 0)
     end
     
-    -- Basic slot limit check (50 items max for simplicity)
-    local maxSlots = 50
+    -- Basic slot limit check using constants
+    local maxSlots = Constants.PLAYER_LIMITS.MAX_INVENTORY_SLOTS
     return (currentCount + quantity) <= maxSlots
 end
 

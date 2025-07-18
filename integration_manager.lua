@@ -36,7 +36,7 @@ local legacyFunctions = {}
 function IntegrationManager.Initialize()
     integrationStatus.startTime = GetGameTimer()
     
-    print("[CNR_INTEGRATION] Starting system initialization...")
+    Log("[CNR_INTEGRATION] Starting system initialization...", Constants.LOG_LEVELS.INFO)
     
     -- Initialize core systems first
     local initOrder = {
@@ -70,7 +70,7 @@ function IntegrationManager.Initialize()
     integrationStatus.initialized = true
     local initTime = GetGameTimer() - integrationStatus.startTime
     
-    print(string.format("[CNR_INTEGRATION] System initialization completed in %dms", initTime))
+    Log(string.format("[CNR_INTEGRATION] System initialization completed in %dms", initTime), Constants.LOG_LEVELS.INFO)
     
     -- Log initialization status
     IntegrationManager.LogInitializationStatus()
@@ -82,7 +82,7 @@ end
 --- @param required boolean Whether the system is required
 --- @return boolean Success status
 function IntegrationManager.InitializeSystem(systemName, systemModule, required)
-    print(string.format("[CNR_INTEGRATION] Initializing %s...", systemName))
+    Log(string.format("[CNR_INTEGRATION] Initializing %s...", systemName), Constants.LOG_LEVELS.INFO)
     
     local success, error = pcall(function()
         if systemModule and systemModule.Initialize then
@@ -91,11 +91,11 @@ function IntegrationManager.InitializeSystem(systemName, systemModule, required)
     end)
     
     if success then
-        print(string.format("[CNR_INTEGRATION] ✅ %s initialized successfully", systemName))
+        Log(string.format("[CNR_INTEGRATION] ✅ %s initialized successfully", systemName), Constants.LOG_LEVELS.INFO)
         return true
     else
         local logLevel = required and "error" or "warn"
-        print(string.format("[CNR_INTEGRATION] ❌ Failed to initialize %s: %s", systemName, tostring(error)))
+        Log(string.format("[CNR_INTEGRATION] ❌ Failed to initialize %s: %s", systemName, tostring(error)), logLevel == "error" and Constants.LOG_LEVELS.ERROR or Constants.LOG_LEVELS.WARN)
         return false
     end
 end
@@ -106,7 +106,7 @@ end
 
 --- Set up compatibility functions for existing code
 function IntegrationManager.SetupLegacyCompatibility()
-    print("[CNR_INTEGRATION] Setting up legacy compatibility layer...")
+    Log("[CNR_INTEGRATION] Setting up legacy compatibility layer...", Constants.LOG_LEVELS.INFO)
     
     -- Store original functions if they exist
     legacyFunctions.AddItemToPlayerInventory = AddItemToPlayerInventory
@@ -143,15 +143,15 @@ function IntegrationManager.SetupLegacyCompatibility()
     -- InitializePlayerInventory compatibility
     InitializePlayerInventory = function(pData, playerId)
         if not pData then
-            print("[CNR_INTEGRATION] InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"))
+            Log("[CNR_INTEGRATION] InitializePlayerInventory: pData is nil for playerId " .. (playerId or "unknown"), Constants.LOG_LEVELS.WARN)
             return
         end
         -- Ensure inventory exists in the expected format
         pData.inventory = pData.inventory or {}
-        print("[CNR_INTEGRATION] InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"))
+        Log("[CNR_INTEGRATION] InitializePlayerInventory: Ensured inventory table exists for player " .. (playerId or "unknown"), Constants.LOG_LEVELS.DEBUG)
     end
     
-    print("[CNR_INTEGRATION] ✅ Legacy compatibility layer established")
+    Log("[CNR_INTEGRATION] ✅ Legacy compatibility layer established", Constants.LOG_LEVELS.INFO)
 end
 
 -- ====================================================================
@@ -160,13 +160,13 @@ end
 
 --- Perform data migration from old format to new format
 function IntegrationManager.PerformDataMigration()
-    print("[CNR_INTEGRATION] Starting data migration...")
+    Log("[CNR_INTEGRATION] Starting data migration...", Constants.LOG_LEVELS.INFO)
     
     -- Check if migration is needed
     local migrationNeeded = IntegrationManager.CheckMigrationNeeded()
     
     if not migrationNeeded then
-        print("[CNR_INTEGRATION] No data migration needed")
+        Log("[CNR_INTEGRATION] No data migration needed", Constants.LOG_LEVELS.INFO)
         integrationStatus.migrationComplete = true
         return
     end
@@ -178,10 +178,10 @@ function IntegrationManager.PerformDataMigration()
     end)
     
     if success then
-        print("[CNR_INTEGRATION] ✅ Data migration completed successfully")
+        Log("[CNR_INTEGRATION] ✅ Data migration completed successfully", Constants.LOG_LEVELS.INFO)
         integrationStatus.migrationComplete = true
     else
-        print(string.format("[CNR_INTEGRATION] ❌ Data migration failed: %s", tostring(error)))
+        Log(string.format("[CNR_INTEGRATION] ❌ Data migration failed: %s", tostring(error)), Constants.LOG_LEVELS.ERROR)
     end
 end
 
@@ -209,7 +209,7 @@ end
 
 --- Migrate player data files
 function IntegrationManager.MigratePlayerData()
-    print("[CNR_INTEGRATION] Migrating player data...")
+    Log("[CNR_INTEGRATION] Migrating player data...", Constants.LOG_LEVELS.INFO)
     
     -- This would scan the player_data directory and migrate files
     -- For now, we'll rely on PlayerManager's built-in migration
