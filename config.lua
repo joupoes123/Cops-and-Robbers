@@ -26,10 +26,10 @@ Config.SpawnPoints = {
 }
 
 -- Jail Location (players are sent here when jailed)
-Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5) -- Bolingbroke Penitentiary (example)
+Config.PrisonLocation = vector3(1651.0, 2570.0, 45.5)
 
 -- Jail Uniform Model
-Config.JailUniformModel = "a_m_m_prisoner_01" -- Model to use for jailed players. Ensure this model is available.
+Config.JailUniformModel = "a_m_m_prisoner_01"
 
 
 -- =========================

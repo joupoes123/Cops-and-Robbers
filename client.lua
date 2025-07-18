@@ -99,15 +99,12 @@ local clientActiveContrabandDrops = {}
 -- Blip tracking
 -- Performance monitoring for optimized loops
 if PerformanceOptimizer then
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(30000)
-            local metrics = PerformanceOptimizer.GetMetrics()
-            if metrics and metrics.memoryUsage and metrics.memoryUsage > 50000 then
-                print("[CNR_CLIENT] High memory usage detected: " .. math.floor(metrics.memoryUsage/1024) .. "MB")
-            end
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        local metrics = PerformanceOptimizer.GetMetrics()
+        if metrics and metrics.memoryUsage and metrics.memoryUsage > Constants.PERFORMANCE.MEMORY_WARNING_THRESHOLD_MB * 1024 then
+            Log("[CNR_CLIENT] High memory usage detected: " .. math.floor(metrics.memoryUsage/1024) .. "MB", "warn", "CNR_CLIENT")
         end
-    end)
+    end, Constants.TIME_MS.MINUTE / 2, Constants.TIME_MS.MINUTE, 4)
 end
 
 
@@ -119,6 +116,10 @@ local g_protectedPolicePeds = {}
 
 -- Track spawned NPCs to prevent duplicates
 local g_spawnedNPCs = {}
+
+-- Track spawned vehicles to prevent duplicates
+local g_spawnedVehicles = {}
+local g_robberVehiclesSpawned = false
 
 -- =====================================
 --     INVENTORY SYSTEM (CONSOLIDATED)
@@ -349,13 +350,11 @@ local isInCharacterEditor = false
 local currentCharacterData = {}
 local originalPlayerData = {}
 local editorCamera = nil
-local currentCameraMode = "face"
 local currentRole = nil
 local currentCharacterSlot = 1
 local playerCharacters = {}
 local previewingUniform = false
 local currentUniformPreset = nil
-local renderThread = false
 
 -- Character editor UI state
 local editorUI = {
@@ -680,7 +679,7 @@ local currentNextLvlXP = 100
 local function LogProgressionClient(message, level)
     level = level or "info"
     if Config and Config.DebugLogging then
-        print(string.format("[CNR_PROGRESSION_CLIENT] [%s] %s", string.upper(level), message))
+        Log(message, level, "CNR_PROGRESSION_CLIENT")
     end
 end
 
@@ -792,8 +791,6 @@ function PlayLevelUpEffects(newLevel)
         ClearTimecycleModifier()
     end)
 end
-local g_spawnedVehicles = {}
-local g_robberVehiclesSpawned = false
 
 -- Safe Zone Client State
 local isCurrentlyInSafeZone = false
@@ -816,10 +813,10 @@ local isRobberStoreUiOpen = false
 local isJailed = false
 local jailTimeRemaining = 0
 local jailTimerDisplayActive = false
-local jailReleaseLocation = nil -- To be set by config or default spawn
-local JailMainPoint = vector3(1651.0, 2570.0, 45.5) -- Default, will be updated by server
-local JailRadius = 50.0 -- Max distance from JailMainPoint before teleported back
-local originalPlayerModelHash = nil -- Variable to store the player's model before jailing
+local jailReleaseLocation = nil
+local JailMainPoint = Config.PrisonLocation or vector3(1651.0, 2570.0, 45.5)
+local JailRadius = Constants.DISTANCES.SAFE_ZONE_DEFAULT_RADIUS or 50.0
+local originalPlayerModelHash = nil
 
 -- =====================================
 --           HELPER FUNCTIONS
@@ -842,7 +839,7 @@ end
 -- Helper function to show notifications
 local function ShowNotification(text)
     if not text or text == "" then
-        print("ShowNotification: Received nil or empty text.")
+        Log("ShowNotification: Received nil or empty text.", "warn", "CNR_CLIENT")
         return
     end
     SetNotificationTextEntry("STRING")
@@ -853,7 +850,7 @@ end
 -- Helper function to display help text
 local function DisplayHelpText(text)
     if not text or text == "" then
-        print("DisplayHelpText: Received nil or empty text.")
+        Log("DisplayHelpText: Received nil or empty text.", "warn", "CNR_CLIENT")
         return
     end
     BeginTextCommandDisplayHelp("STRING")
@@ -868,7 +865,7 @@ end
 -- Helper function to spawn player at role-specific location
 local function spawnPlayer(playerRole)
     if not playerRole then
-        print("Error: spawnPlayer called with nil role.")
+        Log("Error: spawnPlayer called with nil role.", "error", "CNR_CLIENT")
         ShowNotification("~r~Error: Could not determine spawn point. Role not set.")
         return
     end
@@ -879,10 +876,10 @@ local function spawnPlayer(playerRole)
             SetEntityCoords(playerPed, spawnPoint.x, spawnPoint.y, spawnPoint.z, false, false, false, true)
             ShowNotification("Spawned as " .. playerRole)
         else
-            print("[CNR_CLIENT_WARN] spawnPlayer: playerPed invalid, cannot set coords.")
+            Log("spawnPlayer: playerPed invalid, cannot set coords.", "warn", "CNR_CLIENT")
         end
     else
-        print("Error: Invalid or missing spawn point for role: " .. tostring(playerRole))
+        Log("Error: Invalid or missing spawn point for role: " .. tostring(playerRole), "error", "CNR_CLIENT")
         ShowNotification("~r~Error: Spawn point not found for your role.")
     end
 end
@@ -891,7 +888,7 @@ end
 local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
     local playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
-        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed.")
+        Log("ApplyRoleVisualsAndLoadout: Invalid playerPed.", "error", "CNR_CLIENT")
         return
     end
     
@@ -943,13 +940,13 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
                 if exports['cops-and-robbers'] and exports['cops-and-robbers'].ApplyCharacterData then
                     local success = exports['cops-and-robbers']:ApplyCharacterData(characterData, playerPed)
                     if success then
-                        print("[CNR_CHARACTER_EDITOR] Applied saved character data")
+                        Log("Applied saved character data", "info", "CNR_CHARACTER_EDITOR")
                     else
-                        print("[CNR_CHARACTER_EDITOR] Failed to apply saved character data, using defaults")
+                        Log("Failed to apply saved character data, using defaults", "warn", "CNR_CHARACTER_EDITOR")
                         SetPedDefaultComponentVariation(playerPed)
                     end
                 else
-                    print("[CNR_CHARACTER_EDITOR] Character editor not available, using defaults")
+                    Log("Character editor not available, using defaults", "warn", "CNR_CHARACTER_EDITOR")
                     SetPedDefaultComponentVariation(playerPed)
                 end
             else
@@ -974,16 +971,16 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
             
             SetModelAsNoLongerNeeded(modelHash)
         else
-            print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad))
+            Log(string.format("ApplyRoleVisualsAndLoadout: Failed to load model %s after 100 attempts.", modelToLoad), "error", "CNR_CLIENT")
         end
     else
-        print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad))
+        Log(string.format("ApplyRoleVisualsAndLoadout: Invalid model hash for %s.", modelToLoad), "error", "CNR_CLIENT")
     end
     
     Citizen.Wait(500)
     playerPed = PlayerPedId()
     if not (playerPed and playerPed ~= 0 and playerPed ~= -1 and DoesEntityExist(playerPed)) then
-        print("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.")
+        Log("ApplyRoleVisualsAndLoadout: Invalid playerPed after model change attempt.", "error", "CNR_CLIENT")
         return
     end
     

@@ -97,7 +97,7 @@ function PerformanceOptimizer.CreateOptimizedLoop(callback, baseInterval, maxInt
             -- Execute callback with error handling
             local success, error = pcall(callback)
             if not success then
-                print(string.format("[CNR_PERFORMANCE] Loop %d error: %s", loopData.id, tostring(error)))
+                Log(string.format("[CNR_PERFORMANCE] Loop %d error: %s", loopData.id, tostring(error)), Constants.LOG_LEVELS.ERROR)
             end
             
             -- Update performance metrics
@@ -114,8 +114,8 @@ function PerformanceOptimizer.CreateOptimizedLoop(callback, baseInterval, maxInt
         end
     end)
     
-    print(string.format("[CNR_PERFORMANCE] Created optimized loop %d (base: %dms, max: %dms, priority: %d)", 
-        loopCounter, baseInterval, maxInterval, priority))
+    Log(string.format("[CNR_PERFORMANCE] Created optimized loop %d (base: %dms, max: %dms, priority: %d)", 
+        loopCounter, baseInterval, maxInterval, priority), Constants.LOG_LEVELS.INFO)
     
     return loopCounter
 end
@@ -126,7 +126,7 @@ function PerformanceOptimizer.StopOptimizedLoop(loopId)
     if optimizedLoops[loopId] then
         optimizedLoops[loopId].active = false
         optimizedLoops[loopId] = nil
-        print(string.format("[CNR_PERFORMANCE] Stopped optimized loop %d", loopId))
+        Log(string.format("[CNR_PERFORMANCE] Stopped optimized loop %d", loopId), Constants.LOG_LEVELS.INFO)
     end
 end
 
@@ -187,7 +187,7 @@ function PerformanceOptimizer.FlushEventBatch(batchKey)
     eventBatches[batchKey] = nil
     batchTimers[batchKey] = nil
     
-    print(string.format("[CNR_PERFORMANCE] Flushed batch %s with %d events", batchKey, batch.count))
+    Log(string.format("[CNR_PERFORMANCE] Flushed batch %s with %d events", batchKey, batch.count), Constants.LOG_LEVELS.DEBUG)
 end
 
 --- Flush all event batches immediately
@@ -244,7 +244,7 @@ function PerformanceOptimizer.CleanupMemory()
     -- Force garbage collection
     collectgarbage("collect")
     
-    print("[CNR_PERFORMANCE] Memory cleanup completed")
+    Log("[CNR_PERFORMANCE] Memory cleanup completed", Constants.LOG_LEVELS.DEBUG)
 end
 
 -- ====================================================================
@@ -284,14 +284,14 @@ end
 --- Log performance statistics
 function PerformanceOptimizer.LogStats()
     local metrics = PerformanceOptimizer.GetMetrics()
-    print(string.format("[CNR_PERFORMANCE] Stats - Memory: %.1fKB, Threads: %d, Loops: %d, Batches: %d",
-        metrics.memoryUsage, metrics.activeThreads, metrics.optimizedLoops, metrics.eventBatches))
+    Log(string.format("[CNR_PERFORMANCE] Stats - Memory: %.1fKB, Threads: %d, Loops: %d, Batches: %d",
+        metrics.memoryUsage, metrics.activeThreads, metrics.optimizedLoops, metrics.eventBatches), Constants.LOG_LEVELS.DEBUG)
     
     -- Log individual loop performance
     for loopId, loopData in pairs(optimizedLoops) do
         if loopData.executionCount > 0 then
-            print(string.format("[CNR_PERFORMANCE] Loop %d - Avg: %.1fms, Count: %d, Interval: %dms",
-                loopId, loopData.averageExecutionTime, loopData.executionCount, loopData.currentInterval))
+            Log(string.format("[CNR_PERFORMANCE] Loop %d - Avg: %.1fms, Count: %d, Interval: %dms",
+                loopId, loopData.averageExecutionTime, loopData.executionCount, loopData.currentInterval), Constants.LOG_LEVELS.DEBUG)
         end
     end
 end
@@ -302,16 +302,16 @@ function PerformanceOptimizer.CheckPerformanceWarnings()
     
     -- Memory warning
     if metrics.memoryUsage > Constants.PERFORMANCE.MEMORY_WARNING_THRESHOLD_MB * 1024 then
-        print(string.format("[CNR_PERFORMANCE] WARNING: High memory usage: %.1fMB", 
-            metrics.memoryUsage / 1024))
+        Log(string.format("[CNR_PERFORMANCE] WARNING: High memory usage: %.1fMB", 
+            metrics.memoryUsage / 1024), Constants.LOG_LEVELS.WARN)
         PerformanceOptimizer.CleanupMemory()
     end
     
     -- Loop performance warnings
     for loopId, loopData in pairs(optimizedLoops) do
         if loopData.averageExecutionTime > Constants.PERFORMANCE.MAX_EXECUTION_TIME_MS then
-            print(string.format("[CNR_PERFORMANCE] WARNING: Loop %d slow execution: %.1fms average",
-                loopId, loopData.averageExecutionTime))
+            Log(string.format("[CNR_PERFORMANCE] WARNING: Loop %d slow execution: %.1fms average",
+                loopId, loopData.averageExecutionTime), Constants.LOG_LEVELS.WARN)
         end
     end
 end

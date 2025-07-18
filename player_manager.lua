@@ -46,7 +46,7 @@ local function LogPlayerManager(playerId, operation, message, level)
     local playerName = GetPlayerName(playerId) or "Unknown"
     
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        print(string.format("[CNR_PLAYER_MANAGER] [%s] Player %s (%d) - %s: %s", 
+        Log(string.format("[CNR_PLAYER_MANAGER] [%s] Player %s (%d) - %s: %s", 
             string.upper(level), playerName, playerId, operation, message))
     end
 end
@@ -859,7 +859,7 @@ end
 --- Log player manager statistics
 function PlayerManager.LogStats()
     local stats = PlayerManager.GetStats()
-    print(string.format("[CNR_PLAYER_MANAGER] Stats - Loads: %d (%.1f%% success), Saves: %d (%.1f%% success), Avg Load: %.1fms, Avg Save: %.1fms, Cached: %d, Loading: %d",
+    Log(string.format("[CNR_PLAYER_MANAGER] Stats - Loads: %d (%.1f%% success), Saves: %d (%.1f%% success), Avg Load: %.1fms, Avg Save: %.1fms, Cached: %d, Loading: %d",
         stats.totalLoads, stats.loadSuccessRate, stats.totalSaves, stats.saveSuccessRate,
         stats.averageLoadTime, stats.averageSaveTime, stats.cachedPlayers, stats.loadingPlayers))
 end
@@ -1377,7 +1377,7 @@ _G.IsPlayerRobber = IsPlayerRobber
 
 --- Initialize player manager
 function PlayerManager.Initialize()
-    print("[CNR_PLAYER_MANAGER] Player Manager initialized")
+    Log("[CNR_PLAYER_MANAGER] Player Manager initialized")
     
     -- Statistics logging thread
     Citizen.CreateThread(function()

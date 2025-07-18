@@ -159,8 +159,8 @@ function SecurityEnhancements.LogSecurityEvent(playerId, eventType, details)
     local playerName = GetPlayerName(playerId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
-    print(string.format("[CNR_SECURITY] [%s] Player %s (%d) - %s: %s", 
-        timestamp, playerName, playerId, eventType, details))
+    Log(string.format("[CNR_SECURITY] [%s] Player %s (%d) - %s: %s", 
+        timestamp, playerName, playerId, eventType, details), Constants.LOG_LEVELS.WARN)
     
     securityStats.validationFailures = securityStats.validationFailures + 1
     
@@ -195,8 +195,8 @@ function SecurityEnhancements.FlagSuspiciousActivity(playerId, activityType, det
     local playerName = GetPlayerName(playerId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
-    print(string.format("[CNR_SUSPICIOUS] [%s] Player %s (%d) - %s: %s", 
-        timestamp, playerName, playerId, activityType, details))
+    Log(string.format("[CNR_SUSPICIOUS] [%s] Player %s (%d) - %s: %s", 
+        timestamp, playerName, playerId, activityType, details), Constants.LOG_LEVELS.WARN)
     
     securityStats.suspiciousActivity = securityStats.suspiciousActivity + 1
     
@@ -226,8 +226,8 @@ function SecurityEnhancements.LogAdminAction(adminId, targetId, command, amount)
     local targetName = GetPlayerName(targetId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
-    print(string.format("[CNR_ADMIN_AUDIT] [%s] Admin %s (%d) executed %s on %s (%d) with amount: %d", 
-        timestamp, adminName, adminId, command, targetName, targetId, amount))
+    Log(string.format("[CNR_ADMIN_AUDIT] [%s] Admin %s (%d) executed %s on %s (%d) with amount: %d", 
+        timestamp, adminName, adminId, command, targetName, targetId, amount), Constants.LOG_LEVELS.INFO)
 end
 
 --- Handle suspicious players
@@ -236,8 +236,8 @@ end
 function SecurityEnhancements.HandleSuspiciousPlayer(playerId, reason)
     local playerName = GetPlayerName(playerId) or "Unknown"
     
-    print(string.format("[CNR_SECURITY_ACTION] Kicking player %s (%d) for: %s", 
-        playerName, playerId, reason))
+    Log(string.format("[CNR_SECURITY_ACTION] Kicking player %s (%d) for: %s", 
+        playerName, playerId, reason), Constants.LOG_LEVELS.ERROR)
     
     -- Kick the player
     DropPlayer(playerId, string.format("Kicked for security violation: %s", reason))
@@ -266,7 +266,7 @@ function SecurityEnhancements.ResetSecurityStats()
         lastResetTime = os.time()
     }
     suspiciousPlayers = {}
-    print("[CNR_SECURITY] Security statistics reset")
+    Log("[CNR_SECURITY] Security statistics reset", Constants.LOG_LEVELS.INFO)
 end
 
 -- ====================================================================
@@ -313,13 +313,13 @@ RegisterCommand('cnr_security_stats', function(source, args, rawCommand)
     end
     
     local stats = SecurityEnhancements.GetSecurityStats()
-    print("[CNR_SECURITY_STATS] ==================== SECURITY STATISTICS ====================")
-    print(string.format("Blocked Attempts: %d", stats.blockedAttempts))
-    print(string.format("Validation Failures: %d", stats.validationFailures))
-    print(string.format("Suspicious Activities: %d", stats.suspiciousActivity))
-    print(string.format("Suspicious Players: %d", stats.suspiciousPlayersCount))
-    print(string.format("Uptime: %d seconds", stats.uptime))
-    print("[CNR_SECURITY_STATS] ========================================================")
+    Log("[CNR_SECURITY_STATS] ==================== SECURITY STATISTICS ====================", Constants.LOG_LEVELS.INFO)
+    Log(string.format("Blocked Attempts: %d", stats.blockedAttempts), Constants.LOG_LEVELS.INFO)
+    Log(string.format("Validation Failures: %d", stats.validationFailures), Constants.LOG_LEVELS.INFO)
+    Log(string.format("Suspicious Activities: %d", stats.suspiciousActivity), Constants.LOG_LEVELS.INFO)
+    Log(string.format("Suspicious Players: %d", stats.suspiciousPlayersCount), Constants.LOG_LEVELS.INFO)
+    Log(string.format("Uptime: %d seconds", stats.uptime), Constants.LOG_LEVELS.INFO)
+    Log("[CNR_SECURITY_STATS] ========================================================", Constants.LOG_LEVELS.INFO)
 end, false)
 
 RegisterCommand('cnr_security_reset', function(source, args, rawCommand)
@@ -348,4 +348,4 @@ AddEventHandler('playerDropped', function(reason)
     SecurityEnhancements.CleanupPlayer(playerId)
 end)
 
-print("[CNR_SECURITY] Security enhancements loaded. Enhanced validation and monitoring active.")
+Log("[CNR_SECURITY] Security enhancements loaded. Enhanced validation and monitoring active.", Constants.LOG_LEVELS.INFO)

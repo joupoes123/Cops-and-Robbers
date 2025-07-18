@@ -63,8 +63,13 @@ end
 --- @param error string The validation error
 local function LogValidationError(playerId, operation, error)
     local playerName = GetPlayerName(playerId) or "Unknown"
-    print(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
-        playerName, playerId, operation, error))
+    if Log then
+        Log(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
+            playerName, playerId, operation, error), Constants.LOG_LEVELS.ERROR)
+    else
+        print(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
+            playerName, playerId, operation, error))
+    end
 end
 
 -- ====================================================================
@@ -435,8 +440,7 @@ function Validation.ValidateAdminPermission(playerId, requiredLevel)
         return false, Constants.ERROR_MESSAGES.PERMISSION_DENIED
     end
     
-    -- TODO: Implement admin levels if needed
-    -- For now, just check if player is admin
+    -- Currently using simple admin check via IsPlayerAdmin function
     
     return true, nil
 end
@@ -524,15 +528,15 @@ function Validation.CleanupPlayerData(playerId)
     local cleanedItems = 0
     
     -- Clear rate limiting data for this player
-    if rateLimitData[playerId] then
-        rateLimitData[playerId] = nil
+    if rateLimits[playerId] then
+        rateLimits[playerId] = nil
         cleanedItems = cleanedItems + 1
     end
     
     -- Clear any cached validation results
     -- (Add more cleanup as validation system grows)
     
-    LogValidation(playerId, "cleanup", string.format("Validation cleanup completed (%d items)", cleanedItems))
+    LogValidationError(playerId, "cleanup", string.format("Validation cleanup completed (%d items)", cleanedItems))
     return cleanedItems
 end
 

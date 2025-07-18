@@ -24,7 +24,7 @@ function LoadPlayerCharacters(playerId)
         if success and data then
             return data
         else
-            print("[CNR_CHARACTER_EDITOR] Error: Failed to decode character data for player " .. GetPlayerName(playerId))
+            Log("[CNR_CHARACTER_EDITOR] Error: Failed to decode character data for player " .. GetPlayerName(playerId), Constants.LOG_LEVELS.ERROR)
         end
     end
     
@@ -34,7 +34,7 @@ end
 function SavePlayerCharacters(playerId, characterData)
     local identifier = GetPlayerIdentifier(playerId, 0)
     if not identifier then
-        print("[CNR_CHARACTER_EDITOR] Error: No identifier for player " .. tostring(playerId))
+        Log("[CNR_CHARACTER_EDITOR] Error: No identifier for player " .. tostring(playerId), Constants.LOG_LEVELS.ERROR)
         return false
     end
     
@@ -53,7 +53,7 @@ function SavePlayerCharacters(playerId, characterData)
     end)
     
     if not success then
-        print("[CNR_CHARACTER_EDITOR] Warning: Could not verify player_data directory")
+        Log("[CNR_CHARACTER_EDITOR] Warning: Could not verify player_data directory", Constants.LOG_LEVELS.WARN)
     end
     
     local fileName = "player_data/characters_" .. identifier:gsub(":", "_") .. ".json"
@@ -65,7 +65,7 @@ function SavePlayerCharacters(playerId, characterData)
     end)
     
     if not encodeSuccess or not jsonData then
-        print("[CNR_CHARACTER_EDITOR] Error: Failed to encode character data for " .. GetPlayerName(playerId))
+        Log("[CNR_CHARACTER_EDITOR] Error: Failed to encode character data for " .. GetPlayerName(playerId), Constants.LOG_LEVELS.ERROR)
         return false
     end
     
@@ -75,7 +75,7 @@ function SavePlayerCharacters(playerId, characterData)
     end)
     
     if not saveSuccess then
-        print("[CNR_CHARACTER_EDITOR] Error: Failed to save character data for player: " .. GetPlayerName(playerId))
+        Log("[CNR_CHARACTER_EDITOR] Error: Failed to save character data for player: " .. GetPlayerName(playerId), Constants.LOG_LEVELS.ERROR)
         return false
     end
     
@@ -101,7 +101,7 @@ function ValidateCharacterData(characterData, role)
     
     -- Ensure Config.CharacterEditor exists before validation
     if not Config.CharacterEditor or not Config.CharacterEditor.customization then
-        print("[CNR_CHARACTER_EDITOR] Warning: Config.CharacterEditor.customization not found, skipping detailed validation")
+        Log("[CNR_CHARACTER_EDITOR] Warning: Config.CharacterEditor.customization not found, skipping detailed validation", Constants.LOG_LEVELS.WARN)
         return true, "Valid (basic validation only)"
     end
     
@@ -320,7 +320,7 @@ AddEventHandler('cnr:saveCharacterData', function(characterKey, characterData)
     -- Extract role from character key
     local role = string.match(characterKey, "^(%w+)_")
     if not role or (role ~= "cop" and role ~= "robber") then
-        print(string.format("[CNR_CHARACTER_EDITOR] Invalid character key format: %s", characterKey))
+        Log(string.format("[CNR_CHARACTER_EDITOR] Invalid character key format: %s", characterKey), Constants.LOG_LEVELS.ERROR)
         return
     end
     
@@ -330,7 +330,7 @@ AddEventHandler('cnr:saveCharacterData', function(characterKey, characterData)
         TriggerClientEvent('cnr:characterSaveResult', playerId, true, message)
     else
         TriggerClientEvent('cnr:characterSaveResult', playerId, false, message)
-        print(string.format("[CNR_CHARACTER_EDITOR] Failed to save character for player %s: %s", GetPlayerName(playerId), message))
+        Log(string.format("[CNR_CHARACTER_EDITOR] Failed to save character for player %s: %s", GetPlayerName(playerId), message), Constants.LOG_LEVELS.ERROR)
     end
 end)
 
@@ -343,7 +343,7 @@ AddEventHandler('cnr:deleteCharacterData', function(characterKey)
         TriggerClientEvent('cnr:characterDeleteResult', playerId, true, message)
     else
         TriggerClientEvent('cnr:characterDeleteResult', playerId, false, message)
-        print(string.format("[CNR_CHARACTER_EDITOR] Failed to delete character for player %s: %s", GetPlayerName(playerId), message))
+        Log(string.format("[CNR_CHARACTER_EDITOR] Failed to delete character for player %s: %s", GetPlayerName(playerId), message), Constants.LOG_LEVELS.ERROR)
     end
 end)
 
@@ -353,7 +353,7 @@ AddEventHandler('cnr:applyCharacterToPlayer', function(characterKey)
     local success, message = ApplyCharacterToPlayer(playerId, characterKey)
     
     if not success then
-        print(string.format("[CNR_CHARACTER_EDITOR] Failed to apply character for player %s: %s", GetPlayerName(playerId), message))
+        Log(string.format("[CNR_CHARACTER_EDITOR] Failed to apply character for player %s: %s", GetPlayerName(playerId), message), Constants.LOG_LEVELS.ERROR)
     end
 end)
 
