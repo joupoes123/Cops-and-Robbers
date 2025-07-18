@@ -1468,7 +1468,8 @@ AddEventHandler('cnr:playerDamaged', function(targetPlayerId, damage, weaponHash
     end
 end)
 
--- Test command for wanted system (admin only)
+-- Test command for wanted system (admin only) - DISABLED FOR PRODUCTION
+--[[
 RegisterCommand('testwanted', function(source, args, rawCommand)
     local src = source
     if src == 0 then return end -- Console command not supported
@@ -1498,6 +1499,7 @@ RegisterCommand('testwanted', function(source, args, rawCommand)
     UpdatePlayerWantedLevel(src, crimeKey)
     SafeTriggerClientEvent('chat:addMessage', src, { args = {"^2Test", "Wanted level updated for crime: " .. crimeKey} })
 end, false)
+--]]
 
 -- Command for cops to report crimes they witness
 RegisterCommand('reportcrime', function(source, args, rawCommand)
@@ -2268,9 +2270,10 @@ AddEventHandler('playerDropped', function(reason)
 end)
 
 -- ====================================================================
--- PERFORMANCE TESTING EVENT HANDLERS
+-- PERFORMANCE TESTING EVENT HANDLERS - DISABLED FOR PRODUCTION
 -- ====================================================================
 
+--[[
 RegisterNetEvent('cnr:performUITest')
 AddEventHandler('cnr:performUITest', function()
     local src = source
@@ -2295,6 +2298,7 @@ AddEventHandler('cnr:uiTestResults', function(data)
     Log(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})), "info", "CNR_SERVER")
     -- You can add additional processing logic here if needed
 end)
+--]]
 
 
 

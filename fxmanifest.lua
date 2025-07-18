@@ -22,7 +22,7 @@ server_scripts {
     'data_manager.lua',  -- Improved data persistence system with batching.
     'secure_systems.lua', -- Secure inventory and transaction systems with anti-duplication.
     'performance_manager.lua', -- Performance optimization and memory management.
-    'system_test.lua', -- Performance and security testing utilities.
+    -- 'system_test.lua', -- Performance and security testing utilities (DISABLED - not for production).
     'player_manager.lua', -- Refactored player data management system (includes integration management).
     
     -- Consolidated server system (includes inventory, progression, and core logic)
