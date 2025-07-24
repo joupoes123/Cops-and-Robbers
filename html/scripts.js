@@ -4703,7 +4703,7 @@ class BankingSystem {
     closeATM() {
         this.isATMOpen = false;
         document.getElementById('atm-interface').classList.add('hidden');
-        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeBanking`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -4729,7 +4729,7 @@ class BankingSystem {
     closeBank() {
         this.isBankOpen = false;
         document.getElementById('bank-interface').classList.add('hidden');
-        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeBanking`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -4760,7 +4760,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4776,7 +4776,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4786,7 +4786,7 @@ class BankingSystem {
     }
 
     quickWithdraw(amount) {
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4800,7 +4800,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4816,7 +4816,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4834,7 +4834,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankTransfer`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankTransfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ targetId, amount })
@@ -4860,7 +4860,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/requestLoan`, {
+        fetch(`https://${CNRConfig.getResourceName()}/requestLoan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, duration })
@@ -4875,7 +4875,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/repayLoan`, {
+        fetch(`https://${CNRConfig.getResourceName()}/repayLoan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4902,7 +4902,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/makeInvestment`, {
+        fetch(`https://${CNRConfig.getResourceName()}/makeInvestment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ investmentId, amount: parseInt(amount) })
@@ -5102,7 +5102,7 @@ class HeistSystem {
         this.isHeistPlanningOpen = false;
         document.getElementById('heist-planning-interface').classList.add('hidden');
         
-        fetch(`https://${window.cnrResourceName}/closeHeistPlanning`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeHeistPlanning`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5141,7 +5141,7 @@ class HeistSystem {
         this.updateHeistDetails();
 
         // Notify server of heist selection
-        fetch(`https://${window.cnrResourceName}/startHeistPlanning`, {
+        fetch(`https://${CNRConfig.getResourceName()}/startHeistPlanning`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ heistId })
@@ -5181,7 +5181,7 @@ class HeistSystem {
     }
 
     loadAvailableHeists() {
-        fetch(`https://${window.cnrResourceName}/getAvailableHeists`, {
+        fetch(`https://${CNRConfig.getResourceName()}/getAvailableHeists`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5245,7 +5245,7 @@ class HeistSystem {
         const roleId = roleCard.dataset.roleId;
         if (!roleCard.classList.contains('available')) return;
 
-        fetch(`https://${window.cnrResourceName}/joinHeistCrew`, {
+        fetch(`https://${CNRConfig.getResourceName()}/joinHeistCrew`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ crewId: this.currentCrew?.id, role: roleId })
@@ -5307,7 +5307,7 @@ class HeistSystem {
 
         if (!quantity || isNaN(quantity) || quantity <= 0) return;
 
-        fetch(`https://${window.cnrResourceName}/purchaseHeistEquipment`, {
+        fetch(`https://${CNRConfig.getResourceName()}/purchaseHeistEquipment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: equipmentId, quantity: parseInt(quantity) })
@@ -5364,7 +5364,7 @@ class HeistSystem {
     startHeist() {
         if (!this.selectedHeist) return;
 
-        fetch(`https://${window.cnrResourceName}/startEnhancedHeist`, {
+        fetch(`https://${CNRConfig.getResourceName()}/startEnhancedHeist`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5374,7 +5374,7 @@ class HeistSystem {
     }
 
     leaveCrew() {
-        fetch(`https://${window.cnrResourceName}/leaveHeistCrew`, {
+        fetch(`https://${CNRConfig.getResourceName()}/leaveHeistCrew`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
