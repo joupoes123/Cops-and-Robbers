@@ -1,7 +1,22 @@
 // html/scripts.js
 // Handles NUI interactions for Cops and Robbers game mode.
 
-window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
+const CNRConfig = {
+    resourceName: null,
+    isInitialized: false,
+    getResourceName() {
+        if (!this.isInitialized) {
+            console.warn('Resource name accessed before initialization');
+        }
+        return this.resourceName || 'unknown-resource';
+    },
+    init(name) {
+        this.resourceName = name;
+        this.isInitialized = true;
+        console.log(`Resource name initialized: ${name}`);
+    }
+};
+
 window.fullItemConfig = null; // Will store Config.Items
 
 // Inventory state variables
@@ -35,7 +50,7 @@ const allowedOrigins = [
 ];
 
 window.addEventListener('message', function(event) {
-    const currentResourceOrigin = `nui://${window.cnrResourceName || 'cops-and-robbers'}`;
+    const currentResourceOrigin = `nui://${CNRConfig.getResourceName()}`;
     if (!allowedOrigins.includes(event.origin) && event.origin !== currentResourceOrigin) {
         console.warn(`Security: Received message from untrusted origin: ${event.origin}. Expected: ${currentResourceOrigin} or predefined. Ignoring.`);
         return;
@@ -58,9 +73,9 @@ window.addEventListener('message', function(event) {
     switch (data.action) {
         case 'showRoleSelection':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             showRoleSelection();
@@ -84,10 +99,12 @@ window.addEventListener('message', function(event) {
                     window.playerInfo.cash = data.cash;
                 }
             }
-            break;case 'showStoreMenu':        case 'openStore':
+            break;
+        case 'showStoreMenu':
+        case 'openStore':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
+                CNRConfig.init(data.resourceName);
+                const currentResourceOriginDynamic = `nui://${CNRConfig.getResourceName()}`;
                 if (!allowedOrigins.includes(currentResourceOriginDynamic)) {
                     allowedOrigins.push(currentResourceOriginDynamic);
                 }
@@ -148,17 +165,17 @@ window.addEventListener('message', function(event) {
             break;
         case 'showAdminPanel':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                 if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                 if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             showAdminPanel(data.players);
             break;        case 'showBountyBoard':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             if (typeof showBountyBoardUI === 'function') showBountyBoardUI(data.bounties);
@@ -283,7 +300,7 @@ window.addEventListener('message', function(event) {
             const testEditor = document.getElementById('character-editor');
             if (testEditor) {
                 console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -294,7 +311,7 @@ window.addEventListener('message', function(event) {
                 });
             } else {
                 console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -371,14 +388,14 @@ function formatJailTime(totalSeconds) {
 // NUI Focus Helper Function (remains unchanged)
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
     try {
-        const resName = window.cnrResourceName || 'cops-and-robbers';
+        const resName = CNRConfig.getResourceName();
         await fetch(`https://${resName}/setNuiFocus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({ hasFocus: hasFocus, hasCursor: hasCursor })
         });
     } catch (error) {
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
+        const resNameForError = CNRConfig.getResourceName();
         console.error(`Error calling setNuiFocus NUI callback (URL attempted: https://${resNameForError}/setNuiFocus):`, error);
     }
 }
@@ -622,7 +639,7 @@ function closeStoreMenu() {
         storeMenuUI.style.display = '';
         
         // Notify Lua client that store is closing
-        const resName = window.cnrResourceName || 'cops-and-robbers';
+        const resName = CNRConfig.getResourceName();
         fetch(`https://${resName}/closeStore`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -796,7 +813,7 @@ function loadSellGridItems() {
     sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Loading inventory...</div>';
     
     // Fetch player inventory from server
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     console.log('[CNR_NUI] Fetching inventory from resource:', resName);
     
     fetch(`https://${resName}/getPlayerInventory`, {
@@ -1112,7 +1129,7 @@ function getItemIcon(category, itemName) {
 // MODIFIED handleItemAction function
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     const url = `https://${resName}/${endpoint}`;
 
     try {
@@ -1296,7 +1313,7 @@ document.addEventListener('click', function(event) {
 });
 
 function selectRole(selectedRole) {
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     const fetchURL = `https://${resName}/selectRole`;
     fetch(fetchURL, {
         method: 'POST',
@@ -1338,7 +1355,7 @@ function selectRole(selectedRole) {
         }
     })
     .catch(error => {
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
+        const resNameForError = CNRConfig.getResourceName();
         console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
         showToast(`Failed to select role: ${error.message || 'See F8 console.'}`, 'error');
     });
@@ -1355,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if it's a role selection or character editor button
                 if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
                     // Open character editor
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/openCharacterEditor`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ role: role, characterSlot: 1 })
@@ -1379,7 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const role = button.getAttribute('data-role');
                 if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
                     // Open character editor
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/openCharacterEditor`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ role: role, characterSlot: 1 })
@@ -1405,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (target.classList.contains('admin-action-btn')) {
                 const targetId = target.dataset.targetId;
                 if (!targetId) return;
-                const resName = window.cnrResourceName || 'cops-and-robbers';
+                const resName = CNRConfig.getResourceName();
                 if (target.classList.contains('admin-kick-btn')) {
                     if (confirm(`Kick player ID ${targetId}?`)) {
                         fetch(`https://${resName}/adminKickPlayer`, {
@@ -1436,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentAdminTargetPlayerId) {
             const reasonInput = document.getElementById('admin-ban-reason');
             const reason = reasonInput ? reasonInput.value.trim() : "Banned by Admin via UI.";
-            const resName = window.cnrResourceName || 'cops-and-robbers';
+            const resName = CNRConfig.getResourceName();
             fetch(`https://${resName}/adminBanPlayer`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
@@ -1712,7 +1729,7 @@ function closeInventoryUI() {
     fetchSetNuiFocus(false, false);
     
     // Send close message to Lua
-    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/closeInventory`, {
+    fetch(`https://${CNRConfig.getResourceName()}/closeInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
