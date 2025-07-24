@@ -2774,7 +2774,7 @@ function closeCharacterEditor() {
         }
 
         // Send close confirmation to client
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_closed`, {
+        fetch(`https://${CNRConfig.getResourceName()}/characterEditor_closed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ success: true })
@@ -3242,7 +3242,7 @@ function handleCharacterEditorFrameMessage(data) {
 window.addEventListener('message', function(event) {
     // Forward character editor messages to FiveM client
     if (event.data && event.data.action && event.data.action.startsWith('characterEditor_')) {
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${event.data.action}`, {
+        fetch(`https://${CNRConfig.getResourceName()}/${event.data.action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event.data)
@@ -3264,7 +3264,7 @@ class EnhancedCharacterEditor {
         this.characterSlots = {};
         this.selectedUniformPreset = null;
         this.selectedCharacterSlot = null;
-        this.resourceName = window.cnrResourceName || 'cops-and-robbers';
+        this.resourceName = CNRConfig.getResourceName();
         
         this.init();
     }
@@ -4546,7 +4546,7 @@ class ProgressionSystem {
     }
     
     sendNuiMessage(action, data = {}) {
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${action}`, {
+        fetch(`https://${CNRConfig.getResourceName()}/${action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
