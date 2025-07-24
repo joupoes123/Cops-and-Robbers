@@ -8,6 +8,7 @@
 .dockerignore
 docker-compose.yml
 Dockerfile
+inventory_server.lua.backup
 
 # Common files to ignore
 *.log
