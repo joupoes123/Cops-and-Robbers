@@ -2,6 +2,9 @@
 
 **Cops & Robbers** is an open-source game mode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements.
 
+
+[![pipeline status](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/badges/main/pipeline.svg)](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/-/commits/main)
+
 ## 🚀 Latest Version: 1.2.0 (July 2025)
 
 ### Major Features
