@@ -196,23 +196,20 @@ AddEventHandler('cnr:requestBountyList', SecurityEnhancements.SecureEventHandler
 end))
 
 -- Automatically check for placing bounties on players with high wanted levels
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(60000) -- Check every minute
-        
-        for playerId, wantedData in pairs(wantedPlayers) do
-            -- If player is not already bountied and meets threshold
-            if playersData[playerId] and robbersActive[playerId] and not activeBounties[playerId] then
-                local wantedLevel = CheckPlayerWantedLevel(playerId)
-                
-                -- Automatically place a bounty if wanted level is high enough
-                if wantedLevel >= 4 then -- Auto-bounty for 4+ stars
-                    PlaceBounty(playerId)
-                end
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    for playerId, wantedData in pairs(wantedPlayers) do
+        -- If player is not already bountied and meets threshold
+        if playersData[playerId] and robbersActive[playerId] and not activeBounties[playerId] then
+            local wantedLevel = CheckPlayerWantedLevel(playerId)
+            
+            -- Automatically place a bounty if wanted level is high enough
+            if wantedLevel >= 4 then -- Auto-bounty for 4+ stars
+                PlaceBounty(playerId)
             end
         end
     end
-end)
+    return true
+end, 60000, 300000, 3)
 
 -- ====================================================================
 -- Contraband Dealers Implementation
@@ -982,18 +979,16 @@ function CheckAndPlaceBounty(playerId)
     end
 end
 
-CreateThread(function() -- Bounty Increase & Expiry Loop
-    while true do 
-        Wait(60000)
-        if Config.BountySettings.enabled then
-            local bountyUpdatedThisCycle = false
-            local currentTime = os.time()
-            for playerIdStr, bountyData in pairs(activeBounties) do
-                local playerId = tonumber(playerIdStr)
-                -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
-                local pData = GetCnrPlayerData(playerId)
-                local wantedData = wantedPlayers[playerId]
-                local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
+PerformanceOptimizer.CreateOptimizedLoop(function() -- Bounty Increase & Expiry Loop
+    if Config.BountySettings.enabled then
+        local bountyUpdatedThisCycle = false
+        local currentTime = os.time()
+        for playerIdStr, bountyData in pairs(activeBounties) do
+            local playerId = tonumber(playerIdStr)
+            -- local player = GetPlayerFromServerId(playerId) -- Not needed if player is offline, bounty can still tick or expire
+            local pData = GetCnrPlayerData(playerId)
+            local wantedData = wantedPlayers[playerId]
+            local isPlayerOnline = GetPlayerName(tostring(playerId)) ~= nil -- Check if player is online
 
                 if isPlayerOnline and pData and wantedData and wantedData.stars >= Config.BountySettings.wantedLevelThreshold and currentTime < bountyData.expiresAt then
                     if bountyData.amount < Config.BountySettings.maxBounty then
@@ -1023,7 +1018,8 @@ CreateThread(function() -- Bounty Increase & Expiry Loop
             if bountyUpdatedThisCycle then TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties) end
         end
     end
-end)
+    return true
+end, 60000, 300000, 3)
 
 -- Handle bounty list request (duplicate - should be removed or consolidated)
 RegisterNetEvent('cnr:requestBountyList')
@@ -1194,21 +1190,20 @@ ReduceWantedLevel = function(playerId, amount)
     end
 end
 
-CreateThread(function() -- Wanted level decay with cop sight detection
-    while true do Wait(Config.WantedSettings.decayIntervalMs or 30000)
-        local currentTime = os.time()
-        for playerIdStr, data in pairs(wantedPlayers) do 
-            local playerId = tonumber(playerIdStr)
-            -- Only apply decay to online robbers
-            if GetPlayerName(playerId) ~= nil and IsPlayerRobber(playerId) then
-                if data.wantedLevel > 0 and (currentTime - data.lastCrimeTime) > (Config.WantedSettings.noCrimeCooldownMs / 1000) then
-                    -- Check if any cops are nearby (cop sight detection)
-                    local playerPed = GetPlayerPed(playerId)
-                    local canDecay = true
-                    
-                    if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                        local playerCoords = GetEntityCoords(playerPed)
-                        local copSightDistance = Config.WantedSettings.copSightDistance or 50.0
+PerformanceOptimizer.CreateOptimizedLoop(function() -- Wanted level decay with cop sight detection
+    local currentTime = os.time()
+    for playerIdStr, data in pairs(wantedPlayers) do 
+        local playerId = tonumber(playerIdStr)
+        -- Only apply decay to online robbers
+        if GetPlayerName(playerId) ~= nil and IsPlayerRobber(playerId) then
+            if data.wantedLevel > 0 and (currentTime - data.lastCrimeTime) > (Config.WantedSettings.noCrimeCooldownMs / 1000) then
+                -- Check if any cops are nearby (cop sight detection)
+                local playerPed = GetPlayerPed(playerId)
+                local canDecay = true
+                
+                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    local copSightDistance = Config.WantedSettings.copSightDistance or 50.0
                         
                         -- Check distance to all online cops with caching
                         for copId, _ in pairs(copsOnDuty) do
@@ -1257,28 +1252,26 @@ CreateThread(function() -- Wanted level decay with cop sight detection
             end
         end
     end
-end)
+    return true
+end, Config.WantedSettings.decayIntervalMs or 30000, 150000, 2)
 
 -- Server-side crime detection for robbers only
 local playerSpeedingData = {} -- Track speeding state per player
 local playerVehicleData = {} -- Track vehicle damage and collisions
 
-CreateThread(function()
-    while true do
-        Wait(1000) -- Check every second
-        
-        for playerId, _ in pairs(robbersActive) do
-            if GetPlayerName(playerId) ~= nil then -- Player is online
-                local playerPed = GetPlayerPed(playerId)
-                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                    local vehicle = GetVehiclePedIsIn(playerPed, false)
-                    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-                        local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
-                        local currentTime = os.time()
-                        local vehicleClass = GetVehicleClass(vehicle)
-                        
-                        -- Exclude aircraft (planes/helicopters) and boats from speeding detection
-                        local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    for playerId, _ in pairs(robbersActive) do
+        if GetPlayerName(playerId) ~= nil then -- Player is online
+            local playerPed = GetPlayerPed(playerId)
+            if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                local vehicle = GetVehiclePedIsIn(playerPed, false)
+                if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
+                    local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
+                    local currentTime = os.time()
+                    local vehicleClass = GetVehicleClass(vehicle)
+                    
+                    -- Exclude aircraft (planes/helicopters) and boats from speeding detection
+                    local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
                         local isBoat = (vehicleClass == 14) -- Boats
                         local speedLimit = Config.SpeedLimitMph or 60.0
                         
@@ -1347,7 +1340,8 @@ CreateThread(function()
             end
         end
     end
-end)
+    return true
+end, Config.WantedSettings.decayIntervalMs or 30000, 150000, 2)
 
 -- Server-side weapon discharge detection for robbers
 RegisterNetEvent('cnr:weaponFired')
@@ -1367,23 +1361,20 @@ end)
 -- Server-side restricted area monitoring for robbers
 local playerRestrictedAreaData = {} -- Track which areas players have entered
 
-CreateThread(function()
-    while true do
-        Wait(2000) -- Check every 2 seconds
-        
-        if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
-            for playerId, _ in pairs(robbersActive) do
-                if GetPlayerName(playerId) ~= nil then -- Player is online
-                    local playerPed = GetPlayerPed(playerId)
-                    if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                        local playerCoords = GetEntityCoords(playerPed)
-                        
-                        -- Initialize player restricted area data if not exists
-                        if not playerRestrictedAreaData[playerId] then
-                            playerRestrictedAreaData[playerId] = {}
-                        end
-                        
-                        for _, area in ipairs(Config.RestrictedAreas) do
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
+        for playerId, _ in pairs(robbersActive) do
+            if GetPlayerName(playerId) ~= nil then -- Player is online
+                local playerPed = GetPlayerPed(playerId)
+                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
+                    local playerCoords = GetEntityCoords(playerPed)
+                    
+                    -- Initialize player restricted area data if not exists
+                    if not playerRestrictedAreaData[playerId] then
+                        playerRestrictedAreaData[playerId] = {}
+                    end
+                    
+                    for _, area in ipairs(Config.RestrictedAreas) do
                             local distance = #(playerCoords - area.center)
                             local areaKey = area.name or "unknown"
                             
@@ -1421,7 +1412,8 @@ CreateThread(function()
             end
         end
     end
-end)
+    return true
+end, 2000, 10000, 2)
 
 -- Server-side assault and murder detection for robbers
 RegisterNetEvent('cnr:playerDamaged')
@@ -1732,23 +1724,22 @@ ForceReleasePlayerFromJail = function(playerId, reason)
     return true
 end
 
-CreateThread(function() -- Jail time update loop
-    while true do Wait(1000)
-        -- Iterate over a copy of keys if modifying the table, though here we are just checking values.
-        for playerIdKey, jailInstanceData in pairs(jail) do
-            local pIdNum = tonumber(playerIdKey) -- Ensure we use the key from pairs()
+PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
+    -- Iterate over a copy of keys if modifying the table, though here we are just checking values.
+    for playerIdKey, jailInstanceData in pairs(jail) do
+        local pIdNum = tonumber(playerIdKey) -- Ensure we use the key from pairs()
 
-            if pIdNum and pIdNum > 0 then
-                if GetPlayerName(pIdNum) ~= nil then -- Check player online
-                    jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
-                    if jailInstanceData.remainingTime <= 0 then
-                        ForceReleasePlayerFromJail(pIdNum, "Sentence served")
-                    elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
-                        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
-                    end
-                else
-                    -- Player is in the 'jail' table but is offline.
-                    -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
+        if pIdNum and pIdNum > 0 then
+            if GetPlayerName(pIdNum) ~= nil then -- Check player online
+                jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
+                if jailInstanceData.remainingTime <= 0 then
+                    ForceReleasePlayerFromJail(pIdNum, "Sentence served")
+                elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
+                    SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
+                end
+            else
+                -- Player is in the 'jail' table but is offline.
+                -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
                     -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
                     -- LoadPlayerData should handle their actual status on rejoin based on persisted pData.jailData.
                     -- So, we can remove them from the live 'jail' table here to keep it clean.
@@ -1761,7 +1752,8 @@ CreateThread(function() -- Jail time update loop
             end
         end
     end
-end)
+    return true
+end, 1000, 3000, 1)
 -- (Removed duplicate cnr:playerSpawned handler. See consolidated handler below.)
 
 RegisterNetEvent('cnr:selectRole')
@@ -2161,25 +2153,22 @@ local function SavePlayerDataImmediate(playerId, reason)
 end
 
 -- Periodic save system - saves all pending players every 30 seconds
-CreateThread(function()
-    while true do
-        Wait(30000) -- 30 seconds
-
-        -- Save all players who have pending saves
-        for playerId, needsSave in pairs(playersSavePending) do
-            if needsSave and GetPlayerName(playerId) then
-                SavePlayerDataImmediate(playerId, "periodic")
-            end
-        end
-
-        -- Clean up offline players from pending saves
-        for playerId, _ in pairs(playersSavePending) do
-            if not GetPlayerName(playerId) then
-                playersSavePending[playerId] = nil
-            end
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    -- Save all players who have pending saves
+    for playerId, needsSave in pairs(playersSavePending) do
+        if needsSave and GetPlayerName(playerId) then
+            SavePlayerDataImmediate(playerId, "periodic")
         end
     end
-end)
+
+    -- Clean up offline players from pending saves
+    for playerId, _ in pairs(playersSavePending) do
+        if not GetPlayerName(playerId) then
+            playersSavePending[playerId] = nil
+        end
+    end
+    return true
+end, 30000, 150000, 3)
 
 -- REFACTORED: Player connection handler using new PlayerManager system
 AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
@@ -2252,7 +2241,8 @@ AddEventHandler('playerDropped', function(reason)
             end
         end
     end
-end)
+    return true
+end, 2000, 10000, 2)
 
 -- ====================================================================
 -- PERFORMANCE TESTING EVENT HANDLERS - DISABLED FOR PRODUCTION

@@ -1373,12 +1373,10 @@ function PlayerManager.Initialize()
     Log("[CNR_PLAYER_MANAGER] Player Manager initialized")
     
     -- Statistics logging thread
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(10 * Constants.TIME_MS.MINUTE)
-            PlayerManager.LogStats()
-        end
-    end)
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        PlayerManager.LogStats()
+        return true
+    end, 10 * Constants.TIME_MS.MINUTE, 30 * Constants.TIME_MS.MINUTE, 5)
 end
 
 -- Initialize when loaded

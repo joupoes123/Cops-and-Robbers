@@ -628,45 +628,43 @@ end
 -- ====================================================================
 
 --- Main data processing thread with improved batching
-Citizen.CreateThread(function()
-    while true do
-        local startTime = GetGameTimer()
-        
-        -- Process save queue with batching
-        ProcessSaveQueueBatched()
-        
-        -- Process pending saves
-        ProcessPendingSaves()
-        
-        -- Process scheduled backups
-        ProcessScheduledBackups()
-        
-        local processingTime = GetGameTimer() - startTime
-        
-        -- Adaptive wait time based on processing load
-        local waitTime = 1000 -- Base wait time
-        if processingTime > 100 then
-            waitTime = waitTime + (processingTime * 2) -- Increase wait if processing is slow
-        elseif processingTime < 50 then
-            waitTime = math.max(500, waitTime - 100) -- Decrease wait if processing is fast
-        end
-        
-        Citizen.Wait(waitTime)
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    local startTime = GetGameTimer()
+    
+    -- Process save queue with batching
+    ProcessSaveQueueBatched()
+    
+    -- Process pending saves
+    ProcessPendingSaves()
+    
+    -- Process scheduled backups
+    ProcessScheduledBackups()
+    
+    local processingTime = GetGameTimer() - startTime
+    
+    -- Adaptive wait time based on processing load
+    local waitTime = 1000 -- Base wait time
+    if processingTime > 100 then
+        waitTime = waitTime + (processingTime * 2) -- Increase wait if processing is slow
+    elseif processingTime < 50 then
+        waitTime = math.max(500, waitTime - 100) -- Decrease wait if processing is fast
     end
-end)
+    
+    if waitTime > 1000 then
+        Citizen.Wait(waitTime - 1000) -- Subtract base interval since optimized loop handles base timing
+    end
+    return true
+end, 1000, 5000, 3)
 
 --- Performance monitoring thread
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(60000) -- Every minute
-        
-        local stats = DataManager.GetStats()
-        if stats.queueSize > 10 or stats.pendingSaves > 5 then
-            LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
-                stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
-        end
+PerformanceOptimizer.CreateOptimizedLoop(function()
+    local stats = DataManager.GetStats()
+    if stats.queueSize > 10 or stats.pendingSaves > 5 then
+        LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
+            stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
     end
-end)
+    return true
+end, 60000, 300000, 4)
 
 -- ====================================================================
 -- MONITORING AND STATISTICS
@@ -710,22 +708,18 @@ function DataManager.Initialize()
     DataManager.ScheduleBackup(Constants.FILES.BANKING_DATA_FILE)
     
     -- Start processing threads
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(Constants.TIME_MS.SAVE_INTERVAL)
-            ProcessSaveQueue()
-            ProcessPendingSaves()
-            ProcessScheduledBackups()
-        end
-    end)
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        ProcessSaveQueue()
+        ProcessPendingSaves()
+        ProcessScheduledBackups()
+        return true
+    end, Constants.TIME_MS.SAVE_INTERVAL, Constants.TIME_MS.SAVE_INTERVAL * 3, 3)
     
     -- Statistics logging thread
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(10 * Constants.TIME_MS.MINUTE) -- Every 10 minutes
-            DataManager.LogStats()
-        end
-    end)
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        DataManager.LogStats()
+        return true
+    end, 10 * Constants.TIME_MS.MINUTE, 30 * Constants.TIME_MS.MINUTE, 5)
 end
 
 --- Cleanup on resource stop
