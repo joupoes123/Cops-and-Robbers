@@ -768,6 +768,32 @@ local suspiciousPlayers = {}
 -- ENHANCED VALIDATION WRAPPERS
 -- ====================================================================
 
+--- @param eventName string Name of the event for logging
+--- @param handler function Original event handler function
+--- @return function Wrapped handler with validation
+function SecurityEnhancements.SecureEventHandler(eventName, handler)
+    return function(...)
+        local playerId = source
+        
+        -- Validate player
+        local validPlayer, playerError = Validation.ValidatePlayer(playerId)
+        if not validPlayer then
+            SecurityEnhancements.LogSecurityEvent(playerId, "INVALID_PLAYER", playerError)
+            return
+        end
+        
+        -- Rate limit check
+        if not Validation.CheckRateLimit(playerId, "events", 
+            Constants.VALIDATION.MAX_EVENTS_PER_SECOND, 
+            Constants.TIME_MS.SECOND) then
+            SecurityEnhancements.LogSecurityEvent(playerId, "RATE_LIMIT_EXCEEDED", "Event operation")
+            return
+        end
+        
+        return handler(playerId, ...)
+    end
+end
+
 --- Enhanced wrapper for legacy AddItem function with comprehensive validation
 --- @param pData table Player data
 --- @param itemId string Item ID

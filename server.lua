@@ -48,20 +48,19 @@ local nextSpikeStripId = 1
 -- Get Player Role Handler
 -- ====================================================================
 RegisterNetEvent('cnr:getPlayerRole')
-AddEventHandler('cnr:getPlayerRole', function()
-    local source = source
+AddEventHandler('cnr:getPlayerRole', SecurityEnhancements.SecureEventHandler('cnr:getPlayerRole', function(playerId)
     local role = "civilian" -- Default role
     
-    if playersData[source] and playersData[source].role then
-        role = playersData[source].role
-    elseif copsOnDuty[source] then
+    if playersData[playerId] and playersData[playerId].role then
+        role = playersData[playerId].role
+    elseif copsOnDuty[playerId] then
         role = "cop"
-    elseif robbersActive[source] then
+    elseif robbersActive[playerId] then
         role = "robber"
     end
     
-    TriggerClientEvent('cnr:returnPlayerRole', source, role)
-end)
+    TriggerClientEvent('cnr:returnPlayerRole', playerId, role)
+end))
 
 -- ====================================================================
 -- Bounty System
@@ -192,11 +191,10 @@ end
 
 -- Register server event to get bounty list
 RegisterNetEvent('cnr:requestBountyList')
-AddEventHandler('cnr:requestBountyList', function()
-    local source = source
+AddEventHandler('cnr:requestBountyList', SecurityEnhancements.SecureEventHandler('cnr:requestBountyList', function(playerId)
     local bounties = GetActiveBounties()
-    TriggerClientEvent('cnr:receiveBountyList', source, bounties)
-end)
+    TriggerClientEvent('cnr:receiveBountyList', playerId, bounties)
+end))
 
 -- Automatically check for placing bounties on players with high wanted levels
 Citizen.CreateThread(function()
@@ -223,18 +221,17 @@ end)
 
 -- Register NUI callback for accessing contraband dealer
 RegisterNetEvent('cnr:accessContrabandDealer')
-AddEventHandler('cnr:accessContrabandDealer', function()
-    local source = source
-    local pData = GetCnrPlayerData(source)
+AddEventHandler('cnr:accessContrabandDealer', SecurityEnhancements.SecureEventHandler('cnr:accessContrabandDealer', function(playerId)
+    local pData = GetCnrPlayerData(playerId)
     
     if not pData then
-        TriggerClientEvent('cnr:showNotification', source, "~r~Player data not found.")
+        TriggerClientEvent('cnr:showNotification', playerId, "~r~Player data not found.")
         return
     end
     
     -- Check if player is a robber
     if pData.role ~= "robber" then
-        TriggerClientEvent('cnr:showNotification', source, "~r~Only robbers can access contraband dealers.")
+        TriggerClientEvent('cnr:showNotification', playerId, "~r~Only robbers can access contraband dealers.")
         return
     end
     
@@ -277,8 +274,8 @@ AddEventHandler('cnr:accessContrabandDealer', function()
     }
     
     -- Send to client to open contraband store
-    TriggerClientEvent('cnr:openContrabandStoreUI', source, contrabandItems)
-end)
+    TriggerClientEvent('cnr:openContrabandStoreUI', playerId, contrabandItems)
+end))
 
 -- OLD: Table to store last report times for specific crimes per player (no longer used)
 -- local clientReportCooldowns = {} -- DISABLED - replaced by server-side detection
@@ -1038,16 +1035,15 @@ CreateThread(function() -- Bounty Increase & Expiry Loop
     end
 end)
 
--- Handle bounty list request
+-- Handle bounty list request (duplicate - should be removed or consolidated)
 RegisterNetEvent('cnr:requestBountyList')
-AddEventHandler('cnr:requestBountyList', function()
-    local source = source
+AddEventHandler('cnr:requestBountyList', SecurityEnhancements.SecureEventHandler('cnr:requestBountyList', function(playerId)
     -- Send the list of all active bounties to the player who requested it
     local bountyList = {}
     
     -- If there are no active bounties, return an empty list
     if not next(activeBounties) then
-        TriggerClientEvent('cnr:receiveBountyList', source, {})
+        TriggerClientEvent('cnr:receiveBountyList', playerId, {})
         return
     end
     
@@ -1065,8 +1061,8 @@ AddEventHandler('cnr:requestBountyList', function()
     table.sort(bountyList, function(a, b) return a.amount > b.amount end)
     
     -- Send the formatted bounty list to the client
-    TriggerClientEvent('cnr:receiveBountyList', source, bountyList)
-end)
+    TriggerClientEvent('cnr:receiveBountyList', playerId, bountyList)
+end))
 
 -- =================================================================================================
 -- WANTED SYSTEM
@@ -2013,8 +2009,7 @@ end)
 
 -- Handle heist initiation requests from clients
 RegisterServerEvent('cnr:initiateHeist')
-AddEventHandler('cnr:initiateHeist', function(heistType)
-    local playerId = source
+AddEventHandler('cnr:initiateHeist', SecurityEnhancements.SecureEventHandler('cnr:initiateHeist', function(playerId, heistType)
     local playerData = GetCnrPlayerData(playerId)
     
     if not playerData then
@@ -2136,7 +2131,7 @@ AddEventHandler('cnr:initiateHeist', function(heistType)
             end
         end
     end)
-end)
+end))
 
 -- OLD HANDLERS REMOVED - Using enhanced versions below with inventory saving
 
@@ -2481,8 +2476,7 @@ end
 
 -- Event handler for progression system requests
 RegisterNetEvent('cnr:requestProgressionData')
-AddEventHandler('cnr:requestProgressionData', function()
-    local playerId = source
+AddEventHandler('cnr:requestProgressionData', SecurityEnhancements.SecureEventHandler('cnr:requestProgressionData', function(playerId)
     local pData = GetCnrPlayerData(playerId)
     if not pData then return end
     
@@ -2496,12 +2490,11 @@ AddEventHandler('cnr:requestProgressionData', function()
     }
     
     SafeTriggerClientEvent('cnr:progressionDataResponse', playerId, progressionData)
-end)
+end))
 
 -- Event handler for ability usage
 RegisterNetEvent('cnr:useAbility')
-AddEventHandler('cnr:useAbility', function(abilityId)
-    local playerId = source
+AddEventHandler('cnr:useAbility', SecurityEnhancements.SecureEventHandler('cnr:useAbility', function(playerId, abilityId)
     local pData = GetCnrPlayerData(playerId)
     if not pData then return end
     
@@ -2516,12 +2509,11 @@ AddEventHandler('cnr:useAbility', function(abilityId)
             })
         end
     end
-end)
+end))
 
 -- Event handler for prestige requests
 RegisterNetEvent('cnr:requestPrestige')
-AddEventHandler('cnr:requestPrestige', function()
-    local playerId = source
+AddEventHandler('cnr:requestPrestige', SecurityEnhancements.SecureEventHandler('cnr:requestPrestige', function(playerId)
     
     -- Check if progression system export is available
     if exports['cops-and-robbers'] and exports['cops-and-robbers'].HandlePrestige then
@@ -2536,7 +2528,7 @@ AddEventHandler('cnr:requestPrestige', function()
             args = {"^1Error", "Prestige system is not available"} 
         })
     end
-end)
+end))
 
 -- Function to trigger ability effects
 function TriggerAbilityEffect(playerId, abilityId)
@@ -2804,9 +2796,8 @@ end
 
 -- Handle client request for Config.Items
 RegisterServerEvent('cnr:requestConfigItems')
-AddEventHandler('cnr:requestConfigItems', function()
-    local source = source
-    Log(string.format("Received Config.Items request from player %s", source), "info", "CNR_SERVER")
+AddEventHandler('cnr:requestConfigItems', SecurityEnhancements.SecureEventHandler('cnr:requestConfigItems', function(playerId)
+    Log(string.format("Received Config.Items request from player %s", playerId), "info", "CNR_SERVER")
 
     -- Give some time for Config to be fully loaded if this is early in startup
     Citizen.Wait(100)
@@ -2814,32 +2805,31 @@ AddEventHandler('cnr:requestConfigItems', function()
     if Config and Config.Items and type(Config.Items) == "table" then
         local itemCount = 0
         for _ in pairs(Config.Items) do itemCount = itemCount + 1 end
-        TriggerClientEvent('cnr:receiveConfigItems', source, Config.Items)
-        Log(string.format("Sent Config.Items to player %s (%d items)", source, itemCount), "info", "CNR_SERVER")
+        TriggerClientEvent('cnr:receiveConfigItems', playerId, Config.Items)
+        Log(string.format("Sent Config.Items to player %s (%d items)", playerId, itemCount), "info", "CNR_SERVER")
     else
-        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found or invalid. Config exists: %s, Config.Items type: %s", source, tostring(Config ~= nil), type(Config and Config.Items)), "error", "CNR_SERVER")
+        Log(string.format("Failed to send Config.Items to player %s - Config.Items not found or invalid. Config exists: %s, Config.Items type: %s", playerId, tostring(Config ~= nil), type(Config and Config.Items)), "error", "CNR_SERVER")
         -- Send empty table as fallback
-        TriggerClientEvent('cnr:receiveConfigItems', source, {})
+        TriggerClientEvent('cnr:receiveConfigItems', playerId, {})
     end
-end)
+end))
 
 -- Handle speeding fine issuance
 RegisterServerEvent('cnr:issueSpeedingFine')
 RegisterNetEvent('cnr:issueSpeedingFine')
-AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
-    local source = source
-    local pData = GetCnrPlayerData(source)
+AddEventHandler('cnr:issueSpeedingFine', SecurityEnhancements.SecureEventHandler('cnr:issueSpeedingFine', function(playerId, targetPlayerId, speed)
+    local pData = GetCnrPlayerData(playerId)
     local targetData = GetCnrPlayerData(targetPlayerId)
     
     -- Validate cop issuing the fine
     if not pData or pData.role ~= "cop" then
-        SafeTriggerClientEvent('cnr:showNotification', source, "~r~You must be a cop to issue fines!")
+        SafeTriggerClientEvent('cnr:showNotification', playerId, "~r~You must be a cop to issue fines!")
         return
     end
     
     -- Validate target player
     if not targetData then
-        SafeTriggerClientEvent('cnr:showNotification', source, "~r~Target player not found!")
+        SafeTriggerClientEvent('cnr:showNotification', playerId, "~r~Target player not found!")
         return
     end
     
@@ -2890,23 +2880,22 @@ AddEventHandler('cnr:issueSpeedingFine', function(targetPlayerId, speed)
         
         -- Log the fine for admin purposes
         Log(string.format("Speeding fine issued: Cop %s fined Player %s $%d for %d mph in %d mph zone", 
-            source, targetPlayerId, fineAmount, speed, Config.SpeedLimitMph), "info", "CNR_SERVER")
+            playerId, targetPlayerId, fineAmount, speed, Config.SpeedLimitMph), "info", "CNR_SERVER")
     else
-        SafeTriggerClientEvent('cnr:showNotification', source, 
+        SafeTriggerClientEvent('cnr:showNotification', playerId, 
             string.format("~o~Target player doesn't have enough money for the fine ($%d required, has $%d)", 
                 fineAmount, targetData.money))
     end
-end)
+end))
 
 -- Handle admin status check for F2 keybind
 RegisterServerEvent('cnr:checkAdminStatus')
 RegisterNetEvent('cnr:checkAdminStatus')
-AddEventHandler('cnr:checkAdminStatus', function()
-    local source = source
-    local pData = GetCnrPlayerData(source)
+AddEventHandler('cnr:checkAdminStatus', SecurityEnhancements.SecureEventHandler('cnr:checkAdminStatus', function(playerId)
+    local pData = GetCnrPlayerData(playerId)
     
     if not pData then
-        Log(string.format("Admin status check failed - no player data for %s", source), "warn", "CNR_SERVER")
+        Log(string.format("Admin status check failed - no player data for %s", playerId), "warn", "CNR_SERVER")
         return
     end
     
@@ -2914,7 +2903,7 @@ AddEventHandler('cnr:checkAdminStatus', function()
     local isAdmin = false
     
     -- Method 1: Check ace permissions
-    if IsPlayerAceAllowed(source, "cnr.admin") then
+    if IsPlayerAceAllowed(playerId, "cnr.admin") then
         isAdmin = true
     end
     
@@ -2925,7 +2914,7 @@ AddEventHandler('cnr:checkAdminStatus', function()
     
     -- Method 3: Check against admin list in config (if you have one)
     if Config.AdminPlayers then
-        local identifier = GetPlayerIdentifier(source, 0) -- Steam ID
+        local identifier = GetPlayerIdentifier(playerId, 0) -- Steam ID
         for _, adminId in ipairs(Config.AdminPlayers) do
             if identifier == adminId then
                 isAdmin = true
@@ -2935,28 +2924,27 @@ AddEventHandler('cnr:checkAdminStatus', function()
     end
     
     if isAdmin then
-        TriggerClientEvent('cnr:showAdminPanel', source)
-        Log(string.format("Admin panel opened for player %s", source), "info", "CNR_SERVER")
+        TriggerClientEvent('cnr:showAdminPanel', playerId)
+        Log(string.format("Admin panel opened for player %s", playerId), "info", "CNR_SERVER")
     else
         -- Show robber menu if they're a robber, otherwise generic message
         if pData.role == "robber" then
-            TriggerClientEvent('cnr:showRobberMenu', source)
+            TriggerClientEvent('cnr:showRobberMenu', playerId)
         else
-            SafeTriggerClientEvent('cnr:showNotification', source, "~r~No special menu available for your role.")
+            SafeTriggerClientEvent('cnr:showNotification', playerId, "~r~No special menu available for your role.")
         end
     end
-end)
+end))
 
 -- Handle role selection request
 RegisterServerEvent('cnr:requestRoleSelection')
 RegisterNetEvent('cnr:requestRoleSelection')
-AddEventHandler('cnr:requestRoleSelection', function()
-    local source = source
-    Log(string.format("Role selection requested by player %s", source), "info", "CNR_SERVER")
+AddEventHandler('cnr:requestRoleSelection', SecurityEnhancements.SecureEventHandler('cnr:requestRoleSelection', function(playerId)
+    Log(string.format("Role selection requested by player %s", playerId), "info", "CNR_SERVER")
     
     -- Send role selection UI to client
-    TriggerClientEvent('cnr:showRoleSelection', source)
-end)
+    TriggerClientEvent('cnr:showRoleSelection', playerId)
+end))
 
 -- OLD CLIENT-SIDE CRIME REPORTING EVENT REMOVED
 -- This has been replaced by server-side crime detection systems:
