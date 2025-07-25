@@ -37,6 +37,7 @@ project {
     buildType(Build)
 
     params {
+        param("docker.registry.url", "docker.io")
         param("teamcity.internal.pipelines.creation.enabled", "true")
     }
 
