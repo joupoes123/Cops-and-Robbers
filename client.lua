@@ -1,6 +1,6 @@
 -- client.lua
 -- Cops & Robbers FiveM Game Mode - Client Script
--- Version: 1.2 | Date: June 17, 2025
+-- Version: 1.2.0 | Date: June 17, 2025
 -- Ped readiness flag and guards implemented.
 
 -- =====================================

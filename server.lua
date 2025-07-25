@@ -1,5 +1,4 @@
 -- server.lua
--- Version: 1.2.0
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.

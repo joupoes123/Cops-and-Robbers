@@ -1,6 +1,5 @@
 -- security_enhancements.lua
 -- Additional security enhancements and validation wrappers for legacy functions
--- Version: 1.2.0
 
 -- Ensure required modules are loaded
 if not Constants then

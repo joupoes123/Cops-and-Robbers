@@ -1,4 +1,3 @@
--- Version: 1.2.0
 
 -- Ensure required modules are loaded
 if not Constants then

@@ -8,6 +8,7 @@ version '1.2.0'
 
 -- Define shared scripts, loaded first on both server and client.
 shared_scripts {
+    'version.lua',      -- Centralized version management (loaded first).
     'config.lua',       -- Game mode configuration.
     'constants.lua',    -- Centralized constants and configuration values.
     'safe_utils.lua'    -- Safe utility functions (shared between client and server).

@@ -1,4 +1,3 @@
--- Version: 1.2.0
 
 -- Only load on server side
 if not IsDuplicityVersion() then
