@@ -39,7 +39,6 @@ project {
     params {
         param("docker.registry.url", "docker.io")
         param("docker.registry.username", "indominus12")
-        param("docker.registry.password", "Fepfow23.")
         param("teamcity.internal.pipelines.creation.enabled", "true")
     }
 
