@@ -1,6 +1,5 @@
 -- constants.lua
 -- Centralized constants to replace magic numbers and hardcoded strings
--- Version: 1.2.0
 
 -- Initialize Constants table
 Constants = Constants or {}

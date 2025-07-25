@@ -1,6 +1,5 @@
 -- data_manager.lua
 -- Improved data persistence system with batching, error handling, and backup support
--- Version: 1.2.0
 
 -- Ensure Constants are loaded
 if not Constants then
@@ -55,7 +54,7 @@ local function LogDataManager(message, level)
         if Log then
             Log(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message), level)
         else
-            print(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message))
+            Log(string.format("[%s] %s", string.upper(level), message), level, "CNR_DATA_MANAGER")
         end
     end
 end
@@ -376,7 +375,7 @@ function DataManager.SavePlayerData(playerId, playerData, immediate)
     local dataToSave = {
         playerId = playerId,
         lastSaved = os.time(),
-        version = "1.2.0",
+        version = Version.CURRENT,
         data = playerData
     }
     
@@ -411,7 +410,7 @@ function DataManager.LoadPlayerData(playerId)
     end
     
     -- Version compatibility check
-    if fileData.version and fileData.version ~= "1.2.0" then
+    if fileData.version and fileData.version ~= Version.CURRENT then
         LogDataManager(string.format("Player %d data version mismatch: %s", playerId, fileData.version), Constants.LOG_LEVELS.WARN)
         -- Could implement migration logic here
     end

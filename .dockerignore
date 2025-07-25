@@ -1,0 +1,12 @@
+.git
+.gitignore
+.buildkite
+docs/
+*.md
+LICENSE
+SECURITY.md
+CONTRIBUTING.md
+Changelog.md
+CHANGELOG.md
+.luacheckrc
+*.backup

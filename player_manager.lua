@@ -1,6 +1,5 @@
 -- player_manager.lua
 -- Refactored player data management system with improved security and performance
--- Version: 1.2.0
 
 -- Ensure required modules are loaded
 if not Constants then
@@ -113,7 +112,7 @@ local function CreateDefaultPlayerData(playerId)
         sessionsPlayed = 1,
         
         -- Version for data migration
-        dataVersion = "1.2.0"
+        dataVersion = Version.CURRENT
     }
 end
 
@@ -178,7 +177,7 @@ local function FixPlayerDataIssues(playerData, playerId)
     playerData.money = math.max(0, playerData.money or Constants.PLAYER_LIMITS.DEFAULT_STARTING_MONEY)
     playerData.inventory = playerData.inventory or {}
     playerData.lastSeen = os.time()
-    playerData.dataVersion = "1.2.0"
+    playerData.dataVersion = Version.CURRENT
     
     -- Validate inventory integrity
     if SecureInventory then
@@ -379,7 +378,7 @@ end
 --- @param playerId number Player ID
 --- @return table Migrated player data
 function PlayerManager.MigratePlayerData(playerData, playerId)
-    local currentVersion = "1.2.0"
+    local currentVersion = Version.CURRENT
     local dataVersion = playerData.dataVersion or "1.0.0"
     
     if dataVersion == currentVersion then
@@ -1630,16 +1629,16 @@ end
 
 --- Migrate system data files
 function PlayerManager.MigrateSystemData()
-    print("[CNR_INTEGRATION] Migrating system data...")
+    Log("Migrating system data...", "info", "CNR_INTEGRATION")
     
     -- Migrate bans.json
     local success, bansData = DataManager.LoadSystemData("bans")
     if success and bansData then
         if not bansData.version then
-            bansData.version = "1.2.0"
+            bansData.version = Version.CURRENT
             bansData.migrated = os.time()
             DataManager.SaveSystemData("bans", bansData)
-            print("[CNR_INTEGRATION] Migrated bans.json")
+            Log("Migrated bans.json", "info", "CNR_INTEGRATION")
         end
     end
     
@@ -1647,17 +1646,17 @@ function PlayerManager.MigrateSystemData()
     local success, purchaseData = DataManager.LoadSystemData("purchases")
     if success and purchaseData then
         if not purchaseData.version then
-            purchaseData.version = "1.2.0"
+            purchaseData.version = Version.CURRENT
             purchaseData.migrated = os.time()
             DataManager.SaveSystemData("purchases", purchaseData)
-            print("[CNR_INTEGRATION] Migrated purchase_history.json")
+            Log("Migrated purchase_history.json", "info", "CNR_INTEGRATION")
         end
     end
 end
 
 --- Start monitoring systems
 function PlayerManager.StartMonitoring()
-    print("[CNR_INTEGRATION] Starting system monitoring...")
+    Log("Starting system monitoring...", "info", "CNR_INTEGRATION")
     
     -- Create monitoring loop using PerformanceManager
     if PerformanceManager then
@@ -1700,25 +1699,25 @@ function PlayerManager.PerformHealthCheck()
     
     -- Log issues if any
     if #issues > 0 then
-        print(string.format("[CNR_INTEGRATION] Health check found %d issues:", #issues))
+        Log(string.format("Health check found %d issues:", #issues), "warn", "CNR_INTEGRATION")
         for _, issue in ipairs(issues) do
-            print(string.format("[CNR_INTEGRATION] - %s", issue))
+            Log(string.format("- %s", issue), "warn", "CNR_INTEGRATION")
         end
     end
 end
 
 --- Log comprehensive system statistics
 function PlayerManager.LogSystemStats()
-    print("[CNR_INTEGRATION] === SYSTEM STATISTICS ===")
+    Log("=== SYSTEM STATISTICS ===", "info", "CNR_INTEGRATION")
     
     -- Integration status
-    print(string.format("[CNR_INTEGRATION] Initialized: %s, Migration: %s", 
+    Log(string.format("Initialized: %s, Migration: %s", 
         tostring(integrationStatus.initialized), 
-        tostring(integrationStatus.migrationComplete)))
+        tostring(integrationStatus.migrationComplete)), "info", "CNR_INTEGRATION")
     
     -- Module status
     for systemName, loaded in pairs(integrationStatus.modulesLoaded) do
-        print(string.format("[CNR_INTEGRATION] %s: %s", systemName, loaded and "✅" or "❌"))
+        Log(string.format("%s: %s", systemName, loaded and "✅" or "❌"), "info", "CNR_INTEGRATION")
     end
     
     -- System-specific stats
@@ -1728,12 +1727,12 @@ function PlayerManager.LogSystemStats()
     if PlayerManager then PlayerManager.LogStats() end
     if PerformanceManager then PerformanceManager.LogStats() end
     
-    print("[CNR_INTEGRATION] === END STATISTICS ===")
+    Log("=== END STATISTICS ===", "info", "CNR_INTEGRATION")
 end
 
 --- Log initialization status
 function PlayerManager.LogInitializationStatus()
-    print("[CNR_INTEGRATION] === INITIALIZATION SUMMARY ===")
+    Log("=== INITIALIZATION SUMMARY ===", "info", "CNR_INTEGRATION")
     
     local totalSystems = 0
     local loadedSystems = 0
@@ -1742,17 +1741,17 @@ function PlayerManager.LogInitializationStatus()
         totalSystems = totalSystems + 1
         if loaded then loadedSystems = loadedSystems + 1 end
         
-        print(string.format("[CNR_INTEGRATION] %s: %s", 
-            systemName, loaded and "✅ LOADED" or "❌ FAILED"))
+        Log(string.format("%s: %s", 
+            systemName, loaded and "✅ LOADED" or "❌ FAILED"), "info", "CNR_INTEGRATION")
     end
     
-    print(string.format("[CNR_INTEGRATION] Systems: %d/%d loaded", loadedSystems, totalSystems))
-    print(string.format("[CNR_INTEGRATION] Migration: %s", 
-        integrationStatus.migrationComplete and "✅ COMPLETE" or "❌ PENDING"))
-    print(string.format("[CNR_INTEGRATION] Status: %s", 
-        integrationStatus.initialized and "✅ READY" or "❌ NOT READY"))
+    Log(string.format("Systems: %d/%d loaded", loadedSystems, totalSystems), "info", "CNR_INTEGRATION")
+    Log(string.format("Migration: %s", 
+        integrationStatus.migrationComplete and "✅ COMPLETE" or "❌ PENDING"), "info", "CNR_INTEGRATION")
+    Log(string.format("Status: %s", 
+        integrationStatus.initialized and "✅ READY" or "❌ NOT READY"), "info", "CNR_INTEGRATION")
     
-    print("[CNR_INTEGRATION] === END SUMMARY ===")
+    Log("=== END SUMMARY ===", "info", "CNR_INTEGRATION")
 end
 
 --- Get integration status
@@ -1781,7 +1780,7 @@ end
 
 --- Cleanup all systems on resource stop
 function PlayerManager.CleanupIntegration()
-    print("[CNR_INTEGRATION] Starting system cleanup...")
+    Log("Starting system cleanup...", "info", "CNR_INTEGRATION")
     
     -- Cleanup systems in reverse order
     local cleanupOrder = {
@@ -1794,14 +1793,14 @@ function PlayerManager.CleanupIntegration()
         if system and system.Cleanup then
             local success, error = pcall(system.Cleanup)
             if success then
-                print(string.format("[CNR_INTEGRATION] ✅ %s cleaned up", systemName))
+                Log(string.format("✅ %s cleaned up", systemName), "info", "CNR_INTEGRATION")
             else
-                print(string.format("[CNR_INTEGRATION] ❌ %s cleanup failed: %s", systemName, tostring(error)))
+                Log(string.format("❌ %s cleanup failed: %s", systemName, tostring(error)), "error", "CNR_INTEGRATION")
             end
         end
     end
     
-    print("[CNR_INTEGRATION] System cleanup completed")
+    Log("System cleanup completed", "info", "CNR_INTEGRATION")
 end
 
 -- ====================================================================

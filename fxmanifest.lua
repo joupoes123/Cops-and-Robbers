@@ -8,6 +8,7 @@ version '1.2.0'
 
 -- Define shared scripts, loaded first on both server and client.
 shared_scripts {
+    'version.lua',      -- Centralized version management (loaded first).
     'config.lua',       -- Game mode configuration.
     'constants.lua',    -- Centralized constants and configuration values.
     'safe_utils.lua'    -- Safe utility functions (shared between client and server).
@@ -22,7 +23,6 @@ server_scripts {
     'data_manager.lua',  -- Improved data persistence system with batching.
     'secure_systems.lua', -- Secure inventory and transaction systems with anti-duplication.
     'performance_manager.lua', -- Performance optimization and memory management.
-    'system_test.lua', -- Performance and security testing utilities.
     'player_manager.lua', -- Refactored player data management system (includes integration management).
     
     -- Consolidated server system (includes inventory, progression, and core logic)

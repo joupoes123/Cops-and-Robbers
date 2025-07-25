@@ -1,6 +1,6 @@
 -- client.lua
 -- Cops & Robbers FiveM Game Mode - Client Script
--- Version: 1.2 | Date: June 17, 2025
+-- Version: 1.2.0 | Date: June 17, 2025
 -- Ped readiness flag and guards implemented.
 
 -- =====================================
@@ -998,7 +998,7 @@ local function ApplyRoleVisualsAndLoadout(newRole, oldRole)
    if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
        exports[currentResourceName]:EquipInventoryWeapons()
    else
-       print(string.format("[CNR_CLIENT_ERROR] ApplyRoleVisualsAndLoadout: Could not find export EquipInventoryWeapons in resource %s.", currentResourceName))
+        Log(string.format("ApplyRoleVisualsAndLoadout: Could not find export EquipInventoryWeapons in resource %s.", currentResourceName), "error", "CNR_CLIENT")
    end
 end
 
@@ -1081,7 +1081,7 @@ local function SafeSetDispatchServiceActive(service, toggle)
             Citizen.InvokeNative(nativeHash, service, toggle)
         end)
         if not ok then
-            print("[CNR_CLIENT_WARN] SetDispatchServiceActive (InvokeNative) failed for service " .. tostring(service) .. ": " .. tostring(err))
+            Log("SetDispatchServiceActive (InvokeNative) failed for service " .. tostring(service) .. ": " .. tostring(err), "warn", "CNR_CLIENT")
         end
     else
         -- fallback: do nothing
@@ -1230,7 +1230,7 @@ RegisterCommand('getweapons', function()
     if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
         exports[currentResourceName]:EquipInventoryWeapons()
     else
-        print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
+        Log("EquipInventoryWeapons export not found", "error", "CNR_CLIENT")
     end
 end, false)
 
@@ -1239,7 +1239,7 @@ RegisterCommand('equipweapns', function()
     if exports[currentResourceName] and exports[currentResourceName].EquipInventoryWeapons then
         exports[currentResourceName]:EquipInventoryWeapons()
     else
-        print("[CNR_CLIENT_ERROR] EquipInventoryWeapons export not found")
+        Log("EquipInventoryWeapons export not found", "error", "CNR_CLIENT")
     end
 end, false)
 
@@ -1358,11 +1358,11 @@ end)
 
 function UpdateCopStoreBlips()
     if not Config.NPCVendors then
-        print("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Config.NPCVendors not found.")
+        Log("UpdateCopStoreBlips: Config.NPCVendors not found.", "warn", "CNR_CLIENT")
         return
     end
     if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
-        print("[CNR_CLIENT_ERROR] UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+        Log("UpdateCopStoreBlips: Config.NPCVendors is not an array. Cannot iterate.", "error", "CNR_CLIENT")
         return
     end
     for i, vendor in ipairs(Config.NPCVendors) do
@@ -1389,13 +1389,13 @@ function UpdateCopStoreBlips()
                 end
             else
                 if copStoreBlips[blipKey] and DoesBlipExist(copStoreBlips[blipKey]) then
-                    print(string.format("[CNR_CLIENT_WARN] Removing stray blip from copStoreBlips, associated with a non-Cop Store: '%s' at %s", vendor.name, blipKey))
+                    Log(string.format("Removing stray blip from copStoreBlips, associated with a non-Cop Store: '%s' at %s", vendor.name, blipKey), "warn", "CNR_CLIENT")
                     RemoveBlip(copStoreBlips[blipKey])
                     copStoreBlips[blipKey] = nil
                 end
             end
         else
-            print(string.format("[CNR_CLIENT_WARN] UpdateCopStoreBlips: Invalid vendor entry at index %d.", i))
+            Log(string.format("UpdateCopStoreBlips: Invalid vendor entry at index %d.", i), "warn", "CNR_CLIENT")
         end
     end
     for blipKey, blipId in pairs(copStoreBlips) do
@@ -1422,22 +1422,22 @@ end
 -- Update Robber Store Blips (visible only to robbers)
 function UpdateRobberStoreBlips()
     if not Config.NPCVendors then
-        print("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Config.NPCVendors not found.")
+        Log("UpdateRobberStoreBlips: Config.NPCVendors not found.", "warn", "CNR_CLIENT")
         return
     end
     if type(Config.NPCVendors) ~= "table" or (getmetatable(Config.NPCVendors) and getmetatable(Config.NPCVendors).__name == "Map") then
-        print("[CNR_CLIENT_ERROR] UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.")
+        Log("UpdateRobberStoreBlips: Config.NPCVendors is not an array. Cannot iterate.", "error", "CNR_CLIENT")
         return
     end
       for i, vendor in ipairs(Config.NPCVendors) do
         -- Skip invalid vendor entries
         if not vendor or not vendor.location or not vendor.name then
             if not vendor then
-                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Nil vendor entry at index %d.", i))
+                Log(string.format("UpdateRobberStoreBlips: Nil vendor entry at index %d.", i), "warn", "CNR_CLIENT")
             elseif not vendor.location then
-                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing location for vendor at index %d.", i))
+                Log(string.format("UpdateRobberStoreBlips: Missing location for vendor at index %d.", i), "warn", "CNR_CLIENT")
             elseif not vendor.name then
-                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Missing name for vendor at index %d.", i))
+                Log(string.format("UpdateRobberStoreBlips: Missing name for vendor at index %d.", i), "warn", "CNR_CLIENT")
             end
             -- Skip processing this invalid entry
         elseif vendor and vendor.location and vendor.name then
@@ -1474,7 +1474,7 @@ function UpdateRobberStoreBlips()
                     end
                 end
             else
-                print(string.format("[CNR_CLIENT_WARN] UpdateRobberStoreBlips: Invalid vendor entry at index %d. Vendor: %s", i, vendor and vendor.name or "unknown"))
+                Log(string.format("UpdateRobberStoreBlips: Invalid vendor entry at index %d. Vendor: %s", i, vendor and vendor.name or "unknown"), "warn", "CNR_CLIENT")
             end
         end
     end
@@ -1521,7 +1521,7 @@ function SpawnCopStorePed()
         end
     end
     if not vendor then
-        print("[CNR_CLIENT_ERROR] Cop Store vendor not found in Config.NPCVendors")
+        Log("Cop Store vendor not found in Config.NPCVendors", "error", "CNR_CLIENT")
         return
     end
 
@@ -1556,7 +1556,7 @@ end
 -- Helper to spawn Robber Store peds and protect them from suppression
 function SpawnRobberStorePeds()
     if not Config or not Config.NPCVendors then
-        print("[CNR_CLIENT_ERROR] SpawnRobberStorePeds: Config.NPCVendors not found")
+        Log("SpawnRobberStorePeds: Config.NPCVendors not found", "error", "CNR_CLIENT")
         return
     end
     
@@ -1608,7 +1608,7 @@ function SpawnRobberVehicles()
     end
 
     if not Config or not Config.RobberVehicleSpawns then
-        print("[CNR_CLIENT_ERROR] SpawnRobberVehicles: Config.RobberVehicleSpawns not found")
+        Log("SpawnRobberVehicles: Config.RobberVehicleSpawns not found", "error", "CNR_CLIENT")
         return
     end
 
@@ -1652,10 +1652,10 @@ function SpawnRobberVehicles()
                     SetVehicleEngineOn(vehicle, false, true, false)
                     SetVehicleDoorsLocked(vehicle, 1) -- Unlocked
                 else
-                    print(string.format("[CNR_CLIENT_ERROR] Failed to create vehicle %s", vehicleSpawn.model))
+                    Log(string.format("Failed to create vehicle %s", vehicleSpawn.model), "error", "CNR_CLIENT")
                 end
             else
-                print(string.format("[CNR_CLIENT_ERROR] Failed to load model %s after 100 attempts", vehicleSpawn.model))
+                Log(string.format("Failed to load model %s after 100 attempts", vehicleSpawn.model), "error", "CNR_CLIENT")
             end
 
             SetModelAsNoLongerNeeded(modelHash)
@@ -1709,7 +1709,7 @@ end)
 RegisterNetEvent('cnr:updatePlayerData')
 AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
     if not newPlayerData then
-        print("Error: 'cnr:updatePlayerData' received nil data.")
+        Log("Error: 'cnr:updatePlayerData' received nil data.", "error", "CNR_CLIENT")
         ShowNotification("~r~Error: Failed to load player data.")
         return
     end
@@ -1761,7 +1761,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
             Citizen.Wait(100)
             spawnPlayer(role)
         else
-            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during role change spawn.")
+            Log("cnr:updatePlayerData: playerPed invalid during role change spawn.", "warn", "CNR_CLIENT")
         end
     elseif not oldRole and role and role ~= "citizen" then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
@@ -1769,13 +1769,13 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
             Citizen.Wait(100)
             spawnPlayer(role)
         else
-            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial role spawn.")
+            Log("cnr:updatePlayerData: playerPed invalid during initial role spawn.", "warn", "CNR_CLIENT")
         end
     elseif not oldRole and role and role == "citizen" then
         if playerPedOnUpdate and playerPedOnUpdate ~= 0 and playerPedOnUpdate ~= -1 and DoesEntityExist(playerPedOnUpdate) then
             spawnPlayer(role)
         else
-            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid during initial citizen spawn.")
+            Log("cnr:updatePlayerData: playerPed invalid during initial citizen spawn.", "warn", "CNR_CLIENT")
         end
     end
     SendNUIMessage({ action = 'updateMoney', cash = playerCash })
@@ -1802,7 +1802,7 @@ AddEventHandler('cnr:updatePlayerData', function(newPlayerData)
                 end
             end
         else
-            print("[CNR_CLIENT_WARN] cnr:updatePlayerData: playerPed invalid, cannot give weapons.")
+            Log("cnr:updatePlayerData: playerPed invalid, cannot give weapons.", "warn", "CNR_CLIENT")
         end
     end
     if not g_isPlayerPedReady and role and role ~= "citizen" then

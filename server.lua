@@ -1,5 +1,4 @@
 -- server.lua
--- Version: 1.2.0
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -749,7 +748,6 @@ SetPlayerRole = function(playerId, role, skipNotify)
     end
 
     local playerName = GetPlayerName(pIdNum) or "Unknown"
-    -- Log(string.format("SetPlayerRole DEBUG: Attempting to set role for pIdNum: %s, playerName: %s, to newRole: %s. Current role in playersData: %s", pIdNum, playerName, role, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData")), "info")
 
     local pData = playersData[pIdNum] -- Get pData directly
     if not pData or not pData.isDataLoaded then -- Check both for robustness
@@ -759,9 +757,7 @@ SetPlayerRole = function(playerId, role, skipNotify)
         return
     end
 
-    -- Log(string.format("SetPlayerRole DEBUG: Before role update. pIdNum: %s, current playersData[pIdNum].role: %s, new role to set: %s", pIdNum, (playersData[pIdNum] and playersData[pIdNum].role or "nil_or_no_pData"), role), "info")
     pData.role = role
-    -- Log(string.format("SetPlayerRole DEBUG: After role update. pIdNum: %s, playersData[pIdNum].role is now: %s", pIdNum, playersData[pIdNum].role), "info")
     -- player.Functions.SetMetaData("role", role) -- Example placeholder
 
     if role == "cop" then
@@ -805,7 +801,6 @@ SetPlayerRole = function(playerId, role, skipNotify)
         Log("Player " .. pIdNum .. " (" .. playerName .. ") set to Citizen role.", "info", "CNR_SERVER")
     end
     ApplyPerks(pIdNum, playersData[pIdNum].level, role) -- Re-apply/update perks based on new role
-    -- Log(string.format("SetPlayerRole DEBUG: Before TriggerClientEvent cnr:updatePlayerData. pIdNum: %s, Data being sent: %s", pIdNum, json.encode(playersData[pIdNum])), "info")
     local pDataForBasicInfo = shallowcopy(playersData[pIdNum])
     pDataForBasicInfo.inventory = nil
     SafeTriggerClientEvent('cnr:updatePlayerData', pIdNum, pDataForBasicInfo)
@@ -927,11 +922,6 @@ ApplyPerks = function(playerId, level, role)
                         if perkDetail.type == "passive_perk" and perkDetail.perkId then
                             pData.perks[perkDetail.perkId] = true
                             Log(string.format("Player %s unlocked perk: %s at level %d", pIdNum, perkDetail.perkId, levelKey), "info", "CNR_SERVER")
-                        -- else
-                            -- Log for non-passive_perk types if needed for debugging, e.g.:
-                            -- if perkDetail.type ~= "passive_perk" then
-                            --     Log(string.format("ApplyPerks: Skipping non-passive_perk type '%s' for player %s at level %d.", tostring(perkDetail.type), pIdNum, levelKey))
-                            -- end
                         end
 
                         -- Handle specific perk values (existing logic, ensure perkDetail.type matches and perkId is valid)
@@ -1468,7 +1458,8 @@ AddEventHandler('cnr:playerDamaged', function(targetPlayerId, damage, weaponHash
     end
 end)
 
--- Test command for wanted system (admin only)
+-- Test command for wanted system (admin only) - DISABLED FOR PRODUCTION
+--[[
 RegisterCommand('testwanted', function(source, args, rawCommand)
     local src = source
     if src == 0 then return end -- Console command not supported
@@ -1498,6 +1489,7 @@ RegisterCommand('testwanted', function(source, args, rawCommand)
     UpdatePlayerWantedLevel(src, crimeKey)
     SafeTriggerClientEvent('chat:addMessage', src, { args = {"^2Test", "Wanted level updated for crime: " .. crimeKey} })
 end, false)
+--]]
 
 -- Command for cops to report crimes they witness
 RegisterCommand('reportcrime', function(source, args, rawCommand)
@@ -2268,9 +2260,10 @@ AddEventHandler('playerDropped', function(reason)
 end)
 
 -- ====================================================================
--- PERFORMANCE TESTING EVENT HANDLERS
+-- PERFORMANCE TESTING EVENT HANDLERS - DISABLED FOR PRODUCTION
 -- ====================================================================
 
+--[[
 RegisterNetEvent('cnr:performUITest')
 AddEventHandler('cnr:performUITest', function()
     local src = source
@@ -2295,6 +2288,7 @@ AddEventHandler('cnr:uiTestResults', function(data)
     Log(string.format("[UI_TEST] Player %d submitted test results: %s", src, json.encode(data or {})), "info", "CNR_SERVER")
     -- You can add additional processing logic here if needed
 end)
+--]]
 
 
 
@@ -2682,7 +2676,7 @@ end
 RegisterCommand('start_event', function(source, args, rawCommand)
     -- Debug check
     if not IsPlayerAdmin then
-        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        Log("IsPlayerAdmin function is not defined!", "error", "CNR_ADMIN")
         return
     end
     if source == 0 or IsPlayerAdmin(source) then
@@ -2691,13 +2685,13 @@ RegisterCommand('start_event', function(source, args, rawCommand)
             if exports['cops-and-robbers'] and exports['cops-and-robbers'].StartSeasonalEvent then
                 local success = exports['cops-and-robbers'].StartSeasonalEvent(eventName)
                 if success then
-                    print(string.format("[CNR_ADMIN] Started seasonal event: %s", eventName))
+                    Log(string.format("Started seasonal event: %s", eventName), "info", "CNR_ADMIN")
                 else
-                    print(string.format("[CNR_ADMIN] Failed to start seasonal event: %s", eventName))
+                    Log(string.format("Failed to start seasonal event: %s", eventName), "error", "CNR_ADMIN")
                 end
             end
         else
-            print("[CNR_ADMIN] Usage: /start_event <event_name>")
+            Log("Usage: /start_event <event_name>", "info", "CNR_ADMIN")
         end
     end
 end, false)
@@ -2706,7 +2700,7 @@ end, false)
 RegisterCommand('give_xp', function(source, args, rawCommand)
     -- Debug check
     if not IsPlayerAdmin then
-        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        Log("IsPlayerAdmin function is not defined!", "error", "CNR_ADMIN")
         return
     end
     if source == 0 or IsPlayerAdmin(source) then
@@ -2716,7 +2710,7 @@ RegisterCommand('give_xp', function(source, args, rawCommand)
         
         if targetId and amount then
             AddXP(targetId, amount, "general", reason)
-            print(string.format("[CNR_ADMIN] Gave %d XP to player %d (Reason: %s)", amount, targetId, reason))
+            Log(string.format("Gave %d XP to player %d (Reason: %s)", amount, targetId, reason), "info", "CNR_ADMIN")
             
             if source ~= 0 then
                 SafeTriggerClientEvent('chat:addMessage', source, { 
@@ -2724,7 +2718,7 @@ RegisterCommand('give_xp', function(source, args, rawCommand)
                 })
             end
         else
-            print("[CNR_ADMIN] Usage: /give_xp <player_id> <amount> [reason]")
+            Log("Usage: /give_xp <player_id> <amount> [reason]", "info", "CNR_ADMIN")
         end
     end
 end, false)
@@ -2733,7 +2727,7 @@ end, false)
 RegisterCommand('set_level', function(source, args, rawCommand)
     -- Debug check
     if not IsPlayerAdmin then
-        print("[CNR_ERROR] IsPlayerAdmin function is not defined!")
+        Log("IsPlayerAdmin function is not defined!", "error", "CNR_ADMIN")
         return
     end
     if source == 0 or IsPlayerAdmin(source) then
@@ -2759,7 +2753,7 @@ RegisterCommand('set_level', function(source, args, rawCommand)
                 pDataForBasicInfo.inventory = nil
                 SafeTriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
                 
-                print(string.format("[CNR_ADMIN] Set player %d to level %d", targetId, level))
+                Log(string.format("Set player %d to level %d", targetId, level), "info", "CNR_ADMIN")
                 
                 if source ~= 0 then
                     SafeTriggerClientEvent('chat:addMessage', source, { 
@@ -2768,7 +2762,7 @@ RegisterCommand('set_level', function(source, args, rawCommand)
                 end
             end
         else
-            print("[CNR_ADMIN] Usage: /set_level <player_id> <level>")
+            Log("Usage: /set_level <player_id> <level>", "info", "CNR_ADMIN")
         end
     end
 end, false)
@@ -2971,7 +2965,7 @@ AddEventHandler('cops_and_robbers:reportCrime', function(crimeType)
     -- Verify the crime type is valid
     local crimeConfig = Config.WantedSettings.crimes[crimeType]
     if not crimeConfig then
-        print("[CNR_SERVER_ERROR] Invalid crime type reported: " .. tostring(crimeType))
+        Log("Invalid crime type reported: " .. tostring(crimeType), "error", "CNR_SERVER")
         return
     end
     

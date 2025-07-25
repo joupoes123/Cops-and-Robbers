@@ -1,4 +1,3 @@
--- Version: 1.2.0
 
 -- Ensure required modules are loaded
 if not Constants then
@@ -37,7 +36,7 @@ local function LogMemoryManager(message, level)
         if Log then
             Log(string.format("[CNR_MEMORY_MANAGER] [%s] %s", string.upper(level), message), level)
         else
-            print(string.format("[CNR_MEMORY_MANAGER] [%s] %s", string.upper(level), message))
+            Log(string.format("[%s] %s", string.upper(level), message), level, "CNR_MEMORY_MANAGER")
         end
     end
 end
@@ -704,7 +703,7 @@ end
 
 --- Initialize performance optimizer
 function PerformanceOptimizer.Initialize()
-    print("[CNR_PERFORMANCE] Performance Optimizer initialized")
+    Log("Performance Optimizer initialized", "info", "CNR_PERFORMANCE")
     
     -- Create monitoring loop
     PerformanceOptimizer.CreateOptimizedLoop(function()
@@ -725,7 +724,7 @@ end
 
 --- Cleanup on resource stop
 function PerformanceOptimizer.Cleanup()
-    print("[CNR_PERFORMANCE] Cleaning up performance optimizer...")
+    Log("Cleaning up performance optimizer...", "info", "CNR_PERFORMANCE")
     
     -- Stop all optimized loops
     for loopId, _ in pairs(optimizedLoops) do
@@ -738,24 +737,24 @@ function PerformanceOptimizer.Cleanup()
     -- Final memory cleanup
     PerformanceOptimizer.CleanupMemory()
     
-    print("[CNR_PERFORMANCE] Performance optimizer cleanup completed")
+    Log("Performance optimizer cleanup completed", "info", "CNR_PERFORMANCE")
 end
 
 -- ====================================================================
 -- ====================================================================
 
 function PerformanceManager.Initialize()
-    print("[CNR_PERFORMANCE_MANAGER] Initializing unified performance management system...")
+    Log("Initializing unified performance management system...", "info", "CNR_PERFORMANCE_MANAGER")
     
     MemoryManager.Initialize()
     
     PerformanceOptimizer.Initialize()
     
-    print("[CNR_PERFORMANCE_MANAGER] Unified performance management system initialized")
+    Log("Unified performance management system initialized", "info", "CNR_PERFORMANCE_MANAGER")
 end
 
 function PerformanceManager.Cleanup()
-    print("[CNR_PERFORMANCE_MANAGER] Cleaning up unified performance management system...")
+    Log("Cleaning up unified performance management system...", "info", "CNR_PERFORMANCE_MANAGER")
     
     PerformanceOptimizer.Cleanup()
     
@@ -763,7 +762,7 @@ function PerformanceManager.Cleanup()
         MemoryManager.StopScheduledCleanup(cleanupType)
     end
     
-    print("[CNR_PERFORMANCE_MANAGER] Unified performance management system cleanup completed")
+    Log("Unified performance management system cleanup completed", "info", "CNR_PERFORMANCE_MANAGER")
 end
 
 function PerformanceManager.GetCombinedStats()

@@ -7,8 +7,16 @@ function Log(message, level, prefix)
     prefix = prefix or "CNR"
     
     local shouldLog = false
-    if Config and Config.DebugLogging then
-        shouldLog = true
+    if Config and Config.LoggingEnabled then
+        if Config.DebugLevel == "debug" then
+            shouldLog = true
+        elseif Config.DebugLevel == "info" and (level == "info" or level == "warn" or level == "error") then
+            shouldLog = true
+        elseif Config.DebugLevel == "warn" and (level == "warn" or level == "error") then
+            shouldLog = true
+        elseif Config.DebugLevel == "error" and level == "error" then
+            shouldLog = true
+        end
     end
     
     -- Always log errors and warnings, even if DebugLogging is disabled

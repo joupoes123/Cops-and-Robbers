@@ -3,7 +3,12 @@
 .vscode/*
 .zencoder/*
 .buildkite/*
-# Exception: track docs folder
+.luacheckrc
+.env.example
+.dockerignore
+docker-compose.yml
+Dockerfile
+inventory_server.lua.backup
 
 # Common files to ignore
 *.log
@@ -12,3 +17,4 @@
 .DS_Store
 Thumbs.db
 /player_data
+

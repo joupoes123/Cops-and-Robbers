@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  fivem-cops-robbers:
+    build: .
+    container_name: cops-and-robbers-server
+    restart: unless-stopped
+    ports:
+      - "30120:30120/tcp"
+      - "30120:30120/udp"
+      - "40120:40120/tcp"
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+      - RCON_PASSWORD=${RCON_PASSWORD:-}
+    volumes:
+      - fivem_config:/config
+      - fivem_txdata:/txData
+      - player_data:/opt/cfx-server/resources/cops-and-robbers/player_data
+    stdin_open: true
+    tty: true
+
+volumes:
+  fivem_config:
+  fivem_txdata:
+  player_data:

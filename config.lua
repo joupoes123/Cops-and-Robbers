@@ -1,6 +1,6 @@
 -- config.lua
 -- Cops & Robbers FiveM Game Mode Configuration File
--- Version: 1.1 | Date: 2025-02-11
+-- Version: 1.2.0 | Date: June 17, 2025
 -- This file contains all the configuration settings for the game mode.
 -- Make sure this file is loaded before any scripts that depend on Config.
 
@@ -13,6 +13,9 @@ Config = Config or {}
 -- =========================
 
 Config.DebugLogging   = false -- Set to true to enable detailed server console logging (may cause spam)
+Config.DebugLevel = "none" -- Options: none, error, warn, info, debug
+Config.LoggingEnabled = true
+Config.JSDebugLogging = false -- Control JavaScript console.log statements
 Config.MaxPlayers     = 64
 Config.HeistCooldown  = 600    -- seconds (10 minutes), Cooldown between major heists for a player or globally.
 Config.HeistRadius    = 1000.0 -- meters, General radius for heist related activities or blips.
