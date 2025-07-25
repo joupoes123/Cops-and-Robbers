@@ -1,6 +1,5 @@
 -- player_manager.lua
 -- Refactored player data management system with improved security and performance
--- Version: 1.2.0
 
 -- Ensure required modules are loaded
 if not Constants then
@@ -113,7 +112,7 @@ local function CreateDefaultPlayerData(playerId)
         sessionsPlayed = 1,
         
         -- Version for data migration
-        dataVersion = "1.2.0"
+        dataVersion = Version.CURRENT
     }
 end
 
@@ -178,7 +177,7 @@ local function FixPlayerDataIssues(playerData, playerId)
     playerData.money = math.max(0, playerData.money or Constants.PLAYER_LIMITS.DEFAULT_STARTING_MONEY)
     playerData.inventory = playerData.inventory or {}
     playerData.lastSeen = os.time()
-    playerData.dataVersion = "1.2.0"
+    playerData.dataVersion = Version.CURRENT
     
     -- Validate inventory integrity
     if SecureInventory then
@@ -379,7 +378,7 @@ end
 --- @param playerId number Player ID
 --- @return table Migrated player data
 function PlayerManager.MigratePlayerData(playerData, playerId)
-    local currentVersion = "1.2.0"
+    local currentVersion = Version.CURRENT
     local dataVersion = playerData.dataVersion or "1.0.0"
     
     if dataVersion == currentVersion then
@@ -1636,7 +1635,7 @@ function PlayerManager.MigrateSystemData()
     local success, bansData = DataManager.LoadSystemData("bans")
     if success and bansData then
         if not bansData.version then
-            bansData.version = "1.2.0"
+            bansData.version = Version.CURRENT
             bansData.migrated = os.time()
             DataManager.SaveSystemData("bans", bansData)
             print("[CNR_INTEGRATION] Migrated bans.json")
@@ -1647,7 +1646,7 @@ function PlayerManager.MigrateSystemData()
     local success, purchaseData = DataManager.LoadSystemData("purchases")
     if success and purchaseData then
         if not purchaseData.version then
-            purchaseData.version = "1.2.0"
+            purchaseData.version = Version.CURRENT
             purchaseData.migrated = os.time()
             DataManager.SaveSystemData("purchases", purchaseData)
             print("[CNR_INTEGRATION] Migrated purchase_history.json")

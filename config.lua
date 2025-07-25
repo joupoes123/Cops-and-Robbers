@@ -1,6 +1,6 @@
 -- config.lua
 -- Cops & Robbers FiveM Game Mode Configuration File
--- Version: 1.1 | Date: 2025-02-11
+-- Version: 1.2.0 | Date: June 17, 2025
 -- This file contains all the configuration settings for the game mode.
 -- Make sure this file is loaded before any scripts that depend on Config.
 
