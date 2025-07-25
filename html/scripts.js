@@ -213,7 +213,6 @@ window.addEventListener('message', function(event) {
                                     item.image = 'img/items/default.png';
                                     break;
                             }
-                            console.log(`[CNR_NUI] Fixed missing image for item ${itemId}`);
                         }
                     }
                 }
@@ -253,9 +252,7 @@ window.addEventListener('message', function(event) {
             if (jailTimerContainer && jailTimeRemainingElement) {
                 jailTimeRemainingElement.textContent = formatJailTime(data.initialTime || 0);
                 jailTimerContainer.classList.remove('hidden');
-                console.log("Jail timer UI shown with initial time:", data.initialTime);
             } else {
-                console.error("Jail timer elements not found in HTML.");
             }
             break;
         case 'updateJailTimer':
@@ -266,7 +263,6 @@ window.addEventListener('message', function(event) {
         case 'hideJailTimer':
             if (jailTimerContainer) {
                 jailTimerContainer.classList.add('hidden');
-                console.log("Jail timer UI hidden.");
             }
             break;
         case 'openCharacterEditor':
@@ -279,10 +275,8 @@ window.addEventListener('message', function(event) {
             updateCharacterSlot(data.characterKey, data.characterData);
             break;
         case 'testCharacterEditor':
-            console.log('[CNR_CHARACTER_EDITOR] Test message received');
             const testEditor = document.getElementById('character-editor');
             if (testEditor) {
-                console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
                 fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -293,7 +287,6 @@ window.addEventListener('message', function(event) {
                     })
                 });
             } else {
-                console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
                 fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -321,7 +314,6 @@ window.addEventListener('message', function(event) {
                 wantedStars.style.display = 'none';
             }
             
-            console.log('[CNR_NUI] Wanted UI hidden');
             break;
         case 'showWantedUI':
             // Show wanted level UI elements
@@ -351,10 +343,11 @@ window.addEventListener('message', function(event) {
                 }
             }
             
-            console.log('[CNR_NUI] Wanted UI shown with level:', data.wantedLevel || 'unknown');
             break;
         default:
-            console.warn(`[CNR_NUI] Unhandled NUI action: "${data.action}" with data:`, data);
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.warn(`[CNR_NUI] Unhandled NUI action: "${data.action}" with data:`, data);
+            }
     }
 });
 
@@ -412,7 +405,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
     const shouldShow = xpGained !== null && (xpGained > 0 || previousLevel !== currentLevel);
     
     if (!shouldShow) {
-        console.log('[CNR_NUI] No XP change detected, not showing XP bar');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI] No XP change detected, not showing XP bar');
+        }
         return;
     }
 
@@ -421,7 +416,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
         xpLevelContainer.style.display = 'flex';
         xpLevelContainer.classList.remove('hide');
         xpLevelContainer.classList.add('show');
-        console.log('[CNR_NUI] Showing XP bar with animation');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI] Showing XP bar with animation');
+        }
     }
 
     // Update level text with animation if level changed
@@ -435,7 +432,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
                 levelTextElement.style.transform = 'scale(1)';
                 levelTextElement.style.color = '#e94560';
             }, 500);
-            console.log(`[CNR_NUI] Level up animation: ${previousLevel} -> ${level}`);
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log(`[CNR_NUI] Level up animation: ${previousLevel} -> ${level}`);
+            }
         }
         levelTextElement.textContent = "LVL " + level;
     }
@@ -457,7 +456,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
         // Smooth animation to new percentage
         setTimeout(() => {
             xpBarFillElement.style.width = Math.max(0, Math.min(100, percentage)) + '%';
-            console.log(`[CNR_NUI] XP bar animated to ${percentage.toFixed(1)}%`);
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log(`[CNR_NUI] XP bar animated to ${percentage.toFixed(1)}%`);
+            }
         }, 200);
     }
 
@@ -470,7 +471,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
         xpGainIndicator.offsetHeight;
         xpGainIndicator.classList.add('show');
         
-        console.log(`[CNR_NUI] Showing +${xpGained} XP indicator`);
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log(`[CNR_NUI] Showing +${xpGained} XP indicator`);
+        }
         
         // Remove animation class after animation completes
         setTimeout(() => {
@@ -490,7 +493,9 @@ function updateXPDisplayElements(xp, level, nextLvlXp, xpGained = null) {
             xpLevelContainer.classList.remove('show');
             xpLevelContainer.classList.add('hide');
             
-            console.log('[CNR_NUI] Hiding XP bar after 10 seconds');
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log('[CNR_NUI] Hiding XP bar after 10 seconds');
+            }
             
             // Actually hide the element after animation
             setTimeout(() => {
@@ -530,19 +535,25 @@ function showRoleSelection() {
     }
 }
 function hideRoleSelection() {
-    console.log('[CNR_NUI_ROLE] hideRoleSelection called.');
+    if (window.Config && window.Config.JSDebugLogging) {
+        console.log('[CNR_NUI_ROLE] hideRoleSelection called.');
+    }
     const roleSelectionUI = document.getElementById('role-selection');
     if (roleSelectionUI) {
         // Force blur on any active NUI element
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
             document.activeElement.blur();
-            console.log('[CNR_NUI_ROLE] Blurred active NUI element.');
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log('[CNR_NUI_ROLE] Blurred active NUI element.');
+            }
         }
 
         roleSelectionUI.classList.add('hidden');
         roleSelectionUI.style.display = 'none'; 
         roleSelectionUI.style.visibility = 'hidden'; // Explicitly set visibility
-        console.log('[CNR_NUI_ROLE] roleSelectionUI display set to none and visibility to hidden. Current display:', roleSelectionUI.style.display, 'Visibility:', roleSelectionUI.style.visibility);
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI_ROLE] roleSelectionUI display set to none and visibility to hidden. Current display:', roleSelectionUI.style.display, 'Visibility:', roleSelectionUI.style.visibility);
+        }
 
         document.body.style.backgroundColor = 'transparent';
 
@@ -550,14 +561,18 @@ function hideRoleSelection() {
         // console.log('[CNR_NUI_ROLE] Attempting fetchSetNuiFocus(false, false) from hideRoleSelection...');
         // fetchSetNuiFocus(false, false);
         // console.log('[CNR_NUI_ROLE] fetchSetNuiFocus(false, false) call from hideRoleSelection TEMPORARILY DISABLED.');
-        console.log('[CNR_NUI_ROLE] NUI part of hideRoleSelection complete. Lua (SetNuiFocus) should now take full effect.');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI_ROLE] NUI part of hideRoleSelection complete. Lua (SetNuiFocus) should now take full effect.');
+        }
 
     } else {
         console.error('[CNR_NUI_ROLE] role-selection UI element not found in hideRoleSelection.');
     }
 }
 function openStoreMenu(storeName, storeItems, playerInfo) {
-    console.log('[CNR_NUI_DEBUG] openStoreMenu called with:', { storeName, storeItems, playerInfo });
+    if (window.Config && window.Config.JSDebugLogging) {
+        console.log('[CNR_NUI_DEBUG] openStoreMenu called with:', { storeName, storeItems, playerInfo });
+    }
     
     const storeMenuUI = document.getElementById('store-menu');
     const storeTitleEl = document.getElementById('store-title');
@@ -576,14 +591,18 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
             window.playerInfo = playerInfo;
         }
         
-        console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI_DEBUG] playerInfo received:', window.playerInfo);
+        }
         
         // Handle both property name formats (cash/playerCash, level/playerLevel)
         const newCash = window.playerInfo.cash || window.playerInfo.playerCash || 0;
         const newLevel = window.playerInfo.level || window.playerInfo.playerLevel || 1;
         
-        console.log('[CNR_NUI_DEBUG] cash value:', newCash);
-        console.log('[CNR_NUI_DEBUG] level value:', newLevel);
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[CNR_NUI_DEBUG] cash value:', newCash);
+            console.log('[CNR_NUI_DEBUG] level value:', newLevel);
+        }
         
         // Debug log for level display issues
         if (newLevel === 1 && playerInfo && playerInfo.level && playerInfo.level !== 1) {
@@ -593,11 +612,15 @@ function openStoreMenu(storeName, storeItems, playerInfo) {
         // Update player info display and check for cash changes
         if (playerCashEl) {
             playerCashEl.textContent = `$${newCash.toLocaleString()}`;
-            console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log('[CNR_NUI_DEBUG] Updated cash display to:', `$${newCash.toLocaleString()}`);
+            }
         }
         if (playerLevelEl) {
             playerLevelEl.textContent = `Level ${newLevel}`;
-            console.log('[CNR_NUI_DEBUG] Updated level display to:', `Level ${newLevel}`);
+            if (window.Config && window.Config.JSDebugLogging) {
+                console.log('[CNR_NUI_DEBUG] Updated level display to:', `Level ${newLevel}`);
+            }
         }
           // Show cash notification if cash changed (only when store is opened)
         if (previousCash !== null && previousCash !== newCash) {

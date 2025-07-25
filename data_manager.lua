@@ -55,7 +55,7 @@ local function LogDataManager(message, level)
         if Log then
             Log(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message), level)
         else
-            print(string.format("[CNR_DATA_MANAGER] [%s] %s", string.upper(level), message))
+            Log(string.format("[%s] %s", string.upper(level), message), level, "CNR_DATA_MANAGER")
         end
     end
 end
