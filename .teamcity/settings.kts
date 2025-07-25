@@ -39,6 +39,7 @@ project {
     params {
         param("docker.registry.url", "docker.io")
         param("teamcity.internal.pipelines.creation.enabled", "true")
+        param("docker.registry.username", "indominus12")
     }
 
     features {
