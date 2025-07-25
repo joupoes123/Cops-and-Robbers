@@ -75,7 +75,9 @@ window.UIOptimizer = {
             }
         });
         
-        console.log('[UI_OPTIMIZER] Preloaded', componentsToPreload.length, 'components');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[UI_OPTIMIZER] Preloaded', componentsToPreload.length, 'components');
+        }
     },
     
     // ====================================================================
@@ -478,7 +480,9 @@ window.UIOptimizer = {
      */
     logMetrics() {
         const metrics = this.getMetrics();
-        console.log('[UI_OPTIMIZER] Performance Metrics:', metrics);
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[UI_OPTIMIZER] Performance Metrics:', metrics);
+        }
     },
     
     // ====================================================================
@@ -489,7 +493,9 @@ window.UIOptimizer = {
      * Initialize UI optimizer
      */
     initialize() {
-        console.log('[UI_OPTIMIZER] Initializing UI optimization system...');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[UI_OPTIMIZER] Initializing UI optimization system...');
+        }
         
         // Preload components
         this.preloadComponents();
@@ -504,7 +510,9 @@ window.UIOptimizer = {
             this.cleanupCaches();
         }, 300000); // Every 5 minutes
         
-        console.log('[UI_OPTIMIZER] UI optimization system initialized');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[UI_OPTIMIZER] UI optimization system initialized');
+        }
     },
     
     /**
@@ -530,7 +538,9 @@ window.UIOptimizer = {
             }
         });
         
-        console.log('[UI_OPTIMIZER] Cache cleanup completed');
+        if (window.Config && window.Config.JSDebugLogging) {
+            console.log('[UI_OPTIMIZER] Cache cleanup completed');
+        }
     }
 };
 
@@ -542,7 +552,9 @@ window.UIOptimizer = {
  * Run UI performance test
  */
 function runUIPerformanceTest() {
-    console.log('[UI_OPTIMIZER] Running UI performance test...');
+    if (window.Config && window.Config.JSDebugLogging) {
+        console.log('[UI_OPTIMIZER] Running UI performance test...');
+    }
     
     const testStartTime = performance.now();
     const testItems = [];
@@ -589,7 +601,9 @@ function runUIPerformanceTest() {
         ...window.UIOptimizer.getMetrics()
     };
     
-    console.log('[UI_OPTIMIZER] Performance test results:', results);
+    if (window.Config && window.Config.JSDebugLogging) {
+        console.log('[UI_OPTIMIZER] Performance test results:', results);
+    }
     
     // Send results to server
     fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/uiTestResults`, {

@@ -627,7 +627,7 @@ RegisterCommand('cnr_perftest', function(source, args, rawCommand)
     elseif testType == "report" then
         PerformanceTest.GenerateReport()
     else
-        print("Usage: cnr_perftest [memory|data|ui|all|report]")
+        Log("Usage: cnr_perftest [memory|data|ui|all|report]", "info", "CNR_ADMIN")
     end
 end, false)
 
@@ -650,7 +650,7 @@ RegisterCommand('cnr_security_test', function(source, args, rawCommand)
     elseif testType == "report" then
         SecurityTest.GenerateReport()
     else
-        print("Usage: cnr_security_test [validation|ratelimit|enhancements|all|report]")
+        Log("Usage: cnr_security_test [validation|ratelimit|enhancements|all|report]", "info", "CNR_ADMIN")
     end
 end, false)
 
@@ -672,7 +672,7 @@ RegisterCommand('cnr_system_test', function(source, args, rawCommand)
     elseif testType == "clear" then
         SystemTest.ClearTestResults()
     else
-        print("Usage: cnr_system_test [performance|security|all|report|clear]")
+        Log("Usage: cnr_system_test [performance|security|all|report|clear]", "info", "CNR_ADMIN")
     end
 end, false)
 
@@ -691,4 +691,4 @@ AddEventHandler('cnr:uiTestResults', function(results)
     end
 end)
 
-print("[SYSTEM_TEST] Unified system testing loaded. Commands: cnr_perftest, cnr_security_test, cnr_system_test")
+Log("Unified system testing loaded. Commands: cnr_perftest, cnr_security_test, cnr_system_test", "info", "SYSTEM_TEST")

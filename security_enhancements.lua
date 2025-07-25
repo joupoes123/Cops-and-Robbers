@@ -478,8 +478,8 @@ local function LogValidationError(playerId, operation, error)
         Log(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
             playerName, playerId, operation, error), Constants.LOG_LEVELS.ERROR)
     else
-        print(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
-            playerName, playerId, operation, error))
+        Log(string.format("Player %s (%d) - %s: %s", 
+            playerName, playerId, operation, error), "error", "CNR_VALIDATION_ERROR")
     end
 end
 
