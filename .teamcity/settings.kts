@@ -103,4 +103,8 @@ object Build : BuildType({
             defaultAssignee = "indominus"
         }
     }
+
+    requirements {
+        exists("docker.version")
+    }
 })
