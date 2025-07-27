@@ -32,10 +32,13 @@ local inventoryStats = {
 
 local function LogInventory(playerId, operation, message, level)
     level = level or Constants.LOG_LEVELS.INFO
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = "System"
+    if playerId and playerId > 0 then
+        playerName = GetPlayerName(playerId) or "Unknown"
+    end
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
-        Log(string.format("[CNR_SECURE_INVENTORY] [%s] Player %s (%d) - %s: %s", 
-            string.upper(level), playerName, playerId, operation, message))
+        Log(string.format("[CNR_SECURE_INVENTORY] [%s] Player %s (%s) - %s: %s", 
+            string.upper(level), playerName, tostring(playerId), operation, message))
     end
 end
 
@@ -527,8 +530,17 @@ function HasItem(pData, itemId, quantity, playerId)
     return SecureInventory.HasItem(playerId, itemId, quantity)
 end
 
+function SecureInventory.CleanupPlayerData(playerId)
+    if not playerId then return end
+    
+    if playersData and playersData[playerId] and playersData[playerId].inventory then
+        playersData[playerId].inventory = nil
+        LogInventory(playerId, "CleanupPlayerData", "Player inventory data cleaned up")
+    end
+end
+
 function SecureInventory.Initialize()
-    LogInventory(0, "Initialize", "SecureInventory system initialized")
+    LogInventory(nil, "Initialize", "SecureInventory system initialized")
     return true
 end
 

@@ -29,7 +29,7 @@ local MarkPlayerForInventorySave
 local SavePlayerDataImmediate
 
 -- Global state tables
-local playersData = {}
+playersData = {}
 local copsOnDuty = {}
 local robbersActive = {}
 local jail = {}
