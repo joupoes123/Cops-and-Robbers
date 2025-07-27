@@ -144,6 +144,14 @@ local function CreateBackup(filename)
         return false -- File doesn't exist, no backup needed
     end
     
+    -- Ensure backup directory exists
+    local backupDir = Constants.FILES.BACKUP_DIR
+    local dirExists = LoadResourceFile(GetCurrentResourceName(), backupDir .. "/.")
+    if not dirExists then
+        -- Create backup directory by saving a temporary file and then removing it
+        SaveResourceFile(GetCurrentResourceName(), backupDir .. "/.gitkeep", "", -1)
+    end
+    
     local backupFilename = GetBackupFilename(filename)
     local success = SaveResourceFile(GetCurrentResourceName(), backupFilename, fileData, -1)
     
