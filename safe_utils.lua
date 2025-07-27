@@ -1,6 +1,8 @@
 -- Shared Utilities for Cops and Robbers
 -- Consolidates common functions used across multiple files
 
+local playerNameCache = {}
+
 -- Logging function with configurable prefixes
 function Log(message, level, prefix)
     level = level or "info"
@@ -31,21 +33,35 @@ function Log(message, level, prefix)
     end
 end
 
--- Safe wrapper for FiveM's GetPlayerName native
 function SafeGetPlayerName(playerId)
+    -- Return from cache if available
+    if playerNameCache[playerId] then
+        return playerNameCache[playerId]
+    end
+    
     if not playerId then return nil end
     local idNum = tonumber(playerId)
     if not idNum then return nil end
+    
     local success, name = pcall(function() return GetPlayerName(tostring(idNum)) end)
     if success and name and type(name) == "string" and name ~= "" then
+        playerNameCache[playerId] = name
         return name
     end
     return nil
 end
 
+function UpdatePlayerNameCache(playerId, newName)
+    playerNameCache[playerId] = newName
+end
+
+function ClearPlayerNameCache(playerId)
+    playerNameCache[playerId] = nil
+end
+
 -- Safe wrapper for triggering client events
 function SafeTriggerClientEvent(eventName, playerId, ...)
-    if playerId and type(playerId) == "number" and playerId > 0 and GetPlayerName(playerId) then
+    if playerId and type(playerId) == "number" and playerId > 0 and SafeGetPlayerName(playerId) then
         TriggerClientEvent(eventName, playerId, ...)
         return true
     else

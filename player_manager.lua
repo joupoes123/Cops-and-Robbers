@@ -42,7 +42,7 @@ local playerStats = {
 --- @param level string Log level
 local function LogPlayerManager(playerId, operation, message, level)
     level = level or Constants.LOG_LEVELS.INFO
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = SafeGetPlayerName(playerId) or "Unknown"
     
     if level == Constants.LOG_LEVELS.ERROR or level == Constants.LOG_LEVELS.WARN then
         Log(string.format("[CNR_PLAYER_MANAGER] [%s] Player %s (%d) - %s: %s", 
@@ -86,7 +86,7 @@ local function CreateDefaultPlayerData(playerId)
         -- Basic player information
         playerId = playerId,
         license = GetPlayerLicenseSafe(playerId),
-        name = GetPlayerName(playerId) or "Unknown",
+        name = SafeGetPlayerName(playerId) or "Unknown",
         
         -- Game state
         role = Constants.ROLES.CITIZEN,

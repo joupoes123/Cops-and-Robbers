@@ -71,7 +71,7 @@ function Validation.ValidatePlayer(playerId)
     end
     
     -- Check if player is connected
-    local playerName = GetPlayerName(id)
+    local playerName = SafeGetPlayerName(id)
     if not playerName then
         return false, "Player not found or disconnected"
     end
@@ -443,7 +443,7 @@ function Validation.PeriodicCleanup()
     
     -- Clean up disconnected players
     for playerId in pairs(playerEventCounts) do
-        if not GetPlayerName(playerId) then
+        if not SafeGetPlayerName(playerId) then
             playerEventCounts[playerId] = nil
         end
     end
@@ -472,7 +472,7 @@ end)
 --- @param operation string The operation being validated
 --- @param error string The validation error
 local function LogValidationError(playerId, operation, error)
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = SafeGetPlayerName(playerId) or "Unknown"
     if Log then
         Log(string.format("[CNR_VALIDATION_ERROR] Player %s (%d) - %s: %s", 
             playerName, playerId, operation, error), Constants.LOG_LEVELS.ERROR)
@@ -920,7 +920,7 @@ end
 --- @param eventType string Type of security event
 --- @param details string Event details
 function SecurityEnhancements.LogSecurityEvent(playerId, eventType, details)
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = SafeGetPlayerName(playerId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
     Log(string.format("[CNR_SECURITY] [%s] Player %s (%d) - %s: %s", 
@@ -956,7 +956,7 @@ end
 --- @param activityType string Type of suspicious activity
 --- @param details string Activity details
 function SecurityEnhancements.FlagSuspiciousActivity(playerId, activityType, details)
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = SafeGetPlayerName(playerId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
     Log(string.format("[CNR_SUSPICIOUS] [%s] Player %s (%d) - %s: %s", 
@@ -986,8 +986,8 @@ end
 --- @param command string Command executed
 --- @param amount number Amount involved
 function SecurityEnhancements.LogAdminAction(adminId, targetId, command, amount)
-    local adminName = GetPlayerName(adminId) or "Unknown"
-    local targetName = GetPlayerName(targetId) or "Unknown"
+    local adminName = SafeGetPlayerName(adminId) or "Unknown"
+    local targetName = SafeGetPlayerName(targetId) or "Unknown"
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     
     Log(string.format("[CNR_ADMIN_AUDIT] [%s] Admin %s (%d) executed %s on %s (%d) with amount: %d", 
@@ -998,7 +998,7 @@ end
 --- @param playerId number Player ID
 --- @param reason string Reason for action
 function SecurityEnhancements.HandleSuspiciousPlayer(playerId, reason)
-    local playerName = GetPlayerName(playerId) or "Unknown"
+    local playerName = SafeGetPlayerName(playerId) or "Unknown"
     
     Log(string.format("[CNR_SECURITY_ACTION] Kicking player %s (%d) for: %s", 
         playerName, playerId, reason), Constants.LOG_LEVELS.ERROR)
@@ -1050,7 +1050,7 @@ function SecurityEnhancements.PeriodicSecurityCleanup()
     
     for playerId, data in pairs(suspiciousPlayers) do
         -- Check if player is still connected
-        if not GetPlayerName(playerId) then
+        if not SafeGetPlayerName(playerId) then
             suspiciousPlayers[playerId] = nil
         elseif currentTime - data.lastFailure > cleanupThreshold then
             -- Reset failure count for players who haven't failed recently

@@ -507,7 +507,7 @@ local function ProcessPendingSaves()
             if playerData then
                 -- Determine priority based on player status
                 local priority = 2 -- Default priority
-                if not GetPlayerName(playerId) then
+                if not SafeGetPlayerName(playerId) then
                     priority = 3 -- Higher priority for disconnected players
                 end
                 

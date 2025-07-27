@@ -640,7 +640,7 @@ function PerformanceOptimizer.ForEachPlayerOptimized(callback, batchSize)
     Citizen.CreateThread(function()
         for i, playerId in ipairs(players) do
             -- Validate player is still online
-            if GetPlayerName(playerId) then
+            if SafeGetPlayerName(playerId) then
                 local success, error = pcall(callback, tonumber(playerId))
                 if not success then
                     print(string.format("[CNR_PERFORMANCE] Player iteration error for %s: %s", 
