@@ -1241,14 +1241,13 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Wanted level decay with c
                         ReduceWantedLevel(playerId, Config.WantedSettings.decayRatePoints)
                     end
                 end
-            elseif SafeGetPlayerName(playerId) == nil then
-                -- Player is offline, keep their wanted level but don't decay it
-                -- This preserves wanted levels across disconnections
-            elseif not IsPlayerRobber(playerId) then
-                -- Player switched to cop, clear their wanted level immediately
-                wantedPlayers[playerIdStr] = nil
-                Log(string.format("Cleared wanted level for player %s who switched from robber to cop", playerId), "info", "CNR_SERVER")
-            end
+        elseif SafeGetPlayerName(playerId) == nil then
+            -- Player is offline, keep their wanted level but don't decay it
+            -- This preserves wanted levels across disconnections
+        elseif not IsPlayerRobber(playerId) then
+            -- Player switched to cop, clear their wanted level immediately
+            wantedPlayers[playerIdStr] = nil
+            Log(string.format("Cleared wanted level for player %s who switched from robber to cop", playerId), "info", "CNR_SERVER")
         end
     end
     return true
