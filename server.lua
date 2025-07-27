@@ -1257,44 +1257,9 @@ end, Config.WantedSettings.decayIntervalMs or 30000, 150000, 2)
 local playerSpeedingData = {} -- Track speeding state per player
 local playerVehicleData = {} -- Track vehicle damage and collisions
 
-<<<<<<< HEAD
-CreateThread(function()
-    while true do
-        Wait(1000) -- Check every second
-        
-        for playerId, _ in pairs(robbersActive) do
-            if SafeGetPlayerName(playerId) ~= nil then -- Player is online
-                local playerPed = GetPlayerPed(playerId)
-                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                    local vehicle = GetVehiclePedIsIn(playerPed, false)
-                    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-                        local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
-                        local currentTime = os.time()
-                        local vehicleClass = GetVehicleClass(vehicle)
-                        
-                        -- Exclude aircraft (planes/helicopters) and boats from speeding detection
-                        local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
-||||||| c11bb04
-CreateThread(function()
-    while true do
-        Wait(1000) -- Check every second
-        
-        for playerId, _ in pairs(robbersActive) do
-            if GetPlayerName(playerId) ~= nil then -- Player is online
-                local playerPed = GetPlayerPed(playerId)
-                if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                    local vehicle = GetVehiclePedIsIn(playerPed, false)
-                    if vehicle and vehicle ~= 0 and DoesEntityExist(vehicle) then
-                        local speed = GetEntitySpeed(vehicle) * 2.236936 -- Convert m/s to mph
-                        local currentTime = os.time()
-                        local vehicleClass = GetVehicleClass(vehicle)
-                        
-                        -- Exclude aircraft (planes/helicopters) and boats from speeding detection
-                        local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
-=======
 PerformanceOptimizer.CreateOptimizedLoop(function()
     for playerId, _ in pairs(robbersActive) do
-        if GetPlayerName(playerId) ~= nil then -- Player is online
+        if SafeGetPlayerName(playerId) ~= nil then -- Player is online
             local playerPed = GetPlayerPed(playerId)
             if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
                 local vehicle = GetVehiclePedIsIn(playerPed, false)
@@ -1305,7 +1270,6 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                     
                     -- Exclude aircraft (planes/helicopters) and boats from speeding detection
                     local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
->>>>>>> origin/devin/AXI-11-1753373946
                         local isBoat = (vehicleClass == 14) -- Boats
                         local speedLimit = Config.SpeedLimitMph or 60.0
                         
