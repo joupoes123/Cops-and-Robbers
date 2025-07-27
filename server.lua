@@ -1733,7 +1733,8 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
                 elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
                     SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
                 end
-            else
+            end
+        else
                 -- Player is in the 'jail' table but is offline.
                 -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
                     -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
