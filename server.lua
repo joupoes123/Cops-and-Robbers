@@ -1270,63 +1270,63 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                     
                     -- Exclude aircraft (planes/helicopters) and boats from speeding detection
                     local isAircraft = (vehicleClass == 15 or vehicleClass == 16) -- Helicopters and planes
-                        local isBoat = (vehicleClass == 14) -- Boats
-                        local speedLimit = Config.SpeedLimitMph or 60.0
-                        
-                        -- Initialize player data if not exists
-                        if not playerSpeedingData[playerId] then
-                            playerSpeedingData[playerId] = {
-                                isCurrentlySpeeding = false,
-                                speedingStartTime = 0,
-                                lastSpeedingViolation = 0
-                            }
+                    local isBoat = (vehicleClass == 14) -- Boats
+                    local speedLimit = Config.SpeedLimitMph or 60.0
+                    
+                    -- Initialize player data if not exists
+                    if not playerSpeedingData[playerId] then
+                        playerSpeedingData[playerId] = {
+                            isCurrentlySpeeding = false,
+                            speedingStartTime = 0,
+                            lastSpeedingViolation = 0
+                        }
+                    end
+                    
+                    if not playerVehicleData[playerId] then
+                        playerVehicleData[playerId] = {
+                            lastVehicle = vehicle,
+                            lastVehicleHealth = GetVehicleEngineHealth(vehicle),
+                            lastCollisionCheck = currentTime
+                        }
+                    end
+                    
+                    local speedData = playerSpeedingData[playerId]
+                    local vehicleData = playerVehicleData[playerId]
+                    
+                    -- Check for speeding (increase wanted level) only for ground vehicles
+                    if not isAircraft and not isBoat and speed > speedLimit then
+                        if not speedData.isCurrentlySpeeding then
+                            -- Player just started speeding, start the timer
+                            speedData.speedingStartTime = currentTime
+                            speedData.isCurrentlySpeeding = true
+                        elseif (currentTime - speedData.speedingStartTime) > 5 and (currentTime - speedData.lastSpeedingViolation) > 10 then
+                            -- Player has been speeding for more than 5 seconds and cooldown period has passed
+                            speedData.lastSpeedingViolation = currentTime
+                            UpdatePlayerWantedLevel(playerId, "speeding")
+                            Log(string.format("Player %s caught speeding at %.1f mph (limit: %.1f mph)", playerId, speed, speedLimit), "info", "CNR_SERVER")
                         end
-                        
-                        if not playerVehicleData[playerId] then
-                            playerVehicleData[playerId] = {
-                                lastVehicle = vehicle,
-                                lastVehicleHealth = GetVehicleEngineHealth(vehicle),
-                                lastCollisionCheck = currentTime
-                            }
-                        end
-                        
-                        local speedData = playerSpeedingData[playerId]
-                        local vehicleData = playerVehicleData[playerId]
-                        
-                        -- Check for speeding (increase wanted level) only for ground vehicles
-                        if not isAircraft and not isBoat and speed > speedLimit then
-                            if not speedData.isCurrentlySpeeding then
-                                -- Player just started speeding, start the timer
-                                speedData.speedingStartTime = currentTime
-                                speedData.isCurrentlySpeeding = true
-                            elseif (currentTime - speedData.speedingStartTime) > 5 and (currentTime - speedData.lastSpeedingViolation) > 10 then
-                                -- Player has been speeding for more than 5 seconds and cooldown period has passed
-                                speedData.lastSpeedingViolation = currentTime
-                                UpdatePlayerWantedLevel(playerId, "speeding")
-                                Log(string.format("Player %s caught speeding at %.1f mph (limit: %.1f mph)", playerId, speed, speedLimit), "info", "CNR_SERVER")
+                    else
+                        -- Player is no longer speeding or in exempt vehicle
+                        speedData.isCurrentlySpeeding = false
+                        speedData.speedingStartTime = 0
+                    end
+                    
+                    -- Check for vehicle damage (potential hit and run)
+                    if vehicleData.lastVehicle == vehicle then
+                        local currentHealth = GetVehicleEngineHealth(vehicle)
+                        if currentHealth < vehicleData.lastVehicleHealth - 50 and speed > 20 then -- Significant damage while moving
+                            if (currentTime - vehicleData.lastCollisionCheck) > 3 then -- Cooldown to prevent spam
+                                vehicleData.lastCollisionCheck = currentTime
+                                UpdatePlayerWantedLevel(playerId, "hit_and_run")
+                                Log(string.format("Player %s involved in hit and run (vehicle damage detected)", playerId), "info", "CNR_SERVER")
                             end
-                        else
-                            -- Player is no longer speeding or in exempt vehicle
-                            speedData.isCurrentlySpeeding = false
-                            speedData.speedingStartTime = 0
                         end
-                        
-                        -- Check for vehicle damage (potential hit and run)
-                        if vehicleData.lastVehicle == vehicle then
-                            local currentHealth = GetVehicleEngineHealth(vehicle)
-                            if currentHealth < vehicleData.lastVehicleHealth - 50 and speed > 20 then -- Significant damage while moving
-                                if (currentTime - vehicleData.lastCollisionCheck) > 3 then -- Cooldown to prevent spam
-                                    vehicleData.lastCollisionCheck = currentTime
-                                    UpdatePlayerWantedLevel(playerId, "hit_and_run")
-                                    Log(string.format("Player %s involved in hit and run (vehicle damage detected)", playerId), "info", "CNR_SERVER")
-                                end
-                            end
-                            vehicleData.lastVehicleHealth = currentHealth
-                        else
-                            -- Player switched vehicles, update tracking
-                            vehicleData.lastVehicle = vehicle
-                            vehicleData.lastVehicleHealth = GetVehicleEngineHealth(vehicle)
-                        end
+                        vehicleData.lastVehicleHealth = currentHealth
+                    else
+                        -- Player switched vehicles, update tracking
+                        vehicleData.lastVehicle = vehicle
+                        vehicleData.lastVehicleHealth = GetVehicleEngineHealth(vehicle)
+                    end
                     else
                         -- Player not in vehicle, reset speeding state
                         if playerSpeedingData[playerId] then
