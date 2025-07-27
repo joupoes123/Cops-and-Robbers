@@ -1376,33 +1376,33 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                         local areaKey = area.name or "unknown"
                         
                         if distance <= area.radius then
-                                -- Player is in restricted area
-                                if not playerRestrictedAreaData[playerId][areaKey] then
-                                    -- First time entering this area
-                                    playerRestrictedAreaData[playerId][areaKey] = true
+                            -- Player is in restricted area
+                            if not playerRestrictedAreaData[playerId][areaKey] then
+                                -- First time entering this area
+                                playerRestrictedAreaData[playerId][areaKey] = true
+                                
+                                -- Check if this area applies to robbers (ifNotRobber = false or nil)
+                                if not area.ifNotRobber then
+                                    -- Show warning message
+                                    if area.message then
+                                        SafeTriggerClientEvent('chat:addMessage', playerId, { 
+                                            args = {"^3Restricted Area", area.message} 
+                                        })
+                                    end
                                     
-                                    -- Check if this area applies to robbers (ifNotRobber = false or nil)
-                                    if not area.ifNotRobber then
-                                        -- Show warning message
-                                        if area.message then
-                                            SafeTriggerClientEvent('chat:addMessage', playerId, { 
-                                                args = {"^3Restricted Area", area.message} 
-                                            })
-                                        end
-                                        
-                                        -- Add wanted points if configured
-                                        if area.wantedPoints and area.wantedPoints > 0 then
-                                            UpdatePlayerWantedLevel(playerId, "restricted_area_entry")
-                                            Log(string.format("Player %s entered restricted area: %s - wanted level increased", playerId, areaKey), "info", "CNR_SERVER")
-                                        end
+                                    -- Add wanted points if configured
+                                    if area.wantedPoints and area.wantedPoints > 0 then
+                                        UpdatePlayerWantedLevel(playerId, "restricted_area_entry")
+                                        Log(string.format("Player %s entered restricted area: %s - wanted level increased", playerId, areaKey), "info", "CNR_SERVER")
                                     end
                                 end
-                            else
-                                -- Player left the area
-                                if playerRestrictedAreaData[playerId][areaKey] then
-                                    playerRestrictedAreaData[playerId][areaKey] = nil
-                                end
                             end
+                        else
+                            -- Player left the area
+                            if playerRestrictedAreaData[playerId][areaKey] then
+                                playerRestrictedAreaData[playerId][areaKey] = nil
+                            end
+                        end
                         end
                     end
                 end
