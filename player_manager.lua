@@ -1226,16 +1226,13 @@ end
 -- ====================================================================
 
 RegisterNetEvent('cnr:loadPlayerCharacters')
-AddEventHandler('cnr:loadPlayerCharacters', function()
-    local playerId = source
+AddEventHandler('cnr:loadPlayerCharacters', SecurityEnhancements.SecureEventHandler('cnr:loadPlayerCharacters', function(playerId)
     local characters = PlayerManager.GetPlayerCharacterSlots(playerId)
     TriggerClientEvent('cnr:loadedPlayerCharacters', playerId, characters)
-end)
+end))
 
 RegisterNetEvent('cnr:saveCharacterData')
-AddEventHandler('cnr:saveCharacterData', function(characterKey, characterData)
-    local playerId = source
-    
+AddEventHandler('cnr:saveCharacterData', SecurityEnhancements.SecureEventHandler('cnr:saveCharacterData', function(playerId, characterKey, characterData)
     -- Extract role from character key
     local role = string.match(characterKey, "^(%w+)_")
     if not role or (role ~= "cop" and role ~= "robber") then
@@ -1251,11 +1248,10 @@ AddEventHandler('cnr:saveCharacterData', function(characterKey, characterData)
         TriggerClientEvent('cnr:characterSaveResult', playerId, false, message)
         LogPlayerManager(playerId, "save_character_event", string.format("Failed to save character: %s", message), Constants.LOG_LEVELS.ERROR)
     end
-end)
+end))
 
 RegisterNetEvent('cnr:deleteCharacterData')
-AddEventHandler('cnr:deleteCharacterData', function(characterKey)
-    local playerId = source
+AddEventHandler('cnr:deleteCharacterData', SecurityEnhancements.SecureEventHandler('cnr:deleteCharacterData', function(playerId, characterKey)
     local success, message = PlayerManager.DeletePlayerCharacterSlot(playerId, characterKey)
     
     if success then
@@ -1264,24 +1260,22 @@ AddEventHandler('cnr:deleteCharacterData', function(characterKey)
         TriggerClientEvent('cnr:characterDeleteResult', playerId, false, message)
         LogPlayerManager(playerId, "delete_character_event", string.format("Failed to delete character: %s", message), Constants.LOG_LEVELS.ERROR)
     end
-end)
+end))
 
 RegisterNetEvent('cnr:applyCharacterToPlayer')
-AddEventHandler('cnr:applyCharacterToPlayer', function(characterKey)
-    local playerId = source
+AddEventHandler('cnr:applyCharacterToPlayer', SecurityEnhancements.SecureEventHandler('cnr:applyCharacterToPlayer', function(playerId, characterKey)
     local success, message = PlayerManager.ApplyCharacterToPlayer(playerId, characterKey)
     
     if not success then
         LogPlayerManager(playerId, "apply_character_event", string.format("Failed to apply character: %s", message), Constants.LOG_LEVELS.ERROR)
     end
-end)
+end))
 
 RegisterNetEvent('cnr:getCharacterForRole')
-AddEventHandler('cnr:getCharacterForRole', function(role, slot)
-    local playerId = source
+AddEventHandler('cnr:getCharacterForRole', SecurityEnhancements.SecureEventHandler('cnr:getCharacterForRole', function(playerId, role, slot)
     local characterData = PlayerManager.GetCharacterForRoleSelection(playerId, role, slot)
     TriggerClientEvent('cnr:receiveCharacterForRole', playerId, characterData)
-end)
+end))
 
 -- ====================================================================
 -- COMPATIBILITY FUNCTIONS

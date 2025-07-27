@@ -401,8 +401,7 @@ end
 
 
 RegisterNetEvent('cnr:getInventoryForUI')
-AddEventHandler('cnr:getInventoryForUI', function()
-    local playerId = source
+AddEventHandler('cnr:getInventoryForUI', SecurityEnhancements.SecureEventHandler('cnr:getInventoryForUI', function(playerId)
     local inventory = SecureInventory.GetInventory(playerId)
     
     if inventory then
@@ -412,11 +411,10 @@ AddEventHandler('cnr:getInventoryForUI', function()
         LogInventory(playerId, "GetInventoryForUI", "Failed to retrieve inventory data", Constants.LOG_LEVELS.ERROR)
         TriggerClientEvent('cnr:inventoryError', playerId, "Failed to load inventory")
     end
-end)
+end))
 
 RegisterNetEvent('cnr:useItem')
-AddEventHandler('cnr:useItem', function(itemId)
-    local playerId = source
+AddEventHandler('cnr:useItem', SecurityEnhancements.SecureEventHandler('cnr:useItem', function(playerId, itemId)
     
     if not SecureInventory.HasItem(playerId, itemId, 1) then
         LogInventory(playerId, "UseItem", string.format("Player does not have item: %s", itemId), Constants.LOG_LEVELS.ERROR)
@@ -442,11 +440,10 @@ AddEventHandler('cnr:useItem', function(itemId)
     
     TriggerClientEvent('cnr:itemUsed', playerId, itemId, itemConfig)
     LogInventory(playerId, "UseItem", string.format("Used item: %s", itemId))
-end)
+end))
 
 RegisterNetEvent('cnr:dropItem')
-AddEventHandler('cnr:dropItem', function(itemId, quantity)
-    local playerId = source
+AddEventHandler('cnr:dropItem', SecurityEnhancements.SecureEventHandler('cnr:dropItem', function(playerId, itemId, quantity)
     local dropQuantity = quantity or 1
     
     local success, error = SecureInventory.RemoveItem(playerId, itemId, dropQuantity, "dropped")
@@ -461,7 +458,7 @@ AddEventHandler('cnr:dropItem', function(itemId, quantity)
     
     TriggerClientEvent('cnr:itemDropped', -1, itemId, dropQuantity, coords)
     LogInventory(playerId, "DropItem", string.format("Dropped %d x %s at coordinates", dropQuantity, itemId))
-end)
+end))
 
 
 function InitializePlayerInventory(pData, playerId)
