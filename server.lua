@@ -1733,8 +1733,7 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
                 elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
                     SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
                 end
-            end
-        else
+            else
                 -- Player is in the 'jail' table but is offline.
                 -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
                     -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
@@ -1742,8 +1741,8 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
                     -- So, we can remove them from the live 'jail' table here to keep it clean.
                     Log(string.format("Player %s found in 'jail' table but is offline. Removing from live tracking. Persisted data will determine status on rejoin.", pIdNum), "warn", "CNR_SERVER")
                     jail[pIdNum] = nil
-                end
-            else
+            end
+        else
                  Log(string.format("Invalid player ID key '%s' found in jail table.", tostring(playerIdKey)), "error", "CNR_SERVER")
                  jail[playerIdKey] = nil -- Remove invalid entry
             end
