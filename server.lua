@@ -1339,7 +1339,7 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
         end
     end
     return true
-end, Config.WantedSettings.decayIntervalMs or 30000, 150000, 2)
+end, 1000, 5000, 2)
 
 -- Server-side weapon discharge detection for robbers
 RegisterNetEvent('cnr:weaponFired')
