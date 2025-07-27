@@ -44,7 +44,7 @@ end
 --- Get table size safely
 --- @param tbl table Table to measure
 --- @return number Size of table
-local function GetTableSize(tbl)
+function GetTableSize(tbl)
     if not tbl or type(tbl) ~= "table" then return 0 end
     local count = 0
     for _ in pairs(tbl) do count = count + 1 end
