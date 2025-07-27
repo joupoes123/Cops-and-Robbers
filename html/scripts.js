@@ -1,7 +1,22 @@
 // html/scripts.js
 // Handles NUI interactions for Cops and Robbers game mode.
 
-window.cnrResourceName = 'cops-and-robbers'; // Default fallback, updated by Lua
+const CNRConfig = {
+    resourceName: null,
+    isInitialized: false,
+    getResourceName() {
+        if (!this.isInitialized) {
+            console.warn('Resource name accessed before initialization');
+        }
+        return this.resourceName || 'unknown-resource';
+    },
+    init(name) {
+        this.resourceName = name;
+        this.isInitialized = true;
+        console.log(`Resource name initialized: ${name}`);
+    }
+};
+
 window.fullItemConfig = null; // Will store Config.Items
 
 // Inventory state variables
@@ -35,7 +50,7 @@ const allowedOrigins = [
 ];
 
 window.addEventListener('message', function(event) {
-    const currentResourceOrigin = `nui://${window.cnrResourceName || 'cops-and-robbers'}`;
+    const currentResourceOrigin = `nui://${CNRConfig.getResourceName()}`;
     if (!allowedOrigins.includes(event.origin) && event.origin !== currentResourceOrigin) {
         console.warn(`Security: Received message from untrusted origin: ${event.origin}. Expected: ${currentResourceOrigin} or predefined. Ignoring.`);
         return;
@@ -58,9 +73,9 @@ window.addEventListener('message', function(event) {
     switch (data.action) {
         case 'showRoleSelection':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             showRoleSelection();
@@ -84,10 +99,12 @@ window.addEventListener('message', function(event) {
                     window.playerInfo.cash = data.cash;
                 }
             }
-            break;case 'showStoreMenu':        case 'openStore':
+            break;
+        case 'showStoreMenu':
+        case 'openStore':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                const currentResourceOriginDynamic = `nui://${window.cnrResourceName}`;
+                CNRConfig.init(data.resourceName);
+                const currentResourceOriginDynamic = `nui://${CNRConfig.getResourceName()}`;
                 if (!allowedOrigins.includes(currentResourceOriginDynamic)) {
                     allowedOrigins.push(currentResourceOriginDynamic);
                 }
@@ -148,17 +165,17 @@ window.addEventListener('message', function(event) {
             break;
         case 'showAdminPanel':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                 if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                 if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             showAdminPanel(data.players);
             break;        case 'showBountyBoard':
             if (data.resourceName) {
-                window.cnrResourceName = data.resourceName;
-                if (!allowedOrigins.includes(`nui://${window.cnrResourceName}`)) {
-                    allowedOrigins.push(`nui://${window.cnrResourceName}`);
+                CNRConfig.init(data.resourceName);
+                if (!allowedOrigins.includes(`nui://${CNRConfig.getResourceName()}`)) {
+                    allowedOrigins.push(`nui://${CNRConfig.getResourceName()}`);
                 }
             }
             if (typeof showBountyBoardUI === 'function') showBountyBoardUI(data.bounties);
@@ -277,17 +294,19 @@ window.addEventListener('message', function(event) {
         case 'testCharacterEditor':
             const testEditor = document.getElementById('character-editor');
             if (testEditor) {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                console.log('[CNR_CHARACTER_EDITOR] Character editor element found');
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         success: true, 
-                        message: 'Character editor element exists',
+                        message: 'Character editor element found',
                         elementFound: true
                     })
                 });
             } else {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_test_result`, {
+                console.error('[CNR_CHARACTER_EDITOR] Character editor element NOT found');
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_test_result`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -364,14 +383,14 @@ function formatJailTime(totalSeconds) {
 // NUI Focus Helper Function (remains unchanged)
 async function fetchSetNuiFocus(hasFocus, hasCursor) {
     try {
-        const resName = window.cnrResourceName || 'cops-and-robbers';
+        const resName = CNRConfig.getResourceName();
         await fetch(`https://${resName}/setNuiFocus`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({ hasFocus: hasFocus, hasCursor: hasCursor })
         });
     } catch (error) {
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
+        const resNameForError = CNRConfig.getResourceName();
         console.error(`Error calling setNuiFocus NUI callback (URL attempted: https://${resNameForError}/setNuiFocus):`, error);
     }
 }
@@ -645,7 +664,7 @@ function closeStoreMenu() {
         storeMenuUI.style.display = '';
         
         // Notify Lua client that store is closing
-        const resName = window.cnrResourceName || 'cops-and-robbers';
+        const resName = CNRConfig.getResourceName();
         fetch(`https://${resName}/closeStore`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -819,7 +838,7 @@ function loadSellGridItems() {
     sellGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: rgba(255,255,255,0.6); padding: 40px;">Loading inventory...</div>';
     
     // Fetch player inventory from server
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     console.log('[CNR_NUI] Fetching inventory from resource:', resName);
     
     fetch(`https://${resName}/getPlayerInventory`, {
@@ -1135,7 +1154,7 @@ function getItemIcon(category, itemName) {
 // MODIFIED handleItemAction function
 async function handleItemAction(itemId, quantity, actionType) {
     const endpoint = actionType === 'buy' ? 'buyItem' : 'sellItem';
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     const url = `https://${resName}/${endpoint}`;
 
     try {
@@ -1319,7 +1338,7 @@ document.addEventListener('click', function(event) {
 });
 
 function selectRole(selectedRole) {
-    const resName = window.cnrResourceName || 'cops-and-robbers';
+    const resName = CNRConfig.getResourceName();
     const fetchURL = `https://${resName}/selectRole`;
     fetch(fetchURL, {
         method: 'POST',
@@ -1361,7 +1380,7 @@ function selectRole(selectedRole) {
         }
     })
     .catch(error => {
-        const resNameForError = window.cnrResourceName || 'cops-and-robbers';
+        const resNameForError = CNRConfig.getResourceName();
         console.error(`Error in selectRole NUI callback (URL attempted: https://${resNameForError}/selectRole):`, error);
         showToast(`Failed to select role: ${error.message || 'See F8 console.'}`, 'error');
     });
@@ -1378,7 +1397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Check if it's a role selection or character editor button
                 if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
                     // Open character editor
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/openCharacterEditor`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ role: role, characterSlot: 1 })
@@ -1402,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const role = button.getAttribute('data-role');
                 if (button.classList.contains('role-editor-btn') || button.id.includes('editor')) {
                     // Open character editor
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/openCharacterEditor`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/openCharacterEditor`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ role: role, characterSlot: 1 })
@@ -1428,7 +1447,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (target.classList.contains('admin-action-btn')) {
                 const targetId = target.dataset.targetId;
                 if (!targetId) return;
-                const resName = window.cnrResourceName || 'cops-and-robbers';
+                const resName = CNRConfig.getResourceName();
                 if (target.classList.contains('admin-kick-btn')) {
                     if (confirm(`Kick player ID ${targetId}?`)) {
                         fetch(`https://${resName}/adminKickPlayer`, {
@@ -1459,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentAdminTargetPlayerId) {
             const reasonInput = document.getElementById('admin-ban-reason');
             const reason = reasonInput ? reasonInput.value.trim() : "Banned by Admin via UI.";
-            const resName = window.cnrResourceName || 'cops-and-robbers';
+            const resName = CNRConfig.getResourceName();
             fetch(`https://${resName}/adminBanPlayer`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetId: currentAdminTargetPlayerId, reason: reason })
@@ -1735,7 +1754,7 @@ function closeInventoryUI() {
     fetchSetNuiFocus(false, false);
     
     // Send close message to Lua
-    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/closeInventory`, {
+    fetch(`https://${CNRConfig.getResourceName()}/closeInventory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -1761,7 +1780,7 @@ function updateInventoryPlayerInfo() {
 // Request player inventory from server
 async function requestPlayerInventoryForUI() {
     try {
-        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/getPlayerInventoryForUI`, {
+        const response = await fetch(`https://${CNRConfig.getResourceName()}/getPlayerInventoryForUI`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({})
@@ -2078,7 +2097,7 @@ async function equipSelectedItem() {
     const isEquipped = equippedItems.has(itemId);
     
     try {
-        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/equipInventoryItem`, {
+        const response = await fetch(`https://${CNRConfig.getResourceName()}/equipInventoryItem`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({
@@ -2117,7 +2136,7 @@ async function useSelectedItem() {
     const { itemId, itemData } = selectedInventoryItem;
     
     try {
-        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/useInventoryItem`, {
+        const response = await fetch(`https://${CNRConfig.getResourceName()}/useInventoryItem`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({
@@ -2154,7 +2173,7 @@ async function dropSelectedItem() {
     if (!confirmed) return;
     
     try {
-        const response = await fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/dropInventoryItem`, {
+        const response = await fetch(`https://${CNRConfig.getResourceName()}/dropInventoryItem`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({
@@ -2252,7 +2271,7 @@ function openInventoryUI(data) {
     }
     
     // Request initial inventory data
-    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/getPlayerInventoryForUI`, {
+    fetch(`https://${CNRConfig.getResourceName()}/getPlayerInventoryForUI`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -2317,7 +2336,7 @@ function setupRobberMenuListeners() {
     if (startHeistBtn) {
         startHeistBtn.addEventListener('click', function() {
             console.log('[CNR_ROBBER_MENU] Start heist button clicked');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/startHeist`, {
+            fetch(`https://${CNRConfig.getResourceName()}/startHeist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2331,7 +2350,7 @@ function setupRobberMenuListeners() {
     if (viewBountiesBtn) {
         viewBountiesBtn.addEventListener('click', function() {
             console.log('[CNR_ROBBER_MENU] View bounties button clicked');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/viewBounties`, {
+            fetch(`https://${CNRConfig.getResourceName()}/viewBounties`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2345,7 +2364,7 @@ function setupRobberMenuListeners() {
     if (findHideoutBtn) {
         findHideoutBtn.addEventListener('click', function() {
             console.log('[CNR_ROBBER_MENU] Find hideout button clicked');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/findHideout`, {
+            fetch(`https://${CNRConfig.getResourceName()}/findHideout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2359,7 +2378,7 @@ function setupRobberMenuListeners() {
     if (buyContrabandBtn) {
         buyContrabandBtn.addEventListener('click', function() {
             console.log('[CNR_ROBBER_MENU] Buy contraband button clicked');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/buyContraband`, {
+            fetch(`https://${CNRConfig.getResourceName()}/buyContraband`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})            }).catch(error => console.error('[CNR_ROBBER_MENU] Error buying contraband:', error));
@@ -2497,7 +2516,7 @@ function initializeCharacterEditor() {
             
             const mode = this.getAttribute('data-mode');
             fetchSetNuiFocus(true, true);
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_changeCamera`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: mode })
@@ -2509,7 +2528,7 @@ function initializeCharacterEditor() {
     document.querySelectorAll('.rotate-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const direction = this.getAttribute('data-direction');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_rotateCharacter`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_rotateCharacter`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ direction: direction })
@@ -2524,7 +2543,7 @@ function initializeCharacterEditor() {
             this.classList.add('active');
             
             const gender = this.getAttribute('data-gender');
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_switchGender`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gender: gender })
@@ -2554,7 +2573,7 @@ function initializeCharacterEditor() {
             }
             
             // Send update to client
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_updateFeature`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ category: category, feature: feature, value: value })
@@ -2570,7 +2589,7 @@ function initializeCharacterEditor() {
     if (previewUniformBtn) {
         previewUniformBtn.addEventListener('click', function() {
             if (characterEditorData.selectedUniformPreset !== null) {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_previewUniform`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_previewUniform`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ presetIndex: characterEditorData.selectedUniformPreset })
@@ -2585,7 +2604,7 @@ function initializeCharacterEditor() {
     if (applyUniformBtn) {
         applyUniformBtn.addEventListener('click', function() {
             if (characterEditorData.selectedUniformPreset !== null) {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_applyUniform`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_applyUniform`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ presetIndex: characterEditorData.selectedUniformPreset })
@@ -2599,7 +2618,7 @@ function initializeCharacterEditor() {
 
     if (cancelUniformBtn) {
         cancelUniformBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancelUniformPreview`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_cancelUniformPreview`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2617,7 +2636,7 @@ function initializeCharacterEditor() {
     if (loadCharacterBtn) {
         loadCharacterBtn.addEventListener('click', function() {
             if (characterEditorData.selectedCharacterSlot) {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_loadCharacter`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_loadCharacter`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ characterKey: characterEditorData.selectedCharacterSlot })
@@ -2629,7 +2648,7 @@ function initializeCharacterEditor() {
     if (deleteCharacterBtn) {
         deleteCharacterBtn.addEventListener('click', function() {
             if (characterEditorData.selectedCharacterSlot && confirm('Are you sure you want to delete this character?')) {
-                fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_deleteCharacter`, {
+                fetch(`https://${CNRConfig.getResourceName()}/characterEditor_deleteCharacter`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ characterKey: characterEditorData.selectedCharacterSlot })
@@ -2648,7 +2667,7 @@ function initializeCharacterEditor() {
 
     if (saveBtn) {
         saveBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_save`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2658,7 +2677,7 @@ function initializeCharacterEditor() {
 
     if (cancelBtn) {
         cancelBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2668,7 +2687,7 @@ function initializeCharacterEditor() {
 
     if (closeBtn) {
         closeBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -2705,7 +2724,7 @@ function openCharacterEditor(data) {
     if (!characterEditor) {
         console.error('[CNR_CHARACTER_EDITOR] Character editor element not found in DOM');
         // Send error back to client
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_error`, {
+        fetch(`https://${CNRConfig.getResourceName()}/characterEditor_error`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ error: 'Character editor element not found' })
@@ -2750,7 +2769,7 @@ function openCharacterEditor(data) {
         console.log('[CNR_CHARACTER_EDITOR] Successfully opened character editor for', data.role, 'slot', data.characterSlot);
         
         // Send success confirmation back to client
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_opened`, {
+        fetch(`https://${CNRConfig.getResourceName()}/characterEditor_opened`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ success: true })
@@ -2759,7 +2778,7 @@ function openCharacterEditor(data) {
     } catch (error) {
         console.error('[CNR_CHARACTER_EDITOR] Error opening character editor:', error);
         // Send error back to client
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_error`, {
+        fetch(`https://${CNRConfig.getResourceName()}/characterEditor_error`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ error: error.message })
@@ -2780,7 +2799,7 @@ function closeCharacterEditor() {
         }
 
         // Send close confirmation to client
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_closed`, {
+        fetch(`https://${CNRConfig.getResourceName()}/characterEditor_closed`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ success: true })
@@ -2934,7 +2953,7 @@ function setupCharacterEditorEventHandlers() {
                     characterEditorData.characterData[sliderName] = value;
                     
                     // Send update to client
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/characterEditor_updateFeature`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -2977,7 +2996,7 @@ function setupCharacterEditorEventHandlers() {
                     characterEditorData.characterData.faceFeatures[featureName] = value;
                     
                     // Send update to client
-                    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_updateFeature`, {
+                    fetch(`https://${CNRConfig.getResourceName()}/characterEditor_updateFeature`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -2997,7 +3016,7 @@ function setupCharacterEditorEventHandlers() {
     const saveBtn = document.getElementById('character-editor-save-btn');
     if (saveBtn) {
         saveBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_save`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ success: true })
@@ -3010,7 +3029,7 @@ function setupCharacterEditorEventHandlers() {
     const cancelBtn = document.getElementById('character-editor-cancel-btn');
     if (cancelBtn) {
         cancelBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_cancel`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_cancel`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ success: true })
@@ -3024,7 +3043,7 @@ function setupCharacterEditorEventHandlers() {
     const faceViewBtn = document.getElementById('camera-face-btn');
     if (faceViewBtn) {
         faceViewBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_changeCamera`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: 'face' })
@@ -3037,7 +3056,7 @@ function setupCharacterEditorEventHandlers() {
     const bodyViewBtn = document.getElementById('camera-body-btn');
     if (bodyViewBtn) {
         bodyViewBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_changeCamera`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: 'body' })
@@ -3050,7 +3069,7 @@ function setupCharacterEditorEventHandlers() {
     const fullViewBtn = document.getElementById('camera-full-btn');
     if (fullViewBtn) {
         fullViewBtn.addEventListener('click', function() {
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_changeCamera`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_changeCamera`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: 'full' })
@@ -3069,7 +3088,7 @@ function setupCharacterEditorEventHandlers() {
             document.getElementById('gender-female-btn')?.classList.remove('active');
             this.classList.add('active');
             
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_switchGender`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gender: 'male' })
@@ -3084,7 +3103,7 @@ function setupCharacterEditorEventHandlers() {
             document.getElementById('gender-male-btn')?.classList.remove('active');
             this.classList.add('active');
             
-            fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/characterEditor_switchGender`, {
+            fetch(`https://${CNRConfig.getResourceName()}/characterEditor_switchGender`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ gender: 'female' })
@@ -3248,7 +3267,7 @@ function handleCharacterEditorFrameMessage(data) {
 window.addEventListener('message', function(event) {
     // Forward character editor messages to FiveM client
     if (event.data && event.data.action && event.data.action.startsWith('characterEditor_')) {
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${event.data.action}`, {
+        fetch(`https://${CNRConfig.getResourceName()}/${event.data.action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event.data)
@@ -3270,7 +3289,7 @@ class EnhancedCharacterEditor {
         this.characterSlots = {};
         this.selectedUniformPreset = null;
         this.selectedCharacterSlot = null;
-        this.resourceName = window.cnrResourceName || 'cops-and-robbers';
+        this.resourceName = CNRConfig.getResourceName();
         
         this.init();
     }
@@ -4552,7 +4571,7 @@ class ProgressionSystem {
     }
     
     sendNuiMessage(action, data = {}) {
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${action}`, {
+        fetch(`https://${CNRConfig.getResourceName()}/${action}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -4709,7 +4728,7 @@ class BankingSystem {
     closeATM() {
         this.isATMOpen = false;
         document.getElementById('atm-interface').classList.add('hidden');
-        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeBanking`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -4735,7 +4754,7 @@ class BankingSystem {
     closeBank() {
         this.isBankOpen = false;
         document.getElementById('bank-interface').classList.add('hidden');
-        fetch(`https://${window.cnrResourceName}/closeBanking`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeBanking`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -4766,7 +4785,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4782,7 +4801,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4792,7 +4811,7 @@ class BankingSystem {
     }
 
     quickWithdraw(amount) {
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4806,7 +4825,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankDeposit`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankDeposit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4822,7 +4841,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankWithdraw`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankWithdraw`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4840,7 +4859,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/bankTransfer`, {
+        fetch(`https://${CNRConfig.getResourceName()}/bankTransfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ targetId, amount })
@@ -4866,7 +4885,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/requestLoan`, {
+        fetch(`https://${CNRConfig.getResourceName()}/requestLoan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, duration })
@@ -4881,7 +4900,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/repayLoan`, {
+        fetch(`https://${CNRConfig.getResourceName()}/repayLoan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount })
@@ -4908,7 +4927,7 @@ class BankingSystem {
             return;
         }
 
-        fetch(`https://${window.cnrResourceName}/makeInvestment`, {
+        fetch(`https://${CNRConfig.getResourceName()}/makeInvestment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ investmentId, amount: parseInt(amount) })
@@ -5108,7 +5127,7 @@ class HeistSystem {
         this.isHeistPlanningOpen = false;
         document.getElementById('heist-planning-interface').classList.add('hidden');
         
-        fetch(`https://${window.cnrResourceName}/closeHeistPlanning`, {
+        fetch(`https://${CNRConfig.getResourceName()}/closeHeistPlanning`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5147,7 +5166,7 @@ class HeistSystem {
         this.updateHeistDetails();
 
         // Notify server of heist selection
-        fetch(`https://${window.cnrResourceName}/startHeistPlanning`, {
+        fetch(`https://${CNRConfig.getResourceName()}/startHeistPlanning`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ heistId })
@@ -5187,7 +5206,7 @@ class HeistSystem {
     }
 
     loadAvailableHeists() {
-        fetch(`https://${window.cnrResourceName}/getAvailableHeists`, {
+        fetch(`https://${CNRConfig.getResourceName()}/getAvailableHeists`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5251,7 +5270,7 @@ class HeistSystem {
         const roleId = roleCard.dataset.roleId;
         if (!roleCard.classList.contains('available')) return;
 
-        fetch(`https://${window.cnrResourceName}/joinHeistCrew`, {
+        fetch(`https://${CNRConfig.getResourceName()}/joinHeistCrew`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ crewId: this.currentCrew?.id, role: roleId })
@@ -5313,7 +5332,7 @@ class HeistSystem {
 
         if (!quantity || isNaN(quantity) || quantity <= 0) return;
 
-        fetch(`https://${window.cnrResourceName}/purchaseHeistEquipment`, {
+        fetch(`https://${CNRConfig.getResourceName()}/purchaseHeistEquipment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId: equipmentId, quantity: parseInt(quantity) })
@@ -5370,7 +5389,7 @@ class HeistSystem {
     startHeist() {
         if (!this.selectedHeist) return;
 
-        fetch(`https://${window.cnrResourceName}/startEnhancedHeist`, {
+        fetch(`https://${CNRConfig.getResourceName()}/startEnhancedHeist`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})
@@ -5380,7 +5399,7 @@ class HeistSystem {
     }
 
     leaveCrew() {
-        fetch(`https://${window.cnrResourceName}/leaveHeistCrew`, {
+        fetch(`https://${CNRConfig.getResourceName()}/leaveHeistCrew`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({})

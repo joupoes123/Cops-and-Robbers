@@ -416,7 +416,7 @@ window.UIOptimizer = {
         this.showOptimizedToast(`${type === 'buy' ? 'Buying' : 'Selling'} ${quantity}x ${itemId}...`, 'info');
         
         // Send to game
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/${type}Item`, {
+        fetch(`https://${window.CNRConfig?.getResourceName() || 'unknown-resource'}/${type}Item`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ itemId, quantity })
@@ -606,7 +606,7 @@ function runUIPerformanceTest() {
     }
     
     // Send results to server
-    fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/uiTestResults`, {
+    fetch(`https://${window.CNRConfig?.getResourceName() || 'unknown-resource'}/uiTestResults`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(results)
@@ -621,7 +621,7 @@ window.addEventListener('message', function(event) {
         runUIPerformanceTest();
     } else if (event.data.action === 'getUITestResults') {
         const metrics = window.UIOptimizer ? window.UIOptimizer.getMetrics() : {};
-        fetch(`https://${window.cnrResourceName || 'cops-and-robbers'}/uiTestResults`, {
+        fetch(`https://${window.CNRConfig?.getResourceName() || 'unknown-resource'}/uiTestResults`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(metrics)
