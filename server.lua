@@ -1372,10 +1372,10 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                     end
                     
                     for _, area in ipairs(Config.RestrictedAreas) do
-                            local distance = #(playerCoords - area.center)
-                            local areaKey = area.name or "unknown"
-                            
-                            if distance <= area.radius then
+                        local distance = #(playerCoords - area.center)
+                        local areaKey = area.name or "unknown"
+                        
+                        if distance <= area.radius then
                                 -- Player is in restricted area
                                 if not playerRestrictedAreaData[playerId][areaKey] then
                                     -- First time entering this area
