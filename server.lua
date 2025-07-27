@@ -1727,33 +1727,8 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
     for playerIdKey, jailInstanceData in pairs(jail) do
         local pIdNum = tonumber(playerIdKey) -- Ensure we use the key from pairs()
 
-<<<<<<< HEAD
-            if pIdNum and pIdNum > 0 then
-                if SafeGetPlayerName(pIdNum) ~= nil then -- Check player online
-                    jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
-                    if jailInstanceData.remainingTime <= 0 then
-                        ForceReleasePlayerFromJail(pIdNum, "Sentence served")
-                    elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
-                        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
-                    end
-                else
-                    -- Player is in the 'jail' table but is offline.
-                    -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
-||||||| c11bb04
-            if pIdNum and pIdNum > 0 then
-                if GetPlayerName(pIdNum) ~= nil then -- Check player online
-                    jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
-                    if jailInstanceData.remainingTime <= 0 then
-                        ForceReleasePlayerFromJail(pIdNum, "Sentence served")
-                    elseif jailInstanceData.remainingTime > 0 and jailInstanceData.remainingTime % 60 == 0 then
-                        SafeTriggerClientEvent('chat:addMessage', pIdNum, { args = {"^3Jail Info", string.format("Jail time remaining: %d sec.", jailInstanceData.remainingTime)} })
-                    end
-                else
-                    -- Player is in the 'jail' table but is offline.
-                    -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
-=======
         if pIdNum and pIdNum > 0 then
-            if GetPlayerName(pIdNum) ~= nil then -- Check player online
+            if SafeGetPlayerName(pIdNum) ~= nil then -- Check player online
                 jailInstanceData.remainingTime = jailInstanceData.remainingTime - 1
                 if jailInstanceData.remainingTime <= 0 then
                     ForceReleasePlayerFromJail(pIdNum, "Sentence served")
@@ -1763,7 +1738,6 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Jail time update loop
             else
                 -- Player is in the 'jail' table but is offline.
                 -- This could happen if playerDropped didn't clean them up fully from 'jail' table,
->>>>>>> origin/devin/AXI-11-1753373946
                     -- or if they were added to 'jail' while offline (which shouldn't happen with current logic).
                     -- LoadPlayerData should handle their actual status on rejoin based on persisted pData.jailData.
                     -- So, we can remove them from the live 'jail' table here to keep it clean.
