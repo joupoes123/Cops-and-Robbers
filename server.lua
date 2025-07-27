@@ -1327,13 +1327,13 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                         vehicleData.lastVehicle = vehicle
                         vehicleData.lastVehicleHealth = GetVehicleEngineHealth(vehicle)
                     end
-                    else
-                        -- Player not in vehicle, reset speeding state
-                        if playerSpeedingData[playerId] then
-                            playerSpeedingData[playerId].isCurrentlySpeeding = false
-                            playerSpeedingData[playerId].speedingStartTime = 0
-                        end
+                else
+                    -- Player not in vehicle, reset speeding state
+                    if playerSpeedingData[playerId] then
+                        playerSpeedingData[playerId].isCurrentlySpeeding = false
+                        playerSpeedingData[playerId].speedingStartTime = 0
                     end
+                end
                 end
             end
         end
