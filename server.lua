@@ -1377,29 +1377,10 @@ CreateThread(function()
                         end
                         
                         for _, area in ipairs(Config.RestrictedAreas) do
-||||||| c11bb04
-CreateThread(function()
-    while true do
-        Wait(2000) -- Check every 2 seconds
-        
-        if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
-            for playerId, _ in pairs(robbersActive) do
-                if GetPlayerName(playerId) ~= nil then -- Player is online
-                    local playerPed = GetPlayerPed(playerId)
-                    if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
-                        local playerCoords = GetEntityCoords(playerPed)
-                        
-                        -- Initialize player restricted area data if not exists
-                        if not playerRestrictedAreaData[playerId] then
-                            playerRestrictedAreaData[playerId] = {}
-                        end
-                        
-                        for _, area in ipairs(Config.RestrictedAreas) do
-=======
 PerformanceOptimizer.CreateOptimizedLoop(function()
     if Config.RestrictedAreas and #Config.RestrictedAreas > 0 then
         for playerId, _ in pairs(robbersActive) do
-            if GetPlayerName(playerId) ~= nil then -- Player is online
+            if SafeGetPlayerName(playerId) ~= nil then -- Player is online
                 local playerPed = GetPlayerPed(playerId)
                 if playerPed and playerPed > 0 and DoesEntityExist(playerPed) then
                     local playerCoords = GetEntityCoords(playerPed)
@@ -1410,7 +1391,6 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                     end
                     
                     for _, area in ipairs(Config.RestrictedAreas) do
->>>>>>> origin/devin/AXI-11-1753373946
                             local distance = #(playerCoords - area.center)
                             local areaKey = area.name or "unknown"
                             
