@@ -1017,7 +1017,6 @@ PerformanceOptimizer.CreateOptimizedLoop(function() -- Bounty Increase & Expiry 
             end
             if bountyUpdatedThisCycle then TriggerClientEvent('cops_and_robbers:bountyListUpdate', -1, activeBounties) end
         end
-    end
     return true
 end, 60000, 300000, 3)
 
