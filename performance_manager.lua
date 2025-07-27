@@ -334,12 +334,10 @@ function MemoryManager.Initialize()
     MemoryManager.ScheduleCleanup("garbage", 15 * 60 * 1000)     -- Every 15 minutes
     
     -- Log stats every 30 minutes
-    Citizen.CreateThread(function()
-        while true do
-            Citizen.Wait(30 * 60 * 1000) -- 30 minutes
-            MemoryManager.LogMemoryStats()
-        end
-    end)
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        MemoryManager.LogMemoryStats()
+        return true
+    end, 30 * 60 * 1000, 60 * 60 * 1000, 5)
     
     LogMemoryManager("Memory management system initialized")
 end
