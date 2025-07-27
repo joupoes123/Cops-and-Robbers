@@ -1403,7 +1403,6 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
                                 playerRestrictedAreaData[playerId][areaKey] = nil
                             end
                         end
-                        end
                     end
                 end
             end
