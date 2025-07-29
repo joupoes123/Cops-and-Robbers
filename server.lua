@@ -2148,53 +2148,17 @@ local function SavePlayerDataImmediate(playerId, reason)
 end
 
 -- Periodic save system - saves all pending players every 30 seconds
-<<<<<<< HEAD
-CreateThread(function()
-    while true do
-        Wait(30000) -- 30 seconds
-
-        -- Save all players who have pending saves
-        for playerId, needsSave in pairs(playersSavePending) do
-            if needsSave and SafeGetPlayerName(playerId) then
-                SavePlayerDataImmediate(playerId, "periodic")
-            end
-        end
-
-        -- Clean up offline players from pending saves
-        for playerId, _ in pairs(playersSavePending) do
-            if not SafeGetPlayerName(playerId) then
-                playersSavePending[playerId] = nil
-            end
-||||||| c11bb04
-CreateThread(function()
-    while true do
-        Wait(30000) -- 30 seconds
-
-        -- Save all players who have pending saves
-        for playerId, needsSave in pairs(playersSavePending) do
-            if needsSave and GetPlayerName(playerId) then
-                SavePlayerDataImmediate(playerId, "periodic")
-            end
-        end
-
-        -- Clean up offline players from pending saves
-        for playerId, _ in pairs(playersSavePending) do
-            if not GetPlayerName(playerId) then
-                playersSavePending[playerId] = nil
-            end
-=======
 PerformanceOptimizer.CreateOptimizedLoop(function()
     -- Save all players who have pending saves
     for playerId, needsSave in pairs(playersSavePending) do
-        if needsSave and GetPlayerName(playerId) then
+        if needsSave and SafeGetPlayerName(playerId) then
             SavePlayerDataImmediate(playerId, "periodic")
->>>>>>> origin/devin/AXI-11-1753373946
         end
     end
 
     -- Clean up offline players from pending saves
     for playerId, _ in pairs(playersSavePending) do
-        if not GetPlayerName(playerId) then
+        if not SafeGetPlayerName(playerId) then
             playersSavePending[playerId] = nil
         end
     end
