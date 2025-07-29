@@ -4548,4 +4548,50 @@ end, false)
 -- Add cash command
 RegisterCommand("addcash", function(source, args, rawCommand)
     if not IsPlayerAdmin(source) then
-        Trig
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "You don't have permission to use this command." } })
+        return
+    end
+    
+    local targetIdStr = args[1]
+    local targetId = tonumber(targetIdStr)
+    local amount = tonumber(args[2])
+    
+    -- SECURITY FIX: Comprehensive validation for addcash command
+    if not Validation then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Validation system not available" } })
+        return
+    end
+    
+    -- Validate target player
+    local validTarget, targetError = Validation.ValidatePlayer(targetId)
+    if not validTarget then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid target player: " .. targetError } })
+        return
+    end
+    
+    -- Validate money amount with bounds checking
+    local validMoney, validatedAmount, moneyError = Validation.ValidateMoney(amount, false)
+    if not validMoney then
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid amount: " .. moneyError } })
+        return
+    end
+    
+    if targetId and IsValidPlayer(targetId) and validatedAmount then
+        -- Log admin command (direct server-side logging)
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
+        
+        local pData = GetCnrPlayerData(targetId)
+        if pData then
+            pData.money = (pData.money or 0) + validatedAmount
+            DataManager.MarkPlayerForSave(targetId)
+            local pDataForBasicInfo = shallowcopy(pData)
+            pDataForBasicInfo.inventory = nil
+            TriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Added $" .. validatedAmount .. " to " .. SafeGetPlayerName(targetId) .. ". New balance: $" .. pData.money } })
+        else
+            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
+        end
+    else
+        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /addcash <playerId> <amount>" } })
+    end
+end, false)
