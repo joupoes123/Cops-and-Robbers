@@ -148,8 +148,12 @@ local function CreateBackup(filename)
     local backupDir = Constants.FILES.BACKUP_DIR
     local dirExists = LoadResourceFile(GetCurrentResourceName(), backupDir .. "/.")
     if not dirExists then
-        -- Create backup directory by saving a temporary file and then removing it
-        SaveResourceFile(GetCurrentResourceName(), backupDir .. "/.gitkeep", "", -1)
+        -- Create backup directory by saving a temporary file
+        local success = SaveResourceFile(GetCurrentResourceName(), backupDir .. "/.gitkeep", "", -1)
+        if not success then
+            LogDataManager(string.format("Failed to create backup directory: %s", backupDir), Constants.LOG_LEVELS.WARN)
+            return false
+        end
     end
     
     local backupFilename = GetBackupFilename(filename)
@@ -628,7 +632,8 @@ end
 -- ====================================================================
 
 --- Main data processing thread with improved batching
-PerformanceOptimizer.CreateOptimizedLoop(function()
+if PerformanceOptimizer and PerformanceOptimizer.CreateOptimizedLoop then
+    PerformanceOptimizer.CreateOptimizedLoop(function()
     local startTime = GetGameTimer()
     
     -- Process save queue with batching
@@ -654,17 +659,62 @@ PerformanceOptimizer.CreateOptimizedLoop(function()
         Citizen.Wait(waitTime - 1000) -- Subtract base interval since optimized loop handles base timing
     end
     return true
-end, 1000, 5000, 3)
+    end, 1000, 5000, 3)
+else
+    -- Fallback to basic Citizen.CreateThread
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(1000)
+            local startTime = GetGameTimer()
+            
+            -- Process save queue with batching
+            ProcessSaveQueueBatched()
+            
+            -- Process pending saves
+            ProcessPendingSaves()
+            
+            -- Process scheduled backups
+            ProcessScheduledBackups()
+            
+            local processingTime = GetGameTimer() - startTime
+            local waitTime = 1000
+            
+            if processingTime > 100 then
+                waitTime = math.min(5000, waitTime + 500) -- Increase wait if processing is slow
+            elseif processingTime < 50 then
+                waitTime = math.max(500, waitTime - 100) -- Decrease wait if processing is fast
+            end
+            
+            if waitTime > 1000 then
+                Citizen.Wait(waitTime - 1000) -- Subtract base interval
+            end
+        end
+    end)
+end
 
 --- Performance monitoring thread
-PerformanceOptimizer.CreateOptimizedLoop(function()
-    local stats = DataManager.GetStats()
-    if stats.queueSize > 10 or stats.pendingSaves > 5 then
-        LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
-            stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
-    end
-    return true
-end, 60000, 300000, 4)
+if PerformanceOptimizer and PerformanceOptimizer.CreateOptimizedLoop then
+    PerformanceOptimizer.CreateOptimizedLoop(function()
+        local stats = DataManager.GetStats()
+        if stats.queueSize > 10 or stats.pendingSaves > 5 then
+            LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
+                stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
+        end
+        return true
+    end, 60000, 300000, 4)
+else
+    -- Fallback to basic Citizen.CreateThread
+    Citizen.CreateThread(function()
+        while true do
+            Citizen.Wait(60000) -- 1 minute
+            local stats = DataManager.GetStats()
+            if stats.queueSize > 10 or stats.pendingSaves > 5 then
+                LogDataManager(string.format("Performance warning - Queue: %d, Pending: %d, Success rate: %.1f%%",
+                    stats.queueSize, stats.pendingSaves, stats.successRate), Constants.LOG_LEVELS.WARN)
+            end
+        end
+    end)
+end
 
 -- ====================================================================
 -- MONITORING AND STATISTICS
@@ -708,18 +758,38 @@ function DataManager.Initialize()
     DataManager.ScheduleBackup(Constants.FILES.BANKING_DATA_FILE)
     
     -- Start processing threads
-    PerformanceOptimizer.CreateOptimizedLoop(function()
-        ProcessSaveQueue()
-        ProcessPendingSaves()
-        ProcessScheduledBackups()
-        return true
-    end, Constants.TIME_MS.SAVE_INTERVAL, Constants.TIME_MS.SAVE_INTERVAL * 3, 3)
-    
-    -- Statistics logging thread
-    PerformanceOptimizer.CreateOptimizedLoop(function()
-        DataManager.LogStats()
-        return true
-    end, 10 * Constants.TIME_MS.MINUTE, 30 * Constants.TIME_MS.MINUTE, 5)
+    if PerformanceOptimizer and PerformanceOptimizer.CreateOptimizedLoop then
+        PerformanceOptimizer.CreateOptimizedLoop(function()
+            ProcessSaveQueue()
+            ProcessPendingSaves()
+            ProcessScheduledBackups()
+            return true
+        end, Constants.TIME_MS.SAVE_INTERVAL, Constants.TIME_MS.SAVE_INTERVAL * 3, 3)
+        
+        -- Statistics logging thread
+        PerformanceOptimizer.CreateOptimizedLoop(function()
+            DataManager.LogStats()
+            return true
+        end, 10 * Constants.TIME_MS.MINUTE, 30 * Constants.TIME_MS.MINUTE, 5)
+    else
+        -- Fallback to basic Citizen.CreateThread
+        Citizen.CreateThread(function()
+            while true do
+                Citizen.Wait(Constants.TIME_MS.SAVE_INTERVAL)
+                ProcessSaveQueue()
+                ProcessPendingSaves()
+                ProcessScheduledBackups()
+            end
+        end)
+        
+        -- Statistics logging thread
+        Citizen.CreateThread(function()
+            while true do
+                Citizen.Wait(10 * Constants.TIME_MS.MINUTE)
+                DataManager.LogStats()
+            end
+        end)
+    end
 end
 
 --- Cleanup on resource stop

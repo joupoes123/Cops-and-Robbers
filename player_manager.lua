@@ -1650,15 +1650,31 @@ end
 function PlayerManager.StartMonitoring()
     Log("Starting system monitoring...", "info", "CNR_INTEGRATION")
     
-    -- Create monitoring loop using PerformanceManager
-    if PerformanceManager then
-        PerformanceManager.CreateOptimizedLoop(function()
+    -- Create monitoring loop using PerformanceOptimizer
+    if PerformanceOptimizer and PerformanceOptimizer.CreateOptimizedLoop then
+        PerformanceOptimizer.CreateOptimizedLoop(function()
             PlayerManager.PerformHealthCheck()
         end, 60000, 120000, 3) -- 1 minute base interval, medium priority
         
-        PerformanceManager.CreateOptimizedLoop(function()
+        PerformanceOptimizer.CreateOptimizedLoop(function()
             PlayerManager.LogSystemStats()
         end, 300000, 600000, 5) -- 5 minute base interval, low priority
+    else
+        Log("PerformanceOptimizer not available, using fallback monitoring", "warn", "CNR_INTEGRATION")
+        -- Fallback to basic Citizen.CreateThread
+        Citizen.CreateThread(function()
+            while true do
+                Citizen.Wait(60000) -- 1 minute
+                PlayerManager.PerformHealthCheck()
+            end
+        end)
+        
+        Citizen.CreateThread(function()
+            while true do
+                Citizen.Wait(300000) -- 5 minutes
+                PlayerManager.LogSystemStats()
+            end
+        end)
     end
 end
 
