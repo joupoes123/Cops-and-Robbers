@@ -47,8 +47,6 @@ setr cops_robbers_economy_multiplier 1.0
 
 Ensure you have the following dependencies installed:
 - **mysql-async** or **oxmysql**
-- **es_extended** (optional, for ESX integration)
-- **qb-core** (optional, for QBCore integration)
 
 ## Step 5: Start Your Server
 
