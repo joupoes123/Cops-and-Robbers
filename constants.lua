@@ -231,37 +231,40 @@ Constants.NOTIFICATION_TYPES = {
 }
 
 -- Weapon hash constants (commonly used weapons)
+-- Note: These are initialized as functions to avoid calling GetHashKey during module load
 Constants.WEAPON_HASHES = {
-    UNARMED = GetHashKey("WEAPON_UNARMED"),
-    PISTOL = GetHashKey("WEAPON_PISTOL"),
-    COMBAT_PISTOL = GetHashKey("WEAPON_COMBATPISTOL"),
-    SMG = GetHashKey("WEAPON_SMG"),
-    ASSAULT_RIFLE = GetHashKey("WEAPON_ASSAULTRIFLE"),
-    CARBINE_RIFLE = GetHashKey("WEAPON_CARBINERIFLE"),
-    SNIPER_RIFLE = GetHashKey("WEAPON_SNIPERRIFLE"),
-    STUNGUN = GetHashKey("WEAPON_STUNGUN"),
-    NIGHTSTICK = GetHashKey("WEAPON_NIGHTSTICK"),
-    FLASHLIGHT = GetHashKey("WEAPON_FLASHLIGHT")
+    UNARMED = function() return GetHashKey("WEAPON_UNARMED") end,
+    PISTOL = function() return GetHashKey("WEAPON_PISTOL") end,
+    COMBAT_PISTOL = function() return GetHashKey("WEAPON_COMBATPISTOL") end,
+    SMG = function() return GetHashKey("WEAPON_SMG") end,
+    ASSAULT_RIFLE = function() return GetHashKey("WEAPON_ASSAULTRIFLE") end,
+    CARBINE_RIFLE = function() return GetHashKey("WEAPON_CARBINERIFLE") end,
+    SNIPER_RIFLE = function() return GetHashKey("WEAPON_SNIPERRIFLE") end,
+    STUNGUN = function() return GetHashKey("WEAPON_STUNGUN") end,
+    NIGHTSTICK = function() return GetHashKey("WEAPON_NIGHTSTICK") end,
+    FLASHLIGHT = function() return GetHashKey("WEAPON_FLASHLIGHT") end
 }
 
 -- Vehicle model hashes (commonly used)
+-- Note: These are initialized as functions to avoid calling GetHashKey during module load
 Constants.VEHICLE_HASHES = {
-    POLICE = GetHashKey("police"),
-    POLICE2 = GetHashKey("police2"),
-    POLICE3 = GetHashKey("police3"),
-    FBI = GetHashKey("fbi"),
-    FBI2 = GetHashKey("fbi2"),
-    SHERIFF = GetHashKey("sheriff"),
-    STOCKADE = GetHashKey("stockade")
+    POLICE = function() return GetHashKey("police") end,
+    POLICE2 = function() return GetHashKey("police2") end,
+    POLICE3 = function() return GetHashKey("police3") end,
+    FBI = function() return GetHashKey("fbi") end,
+    FBI2 = function() return GetHashKey("fbi2") end,
+    SHERIFF = function() return GetHashKey("sheriff") end,
+    STOCKADE = function() return GetHashKey("stockade") end
 }
 
 -- Ped model hashes
+-- Note: These are initialized as functions to avoid calling GetHashKey during module load
 Constants.PED_HASHES = {
-    COP = GetHashKey("s_m_y_cop_01"),
-    FEMALE_COP = GetHashKey("s_f_y_cop_01"),
-    SWAT = GetHashKey("s_m_y_swat_01"),
-    DEALER = GetHashKey("s_m_y_dealer_01"),
-    GANG_MEMBER = GetHashKey("g_m_y_mexgang_01")
+    COP = function() return GetHashKey("s_m_y_cop_01") end,
+    FEMALE_COP = function() return GetHashKey("s_f_y_cop_01") end,
+    SWAT = function() return GetHashKey("s_m_y_swat_01") end,
+    DEALER = function() return GetHashKey("s_m_y_dealer_01") end,
+    GANG_MEMBER = function() return GetHashKey("g_m_y_mexgang_01") end
 }
 
 -- Database/Storage constants (for future database implementation)

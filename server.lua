@@ -1,4 +1,4 @@
--- server.lua
+﻿-- server.lua
 
 -- Configuration shortcuts (Config must be loaded before Log if Log uses it)
 -- However, config.lua is a shared_script, so Config global should be available.
@@ -1114,7 +1114,7 @@ SafeTriggerClientEvent('cnr:wantedLevelSync', pIdNum, currentWanted) -- Syncs wa
         end
     end
     if uiLabel == "" then
-        uiLabel = "Wanted: " .. string.rep("★", newStars) .. string.rep("☆", 5 - newStars)
+        uiLabel = "Wanted: " .. string.rep("â˜…", newStars) .. string.rep("â˜†", 5 - newStars)
     end
 
     SafeTriggerClientEvent('cnr:showWantedNotification', pIdNum, newStars, currentWanted.wantedLevel, uiLabel)
@@ -1898,7 +1898,7 @@ AddEventHandler('cops_and_robbers:getItemList', function(storeType, vendorItemId
                         forCop = configItem.forCop,
                         minLevelCop = configItem.minLevelCop or 1,
                         minLevelRobber = configItem.minLevelRobber or 1,
-                        icon = configItem.icon or "📦", -- Default icon
+                        icon = configItem.icon or "ðŸ“¦", -- Default icon
                         image = GetItemImagePath(configItem), -- Use helper function for proper image path
                         description = configItem.description or ""
                     }
@@ -4545,6 +4545,31 @@ RegisterCommand("setcash", function(source, args, rawCommand)
     end
 end, false)
 
+-- =========================
+--      Export Functions
+-- =========================
+
+-- Export function for getting character data for role selection
+function GetCharacterForRoleSelection(playerId)
+    if not playerId or not IsValidPlayer(playerId) then
+        return nil
+    end
+    
+    local playerData = GetCnrPlayerData(playerId)
+    if not playerData then
+        return nil
+    end
+    
+    -- Return basic character data for role selection
+    return {
+        role = playerData.role or "citizen",
+        level = playerData.level or 1,
+        money = playerData.money or 0,
+        characterData = playerData.characterData or {},
+        lastSeen = playerData.lastSeen or os.time()
+    }
+end
+
 -- Add cash command
 RegisterCommand("addcash", function(source, args, rawCommand)
     if not IsPlayerAdmin(source) then
@@ -4575,23 +4600,25 @@ RegisterCommand("addcash", function(source, args, rawCommand)
         TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid amount: " .. moneyError } })
         return
     end
-    
+
     if targetId and IsValidPlayer(targetId) and validatedAmount then
         -- Log admin command (direct server-side logging)
-        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), Constants.LOG_LEVELS.INFO)
-        
-        local pData = GetCnrPlayerData(targetId)
-        if pData then
-            pData.money = (pData.money or 0) + validatedAmount
-            DataManager.MarkPlayerForSave(targetId)
-            local pDataForBasicInfo = shallowcopy(pData)
-            pDataForBasicInfo.inventory = nil
-            TriggerClientEvent('cnr:updatePlayerData', targetId, pDataForBasicInfo)
-            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Added $" .. validatedAmount .. " to " .. SafeGetPlayerName(targetId) .. ". New balance: $" .. pData.money } })
-        else
-            TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Failed to find player data for ID: " .. targetId } })
-        end
+        Log(string.format("[CNR_ADMIN_LOG] %s (ID: %s) executed: %s", SafeGetPlayerName(source), source, rawCommand), "info", "CNR_SERVER")
+
+        -- Add money to target player
+        AddPlayerMoney(targetId, validatedAmount)
+
+        -- Notify admin
+        TriggerClientEvent('chat:addMessage', source, {
+            args = { "^2Admin", string.format("Added $%d to %s", validatedAmount, SafeGetPlayerName(targetId)) }
+        })
+
+        -- Notify target player
+        TriggerClientEvent('cnr:showNotification', targetId,
+            string.format("~g~An admin added $%d to your account!", validatedAmount))
     else
-        TriggerClientEvent('chat:addMessage', source, { args = { "^1Admin", "Invalid input. Usage: /addcash <playerId> <amount>" } })
+        TriggerClientEvent('chat:addMessage', source, {
+            args = { "^1Admin", "Usage: /addcash [player_id] [amount]" }
+        })
     end
 end, false)

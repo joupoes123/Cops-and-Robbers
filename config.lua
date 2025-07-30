@@ -1970,3 +1970,134 @@ Config.CrewRoles = {
         requiredLevel = 16
     }
 }
+
+-- =========================
+--    Missing Config Properties
+-- =========================
+
+-- Speed limit for wanted system
+Config.SpeedLimitMph = 60.0
+
+-- Keybind configurations
+Config.Keybinds = {
+    openInventory = 244,      -- M Key (INPUT_INTERACTION_MENU)
+    toggleAdminPanel = 289,   -- F2 Key
+    openStore = 38,           -- E Key (INPUT_CONTEXT)
+    openCharacterEditor = 167 -- F6 Key
+}
+
+-- Contraband dealer locations
+Config.ContrabandDealers = {
+    {
+        location = vector4(1005.76, 88.40, 90.24, 270.24),
+        model = "s_m_y_dealer_01",
+        name = "Black Market Dealer",
+        blipSprite = 378,
+        blipColor = 1,
+        items = {
+            "weapon_knife",
+            "weapon_switchblade",
+            "weapon_microsmg",
+            "lockpick",
+            "mask"
+        }
+    }
+}
+
+-- Wanted system settings
+Config.WantedSettings = {
+    levels = {
+        { stars = 1, description = "Minor Crime", bounty = 1000 },
+        { stars = 2, description = "Moderate Crime", bounty = 2500 },
+        { stars = 3, description = "Serious Crime", bounty = 5000 },
+        { stars = 4, description = "Major Crime", bounty = 10000 },
+        { stars = 5, description = "Most Wanted", bounty = 25000 }
+    }
+}
+
+-- Character editor configuration
+Config.CharacterEditor = {
+    defaultCharacter = {
+        model = "mp_m_freemode_01",
+        face = 0,
+        skin = 0,
+        hair = 0,
+        hairColor = 0,
+        eyeColor = 0,
+        beard = 0,
+        beardColor = 0,
+        eyebrows = 0,
+        eyebrowsColor = 0,
+        makeup = 0,
+        lipstick = 0,
+        tattoos = {}
+    }
+}
+
+-- Leveling system configuration
+Config.LevelingSystemEnabled = true
+Config.MaxLevel = 50
+Config.XPTable = {
+    [1] = 1000,   [2] = 1200,   [3] = 1400,   [4] = 1600,   [5] = 1800,
+    [6] = 2000,   [7] = 2200,   [8] = 2400,   [9] = 2600,   [10] = 2800,
+    [11] = 3000,  [12] = 3200,  [13] = 3400,  [14] = 3600,  [15] = 3800,
+    [16] = 4000,  [17] = 4200,  [18] = 4400,  [19] = 4600,  [20] = 4800,
+    [21] = 5000,  [22] = 5200,  [23] = 5400,  [24] = 5600,  [25] = 5800,
+    [26] = 6000,  [27] = 6200,  [28] = 6400,  [29] = 6600,  [30] = 6800,
+    [31] = 7000,  [32] = 7200,  [33] = 7400,  [34] = 7600,  [35] = 7800,
+    [36] = 8000,  [37] = 8200,  [38] = 8400,  [39] = 8600,  [40] = 8800,
+    [41] = 9000,  [42] = 9200,  [43] = 9400,  [44] = 9600,  [45] = 9800,
+    [46] = 10000, [47] = 10200, [48] = 10400, [49] = 10600, [50] = 10800
+}
+
+-- Heist locations (basic configuration)
+Config.HeistLocations = {
+    {
+        location = vector3(150.0, -1040.0, 29.0),
+        name = "Pacific Standard Bank",
+        type = "bank",
+        difficulty = "hard",
+        reward = {min = 50000, max = 150000}
+    },
+    {
+        location = vector3(-1212.0, -330.0, 37.8),
+        name = "Fleeca Bank (Vinewood)",
+        type = "bank",
+        difficulty = "medium",
+        reward = {min = 25000, max = 75000}
+    }
+}
+
+-- Robber hideout locations
+Config.RobberHideouts = {
+    {
+        location = vector3(1395.2, 1141.9, 114.3),
+        name = "Vinewood Hills Safehouse",
+        blipSprite = 40,
+        blipColor = 1,
+        services = {"weapon_storage", "vehicle_storage", "planning"}
+    },
+    {
+        location = vector3(-1165.4, -1566.0, 4.4),
+        name = "Vespucci Warehouse",
+        blipSprite = 40,
+        blipColor = 1,
+        services = {"weapon_storage", "vehicle_storage"}
+    }
+}
+
+-- Bank teller locations
+Config.BankTellers = {
+    {
+        location = vector4(150.0, -1040.0, 29.0, 340.0),
+        model = "cs_bankman",
+        name = "Pacific Standard Teller",
+        services = {"accounts", "transfers", "loans"}
+    },
+    {
+        location = vector4(-1212.0, -330.0, 37.8, 26.0),
+        model = "cs_bankman",
+        name = "Fleeca Bank Teller",
+        services = {"accounts", "transfers"}
+    }
+}
